@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-24T11:19:45Z",
+  "generated": "2026-10-24T12:47:35Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -573,7 +573,7 @@
     ".claude/data/design-review-prompt.md": "5fb5c7f4d098360c142e9a2963fd66569ea8725aff7838b165747a24a71f75d5",
     ".claude/data/ecosystem-context.json": "2358595b3f6ba8e98aa3bf3707313d8962a174f65f41b1be6faeb72ae83c906c",
     ".claude/data/error-codes.json": "42dbc0d2f32b48405dab44f6a8d325aec48cff221deb22b50fb83ec2319005f1",
-    ".claude/data/floor.yaml": "1c998b5d3b0a9758b9a6ff60221b3d5563f7e9d2fd5f219104b48daa543dcf34",
+    ".claude/data/floor.yaml": "f6f5aa5cc12d7a9b5a111ed776210398c93514f7a3c5a40dcd07a05234cf57e8",
     ".claude/data/glossary-allowlist.txt": "e956a9f77024c5cbd2c0e80cec0b090fa5208e7aa4083b353351001945890f8c",
     ".claude/data/golden-path.json": "736b78ea163a41964f2c23be25450984a28c5dc5c1b95738962af9761a233aea",
     ".claude/data/guard-origins.yaml": "88947b13ab8195a49fff53feeaa723c909779e40747f0a01f916a812838cfd27",
@@ -1442,7 +1442,7 @@
     ".claude/scripts/validate-skill-capabilities.sh": "04d89d0bf64f456a2b60e893621e29c6adfffad7d29599d104e871b11b12c58b",
     ".claude/scripts/validate-skills.sh": "4107682af56ffa055a6f77ccc837813dfc14afd02c41eb75a1f90f07fd58fdcc",
     ".claude/scripts/validate-sprint-id.sh": "f91a131f2b9b04d7fd171df3ad89d3a350de70da702390ae990ba8d2b4c9d902",
-    ".claude/scripts/verdict-derive.sh": "37d9d318d2cb5f819e0f2e322e9f3b8fc5f8a0b5f63a504e4d7e9863e22c7911",
+    ".claude/scripts/verdict-derive.sh": "c58e33122457f4e632322cb80ca322d0bbc4e3499364960c1e3aa2bdcf4561a2",
     ".claude/scripts/verify-deny-rules.sh": "eb62453247f5e929d9263ae0308535c6a287c0030c9c85a4dd3cb09909750fbd",
     ".claude/scripts/verify-invariants.sh": "2e7b9a746e17acc2561ae1568d79d0e95615aa59c88b8dba534eaa302a735af1",
     ".claude/scripts/vision-lib.sh": "c13e469f93e4b6f8ded539de16d834ddcf02bd473748ca0b475b2edb9d7ecaa0",

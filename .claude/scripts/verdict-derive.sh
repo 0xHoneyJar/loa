@@ -473,12 +473,20 @@ finding_bullets_check() {  # appends a violation per invalid defect bullet; sets
     # nothing but blanks after; H2 sections tracked, '# ' resets; no interval expression and no POSIX class — mawk)
     _rows=$(awk '{ ln++; sub(/\r$/, "") }
         /^ ? ? ?(```|~~~)/{l = $0; sub(/^ */, "", l); q = substr(l, 1, 1); k = 0; while (substr(l, k + 1, 1) == q) k++; r = substr(l, k + 1)
-          if (!f) { if (q != "`" || r !~ /`/) { f = 1; fq = q; fl = k; next } }
+          if (!f) { if (q != "`" || r !~ /`/) { f = 1; fq = q; fl = k; fo = ln; next } }
           else if (q == fq && k >= fl && r ~ /^[ \t]*$/) { f = 0; next } }
         f { next }
         /^# / { sec = ""; next }
         /^## / { sec = $0; sub(/^## +/, "", sec); next }
-        /^ ? ? ?([-*+]|[0-9]+\.)[ \t]/ { if (sec !~ /^Rejected dissent payloads/) printf "%d\t%s\t%s\n", ln, sec, $0 }' < "$FILE") || { violations+=("the finding bullets of this file could not be read (the bullet scan failed) — the Failure-clause rule cannot be checked"); return 0; }
+        /^ ? ? ?([-*+]|[0-9]+\.)[ \t]/ { if (sec !~ /^Rejected dissent payloads/) printf "%d\t%s\t%s\n", ln, sec, $0 }
+        END { if (f) printf "%d\t__unclosed_fence__\t\n", fo }' < "$FILE") || { violations+=("the finding bullets of this file could not be read (the bullet scan failed) — the Failure-clause rule cannot be checked"); return 0; }
+    # cycle-133 Sprint 274 review round 1: a fence still open at the end of the file would hide every later list item
+    # from this scan — fail closed instead of silently judging nothing after it
+    if [[ "$_rows" == *$'\t__unclosed_fence__\t'* ]]; then
+        local _fo; _fo="$(awk -F'\t' '$2 == "__unclosed_fence__" { print $1 }' <<<"$_rows" | head -1)"
+        violations+=("line ${_fo:-?}: a code fence opened here never closes — every later finding bullet would be hidden from the C-11 scan; close the fence (fail-closed)")
+        _rows="$(grep -v $'\t__unclosed_fence__\t' <<<"$_rows" || true)"
+    fi
     [[ -n "$_rows" ]] || return 0
     if [[ -z "${FINDING_VALIDATE_JQ:-}" ]]; then
         if [[ ! -f "$_VD_DIR/lib/finding-validate.sh" ]]; then

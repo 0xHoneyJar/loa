@@ -128,6 +128,23 @@ trailer() {  # trailer <gate> <verdict> <c> <h> <m> <l> [extra-json-fields]
     [ "$status" -eq 1 ]
 }
 
+@test "VFC-13 an unclosed code fence before the findings is a violation (fail closed): the bullets behind it cannot hide from the tally" {
+    # Sprint 274 review round 1: an APPROVED-shaped file whose fence never closes used to derive consistent while a
+    # CRITICAL bullet sat behind the fence
+    { printf 'All good\n\n## Summary\n\nClean.\n\n```\n- **CRITICAL** (confidence: high) `src/a.py:3` — hidden. Failure: when the fence never closes then the bullet is not judged.\n\n'
+      trailer review APPROVED 0 0 0 0; } > "$T/r.md"
+    run --separate-stderr "$SCRIPT" --file "$T/r.md" --gate review --json
+    [ "$status" -ne 0 ]
+    [ "$(jq -r '.consistent' <<<"$output")" = "false" ]
+    jq -e '.violations | any(test("line 7: a code fence opened here never closes"))' <<<"$output" >/dev/null
+    # control: the same file with the fence closed is judged by the tally itself
+    { printf 'All good\n\n## Summary\n\nClean.\n\n```\nx\n```\n- **CRITICAL** (confidence: high) `src/a.py:3` — visible. Failure: when the fence closes then the bullet is judged.\n\n'
+      trailer review APPROVED 0 0 0 0; } > "$T/c.md"
+    run --separate-stderr "$SCRIPT" --file "$T/c.md" --gate review --json
+    [ "$status" -ne 0 ]
+    jq -e '.violations | any(test("cannot be APPROVED")) and (any(test("never closes")) | not)' <<<"$output" >/dev/null
+}
+
 @test "VFC-12 the content rule reaches the bullet: a denylisted scenario (see above) is a violation naming the code" {
     { printf '## Changes Required\n\n- **HIGH** (confidence: high) `src/a.py:3` — stale read. Failure: see above.\n\n'; trailer review CHANGES_REQUIRED 0 1 0 0; } > "$T/r.md"
     run --separate-stderr "$SCRIPT" --file "$T/r.md" --gate review --json
