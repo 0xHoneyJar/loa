@@ -31995,3 +31995,115 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0950"
+    created_at: "2026-10-24T12:19:04Z"
+    updated_at: "2026-10-24T12:19:04Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Verification rerun (a1_full × pr-03, pin 7d2119477, USD 9.30) FAILED clause (f) again; dissent fixed; G-4 incomplete; FR-10 deferred; no third launch."
+    decision: "The one reserved rerun ran at the new pin on pr-03, whose three changed scripts are off the review-time surface. The dissent now runs (gpt-5.5-pro reviewed, claude-headless companion succeeded; dissent_present true), the egress block held (26 trial denials, all codex telemetry and asset hosts plus one github.com attempt, filtered), the mount verified, review.md 9 findings — and clause (f) failed: the reviewer compared the installed HOME copy of ledger-lib.sh against pr/base, read the installed mount-submodule.sh and the auditor executed the installed classify-pr-type.sh, so later-only lines were read in REVIEW and AUDIT. Both launches failed, so G-4 is incomplete, FR-10 is deferred and home-scope is not claimed; the drift test stays (Task 3.6). No third launch: the share would allow one, but the failure is structural, not a harness defect."
+    rationale: "A Loa reviewer treats its own installed Loa as the reference for a Loa PR; moving the install from the root to HOME changes where the oracle sits, not whether the reviewer consults it. Clause (f) did its job twice. A third launch would predictably fail and spend the share for nothing."
+    alternatives_considered:
+      - option: "a third launch on a fixture with no .claude/ changes"
+        rejected_because: "clause (f) would be vacuous; it proves nothing about isolation"
+      - option: "relax clause (f) to credit installed-copy reads when the findings cite only PR lines"
+        rejected_because: "the oracle_scan already covers citations; (f) exists to see what was read, and weakening it after two failures is the pattern the floor forbids"
+      - option: "claim FR-10 as detection-only"
+        rejected_because: "the PRD claims isolation, not detection"
+    consequences:
+      positive:
+        - "two honest measurements of the home-scope limit, with the dissent and egress fixes confirmed live"
+      negative:
+        - "USD 20.88 of the share spent with G-4 incomplete"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f5686068"
+    source: "grimoires/loa/reports/ablation-2.0/c133-smoke/run-2/ (rows.jsonl, meta/took-effect.json, reviewer-home-reads.txt, auditor-home-reads.txt); KF-060 recurrence 2; sdd.md § 7.3"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T12:19:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "smoke-c133-s274-r2 rows.jsonl; commit follows f5686068b"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0951"
+    created_at: "2026-10-24T12:19:07Z"
+    updated_at: "2026-10-24T12:19:07Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Task 3.6 deferred: the BS-8 drift test stays; implementer D's prepared removal (s3-d2) is discarded unlanded; follow-up bead bd-nzblj."
+    decision: "Because no smoke passed, evals/tests/blind-session.bats BS-8 (the session-library one-copy drift guard) is kept and bead bd-nzblj records the deferred deletion; the s3-d2 patch (+1/−37, 139/139 after) stays under ~/.cache as the record of the change and is not applied."
+    rationale: "The sprint text makes the deletion conditional on a green smoke; the guard costs nothing to keep."
+    alternatives_considered:
+      - option: "delete BS-8 anyway since the single-copy refactor is proven by other suites"
+        rejected_because: "the sprint condition is explicit and the smoke did not pass"
+    consequences:
+      positive:
+        - "the guard against a reintroduced inline copy stays"
+      negative:
+        - "one more open bead"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f5686068"
+    source: "sprint.md Task 3.6; ~/.cache/loa/cycle-133/reports/s3-d2.md; DEC D-3.5f"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T12:19:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "bd-nzblj"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0952"
+    created_at: "2026-10-24T12:19:10Z"
+    updated_at: "2026-10-24T12:19:10Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "FR-10 path forward recorded in bead bd-ivmtk: external fixtures (C-12) or a base-version framework in HOME; the choice is the operator's."
+    decision: "The next cycle decides between (a) external fixtures seeded with seed-corpus-from-external.sh, where the installed framework is not the subject and no later version exists in HOME; (b) a base-version framework in HOME for the files a PR changes, which changes the measured arm; (c) a detection-only claim. The lead recommends (a)."
+    rationale: "Only (a) removes the oracle instead of hiding it; (b) confounds the measurement; (c) changes the requirement."
+    alternatives_considered:
+      - option: "decide now and start seeding in Sprint 275"
+        rejected_because: "Sprint 275 is the release sprint; external seeding needs licence and annotation decisions that are the operator's"
+    consequences:
+      positive:
+        - "a named, cheap next step"
+      negative:
+        - "FR-10 stays deferred for the rc.8 release"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f5686068"
+    source: "KF-060 reading guide; bead bd-ivmtk; sdd.md C-10, C-12"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T12:19:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "bd-ivmtk"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

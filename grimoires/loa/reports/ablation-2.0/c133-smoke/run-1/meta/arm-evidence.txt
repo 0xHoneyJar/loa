@@ -1,0 +1,53 @@
+batch_context=smoke-c133-s274
+base_commit=8525d09d218c3e7e9b8084df78b49e1e97b73d14
+mount=home-scope
+framework_root=LOA_FRAMEWORK_ROOT=/home/evaluser
+home_framework_files=1776
+home_transform=R1:82,R2:223,R3:1212,R4:17,R5:7
+home_transformed_files=306
+home_residual=0
+home_shell_relative_refs=521
+home_verify=ok 1775 files, 306 redirected, reverse == pinned
+home_hook_counts=PermissionRequest:1,PostToolUse:4,PreCompact:1,PreToolUse:11,SessionStart:8,Setup:1,Stop:2,UserPromptSubmit:2
+home_mcp_servers=
+copy_source=32a8d79cf091480a3809acc2b0e6a8044440460e
+mount_overlay=head:19
+mount_mode=home-scope
+surface_derived_for=2.1.299
+overlay_surface_removed=0
+overlay_imports=
+overlay_excluded=25:.claude/hooks/compliance/implement-gate.sh,.claude/hooks/loa-kf-surface.sh,.claude/hooks/quality/karpathy-surgical-diff-check.sh,.claude/hooks/safety/block-destructive-bash.sh,.claude/hooks/session-start/loa-decisions-surface.sh,.claude/hooks/session-start/loa-l6-surface-handoffs.sh,.claude/hooks/session-start/loa-l7-surface-soul.sh,.claude/rules/skill-invariants.md,.claude/skills/auditing-security/SKILL.md,.claude/skills/autonomous-agent/SKILL.md,.claude/skills/bug-triaging/SKILL.md,.claude/skills/continuous-learning/resources/input-guardrails-prelude.md,.claude/skills/continuous-learning/resources/retrospective-postlude.md,.claude/skills/deploying-infrastructure/SKILL.md,.claude/skills/eval-running/SKILL.md,.claude/skills/flatline-knowledge/SKILL.md,.claude/skills/implementing-tasks/SKILL.md,.claude/skills/reviewing-code/SKILL.md,.claude/skills/rtfm-testing/SKILL.md,.claude/skills/run-mode/SKILL.md,…
+overlay_sha256=.claude/data/constraints.json=f53c3a320133100bcac1ccb5014b723d573ca40de42500d36f5c2195c901602d
+overlay_sha256=.claude/data/guard-origins.yaml=a230dff0850905f409db8b328b89dcf702384dba0d43fbaca63b852b9ba6d54d
+overlay_sha256=.claude/data/profiles.yaml=de1f225447f5200836590c31836b019ae83401296f99953a393dc56dbb2b9f92
+overlay_sha256=.claude/data/skill-includes/input_guardrails.md=9fd1878e2f01e9fcb2aa619eb8b1ae477bdade00b942d8c2250a6a8492950797
+overlay_sha256=.claude/data/skill-includes/retrospective_postlude.md=e5b7b86f3c405edb17fdf3faf3f4cb314ee9d94c1bff60b553580b12445e9ec0
+overlay_sha256=.claude/loa/CLAUDE.loa.md=ec50d078bc7f1eac47a12578f2069d83097be2e79e3c82878913bc10805bc74c
+overlay_sha256=.claude/loa/reference/agent-teams-reference.md=4461c9829f591296081b9ed6de9f36cc95599ab9ce9677ce8e0eb103087af35f
+overlay_sha256=.claude/loa/reference/hooks-reference.md=1c1552b025a1e0f19845faf2f303398ffe876d02e72f96e9f5d852c5c8d34749
+overlay_sha256=.claude/scripts/danger-level-enforcer.sh=91be6ffd8b7bcfa60d2697eeb1c762334182cb7054c856741a1af634634b05ea
+overlay_sha256=.claude/scripts/generate-constraints.sh=286b2009390db3ab27dab41be8c3633756b9c445b049b63037aadfd893da8aeb
+overlay_sha256=.claude/scripts/guardrails-orchestrator.sh=6006340c3db72faf7bc8676327a8b7ba05cfbef45430c95f87aea85b81b56864
+overlay_sha256=.claude/scripts/lib/heredoc-classifier.sh=7395b1148db09224654227a917e3048c4348c61bf9b940b0873fefd6408b6cbc
+overlay_sha256=.claude/scripts/lib/profile-lib.sh=9e043a64c68bdda0c5e466ea932e900cd476da0ff30fb3de8d060da27d472769
+overlay_sha256=.claude/scripts/lint-invariants.sh=1224c92925b141b004188cbd1e1c95a359f38d481723a1ed28c8131e14c81afa
+overlay_sha256=.claude/scripts/loa-status.sh=44430c526e05d5eeac8507ac1d02becaeff0d5d190d3e5ae2c7541978fff907a
+overlay_sha256=.claude/scripts/run-checkpoint.sh=050685c47872d0dc965faf81e2a8b54dad876687979fa6a0e51555b848ece706
+overlay_sha256=.claude/scripts/test-lint-invariants.sh=9b42ee347080fe3d0819193a61d6032ca34a7ad1c2a3639f776a245dcdfdc0a9
+overlay_sha256=.claude/scripts/validate-constraints.sh=cb7affbaac7b593acc1e646d0817e7f11a1aed866fef472ab4ce77b0acbd4c84
+overlay_sha256=.claude/scripts/validate-skill-capabilities.sh=04d89d0bf64f456a2b60e893621e29c6adfffad7d29599d104e871b11b12c58b
+overlay_removed=0
+overlay_fix_commit=available
+gate_scripts_at_pr_version=.claude/scripts/danger-level-enforcer.sh,.claude/scripts/generate-constraints.sh,.claude/scripts/guardrails-orchestrator.sh,.claude/scripts/lib/heredoc-classifier.sh,.claude/scripts/lib/profile-lib.sh,.claude/scripts/lint-invariants.sh,.claude/scripts/loa-status.sh,.claude/scripts/run-checkpoint.sh,.claude/scripts/test-lint-invariants.sh,.claude/scripts/validate-constraints.sh,.claude/scripts/validate-skill-capabilities.sh
+overlay_fixture=/home/merlin/Documents/thj/code/loa/evals/fixtures/review-prs/pr-20
+overlay_source_tree=/home/merlin/.cache/loa/ablation-src-32a8d79cf091
+config_variant=eval
+grimoire=ledger.json NOTES.md context/task-brief.md a2a/sprint-1/ sprint.md a2a/sprint-1/reviewer.md
+beads=br
+manifest_files=2073 (inline)
+manifest_sha256=a907ed444e10b7c912322da220f9fdb7d04dd70874586b6a860e736138f90594
+mount_closed=pre-launch head:19 answer paths (19 present), 13 later-only pinned versions, sandbox git = base commit only; home-scope: 25 surface path(s) absent at the root (surface derived for Claude Code 2.1.299)
+claude_md_sha256=absent
+loa_config_sha256=dccf94627ec9a3d683bdfb9f9505d062085fbbb107498790dd4b59f5df0b6891
+mount_cheval=ok
+arm_ids_pr_native=none

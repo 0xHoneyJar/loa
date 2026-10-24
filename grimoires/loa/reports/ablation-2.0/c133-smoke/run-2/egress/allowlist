@@ -1,0 +1,10 @@
+api.anthropic.com
+api.openai.com
+auth.openai.com
+bedrock-runtime.us-east-1.amazonaws.com
+bedrock.us-east-1.amazonaws.com
+chatgpt.com
+generativelanguage.googleapis.com
+oauth2.googleapis.com
+sts.amazonaws.com
+sts.us-east-1.amazonaws.com

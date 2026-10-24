@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "suite": "ablation-2.0",
+  "batch": "smoke-c133-s274-r2",
+  "dry_run": false,
+  "smoke": true,
+  "created": "2026-10-24T11:50:37Z",
+  "source_commit": "7d211947791e440652a29387d6bac7eb36a83149",
+  "source_worktree": "/home/merlin/.cache/loa/ablation-src-7d211947791e",
+  "source_commit_dot_claude_delta": " .../tests/test_pricing_resolution_ladder.py        |    2 +-\n .claude/checksums.json                             | 1775 +++-----------------\n .claude/commands/archive-cycle.md                  |   31 +\n .claude/commands/ship.md                           |    2 +-\n .claude/data/floor.yaml                            |   13 +\n .claude/data/schemas/model-config-v3.schema.json   |    5 +\n .claude/defaults/model-config.yaml                 |   45 +-\n .claude/defaults/model-config.yaml.checksum        |    2 +-\n .claude/hooks/pre-compact-marker.sh                |   91 +-\n .claude/loa/CLAUDE.loa.md                          |    2 +-\n .claude/schemas/adversarial-finding.schema.json    |   35 +-\n .claude/schemas/finding.schema.json                |   80 +\n .../invalid/01-one-word-clause.json                |   20 +\n .../finding.vectors/invalid/02-denylist-todo.json  |   20 +\n .../invalid/03-denylist-see-above.json             |   20 +\n .../finding.vectors/invalid/04-denylist-na.json    |   20 +\n .../invalid/05-critical-no-scenario.json           |   19 +\n .../finding.vectors/invalid/06-alias-conflict.json |   19 +\n .../finding.vectors/invalid/07-path-dotdot.json    |   18 +\n .../finding.vectors/invalid/08-path-absolute.json  |   18 +\n .../finding.vectors/invalid/09-path-backslash.json |   18 +\n .../finding.vectors/invalid/10-anchor-zero.json    |   18 +\n .../finding.vectors/invalid/11-anchor-string.json  |   18 +\n .../invalid/12-end-before-start.json               |   19 +\n .../invalid/13-end-without-start.json              |   17 +\n .../invalid/14-severity-lowercase.json             |   18 +\n .../invalid/15-severity-unknown.json               |   18 +\n .../invalid/16-blocking-string.json                |   19 +\n .../invalid/17-confidence-range.json               |   19 +\n .../invalid/18-confidence-word.json                |   19 +\n .../invalid/19-confidence-bool.json                |   19 +\n .../finding.vectors/invalid/20-id-blank.json       |   16 +\n .../finding.vectors/invalid/21-not-object.json     |   15 +\n .../finding.vectors/invalid/22-high-no-file.json   |   17 +\n .../finding.vectors/invalid/23-when-then-last.json |   20 +\n .../finding.vectors/invalid/24-title-number.json   |   16 +\n .../invalid/25-exempt-scenario-number.json         |   16 +\n .../invalid/26-anchor-too-large.json               |   16 +\n .../finding.vectors/invalid/27-two-errors.json     |   17 +\n .../invalid/28-placeholder-phrase.json             |   20 +\n .../finding.vectors/invalid/29-eleven-tokens.json  |   20 +\n .../valid/01-high-twelve-tokens.json               |   27 +\n .../finding.vectors/valid/02-medium-when-then.json |   27 +\n .../valid/03-low-range-blocking.json               |   30 +\n .../valid/04-confidence-075-high.json              |   25 +\n .../valid/05-confidence-045-medium.json            |   25 +\n .../valid/06-confidence-044-low.json               |   25 +\n .../finding.vectors/valid/07-given-id-kept.json    |   24 +\n .../finding.vectors/valid/08-praise-bare.json      |   19 +\n .../valid/09-speculation-one-word.json             |   23 +\n .../valid/10-alias-failure-mode.json               |   26 +\n .../valid/11-alias-description.json                |   25 +\n .../valid/12-alias-equal-no-warning.json           |   25 +\n .../valid/13-mode-over-description.json            |   26 +\n .../valid/14-integral-float-line.json              |   21 +\n .../finding.vectors/valid/15-reframe-and-info.json |   19 +\n .../valid/16-deny-word-inside-token.json           |   27 +\n .../finding.vectors/valid/17-unicode-path.json     |   27 +\n .../finding.vectors/valid/18-speculative-high.json |   27 +\n .claude/schemas/wire/dissent-audit.wire.json       |   22 +\n .claude/schemas/wire/dissent-review.wire.json      |   22 +\n .claude/scripts/adversarial-review.sh              |  150 +-\n .claude/scripts/archive-cycle.sh                   |  322 +++-\n .claude/scripts/check-loa.sh                       |   29 +-\n .claude/scripts/generated-model-maps.sh            |    6 +\n .cl",
+  "harness_commit": "f5686068b62d07556ea18670e53c521b0b15d607",
+  "harness_dirty": false,
+  "suite_file": "grimoires/loa/reports/ablation-2.0/c133-smoke/suite.yaml",
+  "suite_file_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/reports/ablation-2.0/c133-smoke/suite.yaml",
+  "suite_root": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0",
+  "tasks_dir": "smoke",
+  "rows_file": "/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/smoke-c133-s274-r2/rows.jsonl",
+  "suite_version": 2,
+  "suite_manifest_sha256": "d5aa7b9332a408cbc11d64e3ff68c3ed1a9ce2af07aa378c4a8e306f9332e657",
+  "arms": [
+    "a1_full"
+  ],
+  "tasks": [
+    {
+      "id": "smoke-review-c133b",
+      "type": "review-catch"
+    }
+  ],
+  "refused": [],
+  "trials_per_type": {
+    "build": 1,
+    "review-catch": 1
+  },
+  "trials_planned": 1,
+  "plan": [
+    {
+      "i": 1,
+      "arm": "a1_full",
+      "task_id": "smoke-review-c133b",
+      "type": "review-catch",
+      "kind": "review-catch",
+      "trial": 1,
+      "run_id": "smoke-c133-s274-r2-a1_full-smoke-review-c133b-t1",
+      "run_dir": "a1_full/smoke-review-c133b-t1",
+      "task_yaml": "/home/merlin/Documents/thj/code/loa/grimoires/loa/evals/ablation-2.0/smoke/smoke-review-c133b/task.yaml",
+      "phases": [
+        "REVIEW",
+        "AUDIT"
+      ],
+      "phase_sum_min": 60,
+      "watchdog_s": 7200
+    }
+  ],
+  "arm_map": {
+    "smoke-c133-s274-r2-a1_full-smoke-review-c133b-t1": "a1_full"
+  },
+  "shuffle_seed": 20261015,
+  "shuffle": "trial-major; python3 random.Random(shuffle_seed).shuffle per trial block, blocks in order",
+  "fingerprint": "fp:17954c58ab6f203d1eedcaeecf56678cb5973210e2766c2d9afedeb1569b18db",
+  "image": "loa-ablation:259",
+  "image_digest": "sha256:61e88d02d78519f3ecf20fc3bc162cc1b7a56cd927673ce9d94a7fdb78246dbb",
+  "executor_mode": "container",
+  "cli_version": "2.1.299",
+  "cli_version_raw": "2.1.299 (Claude Code)",
+  "tools": "Bash,Read,Grep,Glob,Write,Edit,Task,WebFetch",
+  "phase_models": {
+    "PLAN": "global.anthropic.claude-opus-5-5",
+    "IMPLEMENT": "global.anthropic.claude-opus-5-5",
+    "FIX": "global.anthropic.claude-opus-5-5",
+    "BARE": "global.anthropic.claude-opus-5-5",
+    "REVIEW": "global.anthropic.claude-fable-5-1",
+    "AUDIT": "global.anthropic.claude-fable-5-1"
+  },
+  "caps": {
+    "cycle_usd": 1500,
+    "run_usd": 12,
+    "reserve_usd": 250,
+    "max_usd": 20,
+    "run_usd_by_type": {
+      "build": 15,
+      "review-catch": 20
+    }
+  },
+  "cost_hint": {
+    "build": 7,
+    "review-catch": 8
+  },
+  "concurrency": 1,
+  "retry": {
+    "transport_retries": 1,
+    "wait_s": 120
+  },
+  "watchdog": {
+    "multiplier": 2,
+    "override_s": null,
+    "grace_s": 60,
+    "grade_timeout_s": 1800,
+    "took_effect_timeout_s": 300
+  },
+  "pre_registration_ref": "cycle-133 Sprint 274 Task 3.5 smoke (NOTES 2026-10-24)",
+  "gate": null,
+  "corpus": {
+    "manifest": "evals/fixtures/review-prs/SHA256SUMS",
+    "sha256": "487055af100d59e06c65f8f4545c0a67f5cd2d2dabf7e3a567fc9f11653eb24f"
+  },
+  "agy_opt_in": false,
+  "allow_partial": false,
+  "codex_token_exp": null,
+  "codex_preflight": {
+    "auth_file_present": true,
+    "auth_mode": null,
+    "checked": false,
+    "codex_arms": [
+      "a1_full"
+    ],
+    "horizon_source": null,
+    "required_until": null,
+    "token_exp": null,
+    "trials_counted": null
+  },
+  "overshoot_bound_usd": 20,
+  "batch_context": "smoke-c133-s274-r2",
+  "bare_sessions_by_task": {},
+  "refusal_policy": {
+    "a1_full": "exclude"
+  },
+  "registration_sha256": null,
+  "registration_path": null,
+  "preregistration_sha256": null,
+  "registration": null,
+  "spend_gate": null,
+  "supervisor": null,
+  "egress": {
+    "arms": {
+      "a1_full": "blocked"
+    },
+    "network": "loa-egress-smoke-c133-s274-r2",
+    "proxy": "loa-proxy-smoke-c133-s274-r2",
+    "enforced": true
+  },
+  "environment": {
+    "os": "Linux 6.16.12+deb13-amd64 x86_64",
+    "bash": "5.2.37(1)-release",
+    "jq": "jq-1.7",
+    "yq": "yq (https://github.com/mikefarah/yq/) version v4.44.1",
+    "python": "Python 3.13.5",
+    "git": "git version 2.47.3"
+  }
+}

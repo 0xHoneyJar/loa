@@ -1,0 +1,37 @@
+batch_context=smoke-c133-s274-r2
+base_commit=5c659f05f4b9138132adc64e3b28cfce352de854
+mount=home-scope
+framework_root=LOA_FRAMEWORK_ROOT=/home/evaluser
+home_framework_files=1776
+home_transform=R1:82,R2:223,R3:1212,R4:17,R5:4,R6:156,R7:5,R8:1
+home_transformed_files=393
+home_residual=0
+home_shell_relative_refs=521
+home_verify=ok 1775 files, 393 redirected, reverse == pinned
+home_hook_counts=PermissionRequest:1,PostToolUse:4,PreCompact:1,PreToolUse:11,SessionStart:8,Setup:1,Stop:2,UserPromptSubmit:2
+home_mcp_servers=
+copy_source=7d211947791e440652a29387d6bac7eb36a83149
+mount_overlay=head:3
+mount_mode=home-scope
+surface_derived_for=2.1.299
+overlay_surface_removed=0
+overlay_imports=
+overlay_excluded=0
+overlay_sha256=.claude/scripts/classify-pr-type.sh=04932d23fdbf05abf1ba8be7735e258898727be6287359d24070f64317c21ebb
+overlay_sha256=.claude/scripts/ledger-lib.sh=6a9cab180e87530d490f9346ab31db28cd4b9955981ce50ba65978bebe454f41
+overlay_sha256=.claude/scripts/mount-submodule.sh=93760c9d49814866527aa54bd3682b046ff05c3ffa895b2528a2a4058d8d7ad5
+overlay_removed=0
+overlay_fix_commit=none
+gate_scripts_at_pr_version=.claude/scripts/classify-pr-type.sh,.claude/scripts/ledger-lib.sh,.claude/scripts/mount-submodule.sh
+overlay_fixture=/home/merlin/Documents/thj/code/loa/evals/fixtures/review-prs/pr-03
+overlay_source_tree=/home/merlin/.cache/loa/ablation-src-7d211947791e
+config_variant=eval
+grimoire=ledger.json NOTES.md context/task-brief.md a2a/sprint-1/ sprint.md a2a/sprint-1/reviewer.md
+beads=br
+manifest_files=2073 (inline)
+manifest_sha256=2e9e37de100756affb53c27d00c74fd6cd56f9715ea2502ae631b3ab8aafbc17
+mount_closed=pre-launch head:3 answer paths (3 present), 3 later-only pinned versions, sandbox git = base commit only; home-scope: 0 surface path(s) absent at the root (surface derived for Claude Code 2.1.299)
+claude_md_sha256=absent
+loa_config_sha256=dccf94627ec9a3d683bdfb9f9505d062085fbbb107498790dd4b59f5df0b6891
+mount_cheval=ok
+arm_ids_pr_native=none
