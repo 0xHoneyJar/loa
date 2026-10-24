@@ -36,6 +36,8 @@ on:
       - 'tests/security/**'
       - 'tools/modelinv-rollup.sh'
       - 'tools/check-no-swallowed-jq.sh'
+      - 'tools/check-*.sh'                 # cycle-133 FR-5: lint-walk tripwire + quarantine gate
+      - 'evals/analysis/**'                # cycle-133 FR-5: analysis pytest (glob below)
       - 'tests/lib/**'
       - 'tests/fixtures/**'
       - 'tests/run-unit-tests.sh'
@@ -62,6 +64,8 @@ on:
       - 'tests/security/**'
       - 'tools/modelinv-rollup.sh'
       - 'tools/check-no-swallowed-jq.sh'
+      - 'tools/check-*.sh'                 # cycle-133 FR-5: lint-walk tripwire + quarantine gate
+      - 'evals/analysis/**'                # cycle-133 FR-5: analysis pytest (glob below)
       - 'tests/lib/**'
       - 'tests/fixtures/**'
       - 'tests/run-unit-tests.sh'
@@ -188,10 +192,26 @@ jobs:
             tests/security/test_audit_trust_policy.py \
             tests/security/test_audit_consumer_snapshots.py \
             tests/security/test_installer_epic_proofs.py \
-            tests/security/test_installer_epic_remaining.py
+            tests/security/test_installer_epic_remaining.py \
+            evals/analysis/*/tests
+
+      # cycle-133 FR-5 (SDD C-5): every tests/QUARANTINE.tsv row is valid and
+      # unexpired before the unit suite runs. Exit 3 = rows valid but bead
+      # status unverifiable (.beads/ is not in the checkout) — a warning.
+      - name: Quarantine gate (check-quarantine-expiry.sh)
+        run: |
+          rc=0
+          bash tools/check-quarantine-expiry.sh || rc=$?
+          if [ "$rc" -eq 3 ]; then
+            echo "::warning::quarantine rows valid; bead status not verifiable on the runner (no beads workspace)"
+          elif [ "$rc" -ne 0 ]; then
+            echo "::error::tests/QUARANTINE.tsv invalid or expired — see tools/check-quarantine-expiry.sh --help"
+            exit "$rc"
+          fi
 
       - name: Run framework unit tests
         run: |
+          set -o pipefail
           if [ -d tests/unit ]; then
             count=$(find tests/unit -maxdepth 1 -name '*.bats' -type f | wc -l)
             if [ "$count" -eq 0 ]; then
@@ -199,7 +219,8 @@ jobs:
               exit 1
             fi
             echo "Running $count test files from tests/unit/ ..."
-            bats --print-output-on-failure tests/unit/
+            # TAP copy feeds the executed / skipped / quarantined totals step
+            bats --tap --print-output-on-failure tests/unit/ | tee "$RUNNER_TEMP/unit.tap"
           else
             if [ "$REQUIRE_TESTS" = "true" ]; then
               echo "ERROR: tests/unit/ directory required but not found (REQUIRE_TESTS=true)"
@@ -207,6 +228,15 @@ jobs:
             else
               echo "WARNING: tests/unit/ directory not found — skipping"
             fi
+          fi
+
+      - name: Unit suite totals (executed / skipped / quarantined)
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/unit.tap" ]; then
+            rc=0
+            bash tools/check-quarantine-expiry.sh --tap "$RUNNER_TEMP/unit.tap" || rc=$?
+            [ "$rc" -eq 0 ] || [ "$rc" -eq 3 ] || exit "$rc"
           fi
 
       - name: Run eval harness tests (cycle-130 Sprint 258)

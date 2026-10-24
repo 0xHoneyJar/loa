@@ -14,6 +14,9 @@ setup() {
   T="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/cr.XXXXXX")"
   export LOA_RUN_DIR="$T/run"
   unset LOA_COST_LEDGER_PATH
+  # cycle-133 FR-5 (bd-tgn04): a host Bedrock token makes the pricing resolver's
+  # loader print a forward-routing notice into the captured --json output
+  unset AWS_BEARER_TOKEN_BEDROCK
   CUR="$T/cur.jsonl"; LEG="$T/legacy.jsonl"
   # hand computation: current = 8000 + 0 + 2500 = 10500 micro-USD; 1 of 3 unpriced
   cat > "$CUR" <<'EOF'
