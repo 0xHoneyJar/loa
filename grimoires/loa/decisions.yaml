@@ -29976,3 +29976,137 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0895"
+    created_at: "2026-10-24T05:30:22Z"
+    updated_at: "2026-10-24T05:30:22Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 Task 2.3: grader 1.4.0 exempts a heredoc report write only (cat/tee to .md/.markdown/.txt, PR-native token, no network, no unquoted $( ))"
+    decision: "Class-7 shape 1 (repo_name_pr_native_report): a heredoc that cat or tee writes to a local .md/.markdown/.txt path is exempt when the quoted token is PR-native and in the body only, the heredoc is not piped on or fed to an interpreter, a network-capable line is absent from the command, and an unquoted body has no $( or backtick; the exemption is recorded in contamination_exempt so sensitivity analyses can count it; history_probes and heredoc_interpreters telemetry may rise once a hit is exempt (documented, not special-cased)."
+    rationale: "Exempting any heredoc would let a written script run later (AG-53 k4) pass; the guards keep that fixture a hit; the regression over 396 pairs and 517 real directories differs only in the two intended shapes."
+    alternatives_considered:
+      - option: "exempt every heredoc whose token is PR-native"
+        rejected_because: "AG-53 k4 (a script written then executed) would pass"
+      - option: "special-case telemetry so counts never rise after an exemption"
+        rejected_because: "hides a real change in what the scan reaches; documenting is honest"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a21034f1"
+    source: "grimoires/loa/a2a/sprint-273/reviewer-c.md § Judgment calls (Shape 1 covers report writes only; Shape 1 guards; New exempt classes are recorded; Telemetry may grow)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T05:30:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit a21034f1e (ablation-grade.sh :2281, :1959, :2407; AG-c133-1, 2, 5; regress.sh 396 pairs; 517-directory re-grade)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0896"
+    created_at: "2026-10-24T05:30:25Z"
+    updated_at: "2026-10-24T05:30:25Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 Task 2.3: outside_path exempts only a bare /home as the argument of findmnt, df or mountpoint in container mode (class home_mount_probe)"
+    decision: "In container mode a bare /home that is the argument of findmnt, df or mountpoint is exempt, provided every bare /home in the value is one; the class is home_mount_probe with pattern outside_path, recorded in contamination_exempt."
+    rationale: "Existing fixtures pin ls /home and ls '/home' as outside_path; a mount-metadata probe reads no file under /home."
+    alternatives_considered:
+      - option: "exempt every bare /home in container mode"
+        rejected_because: "the ls /home fixtures would flip; a directory listing is a probe of the mount's contents"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a21034f1"
+    source: "grimoires/loa/a2a/sprint-273/reviewer-c.md § Judgment calls (Shape 2 covers mount-metadata probes only)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T05:30:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit a21034f1e (ablation-grade.sh :2343, :1978; AG-c133-3, 4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0897"
+    created_at: "2026-10-24T05:30:28Z"
+    updated_at: "2026-10-24T05:30:28Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 Task 2.3: refusal policy from MANIFEST only, default exclude; rerun-once = one attempt record under the full cap; retry cap_failure = failed"
+    decision: "The runner reads refusal_policy from MANIFEST (recorded from the suite before execution; a pre-1.6 MANIFEST reads exclude; a resumed batch keeps its policy); keep drops only the refusal degraded cause; rerun-once writes one immutable attempt record (hard-linked, basename run_dir) and relaunches under the full per-run cap within the D-7.3 limit of 3 attempts — a cap_failure on the retry counts as failed (DEC-0393) and only transport_error, infrastructure_error and interrupted read rerun_failed; matched arms accept exclude only (keep/rerun-once refused at pre-flight, exit 2); resume relaunches only attempt 2 once the record exists; a --rerun of an attempt-2 row does not re-charge the record; refusal_rate counts any refusal over all rows of the arm, 6 decimals, flagged strictly above 0.2."
+    rationale: "A policy read from the suite at relaunch time could change mid-batch; a shared cap biases the retry toward cap_failure; session-level reruns for matched arms would duplicate the retry machinery outside one block; the worst-case overshoot (one cap per refused in-flight trial) is documented."
+    alternatives_considered:
+      - option: "share one cap across both attempts"
+        rejected_because: "biases the retry toward cap_failure"
+      - option: "session-level reruns for matched arms"
+        rejected_because: "duplicates the session retry machinery outside the one contiguous block"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a21034f1"
+    source: "grimoires/loa/a2a/sprint-273/reviewer-c.md § Judgment calls (The runner reads the policy from MANIFEST only; keep drops only the refusal cause; cap_failure on the retry; Same cap; Matched arms accept exclude only; The record is written once; Resume relaunches only the second attempt; No double count on --rerun)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T05:30:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit a21034f1e (run-ablation.sh :676-774 + hooks; ablation-row.sh 1.6 :714-726, :800; RP-1…5, RP-R1…R7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0898"
+    created_at: "2026-10-24T05:30:32Z"
+    updated_at: "2026-10-24T05:30:32Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 273 Task 2.3: version strings 1.4.0 (grader) and 1.6 (row writer); fixtures as .txt (*.cmd gets eol=crlf); README created with the refusal section only"
+    decision: "GRADER_VERSION 1.4.0 follows the three-part 1.3.8 form (1.5 follows in Sprint 274); ablation-row.sh is 1.6 with --validate covering the 1.6 enums; grader fixtures are .txt (a reduced r27 command, 2.4 KB of 34 KB) because *.cmd gets eol=crlf; evals/harness/README.md is created with the title and § Refusal policy only (Sprint 274 Task 3.4 completes it); AG-13 greps GRADER_SRC so regression mode can wrap GRADER; bd-kddde shapes 3–6 are not 1.4 rules (C-8 names two) and the bead stays open."
+    rationale: "Consistency with the pinned grader's version grammar; the .gitattributes eol rule would corrupt a .cmd fixture; the README belongs to a later task."
+    alternatives_considered:
+      - option: "version the grader 1.4 (two-part)"
+        rejected_because: "the pin's 1.3.8 grammar is three-part and the registration compares strings"
+      - option: "fold shapes 3–6 into 1.4"
+        rejected_because: "sdd.md C-8 names two shapes; the rest need their own regression evidence"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a21034f1"
+    source: "grimoires/loa/a2a/sprint-273/reviewer-c.md § Judgment calls (Version string; Row writer bumped to 1.6; Fixtures; The README is new; AG-13 greps the grader source; bd-kddde shapes 3–6)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T05:30:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit a21034f1e (ablation-grade.sh :457, :243; ablation-row.sh :139, :373; evals/tests/fixtures/grader-1.4/; evals/harness/README.md)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
