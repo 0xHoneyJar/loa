@@ -30382,3 +30382,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0907"
+    created_at: "2026-10-24T07:34:26Z"
+    updated_at: "2026-10-24T07:34:26Z"
+    phase: "review"
+    category: "implementation"
+    summary: "Sprint 273 review round 1 → s2-a2: an unmetered attempt is an accounting failure — status/exit as a failure, charged at the cap, counted separately by spend.sh"
+    decision: "An attempt with activity but no usage event and no numeric result cost ends as a failure: blind-session.sh status unmetered_attempt exit 1 with total_cost_usd charged at the cap (cost_source cap_unmetered, result_cost_usd null); pipeline-run.sh infrastructure_error (exit 2) with reason unmetered_attempt: <label> and the phase charged its cap allowance (the run cap minus the spend before the phase — there is no per-phase cap); ablation-row.sh adds metering_unmetered: true; spend.sh counts runs_rows_unmetered, keeps the cap charge in the authoritative total and names the rows on stderr. The distinct metering value stays so the class is distinguishable from zero spend, as C-6 asks."
+    rationale: "The first landing recorded the class but let it finish completed with cost 0 and nothing downstream read the field — an unknown spend consumed as an authoritative zero, the fail-open accounting C-6 was written to remove; charging the cap is the conservative bound the watchdog would have allowed."
+    alternatives_considered:
+      - option: "keep unmetered_attempt as a flag on a completed row"
+        rejected_because: "every total and budget gate reads the row's cost as 0; the flag was read by nothing"
+      - option: "charge zero but exclude the row from analysis"
+        rejected_because: "the budget gate would still undercount; the SDD calls it an accounting failure"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "256f88fb"
+    source: "grimoires/loa/a2a/sprint-273/engineer-feedback.md § HIGH (DISS-001); sdd.md C-6 line 72"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T07:34:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 256f88fbf (blind-session.sh status table and cost.json; pipeline-run.sh finish infrastructure_error; ablation-row.sh metering_unmetered; spend.sh runs_rows_unmetered); blind-session/pipeline-run/ablation-row/spend/session-exec 203/203"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
