@@ -54,6 +54,8 @@ DO NOT include:
 Output ONLY a structured findings JSON block inside <!-- bridge-findings-start --> and <!-- bridge-findings-end --> markers.
 
 Each finding must include: id, title, severity, category, file, description, suggestion.
+CRITICAL, HIGH, MEDIUM and LOW findings also include failure_scenario: the concrete failure, as "when <input or state>
+then <what breaks>" or at least 12 words (never TODO, n/a, see above) — the canonical finding contract.
 Optionally include: confidence (number 0.0-1.0) — your calibrated confidence that this is a real issue.
   - 1.0 = certain this is a real issue
   - 0.5 = moderate confidence
@@ -386,7 +388,8 @@ export class PRReviewTemplate {
       "```",
       "<!-- bridge-findings-end -->",
       "",
-      "Each finding: { id, title, severity, category, file, description, suggestion, confidence? }",
+      "Each finding: { id, title, severity, category, file, description, suggestion, failure_scenario, confidence? }",
+      "failure_scenario (CRITICAL/HIGH/MEDIUM/LOW): when <input or state> then <what breaks>, or at least 12 words",
       "Severity values: CRITICAL, HIGH, MEDIUM, LOW, PRAISE, SPECULATION, REFRAME",
       "Optional: confidence (0.0-1.0) — your calibrated confidence in each finding",
     ];

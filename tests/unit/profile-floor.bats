@@ -110,8 +110,8 @@ PY
 
 @test "PF-4 verdict-derive.sh output is byte-identical under lean and standard" {
     local f p
-    printf 'All good\n\n## Observations\n\n- **LOW** `a.sh:1` — naming\n\n<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":1},"sprint_id":"sprint-9","ts":"2026-10-14T00:00:00Z"} -->\n' > "$T/ok.md"
-    printf '## Changes Required\n\n- **HIGH** `a.sh:1` — unchecked input\n\nAll good\n\n<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":1,"medium":0,"low":0},"sprint_id":"sprint-9","ts":"2026-10-14T00:00:00Z"} -->\n' > "$T/bad.md"
+    printf 'All good\n\n## Observations\n\n- **LOW** (confidence: medium) `a.sh:1` — naming. Failure: when two workers flush the same queue then one batch is written twice.\n\n<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":1},"sprint_id":"sprint-9","ts":"2026-10-14T00:00:00Z"} -->\n' > "$T/ok.md"
+    printf '## Changes Required\n\n- **HIGH** (confidence: medium) `a.sh:1` — unchecked input. Failure: when two workers flush the same queue then one batch is written twice.\n\nAll good\n\n<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":1,"medium":0,"low":0},"sprint_id":"sprint-9","ts":"2026-10-14T00:00:00Z"} -->\n' > "$T/bad.md"
     for f in ok bad; do
         for p in lean standard; do
             rc=0

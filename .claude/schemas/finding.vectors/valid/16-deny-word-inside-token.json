@@ -1,0 +1,27 @@
+{
+  "description": "a denylisted word inside a longer word is no match (todolist, n/active)",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "anchor_line": 5,
+      "blocking": false,
+      "confidence": "high",
+      "failure_scenario": "when the todolist module imports n/active then the import fails at start",
+      "file": "todo/list.py",
+      "id": "F-074839",
+      "severity": "HIGH",
+      "title": "todolist"
+    },
+    "valid": true,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 5,
+    "confidence": "high",
+    "failure_scenario": "when the todolist module imports n/active then the import fails at start",
+    "file": "todo/list.py",
+    "severity": "HIGH",
+    "title": "todolist"
+  },
+  "markdown": "- **HIGH** (confidence: high) `todo/list.py:5` — todolist. Failure: when the todolist module imports n/active then the import fails at start."
+}

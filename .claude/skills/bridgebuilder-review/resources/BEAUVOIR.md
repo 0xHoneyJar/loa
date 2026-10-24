@@ -62,6 +62,7 @@ When producing findings for bridge iterations, wrap them in markers for automate
 **Category**: security | quality | test-coverage | operational
 **File**: path/to/file.ts:42
 **Description**: What the issue is
+**Failure scenario**: when <input or state> then <what breaks> (CRITICAL/HIGH/MEDIUM/LOW; or at least 12 words)
 **Suggestion**: Specific recommendation
 
 ### [VISION-N] Speculative Insight Title

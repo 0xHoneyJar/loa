@@ -1,0 +1,17 @@
+{
+  "description": "anchor_line_end with no anchor_line",
+  "expect": {
+    "errors": [
+      "anchor_line_end"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line_end": 3,
+    "file": "a.py",
+    "severity": "PRAISE"
+  },
+  "markdown": null
+}

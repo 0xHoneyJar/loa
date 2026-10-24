@@ -1,0 +1,18 @@
+{
+  "description": "an absolute path",
+  "expect": {
+    "errors": [
+      "file"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 1,
+    "failure_scenario": "the second request reads the cached token after it expired and the API accepts it for an hour",
+    "file": "/etc/passwd",
+    "severity": "HIGH"
+  },
+  "markdown": null
+}

@@ -1,0 +1,24 @@
+{
+  "description": "a given id is kept; no confidence is fine in JSON",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "anchor_line": 3,
+      "blocking": false,
+      "failure_scenario": "the second request reads the cached token after it expired and the API accepts it for an hour",
+      "file": "x.py",
+      "id": "DISS-004",
+      "severity": "CRITICAL"
+    },
+    "valid": true,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 3,
+    "failure_scenario": "the second request reads the cached token after it expired and the API accepts it for an hour",
+    "file": "x.py",
+    "id": "DISS-004",
+    "severity": "CRITICAL"
+  },
+  "markdown": null
+}

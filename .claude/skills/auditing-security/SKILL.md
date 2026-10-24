@@ -193,14 +193,14 @@ Use `resources/templates/audit-report.md`. Output stays in the State Zone: codeb
 
 ### Coverage
 
-Report every finding you actually observe — minor, uncertain, or on an otherwise clean sprint;
+Report every finding you observe — minor, uncertain, or on an otherwise clean sprint;
 the tally below is the filter, and a finding you drop here is lost.
 
-Each finding carries a `file:line`, a concrete failure scenario, a severity
+Each finding carries a `file:line`, a `Failure:` clause (see the template), a severity
 (`critical|high|medium|low`) and an independent confidence (`high|medium|low`): severity is the
 damage if the scenario happens, confidence is how sure you are that it happens. Reserve
 `critical` for a confirmed, exploitable path — it can never be excluded from the tally, so a
-false positive there is the most expensive mistake in the report.
+false positive there is the costliest mistake in the report.
 
 Every `critical` and `high` is tallied whatever its confidence, except a finding you mark
 `speculative` with confidence `low`: list it under `## Observations`, leave it out of the tally,

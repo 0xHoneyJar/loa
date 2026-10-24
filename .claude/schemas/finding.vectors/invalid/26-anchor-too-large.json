@@ -1,0 +1,16 @@
+{
+  "description": "anchor_line above 10,000,000",
+  "expect": {
+    "errors": [
+      "anchor_line"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 10000001,
+    "severity": "INFO"
+  },
+  "markdown": null
+}

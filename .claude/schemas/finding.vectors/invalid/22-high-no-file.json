@@ -1,0 +1,17 @@
+{
+  "description": "a HIGH without file or anchor",
+  "expect": {
+    "errors": [
+      "anchor_line",
+      "file"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "failure_scenario": "the second request reads the cached token after it expired and the API accepts it for an hour",
+    "severity": "HIGH"
+  },
+  "markdown": null
+}

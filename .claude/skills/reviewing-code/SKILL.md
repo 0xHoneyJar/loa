@@ -122,7 +122,7 @@ confidence `low`: it moves to `## Observations` and the trailer records it under
 `## Findings` or `## Issues` heading — `verdict-derive.sh` treats those as blocking on an
 approved file. You do not decide the verdict; the counts do.
 
-Entry format (the filter reads the first line of each entry): `- **HIGH** (confidence: medium) `path/to/file.py:42` — what fails, and how`; a demoted high reads `- **HIGH** (speculative, confidence: low) …` under `## Observations`.
+Entry format (verdict-derive.sh reads its first line): `- **HIGH** (confidence: medium) `path/to/file.py:42` — title. Failure: what fails, and how`; a demoted high reads `- **HIGH** (speculative, confidence: low) …` under `## Observations`.
 
 You MAY approve when every remaining finding sits under `## Observations`, each with a concrete
 failure scenario.

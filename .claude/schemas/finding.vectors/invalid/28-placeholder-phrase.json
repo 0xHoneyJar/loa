@@ -1,0 +1,20 @@
+{
+  "description": "a placeholder scenario",
+  "expect": {
+    "errors": [
+      "failure_scenario"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 1,
+    "confidence": "medium",
+    "failure_scenario": "when placeholder text ships then users see it",
+    "file": "a.py",
+    "severity": "HIGH",
+    "title": "x"
+  },
+  "markdown": "- **HIGH** (confidence: medium) `a.py:1` — x. Failure: when placeholder text ships then users see it."
+}

@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { CANONICAL_FINDING_SCHEMA_ID, CANONICAL_FINDING_SCHEMA_PATH } from "./finding-schema.js";
 
 /**
  * Confidence field: accepts any value but only preserves valid numbers in [0, 1].
@@ -36,12 +37,16 @@ export const FindingSchema = z
  * Zod schema for the findings block extracted from bridge-findings markers.
  *
  * Validates the top-level structure: schema_version (number) and findings (array).
- * Individual findings are validated per FindingSchema.
+ * Individual findings are validated per FindingSchema (the lenient extraction shape). The finding contract is the
+ * canonical `.claude/schemas/finding.schema.json` v1 (cycle-133 C-11): its zod validator is
+ * `CanonicalFindingSchema` / `validateCanonicalFinding` in ./finding-schema.ts, named in this schema's metadata.
  */
-export const FindingsBlockSchema = z.object({
-  schema_version: z.number(),
-  findings: z.array(FindingSchema),
-});
+export const FindingsBlockSchema = z
+  .object({
+    schema_version: z.number(),
+    findings: z.array(FindingSchema),
+  })
+  .meta({ canonicalFindingSchema: CANONICAL_FINDING_SCHEMA_ID, canonicalFindingSchemaPath: CANONICAL_FINDING_SCHEMA_PATH });
 
 /** Inferred TypeScript type for a validated finding. */
 export type ValidatedFinding = z.infer<typeof FindingSchema>;

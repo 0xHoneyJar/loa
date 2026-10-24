@@ -1,0 +1,19 @@
+{
+  "description": "PRAISE needs no file, anchor or scenario",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "blocking": false,
+      "id": "F-42d66d",
+      "severity": "PRAISE",
+      "title": "clean seam"
+    },
+    "valid": true,
+    "warnings": []
+  },
+  "finding": {
+    "severity": "PRAISE",
+    "title": "clean seam"
+  },
+  "markdown": null
+}

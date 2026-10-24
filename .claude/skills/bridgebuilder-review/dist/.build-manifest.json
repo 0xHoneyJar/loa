@@ -1,8 +1,8 @@
 {
   "version": "1.0",
-  "generated_at": "2026-10-23T23:51:33Z",
-  "source_hash": "3f8ed717a063cd6a36c436592d9e73037ab9b6d3104aadeb44c913a8a3127c69",
-  "file_count": 50,
+  "generated_at": "2026-10-24T08:15:07Z",
+  "source_hash": "eccf11592cc949ecd9a18f3834ec8cac031a4235f99a9225efef2ec7d39dd913",
+  "file_count": 51,
   "files": [
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/adapter-factory.ts",
@@ -97,6 +97,10 @@
       "sha256": "2aeb190efcdd7bdbfd82c2d006733f7067373016b14fa9b9b5e1f899c1b35a58"
     },
     {
+      "path": ".claude/skills/bridgebuilder-review/resources/core/finding-schema.ts",
+      "sha256": "3e400e5b270b79bcd68e2ca4dfab60bca323c5366ffa45a5600cd73cc92c5434"
+    },
+    {
       "path": ".claude/skills/bridgebuilder-review/resources/core/index.ts",
       "sha256": "9c87e1c3631d30adfcaee302d52989d6d24e60a8739effbe074bf13b6c9610fa"
     },
@@ -134,7 +138,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/schemas.ts",
-      "sha256": "ad1503e6fc1031e2b137b5e2866cf6b13fc27dd6045cc64422cf3b1f8a3ae048"
+      "sha256": "d45815ea97900e2a743ae7527a9d067284ff00d3e63294e0ca4702c71d70638c"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/scoring.ts",
@@ -142,7 +146,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/template.ts",
-      "sha256": "5a4b9a2eea4c7917d1b552788298fee87b73cfc45320527ea31b386725e9df5e"
+      "sha256": "ec88a4742b96c8e254ef9cdcdcb0b3fd80a147aed82bd86c5ba9696a3452e28f"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/truncation.generated.ts",

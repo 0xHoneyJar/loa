@@ -1,0 +1,19 @@
+{
+  "description": "REFRAME exempt; passthrough fields dropped from the normalised view",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "blocking": false,
+      "id": "F-715468",
+      "severity": "REFRAME"
+    },
+    "valid": true,
+    "warnings": []
+  },
+  "finding": {
+    "anchor": "x.py:fn",
+    "faang_parallel": "x",
+    "severity": "REFRAME"
+  },
+  "markdown": null
+}

@@ -1,0 +1,27 @@
+{
+  "description": "a MEDIUM whose short scenario has the when … then … shape",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "anchor_line": 7,
+      "blocking": false,
+      "confidence": "high",
+      "failure_scenario": "when the cache is cold then the lookup returns stale data",
+      "file": "lib/cache.sh",
+      "id": "F-497161",
+      "severity": "MEDIUM",
+      "title": "stale entry"
+    },
+    "valid": true,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 7,
+    "confidence": "high",
+    "failure_scenario": "when the cache is cold then the lookup returns stale data",
+    "file": "lib/cache.sh",
+    "severity": "MEDIUM",
+    "title": "stale entry"
+  },
+  "markdown": "- **MEDIUM** (confidence: high) `lib/cache.sh:7` — stale entry. Failure: when the cache is cold then the lookup returns stale data."
+}

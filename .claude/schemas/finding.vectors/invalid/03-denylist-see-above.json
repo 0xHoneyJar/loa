@@ -1,0 +1,20 @@
+{
+  "description": "a scenario that says see above",
+  "expect": {
+    "errors": [
+      "failure_scenario"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 2,
+    "confidence": "medium",
+    "failure_scenario": "when it runs then see  above for the details",
+    "file": "src/a.py",
+    "severity": "MEDIUM",
+    "title": "dup"
+  },
+  "markdown": "- **MEDIUM** (confidence: medium) `src/a.py:2` — dup. Failure: when it runs then see  above for the details."
+}

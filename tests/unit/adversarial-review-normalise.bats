@@ -2216,3 +2216,63 @@ PY
         [ "$status" -eq 0 ] || { echo "$output"; return 1; }
     fi
 }
+
+# =============================================================================
+# cycle-133 Sprint 274 Task 3.2 (sdd.md C-11; PRD FR-11): failure_scenario is the canonical field, failure_mode its alias for
+# one release — normalised with the named warning; both present and different → rejected; the cycle-132 envelopes replay
+# =============================================================================
+
+@test "NRM-C133-1 a finding naming only failure_mode is accepted, carries failure_scenario = failure_mode, and the run warns once" {
+    doc='{"findings":[{"id":"DISS-001","severity":"HIGH","category":"config","description":"d. e.","failure_mode":"stated"},{"id":"DISS-002","severity":"LOW","category":"config","description":"x. y.","failure_mode":"also stated"}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/err")
+    [ "$(jq '.findings | length' <<<"$result")" = "2" ]
+    jq -e '.findings | all(.failure_scenario == .failure_mode)' <<<"$result" >/dev/null
+    [ "$(grep -c 'WARN: `failure_mode` is an alias of `failure_scenario`; removed in 2.1.0 (2 finding(s) named only failure_mode)' "$TEST_DIR/err")" -eq 1 ]
+}
+
+@test "NRM-C133-2 a finding speaking failure_scenario alone is accepted (failure_mode filled from it), with no alias warning" {
+    doc='{"findings":[{"id":"DISS-001","severity":"MEDIUM","category":"config","description":"d. e.","failure_scenario":"when the cache is cold then the read is stale"}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/err")
+    [ "$(jq '.findings | length' <<<"$result")" = "1" ]
+    [ "$(jq -r '.findings[0].failure_mode' <<<"$result")" = "when the cache is cold then the read is stale" ]
+    [ "$(jq -r '.findings[0].failure_scenario' <<<"$result")" = "when the cache is cold then the read is stale" ]
+    ! grep -q 'is an alias of `failure_scenario`' "$TEST_DIR/err"
+}
+
+@test "NRM-C133-3 failure_scenario and a different failure_mode: rejected with alias-conflict, never one chosen silently" {
+    doc='{"findings":[{"id":"DISS-001","severity":"HIGH","category":"config","description":"d. e.","failure_scenario":"one story","failure_mode":"another story"}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/err")
+    [ "$(jq '.findings | length' <<<"$result")" = "0" ]
+    [ "$(jq -r '.metadata.rejected_summary[0].reason' <<<"$result")" = "alias-conflict-failure_scenario-failure_mode" ]
+    # equal values are no conflict
+    doc='{"findings":[{"id":"DISS-001","severity":"HIGH","category":"config","description":"d. e.","failure_scenario":"same","failure_mode":"same"}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "")
+    [ "$(jq '.findings | length' <<<"$result")" = "1" ]
+}
+
+@test "NRM-C133-4 a description-only finding is derived as before and says the description alias" {
+    doc='{"findings":[{"id":"DISS-001","severity":"LOW","category":"other","description":"Real words here in the first sentence. Second sentence."}]}'
+    result=$(process_findings "$(_env "$doc")" "audit" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/err")
+    [ "$(jq -r '.findings[0].failure_scenario' <<<"$result")" = "Real words here in the first sentence." ]
+    grep -q 'WARN: `description` is an alias of `failure_scenario`; removed in 2.1.0 (1 finding(s) gave only a description)' "$TEST_DIR/err"
+}
+
+@test "NRM-C133-5 replay: every cycle-132 dissent envelope's findings are accepted again, unchanged but for failure_scenario" {
+    local f n=0 type got want
+    for f in "$PROJECT_ROOT"/grimoires/loa/reports/review-catch-c132/sprint-27[01]/adversarial-*.json; do
+        [ "$(jq '.findings | length' "$f")" -gt 0 ] || continue
+        n=$((n + 1))
+        type=$(jq -r '.metadata.type' "$f")
+        result=$(process_findings "$(_env "$(jq -c '{findings: .findings}' "$f")")" "$type" "m" "$SPRINT" "0" "" 2>"$TEST_DIR/err")
+        [ "$(jq '.metadata.rejected_count' <<<"$result")" = "0" ] || { echo "$f: $(jq -c '.metadata.rejected_summary' <<<"$result")"; return 1; }
+        [ "$(jq '.findings | length' <<<"$result")" = "$(jq '.findings | length' "$f")" ]
+        jq -e '.findings | all(.failure_scenario == .failure_mode)' <<<"$result" >/dev/null
+        # the alias fields are kept byte for byte: failure_mode, description and category as recorded (severity is left out:
+        # validate_anchor re-judges an anchor against the diff, which this replay does not pass — a BLOCKING finding whose
+        # anchor no longer resolves reads ADVISORY with or without this change)
+        got=$(jq -c '[.findings[] | [.failure_mode, .description, .category]]' <<<"$result")
+        want=$(jq -c '[.findings[] | [.failure_mode, .description, .category]]' "$f")
+        [ "$got" = "$want" ] || { echo "$f: $got != $want"; return 1; }
+    done
+    [ "$n" -eq 4 ]
+}

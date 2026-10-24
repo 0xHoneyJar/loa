@@ -11,12 +11,12 @@
 #   ablation-grade.sh <run-dir> <task-id> [--suite-root DIR] [--tasks-dir tasks|smoke]
 #                     [--out FILE] [--json] [--executor container|host]
 #                     [--image loa-ablation:259] [--docker-bin D]
-#                     [--allow-unfrozen] [--allow-partial]
+#                     [--allow-unfrozen] [--allow-partial] [--judge-verdicts FILE [--run-id ID]]
 #   ablation-grade.sh --self-check base|reference|noisy --task-yaml F [--suite-root DIR]
 #                     [--executor …] [--image …] [--docker-bin D] [--json]
 #                     [--allow-unfrozen] [--allow-partial]
 #   ablation-grade.sh --union <cell-dir> --task-id T [--suite-root DIR] [--tasks-dir T]
-#                     [--out FILE] [--json] [--allow-unfrozen] [--allow-partial]
+#                     [--out FILE] [--json] [--allow-unfrozen] [--allow-partial] [--judge-verdicts FILE [--run-id ID]]
 #
 # Options:
 #   --suite-root DIR   suite root (default grimoires/loa/evals/ablation-2.0; with
@@ -37,6 +37,9 @@
 #   --self-check MODE  base | reference | noisy (noisy: review-catch only), see below
 #   --task-yaml F      the task to self-check (<root>/<tasks|smoke>/<id>/task.yaml)
 #   --union DIR        (1.3.2) grade a matched cell (see "Union" below); --task-id names its task
+#   --judge-verdicts F (1.5.0) the judge's verdicts JSONL, bound to this grade's credited pairs (see "grader 1.5.0"
+#                      below); review-catch run and union grades only (a build task or --self-check is exit 2)
+#   --run-id ID        (1.5.0) the run id the verdict rows must name (default: the run or cell directory's name)
 #
 # Environment: LOA_EVAL_ALLOW_HOST_GRADING=1 (see --executor); LOA_EVAL_GRADE_TIMEOUT_S
 # (1-9999, default 120: the per-command deadline; tests shorten it).
@@ -240,6 +243,28 @@
 #    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
 #    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
 #    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
+# grader 1.5.0 (cycle-133 Sprint 274 Task 3.2; SDD C-11, D-3.2 DEC-0849; PRD FR-11): --judge-verdicts. Without the flag a
+# grade is 1.4.0's, grader_version aside (evals/tests/fixtures/grader-1.5/regress.sh grades every fixture shape of
+# evals/tests/ablation-grade.bats with the 1.4.0 grader of the Sprint 2 head and compares). A credited pair is (citation,
+# defect) for every citation within ±3 of a site of the defect (pm3, the decision rule; DEC-0638); its finding is the
+# citation's canonical reference {id, file, anchor_line[, anchor_line_end]} (file without head/ or base/; id
+# F-<first 6 hex of sha256("<file>:<anchor_line>:")>, the C-11 derivation with no title — the same file and line are one
+# finding). The verdicts file is JSONL, one object per line (blank lines skipped), exactly the keys {run_id, finding_id,
+# finding_sha256, defect_key (d<n>), fixture_sha256, grader_version, verdict (describes | does_not_describe), judge_model,
+# judge_prompt_sha256, blind (boolean), ts (ISO 8601)} plus an optional supersedes; every row is validated before any
+# grading (a malformed row is exit 2). Hashes are sha256 of the RFC 8785 text: finding_sha256 of the reference,
+# fixture_sha256 of the task's key manifest, a row's own identity of the row. Binding is one-to-one by (run_id,
+# finding_id, defect_key): rows naming another run id are ignored and counted (judge.rows_other_runs); a row of this run
+# whose grader_version is not this grader's, whose fixture_sha256 or finding_sha256 is not the current one, or whose pair
+# this grade does not credit is stale and rejects the grade (exit 2, no grade.json written); a second row for a pair is
+# refused unless it names an earlier row of the same pair in supersedes (the sha256 of that row), and a row is superseded
+# at most once. Fields (only with the flag; review-catch): fixture_sha256, credited_pairs [{finding_id, finding_sha256,
+# defect_key, verdict, blind}] (null verdict and blind when unjudged; ordered by defect, then finding id), recall_judged
+# (defects with a blind `describes` verdict on a credited pair / defects_seeded, 4 decimals), recall_judged_unblind (the
+# same with blind: false verdicts counted too), judged_pairs (blind verdicts), judged_pairs_unblind, unjudged_pairs
+# (credited pairs with no verdict), judge {run_id, verdicts_sha256 (the file's bytes), rows_this_run, rows_other_runs,
+# rows_superseded, judge_models, judge_prompt_sha256 (sorted, of the effective verdicts)}. An empty verdicts file lists
+# the pairs to judge. A union grade (--union) binds its union citations the same way.
 # grader 1.4.0 (cycle-133 Sprint 273 Task 2.3; SDD C-8; PRD FR-8; bd-kddde shapes 1 and 2): two contamination exemptions;
 # every other class and field are unchanged, except that a value the exemptions clear no longer stops the scan, so
 # contaminated may name a later hit and history_probes / heredoc_interpreters (counted up to the first hit) may grow
@@ -456,7 +481,7 @@ import argparse, configparser, difflib, filecmp, fnmatch, json, os, re, shlex, s
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.4.0"
+GRADER_VERSION = "1.5.0"
 HIDDEN_CLASS = [True]   # whether the build-only classes (hidden 1.3.6, suite_path 1.3.7) apply to the task being graded
 BUILD_ONLY_CLASSES = ["hidden", "suite_path"]
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -502,6 +527,8 @@ ap.add_argument("--self-check", choices=["base", "reference", "noisy"])
 ap.add_argument("--task-yaml")
 ap.add_argument("--union")      # 1.3.2 (cycle-132 FR-3): a matched cell directory, graded as the union of its sessions
 ap.add_argument("--task-id", dest="union_task_id")    # the task of --union
+ap.add_argument("--judge-verdicts")   # 1.5.0 (cycle-133 C-11): the judge's verdicts JSONL, bound to this grade's credited pairs
+ap.add_argument("--run-id")           # 1.5.0: the run id the verdict rows name (default: the run or cell directory's name)
 try:
     A = ap.parse_args(sys.argv[4:])
 except SystemExit:
@@ -1810,6 +1837,188 @@ def score_recall(t, grading, cites, text):
               "rule": det.get("rule")}
     return recall, false_positives(cites, defects), multi_credit_citations(cites, defects)
 
+
+
+# ------------------------------------------------------------------ judge verdicts (1.5.0, cycle-133 C-11, D-3.2)
+JUDGE = [None]      # (rows [(line, row, row_sha256)], verdicts file sha256) when --judge-verdicts is given
+RUN_ID = [None]
+SHA64 = re.compile(r"[0-9a-f]{64}")
+JV_FIELDS = {"run_id": str, "finding_id": str, "finding_sha256": str, "defect_key": str, "fixture_sha256": str,
+             "grader_version": str, "verdict": str, "judge_model": str, "judge_prompt_sha256": str, "blind": bool, "ts": str}
+JV_PATTERNS = {"run_id": r"[A-Za-z0-9._-]{1,128}", "finding_id": r"F-[0-9a-f]{6}", "defect_key": r"d[1-9][0-9]{0,5}",
+               "finding_sha256": SHA64.pattern, "fixture_sha256": SHA64.pattern, "judge_prompt_sha256": SHA64.pattern,
+               "grader_version": r"[0-9]+\.[0-9]+\.[0-9]+", "verdict": r"describes|does_not_describe",
+               "judge_model": r"[A-Za-z0-9._:/@+-]{1,200}",
+               "ts": r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})"}
+VERDICTS_CAP = 64 * 1024 * 1024
+
+
+def jcs_number(x):
+    """RFC 8785 §3.2.2.3: the ECMAScript Number-to-String form of a finite number"""
+    if isinstance(x, int):
+        return str(x)
+    if not (x == x and x not in (float("inf"), float("-inf"))):
+        raise GradeError("a non-finite number has no canonical form")
+    if x == 0:
+        return "0"
+    if x.is_integer() and abs(x) < 1e21:
+        return str(int(x))
+    r = repr(x)
+    sign, r = ("-", r[1:]) if r.startswith("-") else ("", r)
+    m, e = (r.split("e")[0], int(r.split("e")[1])) if "e" in r else (r, 0)
+    ip, fp = m.split(".") if "." in m else (m, "")
+    allp = ip + fp
+    n = len(ip) + e - (len(allp) - len(allp.lstrip("0")))
+    digits = allp.lstrip("0").rstrip("0")
+    k = len(digits)
+    if k <= n <= 21:
+        return sign + digits + "0" * (n - k)
+    if 0 < n <= 21:
+        return sign + digits[:n] + "." + digits[n:]
+    if -6 < n <= 0:
+        return sign + "0." + "0" * (-n) + digits
+    return sign + digits[0] + ("." + digits[1:] if k > 1 else "") + "e" + ("+" if n - 1 >= 0 else "-") + str(abs(n - 1))
+
+
+def jcs(o):
+    """RFC 8785 canonical JSON text (keys in UTF-16 code-unit order); no .claude/ code is used (eval.yml trust boundary)"""
+    if o is None or isinstance(o, bool):
+        return json.dumps(o)
+    if isinstance(o, (int, float)):
+        return jcs_number(o)
+    if isinstance(o, str):
+        return json.dumps(o, ensure_ascii=False)
+    if isinstance(o, list):
+        return "[" + ",".join(jcs(v) for v in o) + "]"
+    if isinstance(o, dict):
+        return "{" + ",".join(json.dumps(k, ensure_ascii=False) + ":" + jcs(o[k])
+                              for k in sorted(o, key=lambda k: k.encode("utf-16-be"))) + "}"
+    raise GradeError(f"no canonical JSON form for {type(o).__name__}")
+
+
+def jcs_sha(o):
+    return hashlib_sha256(jcs(o).encode("utf-8"))
+
+
+def hashlib_sha256(b):
+    import hashlib
+    return hashlib.sha256(b).hexdigest()
+
+
+def load_verdicts(path):
+    """the --judge-verdicts JSONL, validated row by row before any grading (a malformed row refuses the grade)"""
+    if not os.path.isfile(path):
+        raise GradeError(f"--judge-verdicts {path}: not a readable regular file")
+    with open(path, "rb") as f:
+        raw = f.read(VERDICTS_CAP + 1)
+    if len(raw) > VERDICTS_CAP:
+        raise GradeError(f"--judge-verdicts {path}: above {VERDICTS_CAP} bytes")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        raise GradeError(f"--judge-verdicts {path}: not UTF-8")
+    rows = []
+    for n, line in enumerate(text.split("\n"), 1):
+        if not line.strip():
+            continue
+        try:
+            r = json.loads(line)
+        except ValueError:
+            raise GradeError(f"--judge-verdicts line {n}: not a JSON object")
+        if not isinstance(r, dict):
+            raise GradeError(f"--judge-verdicts line {n}: not a JSON object")
+        missing = [k for k in JV_FIELDS if k not in r]
+        extra = sorted(k for k in r if k not in JV_FIELDS and k != "supersedes")
+        if missing or extra:
+            raise GradeError(f"--judge-verdicts line {n}: " + "; ".join(
+                ([f"missing {', '.join(missing)}"] if missing else []) + ([f"unknown {', '.join(extra)}"] if extra else [])))
+        for k, ty in JV_FIELDS.items():
+            v = r[k]
+            if not isinstance(v, ty) or (ty is str and not re.fullmatch(JV_PATTERNS[k], v)):
+                raise GradeError(f"--judge-verdicts line {n}: {k} is not a valid value")
+        if "supersedes" in r and not (isinstance(r["supersedes"], str) and SHA64.fullmatch(r["supersedes"])):
+            raise GradeError(f"--judge-verdicts line {n}: supersedes must be the sha256 of the superseded row")
+        rows.append((n, r, jcs_sha(r)))
+    return rows, hashlib_sha256(raw)
+
+
+def finding_ref(path, a, b):
+    """a citation's canonical finding reference: {id, file, anchor_line[, anchor_line_end]} (C-11 id derivation, no title)"""
+    f = strip_side(path)
+    ref = {"file": f, "anchor_line": a}
+    if b > a:
+        ref["anchor_line_end"] = b
+    ref["id"] = "F-" + hashlib_sha256(f"{f}:{a}:".encode("utf-8"))[:6]
+    return ref
+
+
+def credited_pairs(cites, defects):
+    """(finding_id, defect_key) → the finding reference, for every citation within ±3 of a site of a defect (pm3, the
+    decision rule); a finding id met twice (the same file and line) is the first citation's"""
+    out = {}
+    for p, a, b in cites:
+        ref = finding_ref(p, a, b)
+        for i, d in enumerate(defects, 1):
+            if path_matches(p, d.get("file", "")) and any(not (b < s - 3 or a > s + 3) for s in sites_of(d)):
+                out.setdefault((ref["id"], f"d{i}"), ref)
+    return out
+
+
+def judge_fields(t, cites, recall):
+    rows, vsha = JUDGE[0]
+    run_id = RUN_ID[0]
+    pairs = credited_pairs(cites, t.key.get("defects") or [])
+    fx = jcs_sha(t.key)
+    mine = [x for x in rows if x[1]["run_id"] == run_id]
+    pos = {h: (n, (r["finding_id"], r["defect_key"])) for n, r, h in mine}
+    for n, r, _h in mine:
+        key = (r["finding_id"], r["defect_key"])
+        if r["grader_version"] != GRADER_VERSION:
+            raise GradeError(f"--judge-verdicts line {n}: stale verdict — grader_version {r['grader_version']}, this grader is "
+                             f"{GRADER_VERSION}; re-judge the pair under this grader")
+        if r["fixture_sha256"] != fx:
+            raise GradeError(f"--judge-verdicts line {n}: stale verdict — fixture_sha256 is not this key's (the key changed); re-judge")
+        if key not in pairs:
+            raise GradeError(f"--judge-verdicts line {n}: stale verdict — ({key[0]}, {key[1]}) is no credited pair of this grade")
+        if r["finding_sha256"] != jcs_sha(pairs[key]):
+            raise GradeError(f"--judge-verdicts line {n}: stale verdict — finding_sha256 is not {key[0]}'s; re-judge")
+    superseded = {}
+    for n, r, h in mine:
+        sp = r.get("supersedes")
+        if sp is None:
+            continue
+        if sp not in pos or pos[sp][1] != (r["finding_id"], r["defect_key"]) or pos[sp][0] >= n:
+            raise GradeError(f"--judge-verdicts line {n}: supersedes names no earlier verdict of the same pair in this file")
+        if sp in superseded:
+            raise GradeError(f"--judge-verdicts line {n}: the verdict it supersedes was already superseded by line {superseded[sp]}")
+        superseded[sp] = n
+    effective = {}
+    for n, r, h in mine:
+        if h in superseded:
+            continue
+        key = (r["finding_id"], r["defect_key"])
+        if key in effective:
+            raise GradeError(f"--judge-verdicts line {n}: duplicate verdict for ({key[0]}, {key[1]}) — a later verdict must name "
+                             "the earlier one in supersedes (the sha256 of its RFC 8785 row)")
+        effective[key] = r
+    blind = {k: v for k, v in effective.items() if v["blind"]}
+    unblind = {k: v for k, v in effective.items() if not v["blind"]}
+    seeded = recall.get("defects_seeded") if isinstance(recall, dict) else None
+    ok = isinstance(seeded, int) and not isinstance(seeded, bool) and seeded > 0
+
+    def share(rs):
+        return round(len({k[1] for k, v in rs.items() if v["verdict"] == "describes"}) / seeded, 4) if ok else None
+    order = sorted(pairs, key=lambda k: (int(k[1][1:]), k[0]))
+    return {"fixture_sha256": fx,
+            "credited_pairs": [{"finding_id": k[0], "finding_sha256": jcs_sha(pairs[k]), "defect_key": k[1],
+                                "verdict": (effective[k]["verdict"] if k in effective else None),
+                                "blind": (effective[k]["blind"] if k in effective else None)} for k in order],
+            "recall_judged": share(blind), "recall_judged_unblind": share(effective),
+            "judged_pairs": len(blind), "judged_pairs_unblind": len(unblind), "unjudged_pairs": len(pairs) - len(effective),
+            "judge": {"run_id": run_id, "verdicts_sha256": vsha, "rows_this_run": len(mine),
+                      "rows_other_runs": len(rows) - len(mine), "rows_superseded": len(superseded),
+                      "judge_models": sorted({v["judge_model"] for v in effective.values()}),
+                      "judge_prompt_sha256": sorted({v["judge_prompt_sha256"] for v in effective.values()})}}
 
 # ------------------------------------------------------------------ contamination
 SYS_DIRS = ["/dev", "/proc", "/sys", "/usr", "/bin", "/sbin", "/lib", "/lib64", "/etc", "/opt", "/var"]
@@ -3233,6 +3442,8 @@ def grade(t, run_dir, frozen):
             g["symlinks_dropped"] = copy_tree(os.path.join(sb, "pr"), os.path.join(grading, "pr"))
         g["recall"], g["false_positives"], mc = grade_recall(t, run_dir, grading)
         g["false_positive_rule"], g["multi_credit_citations"] = "pm3", mc   # 1.3.2: bd-9zmfn, SKP-022
+        if JUDGE[0] is not None:   # 1.5.0: only with --judge-verdicts (without it the grade is 1.4.0's, grader_version aside)
+            g.update(judge_fields(t, combined_findings(run_dir), g["recall"]))
         g["corpus_sha256"] = corpus_sha256(t)
         ORACLE_SKIPPED.clear()
         (g["oracle_exposed_defects"], g["oracle_exposed_unknown"], g["oracle_exposed_events"],
@@ -3361,6 +3572,8 @@ def grade_union(t, cell, frozen):
          "corpus_sha256": corpus_sha256(t)}
     if valid_ids:
         g["recall"], g["false_positives"], g["multi_credit_citations"] = score_recall(t, grading, cites, "".join(parts))
+        if JUDGE[0] is not None:   # 1.5.0: the union's credited pairs (its citations), bound like a run's
+            g.update(judge_fields(t, cites, g["recall"]))
         first = grades[valid_ids[0]]
         for key in ("label_set", "labels_meta"):   # the task's label set (implementer B's fields), one per task
             if key in first:
@@ -3488,8 +3701,22 @@ def host_gate():
           file=sys.stderr)
 
 
+def judge_setup(target):
+    """1.5.0: --judge-verdicts is read and validated before any grading; --run-id defaults to the directory's name"""
+    if A.run_id is not None and A.judge_verdicts is None:
+        raise GradeError("--run-id goes with --judge-verdicts")
+    if A.judge_verdicts is None:
+        return
+    RUN_ID[0] = A.run_id if A.run_id is not None else os.path.basename(os.path.abspath(target))
+    if not re.fullmatch(JV_PATTERNS["run_id"], RUN_ID[0]):
+        raise GradeError(f"--run-id {RUN_ID[0]!r}: 1-128 of [A-Za-z0-9._-]")
+    JUDGE[0] = load_verdicts(A.judge_verdicts)
+
+
 def main():
     host_gate()
+    if A.self_check and (A.judge_verdicts is not None or A.run_id is not None):
+        raise GradeError("--judge-verdicts grades a run or a union, never a self-check")
     if A.self_check:
         if not A.task_yaml or not os.path.isfile(A.task_yaml):
             raise GradeError("--self-check needs --task-yaml <task.yaml>")
@@ -3520,6 +3747,7 @@ def main():
         t = load_task(ty, suite_root)
         if t.id != A.union_task_id or t.build:
             raise GradeError(f"--union grades a review-catch task; {A.union_task_id!r} is not one")
+        judge_setup(A.union)
         g = grade_union(t, A.union, freeze_check(suite_root))
         out = A.out or os.path.join(os.path.abspath(A.union), "grade.json")
         text = write_grade(g, out)
@@ -3545,6 +3773,9 @@ def main():
     t = load_task(ty, suite_root)
     if t.id != A.task_id:
         raise GradeError(f"task.yaml id {t.id!r} differs from {A.task_id!r}")
+    if t.build and (A.judge_verdicts is not None or A.run_id is not None):
+        raise GradeError("--judge-verdicts applies to review-catch grades only (a build task has no credited pairs)")
+    judge_setup(A.run_dir)
     frozen = freeze_check(suite_root)
     g = grade(t, A.run_dir, frozen)
     out = A.out or os.path.join(os.path.abspath(A.run_dir), "grade.json")

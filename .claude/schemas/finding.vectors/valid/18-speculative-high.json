@@ -1,0 +1,27 @@
+{
+  "description": "a demoted high (speculative, confidence: low) still needs and has a scenario",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "anchor_line": 80,
+      "blocking": false,
+      "confidence": "low",
+      "failure_scenario": "when two workers flush the same queue then one batch is written twice",
+      "file": "src/q.py",
+      "id": "F-460434",
+      "severity": "HIGH",
+      "title": "might race under load"
+    },
+    "valid": true,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 80,
+    "confidence": "low",
+    "failure_scenario": "when two workers flush the same queue then one batch is written twice",
+    "file": "src/q.py",
+    "severity": "HIGH",
+    "title": "might race under load"
+  },
+  "markdown": "- **HIGH** (speculative, confidence: low) `src/q.py:80` — might race under load. Failure: when two workers flush the same queue then one batch is written twice."
+}

@@ -1,0 +1,16 @@
+{
+  "description": "a numeric title",
+  "expect": {
+    "errors": [
+      "title"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "severity": "PRAISE",
+    "title": 7
+  },
+  "markdown": null
+}

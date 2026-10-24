@@ -1,0 +1,17 @@
+{
+  "description": "an unknown severity and an absolute path: both codes",
+  "expect": {
+    "errors": [
+      "file",
+      "severity"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "file": "/x",
+    "severity": "NIT"
+  },
+  "markdown": null
+}
