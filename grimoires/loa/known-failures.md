@@ -2077,6 +2077,7 @@ Not a bats or test defect: the test's choice of launcher. Locally bats comes fro
 |------|---------------|---------|----------|
 | 2026-10-24 | implementer D4 (s3-e) dispatched with the shared-namespace + owner-matched netfilter design; EGR-8 to gain a deterministic gateway listener probe | pending | CI run 40074686664; brief ~/.cache/loa/cycle-133/briefs/s3-e.md |
 | 2026-10-24 | implementer D4 (s3-e) landed: a guard namespace per blocked sandbox (proxy-image container with in-namespace netfilter; sandbox joins with --network container:<guard>); EGR-8 rewritten with a deterministic gateway-listener probe, EGR-13/EP-9 new; must_unreach accepts only in-namespace rejections | fixed — gate 22/22 with real containers on two hosts, launcher regression 189/189, pin self-check 62 PASS 0 FAIL, spike user arm SPIKE-OK 0 denials; CI confirmation pending on the next push | commit 874fc64a9; proxy image sha256:95c4c379; ~/.cache/loa/cycle-133/tests/s3e-lead-gate-094721.log |
+| 2026-10-24 | pushed the fix (db668858d head) and let CI run the eval harness suite on the GitHub runner, the host where the gap first showed | confirmed fixed in CI: Eval Sandbox green (EGR-8 gateway probes and EGR-12 self-check pass on the runner) | CI run 40085119807 on db668858d; fix commit 874fc64a9 |
 
 ### Reading guide
 
