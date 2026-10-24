@@ -6,7 +6,7 @@
 #
 # Usage:
 #   blind-session.sh --packets DIR --prompt FILE --model ID --out DIR
-#                    [--image loa-ablation:258] [--max-usd 6] [--executor container|host]
+#                    [--image loa-ablation:259] [--max-usd 6] [--executor container|host]
 #                    [--claude-bin B] [--docker-bin D] [--max-turns 120] [--timeout-min 60]
 #                    [--spend-row FILE]
 #
@@ -19,7 +19,7 @@
 #                      placeholder gets one closing line naming that path
 #   --model ID         the session model (global.anthropic.claude-opus-5-5 for the roles)
 #   --out DIR          output directory (must not exist, or be empty)
-#   --image IMG        container image (default loa-ablation:258)
+#   --image IMG        container image (default loa-ablation:259, the pinned pipeline image)
 #   --max-usd USD      the session cap (default 6): the stream is re-priced every
 #                      $LOA_EVAL_WATCHDOG_POLL_S seconds (default 1) and the session is stopped
 #                      when the estimate reaches the cap (cost.json cap_hit, exit 1). Metering fails
@@ -103,7 +103,7 @@ shopt -u patsub_replacement 2>/dev/null || true   # bash 5.2: '&' in ${x//p/r} s
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-PACKETS="" PROMPT="" MODEL="" OUT="" IMAGE="loa-ablation:258" MAX_USD="6"
+PACKETS="" PROMPT="" MODEL="" OUT="" IMAGE="loa-ablation:259" MAX_USD="6"
 EXECUTOR="${LOA_EVAL_EXECUTOR:-container}" CLAUDE_BIN="${EVAL_CLAUDE_BIN:-claude}" DOCKER_BIN="${EVAL_DOCKER_BIN:-docker}"
 MAX_TURNS=120 TIMEOUT_MIN=60 SPEND_ROW=""
 TOOLS="Read,Grep,Glob,Write"

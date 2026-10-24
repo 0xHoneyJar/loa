@@ -263,12 +263,12 @@ G() { jq -r "$1" "$RD/grade.json"; }
   [ -f "$RD/grading/final/tests/test_slug.py" ] && [ -f "$RD/grade.json" ]
   [ ! -e "$RD/grading/final/.git" ] && [ ! -e "$RD/grading/final/CLAUDE.md" ] && [ ! -e "$RD/grading/final/grimoires" ]
   [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "7/7" ]
-  [ "$(G '.executor_mode')" = container ] && [ "$(G '.image')" = "loa-ablation:258" ]
+  [ "$(G '.executor_mode')" = container ] && [ "$(G '.image')" = "loa-ablation:259" ]
   [ "$(G '.diff_lines')" = 2 ] && [ "$(G '.files_changed')" = 1 ]
   # the docker argv: init, a name, no network, read-only root, tmpfs, limits, no capabilities, the caller's
   # uid, one rw mount, a kill deadline, the pytest shape (grader 1.2.0: MEDIUM-A1, HIGH-A1 -o addopts=)
   argv="$(tr '\0' ' ' < "$T/dlog/run-1.argv")"
-  [[ "$argv" == "run --rm --init --name ablgrade-run-final-"*" --network none --read-only --tmpfs /tmp:rw,size=256m --pids-limit 256 --memory 2g --cpus 2 --cap-drop ALL --security-opt no-new-privileges --user $(id -u):$(id -g) -v $RD/grading/final:/workspace:rw -w /workspace -e HOME=/tmp -e LC_ALL=C -e TMPDIR=/tmp loa-ablation:258 timeout --signal=TERM --kill-after=10 120 python3 -I -s -m pytest -p no:cacheprovider -o addopts= -q --rootdir /workspace -rA tests "* ]]
+  [[ "$argv" == "run --rm --init --name ablgrade-run-final-"*" --network none --read-only --tmpfs /tmp:rw,size=256m --pids-limit 256 --memory 2g --cpus 2 --cap-drop ALL --security-opt no-new-privileges --user $(id -u):$(id -g) -v $RD/grading/final:/workspace:rw -w /workspace -e HOME=/tmp -e LC_ALL=C -e TMPDIR=/tmp loa-ablation:259 timeout --signal=TERM --kill-after=10 120 python3 -I -s -m pytest -p no:cacheprovider -o addopts= -q --rootdir /workspace -rA tests "* ]]
   [ "$(tr '\0' '\n' < "$T/dlog/run-1.argv" | grep -cx -- -q)" -eq 1 ]
 }
 
@@ -2417,9 +2417,9 @@ EOF
     run "$T/old/evals/harness/ablation-grade.sh" "$RD" rc-x --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker" --out "$T/old$k.json"
     [ "$status" -eq 0 ] || { echo "$output"; false; }
     if [ "$cls" = same ]; then
-      jeq "$T/old$k.json" "$RD/grade.json" grader_version || { echo "case $k ($inp) differs"; false; }
+      jeq "$T/old$k.json" "$RD/grade.json" grader_version image || { echo "case $k ($inp) differs"; false; }   # image: the pinned grader defaults to 258, this one to 259 (Sprint 274)
     else
-      jeq "$T/old$k.json" "$RD/grade.json" grader_version contaminated contamination_exempt history_probes heredoc_interpreters
+      jeq "$T/old$k.json" "$RD/grade.json" grader_version image contaminated contamination_exempt history_probes heredoc_interpreters
       [ "$(jq -r '.contaminated.pattern' "$T/old$k.json")" != null ]
       [ "$(G '.contaminated')" = null ]
       [ "$(jq -r --arg c "$cls" '[.contamination_exempt[] | select(.class == $c)] | length' "$RD/grade.json")" = 1 ]

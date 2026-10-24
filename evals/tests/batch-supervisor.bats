@@ -37,7 +37,9 @@ exec "$FX/ablation-docker-stub.sh" "\$@"
 EOF
   chmod +x "$T/bin/loginctl" "$T/bin/docker"
   echo "11111111-2222-3333-4444-555555555555" > "$T/boot_id"
-  export PATH="$T/bin:$PATH" LOA_SUPERVISOR_BOOT_ID_FILE="$T/boot_id" LOA_SUPERVISOR_POLL_S=0.2 \
+  # the tests run as a user session: a CI runner lives in system.slice, which lingers by construction (BSV-3 would then launch)
+  printf '0::/user.slice/user-1000.slice/user@1000.service/app.slice/app-bats.scope\n' > "$T/cgroup"
+  export PATH="$T/bin:$PATH" LOA_SUPERVISOR_BOOT_ID_FILE="$T/boot_id" LOA_SUPERVISOR_CGROUP_FILE="$T/cgroup" LOA_SUPERVISOR_POLL_S=0.2 \
     LOA_SUPERVISOR_GRACE_S=1 LOA_SUPERVISOR_MODE=setsid EVAL_DOCKER_BIN="$T/bin/docker"
   unset LOA_SUPERVISOR_HANG_S STUB_LOGINCTL_LOG
 }

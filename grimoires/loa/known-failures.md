@@ -105,6 +105,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-055](#kf-055-bridgebuilder-consensus-enrichment-posts-a-tool-call-transcript-instead-of-the-review-the-body-derived-verdict-reads-unknown-and-mergeblocked-true-even-when-the-consensus-json-says-comment) | OPEN — upstream fix filed as bead bd-cpvc6; cycle-132 read the per-voice JSON blocks and the round-1 consensus JSON directly | .claude/skills/bridgebuilder-review (multi-model enrichment writer anthropic/claude-headless; body-derived verdict in the summary JSON) | 1 |
 | [KF-056](#kf-056-dec-rows-written-during-planning-carry-the-previous-cycles-id) | Open (fix candidate on bead bd-d7dwt; Sprint 4 sweep) | dec-write-lib.sh default_cycle / decisions.yaml cycle field | 1 |
 | [KF-057](#kf-057-bats-tests-that-spawn-a-nested-bats-via-npx-pass-locally-and-fail-in-ci) | Fixed for tests/unit/quarantine-expiry.bats (a0624b285); pattern to follow in any test that runs a nested bats | tests/unit/*.bats nested bats runs; .github/workflows/bats-tests.yml (bats-core v1.13.0 installed on PATH) | 1 |
+| [KF-058](#kf-058-an---internal-docker-network-still-reaches-the-hosts-bridge-gateway-address) | Open — fix in cycle-133 Sprint 274 (egress follow-up s3-e) | evals/harness/lib/egress-proxy.sh egress block; evals/tests/egress-proxy.bats EGR-8/EGR-12; evals/harness/Dockerfile.proxy | 1 |
 
 ---
 
@@ -2058,3 +2059,24 @@ Cause: default_cycle() reads .run/sprint-plan-state.json then .run/state.json cy
 ### Reading guide
 
 Not a bats or test defect: the test's choice of launcher. Locally bats comes from npx (no system bats on this host), in CI from a bats-core install on PATH. Any test that runs a nested bats must resolve the running installation ($BATS_ROOT/bin/bats) and only fall back to npx. Prove the fix with an npx stub that exits 1 placed first on PATH and a PATH bats symlink.
+
+## KF-058: An --internal docker network still reaches the host's bridge gateway address
+
+**Status**: Open — fix in cycle-133 Sprint 274 (egress follow-up s3-e)
+**Feature**: evals/harness/lib/egress-proxy.sh egress block; evals/tests/egress-proxy.bats EGR-8/EGR-12; evals/harness/Dockerfile.proxy
+**Symptom**: CI 'Run eval harness tests': not ok EGR-8 … 'deny host gateway 22 without proxy: FAIL succeeded: tcp_open 172.19.0.1 22' and EGR-12 self-check FAIL on the GitHub runner; locally the same probe reaches the host (ConnectionRefused on closed ports, a firewall timeout on open ones)
+**First observed**: 2026-10-24 cycle-133 Sprint 273 head c3b059cf3 (run 40074686664)
+**Recurrence count**: 1
+**Current workaround**: none at the harness level — the host firewall is the only barrier today; do not run a measurement batch on a host that listens on 0.0.0.0 until the shared-namespace fix lands
+**Upstream issue**: docker: --internal removes the default route but the bridge's host address stays reachable (gateway_mode_ipv4=isolated exists only in newer engines)
+**Related visions / lore**: DEC-0902 DEC-0903 (the egress design); brief s3-e
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-24 | implementer D4 (s3-e) dispatched with the shared-namespace + owner-matched netfilter design; EGR-8 to gain a deterministic gateway listener probe | pending | CI run 40074686664; brief ~/.cache/loa/cycle-133/briefs/s3-e.md |
+
+### Reading guide
+
+Not a tinyproxy or allowlist defect: the sandbox never goes through the proxy to reach the gateway; it is plain IP reachability of the host on the internal bridge. Fix candidates: the sandbox shares the sidecar's network namespace with owner-matched netfilter (tinyproxy uid → 443 public; sandbox uid → 127.0.0.1:8888 only), or a host-side DOCKER-USER rule (needs root). Reproduce without CI: docker network create --internal N; docker run --network N … python socket.create_connection((gateway, port)) — ConnectionRefused means the host was reached.

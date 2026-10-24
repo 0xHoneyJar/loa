@@ -955,7 +955,7 @@ run_phase() {  # run_phase <name> <label>
     # egress.arms.<id>, else egress.default, else blocked) and $LOA_EVAL_EGRESS_NETWORK (run-ablation.sh
     # exports it after checking the block is up): a blocked arm joins loa-egress-<batch> (internal, no route
     # out) with DNS sinkholed and the sidecar loa-proxy-<batch> as its only way out; otherwise --network bridge.
-    # meta/egress.json records the decision; lib/egress-proxy.sh record-address (background) records the
+    # meta/egress.jsonl records the decision; lib/egress-proxy.sh record-address (background) records the
     # container's address in meta/egress-addr.jsonl and its denials in meta/egress-denied.jsonl.
     local egress_mode egress_net="${LOA_EVAL_EGRESS_NETWORK:-}" egress_purl="" pv
     local -a netargs=(--network bridge)

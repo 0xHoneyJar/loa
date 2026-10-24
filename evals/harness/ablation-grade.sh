@@ -10,7 +10,7 @@
 # Usage:
 #   ablation-grade.sh <run-dir> <task-id> [--suite-root DIR] [--tasks-dir tasks|smoke]
 #                     [--out FILE] [--json] [--executor container|host]
-#                     [--image loa-ablation:258] [--docker-bin D]
+#                     [--image loa-ablation:259] [--docker-bin D]
 #                     [--allow-unfrozen] [--allow-partial]
 #   ablation-grade.sh --self-check base|reference|noisy --task-yaml F [--suite-root DIR]
 #                     [--executor …] [--image …] [--docker-bin D] [--json]
@@ -28,7 +28,7 @@
 #                      this machine as the calling user without isolation and is refused
 #                      (exit 2) unless LOA_EVAL_ALLOW_HOST_GRADING=1; allowed, it prints a
 #                      WARNING and grade.json records executor_mode: host (LOW-A1)
-#   --image IMG        the grading image (default loa-ablation:258)
+#   --image IMG        the grading image (default loa-ablation:259, the pinned pipeline image)
 #   --docker-bin D     docker CLI (default $EVAL_DOCKER_BIN, else docker)
 #   --allow-unfrozen   grade although freeze.sh --check fails or the suite has no
 #                      MANIFEST.sha256 yet (task authoring only); grade.json records
@@ -494,7 +494,7 @@ ap.add_argument("--tasks-dir", choices=["tasks", "smoke"])
 ap.add_argument("--out")
 ap.add_argument("--json", action="store_true")
 ap.add_argument("--executor", choices=["container", "host"], default="container")
-ap.add_argument("--image", default="loa-ablation:258")
+ap.add_argument("--image", default="loa-ablation:259")
 ap.add_argument("--docker-bin", default=DOCKER_DEFAULT)
 ap.add_argument("--allow-unfrozen", action="store_true")
 ap.add_argument("--allow-partial", action="store_true")

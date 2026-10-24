@@ -15,6 +15,9 @@
 # =============================================================================
 
 setup() {
+  # cycle-133 FR-9 (SDD C-9): runner invocations here use a stub docker and no egress block; the two-condition
+  # test-mode escape (LOA_EGRESS_TEST_MODE=1 AND BATS_TEST_FILENAME) records enforced: false instead of refusing.
+  export LOA_EGRESS_TEST_MODE=1
   TESTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
   REPO_ROOT="$(cd "$TESTS_DIR/../.." && pwd)"
   FP="$REPO_ROOT/evals/harness/fingerprint.sh"

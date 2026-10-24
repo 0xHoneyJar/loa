@@ -1,5 +1,85 @@
 # evals/harness
 
+The scripts here run, grade and row the Loa 2.0 ablation (`run-ablation.sh` and its collaborators) and the older single-skill recall suites (`run-eval.sh`, `run-arms.sh`, `execute-agent.sh`; see `evals/README.md`). This file documents what the landed code does. Each script's header comment is the full contract; where this file and a header disagree, the header wins and this file has a bug.
+
+A batch runs as one driver, `run-ablation.sh`. Its pre-flight refuses with exit 2 before any trial runs. It then dispatches every planned trial to `pipeline-run.sh`, which materialises a sandbox, mounts the pinned framework and runs the phases in a container. After each trial the driver runs `took-effect.sh` (did the arm take effect, is the mount closed), the drift guard, `ablation-grade.sh` and `ablation-row.sh`, and appends the row under a lock. `MANIFEST.json` and `STATUS.json` in the batch directory hold the plan and the progress. The header of `run-ablation.sh` documents every file, field and option.
+
+## Mount modes
+
+The mount decides which framework bytes the session under test can see. `lib/sandbox-mount.sh` implements the modes, and `pipeline-run.sh` chooses one from the arm's toggles in `evals/suites/ablation-2.0.yaml`.
+
+| Mode | Selected by | What the sandbox holds | Evidence in `meta/arm-evidence.txt` |
+|---|---|---|---|
+| closed | any mounted arm without `oracle_open` (the default) | the pinned source tree's whole `.claude/`, `CLAUDE.md` importing `.claude/loa/CLAUDE.loa.md`, and `.loa.config.yaml`; the PR's own versions only under `pr/head/`, `pr/base/` and `pr/head.diff` | `mount=tree`, `mount_overlay=head:0` or `base:0`, `overlay_excluded=…`, then `mount_closed=pre-launch` |
+| open | `oracle_open: true` (evaluation-only) | the same mount with no overlay and no closed-mount check | `mount_overlay=none`, `oracle_open=true` |
+| none | `loa_mount: false` | no `.claude/`, no `CLAUDE.md`, no `.loa.config.yaml`; the arm runs one BARE session | `loa_mount=none` |
+| skill | `execute-agent.sh` (recall suites) | one skill directory, `CLAUDE.loa.md`, `.claude/rules/` and the import line | `mount=skill:<name>` |
+| home-scope | lands with Task 3.1 | see below | see below |
+
+**The closed mount.** `pipeline-run.sh` runs four steps in order. `mount_prompt_surface` copies the tree. `overlay_answer_paths` gives every answer-bearing path of the PR fixture the mode's version, head by default or base when `task.yaml` says so. `regen_sandbox_manifest` rewrites the sandbox's `checksums.json`. `check_mount_closed` then checks clauses (a) to (d) before any phase runs. Since cycle-132 pre-registration addendum 9, every answer path under `.claude/` stays at its pinned version, so the overlay writes nothing and the evidence counts the excluded paths. The copy source must be a clean git tree at the batch's `--source-commit`, else the trial is refused. After the run, `took-effect.sh oracle_closed` repeats the clauses against the finished sandbox, and the grader's oracle scan fires on a read of pinned bytes.
+
+**The open mount.** It is the eval-only control that lets the session see the answer. `pipeline-run.sh` refuses an arm that is `eval_only: true`, or whose toggles set `oracle_open: true`, unless the batch passes `--batch-context`.
+
+**The bare mount.** `loa_mount: false` runs a single BARE session with no framework. A `bare_sessions: matched` arm must also set `loa_mount: false`, and `run-ablation.sh` plans k such sessions per cell (the header's "Matched cells" paragraph).
+
+**The `home-scope` mode lands with Task 3.1.** It is not in this tree yet. The design is cycle-133 SDD C-10 as amended by D-3.6. The pinned framework is materialised under the sandbox `HOME` as the user scope, and the session runs with settings restricted to that scope. The workspace root receives the PR's own version of every changed `.claude/` path except the executable and prompt surface: skills, commands, agents, hooks, settings, rules, `CLAUDE.md` files, `.mcp.json`, output styles, plugins and anything those import. Those surface paths are removed from the root and stay readable under `pr/head/`. Three new `took-effect.sh` clauses judge it. Clause (e) checks that the surface is absent at the root and every other changed `.claude/` path holds the PR's bytes. Clause (f) requires that the review actually read the PR's `.claude/` bytes it cites, recorded as `pr_bytes_read`. Clause (g) asserts that no project hook, MCP server or planted canary executed. The mode is gated on the Task 3.0 spike. If the spike shows any project-scope execution, the run halts with the spike record, and choosing the fallback is the operator's decision. This paragraph is replaced by the landed contract when Task 3.1 lands.
+
+## Egress block
+
+**Threat model.** The block denies repository and arbitrary-destination egress from the sandbox. A session under test must not fetch the PR's upstream history, a fix commit, or anything else on the internet. Exfiltration through an allowlisted model API is out of scope. The grader's class-9 tripwire is left to catch that.
+
+**Layout.** `lib/egress-proxy.sh` builds three objects per batch:
+
+- **`loa-egress-<batch>`** is a docker `--internal` network with no route out. Sandboxes join it with `--dns 0.0.0.1`, so nothing but container names resolves.
+- **`loa-egress-<batch>-ext`** is an ordinary bridge network, unless `--external-network` names one.
+- **`loa-proxy-<batch>`** is the sidecar built from `Dockerfile.proxy` (tinyproxy 1.11) and attached to both networks. It allows the listed hostnames only and allows CONNECT to port 443 only. Netfilter in its own namespace rejects every private, loopback, link-local, metadata and reserved address after resolution, which covers DNS rebinding and the host gateway.
+
+The allowlist comes from `providers.<p>.egress_hosts[]` in `.claude/defaults/model-config.yaml`, which lists model endpoints and their auth and token-refresh hosts. A `{region}` entry expands to the provider's default region and every `--region` given.
+
+**Per arm.** The suite key `egress: blocked | bridge` sits on the arm, else under `egress.arms.<id>`, else at `egress.default`, else it is `blocked`. A blocked arm's container joins the internal network with `HTTPS_PROXY` and `HTTP_PROXY` set to `http://loa-proxy-<batch>:8888` and `NO_PROXY` empty. A `bridge` arm runs on `--network bridge` and is recorded as a factor of the batch.
+
+**Refusal.** `run-ablation.sh` refuses a container batch with a blocked arm, exit 2 before any write, unless `LOA_EVAL_EGRESS_NETWORK` names a `loa-egress-<batch>` network that is internal and whose sidecar is running. The refusal line names the repair. A `--dry-run` and a bats run with `LOA_EGRESS_TEST_MODE=1` record `enforced: false` instead of refusing. `blind-session.sh` has no such refusal: without the variable it runs on `--network bridge`.
+
+**Operating a batch.**
+
+```bash
+evals/harness/lib/egress-proxy.sh allowlist > hosts.txt
+evals/harness/lib/egress-proxy.sh up <batch> hosts.txt
+evals/harness/lib/egress-proxy.sh self-check <batch> --image loa-ablation:259 --log <dir>/self-check.txt
+LOA_EVAL_EGRESS_NETWORK=loa-egress-<batch> evals/harness/run-ablation.sh … --batch <batch> --image loa-ablation:259
+evals/harness/lib/egress-proxy.sh down <batch> --log-dir <dir>
+```
+
+Pass `--image` to the runner explicitly. Its default is still `loa-ablation:258`, which is not the image the pipeline versions below name.
+
+`self-check` runs from a sandbox-shaped container of the image on the batch network. It opens one CONNECT tunnel per allowlisted host with no credential and no completion token. It then exercises the denials: github.com, raw.githubusercontent.com and gitlab.com by curl and `git ls-remote`, direct IPv4 and IPv6, a non-443 CONNECT, plain HTTP, the metadata address, the host gateway, alternate hostname encodings, external DNS, and a misconfigured or absent proxy. It also checks denial attribution and the sidecar's netfilter rules. Any FAIL line makes it exit 1. `up` refuses a batch whose network or sidecar already exists. The repair is `down <batch>`, which is idempotent.
+
+**Records.** `MANIFEST.json` `egress` holds `{arms, network, proxy, enforced}`. Each run of `pipeline-run.sh` writes:
+
+- **`meta/egress.jsonl`** has one line per phase container: label, mode, network, proxy URL, `enforced` and DNS.
+- **`meta/egress-addr.jsonl`** has the container's address on the batch network at start and end.
+- **`meta/egress-denied.jsonl`** has every sidecar denial whose source is that address during that container's lifetime.
+
+`blind-session.sh` writes the same records as `egress.json`, `egress-addr.jsonl` and `egress-denied.jsonl` in its output directory. `down --log-dir` saves the sidecar log and every parsed denial of the batch.
+
+`evals/tests/egress-proxy.bats` is the release gate for the block. Its container cases run on a Docker host, and `tests/QUARANTINE.tsv` may never list them.
+
+## Supervisor
+
+`run-ablation.sh --supervised [--max-retries N]` hands the batch to `lib/batch-supervisor.sh launch`. Its job is to bring a batch back after the driver dies, hangs or the host reboots, without a duplicate row or a second owner.
+
+- **Precondition.** The user must linger (`loginctl show-user <user> --property=Linger` reads `yes`), or the process must run in a system-level scope. Otherwise it refuses with exit 2, nothing written, and names `loginctl enable-linger <user>`. `--supervised` is exclusive with `--detach` and `--dry-run`.
+- **Daemon.** With `systemd-run` available, the loop runs as `systemd-run --user --unit loa-batch-<name> --collect`. Without it, the loop runs under `setsid`. Either way the loop holds `flock <batch>/supervisor.lock` across daemonisation, so a second owner is refused.
+- **Durable identity.** `supervisor/state.json`, mirrored into `STATUS.json` `supervisor`, records the owner pid with its boot id and process start time. A pid reused after a reboot is therefore never mistaken for the owner.
+- **Dead or hung.** The runner is dead when it exits. It is hung when no batch file changes for `LOA_SUPERVISOR_HANG_S`, default 1800 seconds, while `STATUS.json` is absent or `running`.
+- **Retried classes.** `driver_lost`, `hang`, `infrastructure_error` and `incomplete` are retried. Complete, refusal, failed, budget, outage, `metering_incomplete`, a paused arm and an intentional stop are never retried. Refusal fallbacks belong to the refusal policy, not the supervisor.
+- **Before every resume.** The supervisor terminates the runner's process group and every group under `<batch>/.jobs/`, on the same boot only. It removes the `loa-abl-<batch>-*` containers. It then records the uncertain provider requests of interrupted runs from their cost ledgers in the retry entry, and the resumed runner charges such a trial its cap.
+- **Cap.** After `--max-retries` retries, default 3, the state is `gave_up`.
+- **Reboot.** The launch arguments are copied into `MANIFEST.json` `supervisor`. `lib/batch-supervisor.sh restore <batch-dir>` resumes the batch after a reboot, and the retry cap counts across it.
+- **Stop.** `lib/batch-supervisor.sh stop <batch-dir>` is the intentional stop. It terminates the groups, removes the containers and never retries. `status <batch-dir>` prints the record.
+
+`evals/tests/batch-supervisor.bats` covers a killed driver resumed with a retry id, a second owner, the linger precondition, the retry cap, the non-retryable classes, hang detection, cancellation during a request, reboot and same-boot PID reuse, the systemd mode, and a driver killed mid-batch end to end. It is a mandatory gate that the quarantine helper refuses.
+
 ## Refusal policy
 
 A Fable 5.1 review or audit session can refuse a PR whose code is security tooling, and Claude Code then continues the session on a fallback model (KF-051). Such a row is not the arm it claims to be. The suite key `refusal_policy` decides, per arm, what that row counts as (cycle-133 SDD C-8, PRD FR-8, bead bd-r9abp).
@@ -37,6 +117,27 @@ One limit is accepted. The relaunch runs in its trial's slot without a second bu
 
 **The rate.** `ablation-row.sh --refusal-rate runs.jsonl` prints, per arm, the rows, the refused rows and `refusal_rate = refused / rows`. A refused row is one whose `refusal_outcome` is not `none`, so a clean relaunch still counts as a refusal. Rows from before 1.6 count by their phase records. An arm above 0.2 is flagged with one stderr line.
 
+## Denominators
+
+Three rules decide whether a row counts, and they stack. A row must pass all three.
+
+- **The row status.** `run-ablation.sh` counts a `transport_error`, `infrastructure_error`, `interrupted` or `contaminated` row as excluded in `STATUS.json` `per_arm`, and the batch then ends partial. A run with an unmetered attempt is `infrastructure_error`, so it is already excluded. Its row carries `metering_unmetered: true`, and `spend.sh` counts it.
+- **The matched cell.** A `bare_sessions: matched` cell is `completed` when at least one of its k sessions is valid, and the union of the valid sessions is graded. It is degraded when fewer than ⌈k/2⌉ sessions are valid. A matched arm may run only `exclude`, so a session with a refusal fallback is invalid inside its cell.
+- **The refusal policy.** `refusal_denominator` is the refusal policy's verdict alone, per the table above.
+
+The pre-registration's exclusion rules apply on top of all three when the reads are computed.
+
+## Pipeline versions
+
+A pipeline version is a commit of this repository together with the images it runs. A later commit that changes nothing under `evals/harness`, `evals/suites`, `evals/graders`, `evals/fixtures` or `evals/analysis` leaves the version as it was. A run names the version it ran at.
+
+| Version | Commit | Images and CLI | Recorded in |
+|---|---|---|---|
+| intermediate, after Sprint 273 | `50881e6f4` | `loa-ablation:259`, `loa-egress-proxy:259`, Claude Code 2.1.299 | DEC-0906 and the next section |
+| measurement pin, after Sprint 274 | not yet recorded | not yet recorded | Task 3.5 adds it here and in a DEC row, after Tasks 3.1 to 3.3 land and the integrated self-check and the egress suite pass on the image |
+
+`evals/analysis/c132/reproduce.sh` reproduces the cycle-132 record at that cycle's own pin by default, and `--pin` names a later version.
+
 ## Pipeline version (cycle-133 Sprint 273 pin)
 
 The intermediate pipeline version after Sprint 273 (sdd.md § 7.3; sprint.md Task 2.5) is **the commit that lands this
@@ -57,5 +158,37 @@ change under `evals/harness`, `evals/suites`, `evals/graders`, `evals/fixtures` 
 
 A live batch at this pin: `egress-proxy.sh allowlist > hosts; egress-proxy.sh up <batch> hosts; egress-proxy.sh
 self-check <batch> --image loa-ablation:259; LOA_EVAL_EGRESS_NETWORK=loa-egress-<batch> run-ablation.sh … --image
-loa-ablation:259 [--supervised]`; `egress-proxy.sh down <batch> --log-dir <dir>` afterwards. Sprint 274 Task 3.4
-completes this README (mount modes, the egress threat model, batch operations, exit codes).
+loa-ablation:259 [--supervised]`; `egress-proxy.sh down <batch> --log-dir <dir>` afterwards.
+
+## Exit codes
+
+Cycle-133 SDD § 5.4 is the authoritative table for every script the cycle touches: 0 completed as asked, 1 a step failed or a named difference, 2 a refusal before any write, 3 completed but degraded with the reason named. Several harness scripts predate it, and their 3 means something else. The table gives each script's codes as the code implements them. Every citation is the `exit` statement, or the call that reaches it through the script's `finish` or `exit "$rc"`.
+
+| Script | 0 | 1 | 2 | 3 and above |
+|---|---|---|---|---|
+| `run-ablation.sh` | complete (`:2313`); `--detach` (`:628`); `--dry-run` (`:1357`) | partial: a cut, the outage breaker, a paused arm, an excluded row (`:2298`–`:2311`); signalled (`:2065`) | usage or a pre-flight refusal, `REFUSED.txt` only (`die` `:434`, `refuse` `:636`) | **3 failed**, not degraded: an invalid rows file, drift, no trial completed, every arm paused (`:2294`, `:2296`, `:2302`, `:2305`; `finish` exits at `:2079`) |
+| `pipeline-run.sh` | completed, any verdict (`:1244`); `--dry-run` (`:421`) | `agent_error`: a phase failed or timed out (`:1191`, `:1192`) | `infrastructure_error`, including `metering_incomplete` and `unmetered_attempt` (`die_usage` `:224`, `infra` `:521`, `:326`, `:383`) | **3** `cap_failure` (`:1186`, `:1195`) and the broken-cheval launch refusal (`:738`); **4** interrupted (`:1181`, `:1188`); `finish` exits at `:519` |
+| `blind-session.sh` | labels written (`:505`) | the session failed, metering incomplete or unmetered (`:507`–`:513`) | usage, a missing CLI or image, no valid price (`die_usage` `:112`, `:202`) | **3 tainted**, taking precedence over 1 (`:506`); exits at `:555` |
+| `ablation-grade.sh` | graded, or self-check PASS (`main` `:3564`) | self-check FAIL (`:3508`) | usage, missing inputs, an internal error (`:3567`, `:3570`) | —; `rc` exits through `sys.exit(rc)` at `:3576` |
+| `ablation-row.sh` | row written, file valid (`:275`, `:428`) | `--validate` found a bad row (`:424`) | usage, unreadable input, row build failed (`usage` `:220`) | — |
+| `took-effect.sh` | every rule OK (`:626`; batch mode's last test `:641`) | any rule FAIL (`:626`, `:641`) | usage, missing files, unknown arm (`usage` `:137`, `:634`) | — |
+| `spend.sh` | printed and complete (`:252`) | a file unreadable or the total INCOMPLETE (`:125`, `:128`, `:252`) | usage (`:68`, `:69`) | — |
+| `lib/egress-proxy.sh` | done; `down` and `record-address` never fail the caller (`:512` and the normal end) | a start failure after cleanup, a self-check FAIL (`fail` `:76`; self-check `:500`) | usage, an existing network, a missing image, a bad allowlist (`die` `:75`, `:129`) | — |
+| `lib/batch-supervisor.sh` | `launch` and `restore` after daemonising; the loop on a complete batch (`:427`) | the loop halted, gave up or was stopped (`:422`, `:428`, `:430`; `finish` exits at `:379`) | no linger, the lock held, no record (`die` `:78`, `refuse` `:79`) | — |
+| `evals/analysis/c132/reproduce.sh` | every artefact reproduced (`:128`, `:195`) | a reproduction difference or an engine failure (`rc=1` `:127`, then `:128` or `:195`) | usage, or the environment refused (`:63`, `:115`) | **3** the live sample requested but not run or incomplete (`:138`, `:194`) |
+| `tools/check-quarantine-expiry.sh` | every row valid (`:270`) | an invalid or expired row (`:264`) | usage, a bad file or header (`die2` `:69`) | **3** a bead's status could not be verified (`:268`) |
+
+The supervisor classifies its runner by these codes. A runner exit of 0 is complete, 2 is a refusal and 3 is failed, and none of the three is retried.
+
+## Test health
+
+`tests/QUARANTINE.tsv` lists the bats tests skipped on purpose, one tab-separated row per test: `test_id`, `owner`, `expiry`, `bead` and `reason`. The id is `<repo-relative bats path>::<test description>`. A quarantined test's file loads `tests/unit/helpers/quarantine.bash` and calls `loa_quarantine_check` in `setup`, which skips a listed test with the row's reason. The helper fails the test instead of skipping it when an id argument does not match the running test, or when the id names a mandatory gate: egress, the home-scope mount, the sandbox mount, mount provenance, the batch supervisor or the finding-clause rule. `tools/check-quarantine-expiry.sh` is the CI gate. It checks that every test id exists, the owner is set, the bead is open and the id is not listed twice. It also checks that the expiry is 30 or 31 days after the row's quarantine date and never more than 60 days out. The quarantine date is the UTC committer date of the commit that last wrote the row, per git blame. It exits 0 when every row is valid, 1 on an invalid or expired row, 2 on a usage or file error, and 3 when it cannot verify a bead. Exit 3 is what a runner without `.beads/` or `br` gets, so it reads as a warning there.
+
+**Frozen trees are hidden from diffs.** `.gitattributes` marks `evals/fixtures/review-prs/pr-*/**` and `grimoires/loa/reports/ablation-2.0/*-grades/**` as `linguist-generated -diff`. GitHub collapses them in PR views, and local `git diff`, `git log -p` and `git show` print only "Binary files differ" for them. A reviewer reads their content with `--text` or by naming the blob:
+
+```bash
+git diff --text <base>..<head> -- evals/fixtures/review-prs/pr-20/
+git show <rev>:evals/fixtures/review-prs/pr-20/<path>
+```
+
+`--no-ext-diff` does not reveal them. `corpus.tsv`, `labels/`, `manifests/` and `incidents/` at the fixture root are not covered and stay reviewable.

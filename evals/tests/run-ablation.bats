@@ -382,7 +382,7 @@ print(",".join(out))')"
   ra --arms a1_full --tasks nope-01 --batch u3 --dry-run
   [ "$status" -eq 2 ]
   DOCKER_STUB_NO_IMAGE=1 ra --arms a1_full --tasks bugfix-v2-02 --batch u4 --dry-run
-  [ "$status" -eq 2 ]; grep -q 'image loa-ablation:258 not found' "$RES/u4/REFUSED.txt"
+  [ "$status" -eq 2 ]; grep -q 'image loa-ablation:259 not found' "$RES/u4/REFUSED.txt"
   echo y > "$T/src/.claude/new" && git -C "$T/src" add -A && git -C "$T/src" -c user.email=t@t -c user.name=t commit -q -m two
   ra --arms a1_full --tasks bugfix-v2-02 --batch u5 --dry-run
   [ "$status" -eq 2 ]; grep -q "is not at" "$RES/u5/REFUSED.txt"

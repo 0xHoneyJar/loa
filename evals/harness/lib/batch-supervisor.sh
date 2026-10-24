@@ -125,7 +125,9 @@ mirror() {
 linger_ok() {
   local v user
   user="$(id -un)"
-  if grep -q '/system\.slice/' /proc/self/cgroup 2>/dev/null; then return 0; fi
+  # a system.slice scope (a service unit) lingers by construction; the file is a knob for the bats (LOA_SUPERVISOR_CGROUP_FILE,
+  # like LOA_SUPERVISOR_BOOT_ID_FILE) because a CI runner itself runs under system.slice
+  if grep -q '/system\.slice/' "${LOA_SUPERVISOR_CGROUP_FILE:-/proc/self/cgroup}" 2>/dev/null; then return 0; fi
   if command -v "$LOGINCTL" >/dev/null 2>&1; then
     v="$("$LOGINCTL" show-user "$user" --property=Linger --value 2>/dev/null)" || v="unknown"
   else

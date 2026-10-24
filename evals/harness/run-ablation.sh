@@ -50,7 +50,7 @@
 #                        batch never writes the tracked file (DEC-0428: smoke rows decide nothing)
 #   --suite-root DIR     suite root (default grimoires/loa/evals/ablation-2.0)
 #   --suite-file F       suite file (default evals/suites/ablation-2.0.yaml)
-#   --image IMG          container image (default loa-ablation:258)
+#   --image IMG          container image (default loa-ablation:259, the pinned pipeline image — README § Pipeline version)
 #   --executor MODE      container (default) or host; passed to pipeline-run.sh and the grader
 #                        (host grading needs LOA_EVAL_ALLOW_HOST_GRADING=1, see ablation-grade.sh)
 #   --pre-registration-ref TEXT  the NOTES pre-registration heading and timestamp (MANIFEST)
@@ -409,7 +409,7 @@ MAX_USD="" RUN_CAP="" CONCURRENCY=3 BATCH="" RESULTS_ROOT="" ROWS=""
 CAP_BUILD="" CAP_REVIEW=""   # the per-kind run caps (DEC-0567; cap_for)
 SUITE_ROOT="$REPO_ROOT/grimoires/loa/evals/ablation-2.0"
 SUITE_FILE="$REPO_ROOT/evals/suites/ablation-2.0.yaml"
-IMAGE="loa-ablation:258" EXECUTOR="container" PRE_REG_REF="" SEED=20261015
+IMAGE="loa-ablation:259" EXECUTOR="container" PRE_REG_REF="" SEED=20261015
 SELF_CHECK_LOG="$REPO_ROOT/grimoires/loa/a2a/sprint-259/self-check-image.log"
 SMOKE=false DRY_RUN=false RESUME=false DETACH=false ALLOW_PARTIAL=false SUPERVISED=false MAX_RETRIES=""
 CLEAR_ARMS=() REROW_IDS=() CLEAR_DRIFT=false RERUN_IDS=() RERUN_STATUSES=()
