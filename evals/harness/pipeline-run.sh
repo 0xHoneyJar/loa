@@ -955,25 +955,32 @@ run_phase() {  # run_phase <name> <label>
     # egress.arms.<id>, else egress.default, else blocked) and $LOA_EVAL_EGRESS_NETWORK (run-ablation.sh
     # exports it after checking the block is up): a blocked arm joins loa-egress-<batch> (internal, no route
     # out) with DNS sinkholed and the sidecar loa-proxy-<batch> as its only way out; otherwise --network bridge.
+    # The container never sits on that network itself (KF-058: its gateway is the host and answers): it runs in
+    # the namespace of its own guard (egress-proxy.sh guard; --network container:<guard>), whose netfilter
+    # reaches the sidecar's port only. The guard's name is unique per container (a retry's watcher never
+    # removes the next attempt's guard).
     # meta/egress.jsonl records the decision; lib/egress-proxy.sh record-address (background) records the
-    # container's address in meta/egress-addr.jsonl and its denials in meta/egress-denied.jsonl.
-    local egress_mode egress_net="${LOA_EVAL_EGRESS_NETWORK:-}" egress_purl="" pv
+    # guard's address in meta/egress-addr.jsonl and its denials in meta/egress-denied.jsonl, then removes it.
+    local egress_mode egress_net="${LOA_EVAL_EGRESS_NETWORK:-}" egress_purl="" egress_guard="" egress_gnet pv
     local -a netargs=(--network bridge)
     egress_mode="$(jq -r --arg a "$ARM" --argjson s "$SUITE_JSON" '.egress // ($s.egress // {} | .arms // {})[$a] // ($s.egress // {}).default // "blocked"' <<<"$ARM_DEF")"
     case "$egress_mode" in blocked|bridge) ;; *) infra "arm $ARM: egress '$egress_mode' is not blocked|bridge" ;; esac
     if [[ "$egress_mode" == blocked && -n "$egress_net" ]]; then
       [[ "$egress_net" =~ ^loa-egress-[A-Za-z0-9._-]{1,80}$ ]] || infra "LOA_EVAL_EGRESS_NETWORK '$egress_net' is not loa-egress-<batch>"
       egress_purl="http://loa-proxy-${egress_net#loa-egress-}:8888"
-      netargs=(--network "$egress_net" --dns 0.0.0.1)
+      egress_guard="$cname-guard-$RANDOM$RANDOM"
+      egress_gnet="$("$SCRIPT_DIR/lib/egress-proxy.sh" guard "${egress_net#loa-egress-}" "$egress_guard" --docker-bin "$DOCKER_BIN" \
+        2>>"$META/egress-record.log")" || infra "egress guard $egress_guard did not start (meta/egress-record.log)"
+      netargs=(--network "$egress_gnet")
       for pv in HTTPS_PROXY https_proxy HTTP_PROXY http_proxy; do envkv+=("$pv=$egress_purl"); keys="$keys,$pv"; done
       envkv+=("NO_PROXY=" "no_proxy="); keys="$keys,NO_PROXY,no_proxy"
       LOA_EGRESS_ADDR_WAIT_S=30 "$SCRIPT_DIR/lib/egress-proxy.sh" record-address --network "$egress_net" --container "$cname" \
-        --label "$label" --meta "$META" --event watch --max-s $((tsec + 120)) --parent-pid $$ --docker-bin "$DOCKER_BIN" \
-        </dev/null >/dev/null 2>>"$META/egress-record.log" &
+        --guard "$egress_guard" --label "$label" --meta "$META" --event watch --max-s $((tsec + 120)) --parent-pid $$ \
+        --docker-bin "$DOCKER_BIN" </dev/null >/dev/null 2>>"$META/egress-record.log" &
     fi
-    jq -cn --arg m "$egress_mode" --arg n "${netargs[1]}" --arg p "$egress_purl" --arg l "$label" \
-      '{label: $l, egress: $m, network: $n, proxy_url: (if $p == "" then null else $p end), enforced: ($p != ""),
-        dns: (if $p == "" then null else "0.0.0.1" end)}' >> "$META/egress.jsonl"
+    jq -cn --arg m "$egress_mode" --arg n "${egress_purl:+$egress_net}" --arg g "$egress_guard" --arg p "$egress_purl" --arg l "$label" \
+      '{label: $l, egress: $m, network: (if $n == "" then "bridge" else $n end), guard: (if $g == "" then null else $g end),
+        proxy_url: (if $p == "" then null else $p end), enforced: ($p != ""), dns: (if $p == "" then null else "0.0.0.1" end)}' >> "$META/egress.jsonl"
     full=(python3 -I -c "$ENV_SHIM" "$hostkeys"
           "$DOCKER_BIN" run --rm --name "$cname" --user "$(id -u):$(id -g)"
           "${netargs[@]}" --read-only --tmpfs /tmp:rw,size=1g

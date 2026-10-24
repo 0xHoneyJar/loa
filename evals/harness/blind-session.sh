@@ -304,21 +304,28 @@ if [[ "$EXECUTOR" == container ]]; then
   hostkeys="PATH,HOME,DOCKER_HOST,DOCKER_CONFIG,XDG_RUNTIME_DIR"
   for k in $SECRET_KEYS; do if [[ -n "${!k:-}" ]]; then hostkeys="$hostkeys,$k"; fi; done
   # cycle-133 FR-9 (SDD C-9) the egress block: with $LOA_EVAL_EGRESS_NETWORK (loa-egress-<batch>, up through
-  # lib/egress-proxy.sh) the session joins the internal network, DNS sinkholed, the sidecar loa-proxy-<batch>
-  # its only way out; without it --network bridge. <out>/egress.json records the decision; record-address
-  # (background) writes <out>/egress-addr.jsonl and the session's denials to <out>/egress-denied.jsonl.
-  EGRESS_NET="${LOA_EVAL_EGRESS_NETWORK:-}" EGRESS_PURL="" NETARGS=(--network bridge)
+  # lib/egress-proxy.sh) the session runs in the namespace of its own guard on the internal network
+  # (egress-proxy.sh guard; --network container:<guard>; KF-058: the network's gateway is the host and answers,
+  # the guard's netfilter reaches the sidecar's port only), DNS sinkholed, the sidecar loa-proxy-<batch> its
+  # only way out; a guard that does not start fails the session (exit 1); without the variable --network
+  # bridge. <out>/egress.json records the decision; record-address (background) writes <out>/egress-addr.jsonl
+  # and the session's denials to <out>/egress-denied.jsonl, then removes the guard.
+  EGRESS_NET="${LOA_EVAL_EGRESS_NETWORK:-}" EGRESS_PURL="" EGRESS_GUARD="" NETARGS=(--network bridge)
   if [[ -n "$EGRESS_NET" ]]; then
     [[ "$EGRESS_NET" =~ ^loa-egress-[A-Za-z0-9._-]{1,80}$ ]] || die_usage "LOA_EVAL_EGRESS_NETWORK '$EGRESS_NET' is not loa-egress-<batch>"
-    EGRESS_PURL="http://loa-proxy-${EGRESS_NET#loa-egress-}:8888" NETARGS=(--network "$EGRESS_NET" --dns 0.0.0.1)
+    EGRESS_PURL="http://loa-proxy-${EGRESS_NET#loa-egress-}:8888" EGRESS_GUARD="$CUR_NAME-guard-$RANDOM$RANDOM"
+    EGRESS_GNET="$("$SCRIPT_DIR/lib/egress-proxy.sh" guard "${EGRESS_NET#loa-egress-}" "$EGRESS_GUARD" --docker-bin "$DOCKER_BIN" \
+      2>>"$OUT/egress-record.log")" || { echo "blind-session.sh: egress guard $EGRESS_GUARD did not start ($OUT/egress-record.log)" >&2; exit 1; }
+    NETARGS=(--network "$EGRESS_GNET")
     for pv in HTTPS_PROXY https_proxy HTTP_PROXY http_proxy; do envkv+=("$pv=$EGRESS_PURL"); keys="$keys,$pv"; done
     envkv+=("NO_PROXY=" "no_proxy="); keys="$keys,NO_PROXY,no_proxy"
-    "$SCRIPT_DIR/lib/egress-proxy.sh" record-address --network "$EGRESS_NET" --container "$CUR_NAME" --label blind \
-      --meta "$OUT" --event watch --max-s $((TSEC + 120)) --parent-pid $$ --docker-bin "$DOCKER_BIN" \
+    "$SCRIPT_DIR/lib/egress-proxy.sh" record-address --network "$EGRESS_NET" --container "$CUR_NAME" --guard "$EGRESS_GUARD" \
+      --label blind --meta "$OUT" --event watch --max-s $((TSEC + 120)) --parent-pid $$ --docker-bin "$DOCKER_BIN" \
       </dev/null >/dev/null 2>>"$OUT/egress-record.log" &
   fi
-  jq -cn --arg n "${NETARGS[1]}" --arg p "$EGRESS_PURL" \
-    '{egress: (if $p == "" then "bridge" else "blocked" end), network: $n, proxy_url: (if $p == "" then null else $p end),
+  jq -cn --arg n "${EGRESS_PURL:+$EGRESS_NET}" --arg g "$EGRESS_GUARD" --arg p "$EGRESS_PURL" \
+    '{egress: (if $p == "" then "bridge" else "blocked" end), network: (if $n == "" then "bridge" else $n end),
+      guard: (if $g == "" then null else $g end), proxy_url: (if $p == "" then null else $p end),
       enforced: ($p != ""), dns: (if $p == "" then null else "0.0.0.1" end)}' > "$OUT/egress.json"
   full=(python3 -I -c "$ENV_SHIM" "$hostkeys"
         "$DOCKER_BIN" run --rm --name "$CUR_NAME" --user "$(id -u):$(id -g)"

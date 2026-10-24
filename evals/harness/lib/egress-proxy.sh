@@ -8,9 +8,16 @@
 # left to the grader's class-9 tripwire.
 #
 # Layout per batch <B>:
-#   loa-egress-<B>       docker network --internal (no route out, no gateway reachable): the sandboxes join it with
-#                        --dns 0.0.0.1 (no resolver: container names still resolve through Docker's embedded DNS,
-#                        nothing else does) and HTTPS_PROXY/HTTP_PROXY=http://loa-proxy-<B>:8888, NO_PROXY=
+#   loa-egress-<B>       docker network --internal (no route out). A sandbox never joins it directly: an --internal
+#                        network's gateway is the host's own address, which still answers (KF-058). Each sandbox
+#                        runs in the network namespace of its own guard (--network container:<guard>)
+#                        with HTTPS_PROXY/HTTP_PROXY=http://loa-proxy-<B>:8888, NO_PROXY=
+#   <guard>              one per sandbox container (`guard`, below): the proxy image with the loa-egress-guard
+#                        entrypoint, on loa-egress-<B> with --dns 0.0.0.1 (container names still resolve through
+#                        Docker's embedded DNS, nothing else does). Its netfilter lets the namespace reach loopback
+#                        and the sidecar's port 8888 only; either gateway on any port, other containers, metadata
+#                        and IPv6 are rejected in the namespace (EHOSTUNREACH), never left to the host's firewall.
+#                        Its address is the sandbox's source address in the sidecar's log (the attribution key)
 #   loa-egress-<B>-ext   an ordinary bridge network (created here unless --external-network names one)
 #   loa-proxy-<B>        the sidecar (Dockerfile.proxy, tinyproxy 1.11): on both networks; hostname allowlist,
 #                        CONNECT to 443 only, and netfilter in its own namespace that rejects every private,
@@ -33,28 +40,39 @@
 #       evals/tests/egress-proxy.bats only and are refused unless LOA_EGRESS_TEST_MODE=1 and the caller runs
 #       inside bats (BATS_TEST_FILENAME set): they let the local stub endpoint (a private Docker address)
 #       through the private-range rule.
+#       `up` also refuses a proxy image without the guard (label org.loa.egress.guard=1; rebuild it).
+#   egress-proxy.sh guard <batch> <name>
+#       (pipeline-run.sh, blind-session.sh, self-check) start the guard <name> for one sandbox container on the
+#       batch's internal network, from the sidecar's own image; wait until its rules are installed; print
+#       `container:<name>` (the sandbox's --network value). A stale guard of the same batch and name is replaced.
+#       Refuses (exit 2) a batch without a running sidecar or a name that is not a container name; exit 1 when
+#       the guard does not come up (it is removed). The sandbox cannot take --dns, --add-host or --hostname.
 #   egress-proxy.sh down <batch> [--log-dir DIR]
 #       (idempotent) save the sidecar log to DIR/proxy.log and every parsed denial to DIR/denied.jsonl, then
-#       remove the sidecar and the batch's networks
+#       remove the batch's guards, the sidecar and the batch's networks
 #   egress-proxy.sh self-check <batch> --image IMG [--log F] [--probe-host H]...
 #       run the isolation checks from a sandbox-shaped container of IMG on the batch network: a connectivity
 #       probe (CONNECT tunnel established, no credential, no completion token) per allowlisted host (or per
 #       --probe-host), and the denials — github.com, raw.githubusercontent.com, gitlab.com (curl and
 #       git ls-remote), direct IPv4 and IPv6, CONNECT to a non-allowlisted port, plain HTTP, the metadata
-#       address, the host gateway, alternate hostname encodings, external DNS, a misconfigured or absent proxy —
-#       then the denial attribution (the probe's denied connects carry its address) and the sidecar's netfilter
-#       rules. One `<check>: PASS|FAIL <detail>` line each, to --log (default stdout). Exit 0 all PASS, 1 any FAIL.
+#       address, both gateways (22, 80, 443 and a listener the check binds on the host at each gateway address:
+#       each must be rejected in the probe's own namespace, never answered or dropped by the host), the sidecar's
+#       other ports, alternate hostname encodings, external DNS, a misconfigured or absent proxy — then the denial
+#       attribution (the probe's denied connects carry its guard's address), the guard's and the sidecar's
+#       netfilter rules. The probe runs, like a sandbox, in a guard's namespace. One `<check>: PASS|FAIL <detail>` line each, to --log (default stdout). Exit 0 all PASS, 1 any FAIL.
 #   egress-proxy.sh denials <batch>
 #       the sidecar's denials as JSON lines {at, src, method, host, port, reason, request}
 #   egress-proxy.sh record-address --network N --container C --label L --meta DIR --event start|end|watch
-#                   [--max-s S] [--parent-pid P]
-#       (pipeline-run.sh, blind-session.sh) start: wait up to $LOA_EGRESS_ADDR_WAIT_S (default 30) for C's address
-#       on N and append {event, label, container, network, address, at} to DIR/egress-addr.jsonl; end: append the
+#                   [--guard G] [--max-s S] [--parent-pid P]
+#       (pipeline-run.sh, blind-session.sh) start: wait up to $LOA_EGRESS_ADDR_WAIT_S (default 30) for the address
+#       on N of G (the sandbox's guard; else C itself) and append {event, label, container, guard, network, address,
+#       at} to DIR/egress-addr.jsonl; end: append the
 #       end record, then append to DIR/egress-denied.jsonl every denial of the batch's sidecar whose source is
 #       that address between the label's start (less 1 s) and its end (plus 2 s), with label and container.
 #       watch (the launchers start it in the background just before `docker run`): start, then poll every second
-#       until C is gone, P (the launcher) has exited or S seconds (default 7200) have passed, then end.
-#       Never fails the caller (exit 0; a docker error records address null)
+#       until C is gone, P (the launcher) has exited or S seconds (default 7200) have passed, then end. With
+#       --guard, watch first waits up to $LOA_EGRESS_GUARD_WAIT_S (default 120) for C to appear, and removes G
+#       after the end record. Never fails the caller (exit 0; a docker error records address null)
 #
 # Options common to every command: --docker-bin D (default $EVAL_DOCKER_BIN, else docker).
 # Exit codes (SDD § 5.4): 0 done; 1 failed step; 2 refusal before any write (usage, precondition).
@@ -166,6 +184,8 @@ cmd_up() {
   read_allowlist "$file"
   dk image inspect "$image" >/dev/null 2>&1 \
     || die "proxy image $image not found; build it: docker build -t $image - < evals/harness/Dockerfile.proxy"
+  [[ "$(dk image inspect -f '{{index .Config.Labels "org.loa.egress.guard"}}' "$image" 2>/dev/null || true)" == 1 ]] \
+    || die "proxy image $image has no sandbox guard (built before KF-058); rebuild it: docker build -t $image - < evals/harness/Dockerfile.proxy"
   exists_container "$PROXY" && die "sidecar $PROXY already exists; remove it first: egress-proxy.sh down $batch"
   exists_network "$NET" && die "network $NET already exists; remove it first: egress-proxy.sh down $batch"
   [[ -n "$extnet" ]] || { exists_network "$EXT" && die "network $EXT already exists; remove it first: egress-proxy.sh down $batch"; }
@@ -225,6 +245,10 @@ cmd_down() {
     dk logs --timestamps "$PROXY" > "$logdir/proxy.log" 2>&1 || true
     parse_denials < "$logdir/proxy.log" > "$logdir/denied.jsonl" || true
   fi
+  local g
+  for g in $(dk ps -aq --filter "label=loa.egress.batch=$batch" --filter "label=loa.egress.role=guard" 2>/dev/null || true); do
+    dk rm -f "$g" >/dev/null 2>&1 || true
+  done
   dk rm -f "$PROXY" >/dev/null 2>&1 || true
   dk network rm "$NET" >/dev/null 2>&1 || true
   # the external network only when this batch created it (its label names the batch)
@@ -233,6 +257,40 @@ cmd_down() {
   fi
   if exists_container "$PROXY" || exists_network "$NET"; then fail "down $batch: $PROXY or $NET is still present"; fi
   return 0
+}
+
+# --- guard: the network namespace of one sandbox container ----------------------------------------
+cmd_guard() {
+  local batch="${1:-}" gname="${2:-}"
+  [[ -n "$batch" && -n "$gname" ]] || die "usage: egress-proxy.sh guard <batch> <name>"
+  shift 2
+  while [[ $# -gt 0 ]]; do case "$1" in --docker-bin) DOCKER_BIN="${2:-}"; shift 2 ;; *) die "guard: unknown option $1" ;; esac; done
+  names "$batch"
+  [[ "$gname" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,199}$ ]] || die "guard: '$gname' is not a container name"
+  [[ "$(dk container inspect -f '{{.State.Running}}' "$PROXY" 2>/dev/null || true)" == true ]] \
+    || die "guard: sidecar $PROXY is not running; bring the block up: egress-proxy.sh up $batch <allowlist-file>"
+  local image
+  image="$(dk container inspect -f '{{.Config.Image}}' "$PROXY" 2>/dev/null || true)"
+  [[ "$image" =~ ^[A-Za-z0-9._:/@-]{1,200}$ ]] || die "guard: cannot read the image of $PROXY"
+  if exists_container "$gname"; then
+    [[ "$(dk container inspect -f '{{index .Config.Labels "loa.egress.role"}} {{index .Config.Labels "loa.egress.batch"}}' "$gname" 2>/dev/null || true)" == "guard $batch" ]] \
+      || die "guard: container $gname exists and is not a guard of batch $batch"
+    dk rm -f "$gname" >/dev/null 2>&1 || true
+  fi
+  local err  # docker's warnings (e.g. no memory cgroup) are not the caller's output: shown on failure only
+  err="$(dk run -d --name "$gname" --label "loa.egress.batch=$batch" --label loa.egress.role=guard --network "$NET" --dns 0.0.0.1 \
+     --read-only --cap-drop ALL --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID --security-opt no-new-privileges \
+     --pids-limit 16 --memory 32m -e "LOA_EGRESS_PROXY=$PROXY" --entrypoint /usr/local/bin/loa-egress-guard "$image" 2>&1 >/dev/null)" \
+    || { dk rm -f "$gname" >/dev/null 2>&1 || true; fail "guard $gname did not start: $(tail -2 <<<"$err" | tr '\n' ' ')"; }
+  local i=0
+  while [[ $i -lt 75 ]]; do
+    if dk logs "$gname" 2>&1 | grep -q '^loa-egress-guard: installed'; then echo "container:$gname"; return 0; fi
+    [[ "$(dk container inspect -f '{{.State.Running}}' "$gname" 2>/dev/null || echo false)" == true ]] || break
+    sleep 0.2; i=$((i + 1))
+  done
+  echo "egress-proxy: guard log:" >&2; dk logs "$gname" 2>&1 | tail -5 >&2 || true
+  dk rm -f "$gname" >/dev/null 2>&1 || true
+  fail "guard $gname did not install its rules (see the log above)"
 }
 
 # --- denials: tinyproxy's log → JSON lines -----------------------------------------------
@@ -317,10 +375,11 @@ cmd_denials() {
 
 # --- record-address: the container address in meta, and the denials it caused --------------
 cmd_record_address() {
-  local net="" cont="" label="" meta="" ev="" max_s="" ppid_w=""
+  local net="" cont="" label="" meta="" ev="" max_s="" ppid_w="" guard=""
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --network) net="${2:-}"; shift 2 ;;
+      --guard) guard="${2:-}"; shift 2 ;;
       --container) cont="${2:-}"; shift 2 ;;
       --label) label="${2:-}"; shift 2 ;;
       --meta) meta="${2:-}"; shift 2 ;;
@@ -331,18 +390,31 @@ cmd_record_address() {
       *) echo "egress-proxy: record-address: unknown option $1" >&2; return 0 ;;
     esac
   done
+  [[ -z "$guard" || "$guard" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,199}$ ]] || { echo "egress-proxy: record-address: --guard is not a container name" >&2; guard=""; }
   if [[ "$ev" == watch ]]; then
     [[ "$max_s" =~ ^[0-9]{1,6}$ ]] || max_s=7200
     [[ "$ppid_w" =~ ^[0-9]{1,10}$ ]] || ppid_w=""
     local -a common=(--network "$net" --container "$cont" --label "$label" --meta "$meta" --docker-bin "$DOCKER_BIN")
+    [[ -n "$guard" ]] && common+=(--guard "$guard")
     cmd_record_address "${common[@]}" --event start
     local t=0
+    if [[ -n "$guard" ]]; then  # the guard is up before the sandbox: wait for the sandbox to exist first
+      local gw_s="${LOA_EGRESS_GUARD_WAIT_S:-120}" w=0
+      [[ "$gw_s" =~ ^[0-9]{1,4}$ ]] || gw_s=120
+      while [[ $w -lt $((gw_s * 5)) ]] && ! dk container inspect "$cont" >/dev/null 2>&1; do
+        if [[ -n "$ppid_w" ]] && ! kill -0 "$ppid_w" 2>/dev/null; then break; fi
+        sleep 0.2; w=$((w + 1))
+      done
+    fi
     while [[ $t -lt $max_s ]]; do
       dk container inspect "$cont" >/dev/null 2>&1 || break
       if [[ -n "$ppid_w" ]] && ! kill -0 "$ppid_w" 2>/dev/null; then break; fi
       sleep 1; t=$((t + 1))
     done
     cmd_record_address "${common[@]}" --event end
+    if [[ -n "$guard" && "$(dk container inspect -f '{{index .Config.Labels "loa.egress.role"}}' "$guard" 2>/dev/null || true)" == guard ]]; then
+      dk rm -f "$guard" >/dev/null 2>&1 || true
+    fi
     return 0
   fi
   [[ -n "$net" && -n "$cont" && -n "$meta" && "$net" == loa-egress-* ]] || { echo "egress-proxy: record-address: needs --network loa-egress-<batch> --container --meta" >&2; return 0; }
@@ -352,7 +424,7 @@ cmd_record_address() {
   [[ "$wait_s" =~ ^[0-9]{1,3}$ ]] || wait_s=30
   if [[ "$ev" == start ]]; then
     while [[ $i -lt $((wait_s * 5)) ]]; do
-      addr="$(dk inspect -f "{{with index .NetworkSettings.Networks \"$net\"}}{{.IPAddress}}{{end}}" "$cont" 2>/dev/null || true)"
+      addr="$(dk inspect -f "{{with index .NetworkSettings.Networks \"$net\"}}{{.IPAddress}}{{end}}" "${guard:-$cont}" 2>/dev/null || true)"
       [[ -n "$addr" ]] && break
       sleep 0.2; i=$((i + 1))
     done
@@ -361,8 +433,9 @@ cmd_record_address() {
       "$meta/egress-addr.jsonl" 2>/dev/null | tail -1 || true)"
   fi
   at="$(now_iso)"
-  jq -cn --arg e "$ev" --arg l "$label" --arg c "$cont" --arg n "$net" --arg a "$addr" --arg at "$at" \
-    '{event: $e, label: $l, container: $c, network: $n, address: (if $a == "" then null else $a end), at: $at}' \
+  jq -cn --arg e "$ev" --arg l "$label" --arg c "$cont" --arg g "$guard" --arg n "$net" --arg a "$addr" --arg at "$at" \
+    '{event: $e, label: $l, container: $c, guard: (if $g == "" then null else $g end), network: $n,
+      address: (if $a == "" then null else $a end), at: $at}' \
     >> "$meta/egress-addr.jsonl" || true
   [[ "$ev" == end && -n "$addr" ]] || return 0
   local batch="${net#loa-egress-}" start
@@ -396,7 +469,7 @@ for line in sys.stdin:
 # shellcheck disable=SC2016
 PROBE_SCRIPT='
 set -u
-P="$1" GW="$2" FIRST="$3"; shift 3
+P="$1" GW="$2" XGW="$3" LPORT="$4" PROXYN="$5" FIRST="$6"; shift 6
 bad=0
 pass() { echo "$1: PASS ${2:-}"; }
 flunk() { echo "$1: FAIL ${2:-}"; bad=1; }
@@ -404,6 +477,17 @@ tunnel() { curl -sS -m 20 -p -x "$P" -o /dev/null -w "%{http_connect}" "$@" 2>/d
 must_deny_tunnel() { local c; c="$(tunnel "$2")"; if [ "$c" = 200 ]; then flunk "$1" "tunnel established ($2)"; else pass "$1" "connect ${c:-none} ($2)"; fi; }
 must_fail() { local n="$1"; shift; if "$@" >/dev/null 2>&1; then flunk "$n" "succeeded: $*"; else pass "$n" "failed as required"; fi; }
 tcp_open() { python3 -I -c "import socket, sys; socket.create_connection((sys.argv[1], int(sys.argv[2])), timeout=8)" "$1" "$2"; }
+unreached() { python3 -I -c "
+import errno, socket, sys
+try:
+    socket.create_connection((sys.argv[1], int(sys.argv[2])), timeout=6)
+    print(\"connected\"); sys.exit(1)
+except OSError as e:
+    if e.errno in (errno.EHOSTUNREACH, errno.ENETUNREACH, errno.EACCES, errno.EPERM):
+        print(\"rejected in the namespace\"); sys.exit(0)
+    print(\"reached or dropped outside: \" + (errno.errorcode.get(e.errno, str(e.errno)) if e.errno else type(e).__name__)); sys.exit(1)
+" "$1" "$2"; }
+must_unreach() { local o; if o="$(unreached "$2" "$3" 2>&1)"; then pass "$1" "$o"; else flunk "$1" "$o ($2:$3)"; fi; }
 http_denied() { local c; c="$(curl -sS -m 20 -x "$P" -o /dev/null -w "%{http_code}" "$2" 2>/dev/null)"
   case "$c" in 2*|3*) flunk "$1" "HTTP $c ($2)" ;; *) pass "$1" "HTTP ${c:-none} ($2)" ;; esac; }
 echo "address: $(hostname -i 2>/dev/null | awk "{print \$1}")"
@@ -425,10 +509,15 @@ http_denied "deny plain HTTP github.com" "http://github.com/"
 http_denied "deny plain HTTP allowlisted host port 80" "http://$FIRST/"
 must_deny_tunnel "deny metadata via proxy" "https://169.254.169.254/"
 must_fail "deny metadata without proxy" curl -sS -m 10 --noproxy "*" http://169.254.169.254/latest/meta-data/
-must_deny_tunnel "deny host gateway via proxy" "https://$GW/"
-must_fail "deny host gateway 80 without proxy" curl -sS -m 10 --noproxy "*" "http://$GW/"
-must_fail "deny host gateway 443 without proxy" curl -sS -m 10 --noproxy "*" "https://$GW/"
-must_fail "deny host gateway 22 without proxy" tcp_open "$GW" 22
+must_unreach "deny metadata 80 in the namespace" 169.254.169.254 80
+for g in "$GW" "$XGW"; do
+  [ -n "$g" ] || continue
+  must_deny_tunnel "deny host gateway $g via proxy" "https://$g/"
+  must_fail "deny host gateway $g 80 without proxy" curl -sS -m 10 --noproxy "*" "http://$g/"
+  for port in 22 80 443 $LPORT; do must_unreach "deny host gateway $g $port" "$g" "$port"; done
+done
+must_unreach "deny sidecar port 22" "$PROXYN" 22
+must_unreach "deny sidecar port 443" "$PROXYN" 443
 for u in "https://GITHUB.COM/" "https://github.com./" "https://16843009/" "https://0x01010101/" "https://0177.0.0.1/" "https://[::ffff:1.1.1.1]/" "https://github.com%2e/"; do
   must_deny_tunnel "deny encoding $u" "$u"
 done
@@ -439,6 +528,34 @@ must_fail "deny misconfigured proxy port" curl -sS -m 10 -x "${P%:*}:9" "https:/
 must_fail "deny misconfigured proxy host" curl -sS -m 10 -x "http://loa-proxy-absent.invalid:8888" "https://$FIRST/"
 must_fail "deny no proxy at all" env -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u http_proxy curl -sS -m 10 "https://$FIRST/"
 exit $bad
+'
+
+# GW_LISTENER <port-file> <hits-file> <addr>… — a TCP listener bound to each address on one free high port; every
+# accepted peer is appended to <hits-file> as `<local> <peer>`. Writes the port (empty: no address could be bound).
+# shellcheck disable=SC2016
+GW_LISTENER='
+import socket, sys, threading
+pf, hf, addrs = sys.argv[1], sys.argv[2], [a for a in sys.argv[3:] if a]
+socks, port = [], 0
+for a in addrs:
+    s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        s.bind((a, port))
+    except OSError:
+        continue
+    port = s.getsockname()[1]; s.listen(16); socks.append(s)
+open(pf, "w").write(("%d\n" % port) if socks else "")
+if not socks:
+    sys.exit(0)
+def serve(s):
+    while True:
+        c, peer = s.accept()
+        with open(hf, "a") as f:
+            f.write("%s %s\n" % (s.getsockname()[0], peer[0]))
+        c.close()
+for s in socks[1:]:
+    threading.Thread(target=serve, args=(s,), daemon=True).start()
+serve(socks[0])
 '
 
 cmd_self_check() {
@@ -463,17 +580,43 @@ cmd_self_check() {
     read -r -a probes <<<"$env_allow"
   fi
   [[ ${#probes[@]} -gt 0 ]] || die "self-check: no probe host"
-  local gw purl="http://$PROXY:$PROXY_PORT" out rc=0 t0
+  local gw xgw="" xnet purl="http://$PROXY:$PROXY_PORT" out rc=0 t0 guard="loa-egress-$batch-selfcheck" gnet
   gw="$(dk network inspect -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' "$NET" 2>/dev/null || true)"
   [[ -n "$gw" ]] || gw="$(dk network inspect -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' "$NET" | sed 's|\.[0-9]*/.*|.1|')"
+  for xnet in $(dk inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}' "$PROXY" 2>/dev/null || true); do
+    [[ "$xnet" == "$NET" ]] && continue
+    xgw="$(dk network inspect -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' "$xnet" 2>/dev/null || true)"; break
+  done
+  # a listener on the host at each gateway address, one free high port: the probe must never reach it
+  local ldir lpid="" lport=""
+  ldir="$(mktemp -d "${TMPDIR:-/tmp}/egress-selfcheck.XXXXXX")"
+  python3 -I -c "$GW_LISTENER" "$ldir/port" "$ldir/hits" "$gw" "$xgw" </dev/null >/dev/null 2>&1 &
+  lpid=$!
+  local i=0; while [[ ! -e "$ldir/port" && $i -lt 50 ]]; do sleep 0.1; i=$((i + 1)); done
+  lport="$(cat "$ldir/port" 2>/dev/null || true)"
+  gnet="$(cmd_guard "$batch" "$guard" 2>"$ldir/guard.err")" \
+    || { kill "$lpid" 2>/dev/null || true; gnet="$(tr '\n' ' ' < "$ldir/guard.err")"
+         find "$ldir" -mindepth 1 -delete 2>/dev/null || true; rmdir "$ldir" 2>/dev/null || true
+         fail "self-check: the probe's guard did not start: $gnet"; }
   t0="$(now_iso)"
-  out="$(dk run --rm --network "$NET" --dns 0.0.0.1 --user "$(id -u):$(id -g)" --read-only --tmpfs /tmp:rw,size=64m \
-          --pids-limit 256 --memory 1g -e "HTTPS_PROXY=$purl" -e "https_proxy=$purl" -e "HTTP_PROXY=$purl" \
+  out="$(dk run --rm --network "$gnet" --user "$(id -u):$(id -g)" --read-only --tmpfs /tmp:rw,size=64m \
+          --pids-limit 256 --memory 1g --cap-drop ALL --security-opt no-new-privileges \
+          -e "HTTPS_PROXY=$purl" -e "https_proxy=$purl" -e "HTTP_PROXY=$purl" \
           -e "http_proxy=$purl" -e NO_PROXY= -e no_proxy= -e HOME=/tmp -e GIT_TERMINAL_PROMPT=0 \
-          "$image" bash -c "$PROBE_SCRIPT" probe "$purl" "$gw" "${probes[0]}" "${probes[@]}" 2>&1)" || rc=$?
+          "$image" bash -c "$PROBE_SCRIPT" probe "$purl" "$gw" "$xgw" "$lport" "$PROXY" "${probes[0]}" "${probes[@]}" 2>&1)" || rc=$?
+  kill "$lpid" 2>/dev/null || true
   local addr
-  addr="$(sed -n 's/^address: //p' <<<"$out" | head -1)"
+  addr="$(dk inspect -f "{{with index .NetworkSettings.Networks \"$NET\"}}{{.IPAddress}}{{end}}" "$guard" 2>/dev/null || true)"
   out="$(grep -v '^address: ' <<<"$out")"
+  if [[ -n "$lport" ]]; then
+    local reached
+    reached="$(tr '\n' ' ' 2>/dev/null < "$ldir/hits" || true)"
+    if [[ -z "$reached" ]]; then out="$out"$'\n'"host gateway listener: PASS port $lport on $gw $xgw: never reached from the namespace"
+    else out="$out"$'\n'"host gateway listener: FAIL reached: $reached"; rc=1; fi
+  else
+    out="$out"$'\n'"host gateway listener: FAIL no gateway address could be bound on this host (the probe did not run)"; rc=1
+  fi
+  find "$ldir" -mindepth 1 -delete 2>/dev/null || true; rmdir "$ldir" 2>/dev/null || true
   # attribution: the probe's denied tunnels are in the sidecar's denials under the probe's address
   local att
   att="$(dk logs --timestamps "$PROXY" 2>&1 | parse_denials | jq -r --arg a "$addr" --arg t "$t0" \
@@ -493,6 +636,20 @@ cmd_self_check() {
   done
   if [[ -z "$rmiss" ]]; then out="$out"$'\n'"sidecar netfilter: PASS default DROP, private/loopback/link-local/CGNAT rejected, tcp 443 only"
   else out="$out"$'\n'"sidecar netfilter: FAIL missing:$rmiss"; rc=1; fi
+  # the guard's netfilter: default DROP both ways, the sidecar's port only, the rest rejected in the namespace
+  local g4 g6 gmiss="" paddr
+  paddr="$(dk inspect -f "{{with index .NetworkSettings.Networks \"$NET\"}}{{.IPAddress}}{{end}}" "$PROXY" 2>/dev/null || true)"
+  g4="$(dk exec "$guard" iptables -S 2>&1 || true)"
+  g6="$(dk exec "$guard" ip6tables -S 2>&1 || true)"
+  grep -qx -- '-P OUTPUT DROP' <<<"$g4" || gmiss="$gmiss ipv4-output-policy"
+  grep -qx -- '-P INPUT DROP' <<<"$g4" || gmiss="$gmiss ipv4-input-policy"
+  grep -qx -- '-P OUTPUT DROP' <<<"$g6" || gmiss="$gmiss ipv6-output-policy"
+  grep -qx -- "-A OUTPUT -d $paddr/32 -p tcp -m tcp --dport $PROXY_PORT -j ACCEPT" <<<"$g4" || gmiss="$gmiss proxy-port"
+  grep -qx -- '-A OUTPUT -j REJECT --reject-with icmp-admin-prohibited' <<<"$g4" || gmiss="$gmiss ipv4-reject"
+  [[ "$(grep -c -- '-j ACCEPT' <<<"$g4")" -eq 5 ]] || gmiss="$gmiss accept-rules-not-exactly-5"
+  if [[ -z "$gmiss" ]]; then out="$out"$'\n'"sandbox guard netfilter: PASS default DROP, loopback, replies and $paddr:$PROXY_PORT only, the rest rejected in the namespace"
+  else out="$out"$'\n'"sandbox guard netfilter: FAIL missing:$gmiss"; rc=1; fi
+  dk rm -f "$guard" >/dev/null 2>&1 || true
   grep -q ': FAIL' <<<"$out" && rc=1
   if [[ -n "$log" ]]; then mkdir -p "$(dirname "$log")"; printf '%s\n' "$out" > "$log"; else printf '%s\n' "$out"; fi
   [[ $rc -eq 0 ]] && return 0
@@ -509,6 +666,7 @@ case "$sub" in
   self-check) cmd_self_check "$@" ;;
   denials) cmd_denials "$@" ;;
   record-address) cmd_record_address "$@" ;;
+  guard) cmd_guard "$@" ;;
   -h|--help|help) sed -n '2,/^# =====/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'; exit 0 ;;
-  *) die "usage: egress-proxy.sh allowlist|up|down|self-check|denials|record-address … (see --help)" ;;
+  *) die "usage: egress-proxy.sh allowlist|up|down|guard|self-check|denials|record-address … (see --help)" ;;
 esac

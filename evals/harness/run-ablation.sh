@@ -977,6 +977,9 @@ if [[ "$EXECUTOR" == container && -n "$EGRESS_NET" ]]; then
     || refuse "egress network $EGRESS_NET is not an internal docker network; bring the block up: evals/harness/lib/egress-proxy.sh up ${EGRESS_NET#loa-egress-} <allowlist-file>"
   [[ "$("$DOCKER_BIN" container inspect -f '{{.State.Running}}' "loa-proxy-${EGRESS_NET#loa-egress-}" 2>/dev/null || true)" == true ]] \
     || refuse "egress sidecar loa-proxy-${EGRESS_NET#loa-egress-} is not running; bring the block up: evals/harness/lib/egress-proxy.sh up ${EGRESS_NET#loa-egress-} <allowlist-file>"
+  # KF-058: every sandbox runs in a guard started from the sidecar's image; an image built before the guard is refused
+  [[ "$("$DOCKER_BIN" container inspect -f '{{index .Config.Labels "org.loa.egress.guard"}}' "loa-proxy-${EGRESS_NET#loa-egress-}" 2>/dev/null || true)" == 1 ]] \
+    || refuse "egress sidecar loa-proxy-${EGRESS_NET#loa-egress-} runs an image without the sandbox guard (built before KF-058); rebuild it (docker build -t loa-egress-proxy:259 - < evals/harness/Dockerfile.proxy), then egress-proxy.sh down and up ${EGRESS_NET#loa-egress-}"
   EGRESS_ENFORCED=true; export LOA_EVAL_EGRESS_NETWORK="$EGRESS_NET"
 elif [[ "$EXECUTOR" == container && -n "$EGRESS_BLOCKED" && "$DRY_RUN" != true ]] \
      && ! [[ "${LOA_EGRESS_TEST_MODE:-}" == 1 && -n "${BATS_TEST_FILENAME:-}" ]]; then

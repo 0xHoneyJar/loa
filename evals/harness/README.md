@@ -28,17 +28,18 @@ The mount decides which framework bytes the session under test can see. `lib/san
 
 **Threat model.** The block denies repository and arbitrary-destination egress from the sandbox. A session under test must not fetch the PR's upstream history, a fix commit, or anything else on the internet. Exfiltration through an allowlisted model API is out of scope. The grader's class-9 tripwire is left to catch that.
 
-**Layout.** `lib/egress-proxy.sh` builds three objects per batch:
+**Layout.** `lib/egress-proxy.sh` builds three objects per batch, plus one guard per sandbox container:
 
-- **`loa-egress-<batch>`** is a docker `--internal` network with no route out. Sandboxes join it with `--dns 0.0.0.1`, so nothing but container names resolves.
+- **`loa-egress-<batch>`** is a docker `--internal` network with no route out. Its gateway is the host's own address, and the host still answers there (KF-058). So no sandbox joins this network directly.
+- **A guard** is a small container of the proxy image on the internal network, started by `egress-proxy.sh guard <batch> <name>` with `--dns 0.0.0.1`, so nothing but container names resolves. The sandbox runs in the guard's network namespace with `--network container:<guard>`. The guard's netfilter lets that namespace reach loopback and the sidecar's port 8888 only. Either gateway on any port, other containers, the metadata address and IPv6 are rejected inside the namespace, so the sandbox sees "no route to host" and the host is never reached. The sandbox holds no `NET_ADMIN` there and cannot change the rules. After installing them, the guard drops to `nobody` with no capability and sleeps.
 - **`loa-egress-<batch>-ext`** is an ordinary bridge network, unless `--external-network` names one.
 - **`loa-proxy-<batch>`** is the sidecar built from `Dockerfile.proxy` (tinyproxy 1.11) and attached to both networks. It allows the listed hostnames only and allows CONNECT to port 443 only. Netfilter in its own namespace rejects every private, loopback, link-local, metadata and reserved address after resolution, which covers DNS rebinding and the host gateway.
 
 The allowlist comes from `providers.<p>.egress_hosts[]` in `.claude/defaults/model-config.yaml`, which lists model endpoints and their auth and token-refresh hosts. A `{region}` entry expands to the provider's default region and every `--region` given.
 
-**Per arm.** The suite key `egress: blocked | bridge` sits on the arm, else under `egress.arms.<id>`, else at `egress.default`, else it is `blocked`. A blocked arm's container joins the internal network with `HTTPS_PROXY` and `HTTP_PROXY` set to `http://loa-proxy-<batch>:8888` and `NO_PROXY` empty. A `bridge` arm runs on `--network bridge` and is recorded as a factor of the batch.
+**Per arm.** The suite key `egress: blocked | bridge` sits on the arm, else under `egress.arms.<id>`, else at `egress.default`, else it is `blocked`. A blocked arm's container runs in its own guard with `HTTPS_PROXY` and `HTTP_PROXY` set to `http://loa-proxy-<batch>:8888` and `NO_PROXY` empty. A `bridge` arm runs on `--network bridge` and is recorded as a factor of the batch.
 
-**Refusal.** `run-ablation.sh` refuses a container batch with a blocked arm, exit 2 before any write, unless `LOA_EVAL_EGRESS_NETWORK` names a `loa-egress-<batch>` network that is internal and whose sidecar is running. The refusal line names the repair. A `--dry-run` and a bats run with `LOA_EGRESS_TEST_MODE=1` record `enforced: false` instead of refusing. `blind-session.sh` has no such refusal: without the variable it runs on `--network bridge`.
+**Refusal.** `run-ablation.sh` refuses a container batch with a blocked arm, exit 2 before any write, unless `LOA_EVAL_EGRESS_NETWORK` names a `loa-egress-<batch>` network that is internal and whose sidecar is running from a proxy image that carries the guard. `up` also refuses a proxy image built before the guard, and both refusals name the rebuild line. The refusal line names the repair. A `--dry-run` and a bats run with `LOA_EGRESS_TEST_MODE=1` record `enforced: false` instead of refusing. `blind-session.sh` has no such refusal: without the variable it runs on `--network bridge`.
 
 **Operating a batch.**
 
@@ -52,13 +53,13 @@ evals/harness/lib/egress-proxy.sh down <batch> --log-dir <dir>
 
 Pass `--image` to the runner explicitly. Its default is still `loa-ablation:258`, which is not the image the pipeline versions below name.
 
-`self-check` runs from a sandbox-shaped container of the image on the batch network. It opens one CONNECT tunnel per allowlisted host with no credential and no completion token. It then exercises the denials: github.com, raw.githubusercontent.com and gitlab.com by curl and `git ls-remote`, direct IPv4 and IPv6, a non-443 CONNECT, plain HTTP, the metadata address, the host gateway, alternate hostname encodings, external DNS, and a misconfigured or absent proxy. It also checks denial attribution and the sidecar's netfilter rules. Any FAIL line makes it exit 1. `up` refuses a batch whose network or sidecar already exists. The repair is `down <batch>`, which is idempotent.
+`self-check` runs from a sandbox-shaped container of the image in a guard of its own, as a launcher runs a phase. It opens one CONNECT tunnel per allowlisted host with no credential and no completion token. It then exercises the denials: github.com, raw.githubusercontent.com and gitlab.com by curl and `git ls-remote`, direct IPv4 and IPv6, a non-443 CONNECT, plain HTTP, the metadata address, both gateways, the sidecar's other ports, alternate hostname encodings, external DNS, and a misconfigured or absent proxy. For the gateways it binds a listener on the host at each gateway address on one free high port. Ports 22, 80 and 443 and that port must each be rejected inside the namespace. A connection, a refusal by the host or a timeout is a FAIL, so the result never depends on the host's firewall. It also checks that the listener saw no connection, denial attribution, and the guard's and the sidecar's netfilter rules. Any FAIL line makes it exit 1. `up` refuses a batch whose network or sidecar already exists. The repair is `down <batch>`, which is idempotent.
 
 **Records.** `MANIFEST.json` `egress` holds `{arms, network, proxy, enforced}`. Each run of `pipeline-run.sh` writes:
 
-- **`meta/egress.jsonl`** has one line per phase container: label, mode, network, proxy URL, `enforced` and DNS.
-- **`meta/egress-addr.jsonl`** has the container's address on the batch network at start and end.
-- **`meta/egress-denied.jsonl`** has every sidecar denial whose source is that address during that container's lifetime.
+- **`meta/egress.jsonl`** has one line per phase container: label, mode, network, guard, proxy URL, `enforced` and DNS.
+- **`meta/egress-addr.jsonl`** has the address of the container's guard on the batch network at start and end. Each guard has a unique name and its own address, which keeps the attribution per container.
+- **`meta/egress-denied.jsonl`** has every sidecar denial whose source is that address during that container's lifetime. The background watcher removes the guard after the end record, and `down` removes any guard left behind.
 
 `blind-session.sh` writes the same records as `egress.json`, `egress-addr.jsonl` and `egress-denied.jsonl` in its output directory. `down --log-dir` saves the sidecar log and every parsed denial of the batch.
 

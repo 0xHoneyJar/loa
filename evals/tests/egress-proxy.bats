@@ -8,7 +8,9 @@
 # absent), a sandbox-shaped probe image ($LOA_EGRESS_SANDBOX_IMAGE, else loa-ablation:259, else loa-ablation:258,
 # else a minimal debian probe image built here) and a local stub endpoint (python3 http.server on 443/8443/80 of
 # a private network, let through the private-range rule by the bats-only --test-allow-addr). No model call, no
-# credential. Without a usable Docker daemon the EGR cases SKIP with the reason — unless LOA_EGRESS_GATE=1 (the
+# credential. Every sandbox-shaped container runs, as the launchers run a phase, in the network namespace of a
+# guard (egress-proxy.sh guard; KF-058: the --internal network's gateway is the host and still answers).
+# Without a usable Docker daemon the EGR cases SKIP with the reason — unless LOA_EGRESS_GATE=1 (the
 # lead's release-gate run), where they FAIL. The EP-* cases use a stub docker and run everywhere.
 # Logs: $LOA_EGRESS_LOG_DIR (default $BATS_RUN_TMPDIR/egress-logs): proxy.log, denied.jsonl, self-check.log.
 #
@@ -74,8 +76,10 @@ S(("0.0.0.0", 443), H).serve_forever()' >/dev/null || { EGRESS_WHY="stub endpoin
     --test-add-host "rebind-loop.stub.test:127.0.0.1" --test-add-host "rebind-meta.stub.test:169.254.169.254" \
     --test-add-host "rebind-priv.stub.test:10.255.255.1" > "$LOGDIR/up.json" 2> "$LOGDIR/up.err" \
     || { EGRESS_WHY="egress-proxy.sh up failed: $(tail -3 "$LOGDIR/up.err" | tr '\n' ' ')"; return 0; }
-  export IGW
+  export IGW G="loa-egt-$B-guard"
   IGW="$(docker network inspect -f '{{range .IPAM.Config}}{{.Gateway}}{{end}}' "$NET")"
+  "$EPX" guard "$B" "$G" > "$LOGDIR/guard.out" 2> "$LOGDIR/guard.err" \
+    || { EGRESS_WHY="egress-proxy.sh guard failed: $(tail -3 "$LOGDIR/guard.err" | tr '\n' ' ')"; return 0; }
   EGRESS_READY=1
 }
 
@@ -84,7 +88,7 @@ teardown_file() {
   if docker info >/dev/null 2>&1; then
     "$EPX" down "$B" --log-dir "$LOGDIR" >/dev/null 2>&1 || true
     docker rm -f "$STUB" >/dev/null 2>&1 || true
-    docker rm -f "loa-egt-$B-watch" >/dev/null 2>&1 || true
+    docker rm -f "loa-egt-$B-watch" "loa-egt-$B-watch-guard" "loa-egt-$B-guard" >/dev/null 2>&1 || true
     docker network rm "$XNET" >/dev/null 2>&1 || true
   fi
 }
@@ -94,6 +98,7 @@ setup() {
 }
 
 teardown() {
+  [[ -f "$T/gwl.pid" ]] && { kill "$(cat "$T/gwl.pid")" 2>/dev/null || true; }
   find "$T" -mindepth 1 -delete 2>/dev/null || true
   rmdir "$T" 2>/dev/null || true
 }
@@ -106,10 +111,10 @@ need_block() {
   skip "egress block unavailable ($EGRESS_WHY); the release-gate run uses LOA_EGRESS_GATE=1 on a docker host"
 }
 
-# sbx <script> [args…] — one sandbox-shaped container on the batch network (as pipeline-run.sh runs a phase)
+# sbx <script> [args…] — one sandbox-shaped container in the guard's namespace (as pipeline-run.sh runs a phase)
 sbx() {
   local s="$1"; shift
-  docker run --rm --network "$NET" --dns 0.0.0.1 --user "$(id -u):$(id -g)" --read-only --tmpfs /tmp:rw,size=64m \
+  docker run --rm --network "container:$G" --user "$(id -u):$(id -g)" --read-only --tmpfs /tmp:rw,size=64m \
     -e "HTTPS_PROXY=$P" -e "https_proxy=$P" -e "HTTP_PROXY=$P" -e "http_proxy=$P" -e NO_PROXY= -e no_proxy= \
     -e HOME=/tmp -e GIT_TERMINAL_PROMPT=0 "$SBX" bash -c "$s" probe "$@"
 }
@@ -125,7 +130,9 @@ case "$1" in
   container) exit 0 ;;
   inspect) [[ "$*" == *IPAddress* ]] && echo "${STUB_ADDR:-}"; exit 0 ;;
   logs) cat "${STUB_LOG_FILE:-/dev/null}"; exit 0 ;;
-  image) [[ -n "${STUB_NO_IMAGE:-}" ]] && exit 1; echo sha256:feed; exit 0 ;;
+  image) [[ -n "${STUB_NO_IMAGE:-}" ]] && exit 1
+         if [[ "$*" == *org.loa.egress.guard* ]]; then [[ -z "${STUB_NO_GUARD:-}" ]] && echo 1; exit 0; fi
+         echo sha256:feed; exit 0 ;;
   *) exit 0 ;;
 esac
 SH
@@ -185,6 +192,9 @@ SH
   [ "$status" -eq 2 ]; grep -q 'already exists; remove it first: egress-proxy.sh down b1' <<<"$output"
   STUB_NO_IMAGE=1 run "$EPX" up b1 "$T/ok" --docker-bin "$T/docker"
   [ "$status" -eq 2 ]; grep -q 'docker build -t loa-egress-proxy:259' <<<"$output"
+  # an image built before the guard existed (KF-058) is refused with the rebuild line
+  STUB_NO_GUARD=1 run "$EPX" up b1 "$T/ok" --docker-bin "$T/docker"
+  [ "$status" -eq 2 ]; grep -q 'has no sandbox guard (built before KF-058); rebuild it: docker build -t loa-egress-proxy:259' <<<"$output"
   run "$EPX" up 'b 1' "$T/ok" --docker-bin "$T/docker"
   [ "$status" -eq 2 ]
 }
@@ -352,29 +362,91 @@ LOG
   [ "$status" -eq 0 ]
 }
 
-@test "EGR-8 the host gateway is unreachable: direct to both networks' gateways (22, 80, 443) and through the proxy (an IP literal, and an allowlisted name that resolves to it)" {
+# unreached <host> <port> — inside a sandbox: exit 0 only when the connect is rejected IN the sandbox's own
+# namespace (EHOSTUNREACH/ENETUNREACH/EACCES/EPERM from the guard's netfilter). A connect, a refusal (the host
+# answered) or a timeout (something outside, e.g. a host firewall, dropped it) is a failure: the block must not
+# depend on the host.
+UNREACHED='python3 -I -c "
+import errno, socket, sys
+try:
+    socket.create_connection((sys.argv[1], int(sys.argv[2])), timeout=6)
+    print(\"connected\"); sys.exit(1)
+except OSError as e:
+    if e.errno in (errno.EHOSTUNREACH, errno.ENETUNREACH, errno.EACCES, errno.EPERM):
+        print(\"rejected-in-namespace\"); sys.exit(0)
+    print(\"reached-or-dropped-outside \" + (errno.errorcode.get(e.errno, str(e.errno)) if e.errno else type(e).__name__)); sys.exit(1)
+" "$1" "$2"'
+
+# gw_listener <port-file> <hits-file> <addr>… — a TCP listener on the host bound to each gateway address on one
+# free high port (the host owns those addresses); every accepted peer is appended to <hits-file>. Prints the port
+# to <port-file>, or nothing when no address can be bound (rootless docker).
+gw_listener() {
+  local pf="$1" hf="$2"; shift 2
+  python3 -I -c '
+import socket, sys, threading
+pf, hf, addrs = sys.argv[1], sys.argv[2], sys.argv[3:]
+socks, port = [], 0
+for a in addrs:
+    s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    try:
+        s.bind((a, port))
+    except OSError:
+        continue
+    port = s.getsockname()[1]; s.listen(16); socks.append(s)
+if not socks:
+    open(pf, "w").close(); sys.exit(0)
+open(pf, "w").write("%d\n" % port)
+def serve(s):
+    while True:
+        c, peer = s.accept()
+        with open(hf, "a") as f: f.write("%s %s\n" % (s.getsockname()[0], peer[0]))
+        c.close()
+for s in socks[1:]: threading.Thread(target=serve, args=(s,), daemon=True).start()
+serve(socks[0])' "$pf" "$hf" "$@" &
+  echo $! > "$T/gwl.pid"
+  local i; for i in $(seq 1 50); do [[ -e "$pf" ]] && return 0; sleep 0.1; done
+}
+
+@test "EGR-8 the host gateway is unreachable: both networks' gateways on 22, 80, 443 and a host listener bound on them are rejected in the sandbox's own namespace (deterministic on any host), and through the proxy (an IP literal, and an allowlisted name that resolves to it)" {
   need_block
   local gw port
+  gw_listener "$T/gwl.port" "$T/gwl.hits" "$IGW" "$XGW"
+  port="$(cat "$T/gwl.port" 2>/dev/null || true)"
+  log_case "gateway listener port ${port:-none} on $IGW $XGW"
+  if [[ -n "$port" ]]; then
+    # positive control: the listener answers the host itself
+    python3 -I -c 'import socket, sys; socket.create_connection((sys.argv[1], int(sys.argv[2])), timeout=4)' "$XGW" "$port" \
+      || python3 -I -c 'import socket, sys; socket.create_connection((sys.argv[1], int(sys.argv[2])), timeout=4)' "$IGW" "$port"
+  fi
   for gw in "$IGW" "$XGW"; do
-    for port in 22 80 443; do
-      run sbx 'python3 -I -c "import socket, sys; socket.create_connection((sys.argv[1], int(sys.argv[2])), timeout=6)" "$1" "$2"' "$gw" "$port"
-      log_case "direct $gw:$port status $status"
-      [ "$status" -ne 0 ]
+    for p in 22 80 443 ${port:+"$port"}; do
+      run sbx "$UNREACHED" "$gw" "$p"
+      log_case "direct $gw:$p status $status $output"
+      [ "$status" -eq 0 ]
+      [ "$output" = rejected-in-namespace ]
     done
     run tunnel "https://$gw/"
     [ "$output" != 200 ]
   done
+  if [[ -n "$port" ]]; then
+    # the listener saw exactly one connection: the host's own control above, never the sandbox
+    log_case "listener hits: $(tr '\n' ';' < "$T/gwl.hits" 2>/dev/null)"
+    [ "$(wc -l < "$T/gwl.hits")" -eq 1 ]
+  fi
   run tunnel https://rebind-gw.stub.test/
   log_case "rebind-gw ($XGW) connect $output"
   [ "$output" != 200 ]
   # the metadata address, direct and through the proxy
-  run sbx 'curl -sS -m 8 --noproxy "*" http://169.254.169.254/latest/meta-data/'
-  [ "$status" -ne 0 ]
+  run sbx "$UNREACHED" 169.254.169.254 80
+  [ "$status" -eq 0 ]
   run tunnel https://169.254.169.254/
   [ "$output" != 200 ]
-  # the stub itself is not reachable directly (only through the proxy)
-  run sbx 'curl -sS -m 8 --noproxy "*" "http://$1:443/"' "$STUB_IP"
-  [ "$status" -ne 0 ]
+  # the stub itself and the sidecar's other ports are not reachable directly (only the proxy port)
+  run sbx "$UNREACHED" "$STUB_IP" 443
+  [ "$status" -eq 0 ]
+  run sbx "$UNREACHED" "loa-proxy-$B" 22
+  [ "$status" -eq 0 ]
+  [[ -n "$port" ]] || skip "no gateway address could be bound on this host (rootless docker?): the listener probe did not run; 22/80/443 did"
 }
 
 @test "EGR-9 DNS rebinding: an allowlisted name that resolves to loopback, metadata, a private or the gateway address gets no tunnel (netfilter after resolution)" {
@@ -405,7 +477,7 @@ LOG
   run sbx 'env -u HTTPS_PROXY -u https_proxy -u HTTP_PROXY -u http_proxy curl -sS -m 10 https://api.stub.test/'
   [ "$status" -ne 0 ]
   # the sandbox image's environment alone (no -e): its proxy default never resolves
-  run docker run --rm --network "$NET" --dns 0.0.0.1 "$SBX" bash -c 'curl -sS -m 10 https://api.anthropic.com/'
+  run docker run --rm --network "container:$G" "$SBX" bash -c 'curl -sS -m 10 https://api.anthropic.com/'
   log_case "image default status $status"
   [ "$status" -ne 0 ]
   # the sidecar refuses to start without an allowlist, or without its netfilter rules (no NET_ADMIN)
@@ -419,12 +491,15 @@ LOG
   ! grep -q 'Starting main loop' <<<"$output"
 }
 
-@test "EGR-11 denials are attributed by source address: record-address (watch) of a named sandbox writes its address and exactly its denials into meta" {
+@test "EGR-11 denials are attributed by source address: record-address (watch) of a named sandbox in its own guard writes the guard's address and exactly its denials into meta, then removes the guard" {
   need_block
-  local c="loa-egt-$B-watch" m="$T/meta"
-  LOA_EGRESS_ADDR_WAIT_S=30 "$EPX" record-address --network "$NET" --container "$c" --label REVIEW --meta "$m" --event watch --max-s 120 &
+  local c="loa-egt-$B-watch" m="$T/meta" g="loa-egt-$B-watch-guard"
+  run "$EPX" guard "$B" "$g"
+  [ "$status" -eq 0 ]; [ "$output" = "container:$g" ]
+  LOA_EGRESS_ADDR_WAIT_S=30 "$EPX" record-address --network "$NET" --container "$c" --guard "$g" --label REVIEW --meta "$m" --event watch --max-s 120 &
   local wpid=$!
-  docker run --rm --name "$c" --network "$NET" --dns 0.0.0.1 -e "HTTPS_PROXY=$P" "$SBX" bash -c \
+  sleep 1
+  docker run --rm --name "$c" --network "container:$g" -e "HTTPS_PROXY=$P" "$SBX" bash -c \
     'sleep 2; for h in github.com gitlab.com raw.githubusercontent.com; do curl -sS -m 10 -p -x "$HTTPS_PROXY" -o /dev/null "https://$h/" 2>/dev/null; done; sleep 1; true'
   wait "$wpid"
   log_case "$(cat "$m/egress-addr.jsonl" "$m/egress-denied.jsonl" 2>&1 | tr '\n' ' ')"
@@ -432,6 +507,9 @@ LOG
   addr="$(jq -r 'select(.event == "start") | .address' "$m/egress-addr.jsonl")"
   [[ "$addr" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]
   [ "$(jq -r 'select(.event == "end") | .address' "$m/egress-addr.jsonl")" = "$addr" ]
+  [ "$(jq -r 'select(.event == "start") | .guard' "$m/egress-addr.jsonl")" = "$g" ]
+  # the watcher removed the guard once the sandbox was gone
+  ! docker container inspect "$g" >/dev/null 2>&1
   [ "$(jq -sr '[.[] | select(.src == "'"$addr"'" and .label == "REVIEW" and .container == "'"$c"'") | .host] | sort | join(",")' "$m/egress-denied.jsonl")" \
     = "github.com,gitlab.com,raw.githubusercontent.com" ]
   [ "$(jq -sr '[.[] | select(.src != "'"$addr"'")] | length' "$m/egress-denied.jsonl")" = 0 ]
@@ -451,12 +529,58 @@ LOG
   grep -q '^allow api.stub.test: PASS' "$LOGDIR/self-check.log"
   grep -q '^denial attribution: PASS' "$LOGDIR/self-check.log"
   grep -q '^sidecar netfilter: PASS' "$LOGDIR/self-check.log"
-  [ "$(grep -c ': PASS' "$LOGDIR/self-check.log")" -ge 30 ]
+  grep -q '^sandbox guard netfilter: PASS' "$LOGDIR/self-check.log"
+  grep -q '^host gateway listener: PASS' "$LOGDIR/self-check.log"
+  grep -q "^deny host gateway $IGW 22: PASS rejected in the namespace" "$LOGDIR/self-check.log"
+  grep -q "^deny host gateway $XGW 22: PASS rejected in the namespace" "$LOGDIR/self-check.log"
+  [ "$(grep -c ': PASS' "$LOGDIR/self-check.log")" -ge 40 ]
+  # the check removes its own guard
+  ! docker container inspect "loa-egress-$B-selfcheck" >/dev/null 2>&1
+}
+
+@test "EGR-13 the guard: a root sandbox in its namespace cannot change the rules or reach the gateway, the guard holds no capability after installing them, a stale guard is replaced, a foreign container is never taken over, and down removes the batch's guards" {
+  need_block
+  # root in the sandbox (default capabilities: no NET_ADMIN) cannot flush the guard's rules
+  run docker run --rm --network "container:$G" --user 0 --entrypoint iptables "$PIMG" -F OUTPUT
+  log_case "root flush status $status output $output"
+  [ "$status" -ne 0 ]
+  run docker run --rm --network "container:$G" --user 0 "$SBX" bash -c "$UNREACHED" probe "$IGW" 22
+  [ "$status" -eq 0 ]; [ "$output" = rejected-in-namespace ]
+  run docker exec "$G" iptables -S OUTPUT
+  grep -qx -- '-P OUTPUT DROP' <<<"$output"
+  grep -qx -- '-A OUTPUT -j REJECT --reject-with icmp-admin-prohibited' <<<"$output"
+  # the guard's own process: nobody, no effective capability
+  run docker exec "$G" sh -c 'cat /proc/1/cmdline | tr "\0" " "; echo; grep -E "^(Uid|CapEff):" /proc/1/status'
+  log_case "guard pid 1 $(tr '\n' ';' <<<"$output")"
+  grep -q '^sleep infinity' <<<"$output"
+  grep -Eq '^Uid:[[:space:]]+65534[[:space:]]+65534' <<<"$output"
+  grep -Eq '^CapEff:[[:space:]]+0+$' <<<"$output"
+  # a stale guard of the batch is replaced (new container id); a foreign container of that name is refused
+  local old new
+  old="$(docker inspect -f '{{.Id}}' "$G")"
+  run "$EPX" guard "$B" "$G"
+  [ "$status" -eq 0 ]
+  new="$(docker inspect -f '{{.Id}}' "$G")"
+  [ "$old" != "$new" ]
+  docker run -d --name "loa-egt-$B-foreign" --label "loa.egress.batch=$B" "$SBX" sleep 60 >/dev/null
+  run "$EPX" guard "$B" "loa-egt-$B-foreign"
+  docker rm -f "loa-egt-$B-foreign" >/dev/null 2>&1 || true
+  [ "$status" -eq 2 ]; grep -q 'exists and is not a guard of batch' <<<"$output"
+  # down sweeps every guard of the batch (a batch of its own, so the suite's block stays up)
+  local b2="egt2$$"
+  docker network create --internal --label "loa.egress.batch=$b2" "loa-egress-$b2" >/dev/null
+  docker run -d --name "loa-proxy-$b2" --label "loa.egress.batch=$b2" --network "loa-egress-$b2" --entrypoint sleep "$PIMG" 300 >/dev/null
+  docker run -d --name "loa-egt-$b2-g1" --label "loa.egress.batch=$b2" --label loa.egress.role=guard --network "loa-egress-$b2" --entrypoint sleep "$PIMG" 300 >/dev/null
+  run "$EPX" down "$b2"
+  log_case "down $b2 status $status output $output"
+  [ "$status" -eq 0 ]
+  ! docker container inspect "loa-egt-$b2-g1" >/dev/null 2>&1
+  ! docker network inspect "loa-egress-$b2" >/dev/null 2>&1
 }
 
 # =============================================================================
-# EP-7…EP-8 — the launchers join the block (stub docker; the wrapper records the argv, drops --dns for the
-# fixture stub and answers the egress inspections)
+# EP-7…EP-8 — the launchers join the block (stub docker; the wrapper records the argv, answers the egress
+# inspections and the guard's start: `run -d` records guard-<pid>.argv, `logs` says the rules are installed)
 # =============================================================================
 
 wrap_docker() {  # wrap_docker <internal true|false> <proxy running true|false>
@@ -465,9 +589,18 @@ wrap_docker() {  # wrap_docker <internal true|false> <proxy running true|false>
 #!/usr/bin/env bash
 case "\$1" in
   network) [[ "\$2" == inspect ]] && { echo "$1"; exit 0; } ;;
-  container) [[ "\$2" == inspect ]] && { [[ "\$*" == *State.Running* ]] && echo "$2"; exit 0; } ;;
+  container) [[ "\$2" == inspect ]] && {
+               case "\$*" in
+                 *State.Running*) echo "$2" ;;
+                 *Config.Image*) echo loa-egress-proxy:259 ;;
+                 *org.loa.egress.guard*) echo "\${STUB_GUARD_LABEL-1}" ;;
+                 *loa.egress.batch*) echo "guard \${LOA_EVAL_EGRESS_NETWORK#loa-egress-}" ;;
+                 *loa.egress.role*) echo guard ;;
+               esac; exit 0; } ;;
+  logs) echo 'loa-egress-guard: installed; stub'; exit 0 ;;
   inspect) exit 1 ;;
-  run) if [[ "\${*: -2}" != "claude --version" ]]; then
+  run) if [[ "\$2" == -d ]]; then printf '%s\0' "\$@" > "$T/dlog/guard-\$\$.argv"; echo stubguard; exit 0; fi
+       if [[ "\${*: -2}" != "claude --version" ]]; then
          printf '%s\0' "\$@" > "$T/dlog/full-\$\$.argv"
          a=(); while [[ \$# -gt 0 ]]; do if [[ "\$1" == --dns ]]; then shift 2; else a+=("\$1"); shift; fi; done
          DOCKER_STUB_LOG="$T/dlog" DOCKER_STUB_CLAUDE="$T/claude" exec "$REPO_ROOT/evals/tests/fixtures/docker-stub.sh" "\${a[@]}"
@@ -478,7 +611,7 @@ EOF
   chmod +x "$T/docker"
 }
 
-@test "EP-7 blind-session.sh: with LOA_EVAL_EGRESS_NETWORK the container joins loa-egress-<batch> with --dns 0.0.0.1 and the proxy environment (the session sees it); without it, bridge; both recorded in <out>/egress.json; a bad name is refused" {
+@test "EP-7 blind-session.sh: with LOA_EVAL_EGRESS_NETWORK the container runs in its own guard's namespace (the guard on loa-egress-<batch> with --dns 0.0.0.1, the proxy environment the session sees); without it, bridge; both recorded in <out>/egress.json; a bad name is refused" {
   mkdir -p "$T/pk" "$T/log" "$T/tmp"
   printf '# hunks\nH01 src/a.sh 10-12\n' > "$T/pk/hunks.md"
   printf 'Label every hunk. Write the file to {{LABELS_PATH}}.\n' > "$T/prompt.md"
@@ -495,27 +628,38 @@ EOF
   LOA_EVAL_EGRESS_NETWORK=loa-egress-b7 run "$REPO_ROOT/evals/harness/blind-session.sh" --packets "$T/pk" --prompt "$T/prompt.md" \
     --model m-test --out "$T/out1" --docker-bin "$T/docker"
   echo "$output"
-  local a; a="$(tr '\0' '\n' < "$(ls "$T"/dlog/full-*.argv | head -1)")"
-  grep -A1 -x -- '--network' <<<"$a" | tail -1 | grep -qx loa-egress-b7
-  grep -A1 -x -- '--dns' <<<"$a" | tail -1 | grep -qx 0.0.0.1
+  local a g gname; a="$(tr '\0' '\n' < "$(ls "$T"/dlog/full-*.argv | head -1)")"
+  g="$(tr '\0' '\n' < "$(ls "$T"/dlog/guard-*.argv | head -1)")"
+  gname="$(grep -A1 -x -- '--name' <<<"$g" | tail -1)"
+  [[ "$gname" == loa-blind-out1-*-guard-* ]]
+  # the guard sits on the internal network, sinkholed, with the guard entrypoint; the session joins its namespace only
+  grep -A1 -x -- '--network' <<<"$g" | tail -1 | grep -qx loa-egress-b7
+  grep -A1 -x -- '--dns' <<<"$g" | tail -1 | grep -qx 0.0.0.1
+  grep -A1 -x -- '--entrypoint' <<<"$g" | tail -1 | grep -qx /usr/local/bin/loa-egress-guard
+  grep -qx 'LOA_EGRESS_PROXY=loa-proxy-b7' <<<"$g"
+  grep -A1 -x -- '--network' <<<"$a" | tail -1 | grep -qx "container:$gname"
+  [ "$(grep -cx -- '--network' <<<"$a")" -eq 1 ]
+  ! grep -qx -- '--dns' <<<"$a"
   for k in HTTPS_PROXY https_proxy HTTP_PROXY http_proxy; do grep -qx -- "$k=http://loa-proxy-b7:8888" <<<"$a"; done
   grep -qx -- 'NO_PROXY=' <<<"$a"
   grep -qx 'HTTPS_PROXY=http://loa-proxy-b7:8888' "$(ls "$T"/log/env-*.txt | head -1)"
   grep -qx 'NO_PROXY=' "$(ls "$T"/log/env-*.txt | head -1)"
   [ "$(jq -c '[.egress, .network, .enforced, .dns, .proxy_url]' "$T/out1/egress.json")" = '["blocked","loa-egress-b7",true,"0.0.0.1","http://loa-proxy-b7:8888"]' ]
-  rm -f "$T"/dlog/full-*.argv "$T"/log/env-*.txt
+  [ "$(jq -r .guard "$T/out1/egress.json")" = "$gname" ]
+  rm -f "$T"/dlog/full-*.argv "$T"/dlog/guard-*.argv "$T"/log/env-*.txt
   run "$REPO_ROOT/evals/harness/blind-session.sh" --packets "$T/pk" --prompt "$T/prompt.md" --model m-test --out "$T/out2" --docker-bin "$T/docker"
   a="$(tr '\0' '\n' < "$(ls "$T"/dlog/full-*.argv | head -1)")"
   grep -A1 -x -- '--network' <<<"$a" | tail -1 | grep -qx bridge
   ! grep -qx -- '--dns' <<<"$a"
   ! grep -q '^HTTPS_PROXY=' <<<"$a"
-  [ "$(jq -c '[.egress, .network, .enforced]' "$T/out2/egress.json")" = '["bridge","bridge",false]' ]
+  ! ls "$T"/dlog/guard-*.argv >/dev/null 2>&1
+  [ "$(jq -c '[.egress, .network, .enforced, .guard]' "$T/out2/egress.json")" = '["bridge","bridge",false,null]' ]
   LOA_EVAL_EGRESS_NETWORK='bridge' run "$REPO_ROOT/evals/harness/blind-session.sh" --packets "$T/pk" --prompt "$T/prompt.md" \
     --model m-test --out "$T/out3" --docker-bin "$T/docker"
   [ "$status" -eq 2 ]; grep -q 'is not loa-egress-<batch>' <<<"$output"
 }
 
-@test "EP-8 run-ablation.sh: a container batch with a blocked arm is refused without the block (REFUSED.txt names the repair) or with a block that is not up; with it, MANIFEST egress records the arms, the network and enforced true; --dry-run records enforced false" {
+@test "EP-8 run-ablation.sh: a container batch with a blocked arm is refused without the block (REFUSED.txt names the repair), with a block that is not up or whose sidecar image has no guard; with it, MANIFEST egress records the arms, the network and enforced true; --dry-run records enforced false" {
   local FX="$REPO_ROOT/evals/tests/fixtures" RA="$REPO_ROOT/evals/harness/run-ablation.sh" i SHA
   mkdir -p "$T/bin" "$T/src/.claude" "$T/creds/.codex"
   printf '%s\n' '#!/usr/bin/env bash' 'echo "2.1.300 (Claude Code)"' > "$T/bin/claude"; chmod +x "$T/bin/claude"
@@ -542,6 +686,10 @@ EOF
   wrap_docker true false
   LOA_EVAL_EGRESS_NETWORK=loa-egress-e3 ra_e --batch e3
   [ "$status" -eq 2 ]; grep -q 'sidecar loa-proxy-e3 is not running' "$T/res/e3/REFUSED.txt"
+  # a sidecar from a proxy image built before the guard (KF-058) is refused with the rebuild line
+  wrap_docker true true
+  STUB_GUARD_LABEL= LOA_EVAL_EGRESS_NETWORK=loa-egress-e6 ra_e --batch e6
+  [ "$status" -eq 2 ]; grep -q 'runs an image without the sandbox guard (built before KF-058); rebuild it' "$T/res/e6/REFUSED.txt"
   wrap_docker true true
   LOA_EVAL_EGRESS_NETWORK=loa-egress-e4 ra_e --batch e4 --dry-run
   [ "$status" -eq 0 ]
@@ -549,4 +697,67 @@ EOF
   ra_e --batch e5 --dry-run
   [ "$status" -eq 0 ]
   [ "$(jq -c '.egress' "$T/res/e5/MANIFEST.json")" = '{"arms":{"a0_bare":"blocked","a1_full":"blocked"},"network":null,"proxy":null,"enforced":false}' ]
+}
+
+@test "EP-9 pipeline-run.sh: with LOA_EVAL_EGRESS_NETWORK every phase container runs in its own guard's namespace (one guard per container, unique names, the guard on loa-egress-<batch>); meta/egress.jsonl records network, guard and enforced; without it, bridge and no guard" {
+  local FX="$REPO_ROOT/evals/tests/fixtures" H="$T/h/evals/harness" s
+  mkdir -p "$H/lib" "$T/src/.claude/loa" "$T/src/.claude/adapters/loa_cheval/providers" "$T/home/.aws" "$T/home/.claude" \
+           "$T/home/.codex" "$T/task/fx/src"
+  cp "$REPO_ROOT/evals/harness/pipeline-run.sh" "$REPO_ROOT/evals/harness/fingerprint.sh" "$H/"
+  cp -a "$REPO_ROOT/evals/harness/lib/phase-prompts" "$H/lib/"
+  cp "$REPO_ROOT/evals/harness/lib/session-exec.sh" "$REPO_ROOT/evals/harness/lib/egress-proxy.sh" "$H/lib/"
+  cp "$FX/mount-lib-stub.sh" "$H/lib/sandbox-mount.sh"
+  for s in planning-sprints implementing-tasks reviewing-code auditing-security; do
+    mkdir -p "$T/src/.claude/skills/$s"; printf -- '---\nname: %s\neffort: xhigh\n---\nbody\n' "$s" > "$T/src/.claude/skills/$s/SKILL.md"
+  done
+  echo loa > "$T/src/.claude/loa/CLAUDE.loa.md"
+  : > "$T/src/.claude/adapters/loa_cheval/__init__.py"; : > "$T/src/.claude/adapters/loa_cheval/providers/__init__.py"
+  ( cd "$T/src" && git init -q && git add -A && git -c user.email=t@t -c user.name=t commit -qm init )
+  echo "[default]" > "$T/home/.aws/config"; echo "{}" > "$T/home/.codex/auth.json"
+  echo 'print(1)' > "$T/task/fx/src/app.py"; printf 'Make the app print two.\n' > "$T/task/TASK.md"
+  printf '%s\n' 'id: bf-01' 'schema_version: 1' 'type: bug-fix' 'fixture: fx' 'criterion: "the app prints two"' \
+    'test_command: ["python3", "-m", "pytest", "-q", "tests"]' > "$T/task/task.yaml"
+  cat > "$T/claude" <<EOF
+#!/usr/bin/env bash
+export STUB_LOG_DIR="$T/log"
+exec "$FX/claude-stub-pipeline.sh" "\$@"
+EOF
+  chmod +x "$T/claude"; mkdir -p "$T/log"
+  wrap_docker true true
+  export LOA_EVAL_WATCHDOG_POLL_S=0.1 LOA_EVAL_CREDS_HOME="$T/home"
+  export LOA_EVAL_PRICING_JSON='{"global.anthropic.claude-opus-5-5":{"input_per_mtok":4000000,"output_per_mtok":20000000},"global.anthropic.claude-fable-5-1":{"input_per_mtok":10000000,"output_per_mtok":50000000}}'
+  pr9() { run "$H/pipeline-run.sh" --task-yaml "$T/task/task.yaml" --arm a1_full --run-dir "$T/$1" --run-id "$1" --trial 1 \
+      --source-tree "$T/src" --suite-file "$FX/ablation-runs/suite.yaml" --executor container --image loa-ablation:test \
+      --docker-bin "$T/docker"; }
+  LOA_EVAL_EGRESS_NETWORK=loa-egress-p9 pr9 run1
+  echo "$output" | tail -5
+  [ "$status" -eq 0 ]
+  local f a g gname n=0 names=""
+  for f in "$T"/dlog/full-*.argv; do
+    a="$(tr '\0' '\n' < "$f")"
+    gname="$(grep -A1 -x -- '--network' <<<"$a" | tail -1)"
+    [[ "$gname" == container:loa-abl-run1-*-guard-* ]]
+    ! grep -qx -- '--dns' <<<"$a"
+    grep -qx 'HTTPS_PROXY=http://loa-proxy-p9:8888' <<<"$a"
+    names="$names ${gname#container:}"; n=$((n + 1))
+  done
+  [ "$n" -ge 2 ]
+  # one guard per container, each on the internal network with the guard entrypoint, every name distinct
+  [ "$(ls "$T"/dlog/guard-*.argv | wc -l)" -eq "$n" ]
+  [ "$(tr ' ' '\n' <<<"$names" | sed '/^$/d' | sort -u | wc -l)" -eq "$n" ]
+  for f in "$T"/dlog/guard-*.argv; do
+    g="$(tr '\0' '\n' < "$f")"
+    grep -A1 -x -- '--network' <<<"$g" | tail -1 | grep -qx loa-egress-p9
+    grep -A1 -x -- '--entrypoint' <<<"$g" | tail -1 | grep -qx /usr/local/bin/loa-egress-guard
+    [[ " $names " == *" $(grep -A1 -x -- '--name' <<<"$g" | tail -1) "* ]]
+  done
+  [ "$(jq -sc '[.[] | [.egress, .network, .enforced, .dns, .proxy_url, (.guard | startswith("loa-abl-run1-"))]] | unique' "$T/run1/meta/egress.jsonl")" \
+    = '[["blocked","loa-egress-p9",true,"0.0.0.1","http://loa-proxy-p9:8888",true]]' ]
+  rm -f "$T"/dlog/full-*.argv "$T"/dlog/guard-*.argv
+  pr9 run2
+  [ "$status" -eq 0 ]
+  ! ls "$T"/dlog/guard-*.argv >/dev/null 2>&1
+  a="$(tr '\0' '\n' < "$(ls "$T"/dlog/full-*.argv | head -1)")"
+  grep -A1 -x -- '--network' <<<"$a" | tail -1 | grep -qx bridge
+  [ "$(jq -sc '[.[] | [.egress, .network, .enforced, .guard]] | unique' "$T/run2/meta/egress.jsonl")" = '[["blocked","bridge",false,null]]' ]
 }
