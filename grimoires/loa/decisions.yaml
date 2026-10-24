@@ -30348,3 +30348,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0906"
+    created_at: "2026-10-24T06:55:42Z"
+    updated_at: "2026-10-24T06:55:42Z"
+    phase: "implementation"
+    category: "metric"
+    summary: "Sprint 273 Task 2.5: pipeline version pin = commit 50881e6f4 (loa-ablation:259, proxy 259, Claude Code 2.1.299, grader 1.4.0; self-check 49/49)"
+    decision: "The pipeline version after Sprint 273 is commit 50881e6f4 (tree b9c9ec9277ddbe591307cb18cf775f269c279d23): sandbox image loa-ablation:259 sha256:61e88d02d78519f3ecf20fc3bc162cc1b7a56cd927673ce9d94a7fdb78246dbb, proxy image loa-egress-proxy:259 sha256:10fc90b6e85ace444896ed01985a1c6c04b57c1cd8f162f99558a60151bba274, Claude Code 2.1.299 in the image, grader 1.4.0, row writer 1.6, one-copy session library, egress block with the generated 10-host allowlist; the self-check at this pin passed 49/49 and the container egress suite 20/20 on this host. Later docs-only commits do not invalidate the pin; any change under evals/harness, evals/suites, evals/graders, evals/fixtures or evals/analysis does. The Sprint 274 smoke and measurement pin are recorded separately by Task 3.5."
+    rationale: "sdd.md § 7.3 requires a named, reproducible pipeline version between the harness sprint and the product sprint so the smoke's failures attribute to one of them; the self-check and the egress suite are the hard preconditions the SDD names before any paid run at this pin."
+    alternatives_considered:
+      - option: "pin the tree hash of evals/harness alone"
+        rejected_because: "the analysis module, suites and fixtures are part of the pipeline under test; a commit id names them all and reproduce.sh --pin consumes a commit"
+      - option: "defer the pin to the Sprint 274 measurement pin"
+        rejected_because: "the SDD names an intermediate version so Sprint 274's changes are attributable"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "50881e6f"
+    source: "evals/harness/README.md § Pipeline version (cycle-133 Sprint 273 pin); grimoires/loa/reports/ablation-2.0/self-check-c133.txt; sprint.md Task 2.5"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T06:55:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 50881e6f4; self-check-c133.txt 49 PASS; tests/s2d2-egress-bats.log 20/20"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
