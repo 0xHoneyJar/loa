@@ -146,7 +146,17 @@ egress:
          a1_review_only: blocked, a1_no_dissent: blocked, a1_full_openmount: blocked, a0_bare_matched: blocked,
          a0_bare_fable_matched: blocked, a8_no_ceremonies: blocked}
 
+# mount_mode (cycle-133 C-10, PRD FR-10; additive, the default unchanged): how a mounted review-catch arm's sandbox holds
+# the framework. pinned-root = the cycle-132 mount (the pinned framework at the workspace root; PREREGISTRATION §12
+# addendum 9). home-scope = the pinned framework under the session's HOME (user scope), the PR's changed framework paths
+# at the root as data, the executable and prompt surface only under pr/head/; took-effect oracle_closed then adds
+# clauses (e)-(g). Resolution: arms[].mount_mode, else mount_mode.default, else pinned-root. pipeline-run.sh refuses
+# home-scope until its launch path lands (after the Sprint 274 scope spike, D-3.6).
+mount_mode:
+  default: pinned-root
+
 rules:   # D-A5: pre-registered, mirrored in NOTES
+
   threshold_points: 0.03
   cost_lower_pct: 15
   bootstrap: {resamples: 10000, level: 0.90, paired: true, units: {hidden_test_pass_rate: tasks, defect_catch_rate: defects}, also_report: {defect_catch_rate: tasks}}   # DEC-0399

@@ -70,11 +70,12 @@
 #                eval/ copy's sha256 or null). Later phases cannot rewrite them (audit MEDIUM-A1).
 #   meta/        pipeline.json, phase-<label>.argv.json (argv + captured env),
 #                prompt-<label>.md, arm, arm-evidence.txt, arm-env, refused.json,
-#                home/ (container mode: the per-run HOME; deleted at exit)
+#                home/ (container mode: the per-run HOME; deleted at exit); home-scope (C-10) also writes
+#                mount.json, mount-transform.json, ps-<label>.txt (process samples), home-integrity.json
 #
 # Session (D-4.3, DEC-0394 as amended, DEC-0412): `claude -p <prompt> --output-format
 # stream-json --verbose --model <id> --permission-mode bypassPermissions
-# --dangerously-skip-permissions --setting-sources project --tools <list>
+# --dangerously-skip-permissions --setting-sources project|user --tools <list>
 # --max-turns <cap> [--effort <v>] [--resume <id>]`, cwd sandbox/, with exactly this
 # environment: PATH HOME LANG LC_ALL TERM TMPDIR CLAUDE_CODE_USE_BEDROCK
 # CLAUDE_CODE_SUBAGENT_MODEL LOA_MODELINV_LOG_PATH LOA_COST_LEDGER_PATH
@@ -171,6 +172,25 @@
 # trial it launches (batch and smoke); --dry-run honours the same flag, so the operator dry-runs
 # the open-mount arm with `pipeline-run.sh … --batch-context <id> --dry-run`.
 #
+# Mount mode (cycle-133 C-10, FR-10): arms[].mount_mode, else the suite's mount_mode.default, else pinned-root (the
+# closed mount above, unchanged: --setting-sources project). home-scope (a mounted review-catch arm, container executor
+# only; the host executor and build tasks are refused, exit 2, dry run included; an unmounted arm ignores the mode):
+#   - the image must record org.loa.claude_code_version = lib/sandbox-mount.sh SM_SURFACE_DERIVED_FOR (2.1.299, the
+#     Sprint 274 spike's version), else infrastructure_error before any phase;
+#   - the per-run HOME is built first and lib mount_home_scope materialises the pinned framework in HOME/.claude/
+#     (redirected through LOA_FRAMEWORK_ROOT=/home/evaluser; user memory importing CLAUDE.loa.md and the rules by
+#     absolute path); the project config (.loa.config.yaml) is copied to the workspace root;
+#   - overlay_answer_paths runs with mount mode home-scope (the PR's changed .claude/ data at the root, the surface only
+#     under pr/head/); the toggles and beads act on the HOME copy (SM_FRAMEWORK_ROOT), the manifest is the HOME's,
+#     the mount_cheval probe imports the HOME adapters, the arm-id guard also scans HOME/.claude;
+#   - meta/mount.json {mount_mode, setting_sources, claude_code_version, surface_derived_for, framework_root(_var),
+#     framework_manifest_sha256, home_verify, home_hook_counts, transform} records what the session loads;
+#   - every phase runs `--setting-sources user` with LOA_FRAMEWORK_ROOT in its environment, under a one-second
+#     `docker top` sampler (meta/ps-<label>.txt: "# sample <epoch>" then "<pid> <ppid> <args>");
+#   - before the HOME is deleted, meta/home-integrity.json checks the HOME framework against its manifest
+#     (took-effect.sh integrity_clean reads it).
+#
+
 # Arm-id leak guard (AC-4.2; cycle-132 round 5, PREREGISTRATION §12 addendum 1): before the first phase the running
 # arm's id may appear nowhere in the sandbox, with one exception — an id the PR content itself names
 # (arm_ids_pr_native=<sorted comma list>|none in arm-evidence: the suite's arm ids found under pr/) may appear in a
@@ -319,8 +339,27 @@ case "$(jq -r 'if (.toggles // {}) | has("oracle_open") then (.toggles.oracle_op
   absent|boolean) ;;
   *) echo "pipeline-run.sh: refused: arm '$ARM': toggles.oracle_open must be a JSON boolean (true|false)" >&2; exit 2 ;;
 esac
+# mount mode (cycle-133 C-10): arms[].mount_mode, else the suite's mount_mode.default, else pinned-root (the cycle-132
+# mount). home-scope runs a mounted review-catch arm in the container executor only (the host HOME is the operator's);
+# an unmounted arm (loa_mount: false) has no mount, whatever the mode says. Refusals are exit 2 before any write.
+MOUNT_MODE="$(jq -r --argjson s "$SUITE_JSON" '.mount_mode // ($s.mount_mode // {}).default // "pinned-root"' <<<"$ARM_DEF")"
+case "$MOUNT_MODE" in
+  pinned-root) ;;
+  home-scope)
+    if [[ "$(jq -r '.loa_mount' <<<"$SUITE_TOGGLES")" == false ]]; then MOUNT_MODE=pinned-root
+    elif [[ "$KIND" != review-catch ]]; then
+      echo "pipeline-run.sh: refused: arm '$ARM': mount_mode home-scope mounts a review-catch PR (task type $TASK_TYPE)" >&2; exit 2
+    elif [[ "$EXECUTOR" != container ]]; then
+      echo "pipeline-run.sh: refused: arm '$ARM': mount_mode home-scope needs --executor container (the host HOME is the operator's)" >&2; exit 2
+    fi ;;
+  *) echo "pipeline-run.sh: refused: arm '$ARM': mount_mode '$MOUNT_MODE' is not pinned-root|home-scope" >&2; exit 2 ;;
+esac
+# the Claude Code scopes a mounted session loads: project (pinned-root: the framework at the workspace root) or user
+# (home-scope: the framework under the session HOME; the Sprint 274 spike showed `user` loads nothing of the project)
+SETTING_SOURCES=project; [[ "$MOUNT_MODE" == home-scope ]] && SETTING_SOURCES=user
 EVAL_ONLY=false
 [[ "$(jq -r '(.eval_only == true) or (.toggles.oracle_open == true)' <<<"$ARM_DEF")" == true ]] && EVAL_ONLY=true
+
 if [[ "$EVAL_ONLY" == true && -z "$BATCH_CONTEXT" ]]; then
   echo "pipeline-run.sh: refused: arm '$ARM': eval_only arm outside an evaluation batch (run-ablation.sh passes --batch-context <batch> to its trials)" >&2
   exit 2
@@ -400,6 +439,7 @@ if [[ "$DRY_RUN" == true ]]; then
     sb_mount=none sb_overlay="none(no mount)" sb_variant=none sb_edits=-
   else
     sb_mount=loa sb_variant=eval
+    [[ "$MOUNT_MODE" == home-scope ]] && sb_mount=home-scope
     if [[ "$KIND" != review-catch ]]; then sb_overlay="none(build)"
     elif [[ "$(jq -r '.oracle_open' <<<"$SUITE_TOGGLES")" == true ]]; then sb_overlay="none(oracle_open)"
     else sb_overlay="$OVERLAY_MODE"; fi
@@ -509,9 +549,36 @@ write_pipeline() {  # write_pipeline — (re)write meta/pipeline.json from the c
     > "$META/pipeline.json.tmp" && mv "$META/pipeline.json.tmp" "$META/pipeline.json"
 }
 
+# home_integrity — home-scope: the HOME framework copy against its manifest (the HOME is deleted at exit, so
+# took-effect.sh integrity_clean reads this record): meta/home-integrity.json {files, tampered, missing,
+# manifest_sha256, first}; written once, when a manifest exists
+home_integrity() {
+  [[ "${HS:-false}" == true && -f "$HOME_DIR/.claude/checksums.json" && ! -e "$META/home-integrity.json" ]] || return 0
+  python3 -I -c '
+import hashlib, json, os, sys
+root, man, out = sys.argv[1], sys.argv[2], sys.argv[3]
+def sha(p):
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+files = json.load(open(man)).get("files") or {}
+bad = missing = 0; first = None
+for rel, want in sorted(files.items()):
+    p = os.path.join(root, rel)
+    if os.path.islink(p) or not os.path.isfile(p):
+        missing += 1; first = first or "missing " + rel
+    elif sha(p) != want:
+        bad += 1; first = first or "tampered " + rel
+json.dump({"files": len(files), "tampered": bad, "missing": missing, "manifest_sha256": sha(man), "first": first},
+          open(out, "w"), sort_keys=True)' "$HOME_DIR" "$HOME_DIR/.claude/checksums.json" "$META/home-integrity.json"
+}
+
 finish() {  # finish <status> <exit> [reason]
   STATUS="$1"; [[ -n "${3:-}" ]] && REASON="$3"
   compute_mount_integrity || true
+  home_integrity || true
   write_pipeline
   FINAL_WRITTEN=1
   remove_tree "$HOME_DIR"
@@ -522,6 +589,7 @@ infra() { finish infrastructure_error 2 "$*"; }
 
 on_exit() {
   local rc=$?
+  home_integrity 2>/dev/null || true
   remove_tree "$HOME_DIR"
   if [[ "$FINAL_WRITTEN" -eq 0 ]]; then
     STATUS=infrastructure_error; REASON="${REASON:-driver aborted (rc $rc)}"
@@ -614,9 +682,66 @@ if [[ "$EXECUTOR" == container ]]; then
   command -v "$DOCKER_BIN" >/dev/null 2>&1 || [[ -x "$DOCKER_BIN" ]] || infra "docker CLI not found: $DOCKER_BIN"
   IMAGE_DIGEST="$("$DOCKER_BIN" image inspect --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{else}}{{.Id}}{{end}}' "$IMAGE" 2>/dev/null || true)"
   [[ -n "$IMAGE_DIGEST" ]] || infra "container image not found: $IMAGE"
+  if [[ "$MOUNT_MODE" == home-scope ]]; then
+    CC_VERSION="$("$DOCKER_BIN" image inspect --format '{{index .Config.Labels "org.loa.claude_code_version"}}' "$IMAGE" 2>/dev/null || true)"
+    [[ "$CC_VERSION" == "$SM_SURFACE_DERIVED_FOR" ]] \
+      || infra "refused: mount_mode home-scope: the surface is derived for Claude Code $SM_SURFACE_DERIVED_FOR but the image records '${CC_VERSION:-none}' (org.loa.claude_code_version); re-run the scope spike and re-derive lib/sandbox-mount.sh surface()"
+  fi
 else
   IMAGE_DIGEST="$FINGERPRINT"
 fi
+
+# the per-run HOME builder (defined here: home-scope materialises the framework into it; see the HOME notes below)
+CREDS_HOME="${LOA_EVAL_CREDS_HOME:-$HOME}"
+make_home() {
+  mkdir -p "$HOME_DIR/.claude" "$HOME_DIR/.aws" "$HOME_DIR/.codex"
+  # the sandbox project is pre-trusted so the mounted tree's project settings apply without the dialog
+  # (the CLI otherwise ignores permissions.allow and warns; lead, Sprint 258 smoke)
+  printf '{"projects":{"/workspace":{"hasTrustDialogAccepted":true}}}\n' > "$HOME_DIR/.claude.json"
+  if [[ -f "$CREDS_HOME/.codex/config.toml" ]]; then cp "$CREDS_HOME/.codex/config.toml" "$HOME_DIR/.codex/config.toml"; fi
+  # auth.json: a copy whose refresh token is a placeholder (KF-048). The real one is single-use; a
+  # container that refreshed with a verbatim copy consumed the host's token and every later run and
+  # the host failed with 401 refresh_token_reused. The key must stay: the codex CLI treats a missing
+  # refresh_token as logged out and sends no bearer at all (401 Missing bearer; KF-048 recurrence 2),
+  # so the value is a placeholder that can only fail to refresh. Paths only in argv; the host file is never written.
+  if [[ -f "$CREDS_HOME/.codex/auth.json" ]]; then
+    python3 -I -c '
+import json, os, sys
+src, dst = sys.argv[1], sys.argv[2]
+try:
+    with open(src, "rb") as fh:
+        data = json.loads(fh.read().decode("utf-8"))
+except Exception:
+    data = None
+if not isinstance(data, dict):
+    sys.exit(3)
+tok = data.get("tokens")
+if isinstance(tok, dict):
+    if "refresh_token" in tok:
+        tok["refresh_token"] = "loa-ablation-no-refresh-token"
+# OPENAI_API_KEY (Sprint 261 audit DISS-C-001): a long-lived key never reaches the agent-writable HOME
+# unless the operator accepts the exposure with LOA_EVAL_CODEX_APIKEY_COPY=1 and the file is in API-key
+# mode (no usable access token); in ChatGPT mode the key is unused by codex and is dropped.
+has_at = isinstance(tok, dict) and isinstance(tok.get("access_token"), str) and bool(tok.get("access_token"))
+key = data.get("OPENAI_API_KEY")
+if isinstance(key, str) and key:
+    if has_at or os.environ.get("LOA_EVAL_CODEX_APIKEY_COPY") != "1":
+        data["OPENAI_API_KEY"] = None
+        if not has_at:
+            sys.stderr.write("pipeline-run: WARN codex auth.json is in API-key mode; the key is not copied into the "
+                             "agent-writable HOME (set LOA_EVAL_CODEX_APIKEY_COPY=1 to accept the exposure); "
+                             "the run has no codex credential\n")
+fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+os.fchmod(fd, 0o600)
+with os.fdopen(fd, "w", encoding="utf-8") as out:
+    json.dump(data, out)
+    out.write("\n")
+' "$CREDS_HOME/.codex/auth.json" "$HOME_DIR/.codex/auth.json" \
+      || { rm -f "$HOME_DIR/.codex/auth.json"
+           echo "pipeline-run: WARN codex auth.json unreadable; the run has no codex credential" >&2; }
+  fi
+  chmod 0700 "$HOME_DIR" "$HOME_DIR/.claude" "$HOME_DIR/.aws" "$HOME_DIR/.codex"
+}
 
 # --- materialisation (D-4.5) -------------------------------------------------------
 resolve_rel() {  # resolve_rel <relpath> → first existing dir among the candidate roots
@@ -664,7 +789,16 @@ sgit commit -q --allow-empty -m base
 BASE_COMMIT="$(sgit rev-parse HEAD)"
 printf 'base_commit=%s\n' "$BASE_COMMIT" >> "$ARM_EVIDENCE_FILE"
 
-if [[ "$LOA_MOUNT" == true ]]; then
+HS=false MOUNT_ARG=pinned-root FW_ROOT="$WS"
+if [[ "$LOA_MOUNT" == true && "$MOUNT_MODE" == home-scope ]]; then
+  # home-scope (C-10): the pinned framework under the session HOME, redirected through LOA_FRAMEWORK_ROOT; the
+  # project config stays at the workspace root; toggles, beads and the manifest act on the HOME copy
+  HS=true MOUNT_ARG=home-scope FW_ROOT="$HOME_DIR"
+  make_home
+  lib_call mount_home_scope "$HOME_DIR" "$SOURCE_TREE" /home/evaluser "$META/mount-transform.json"
+  if [[ -f "$SOURCE_TREE/.loa.config.yaml" ]]; then cp "$SOURCE_TREE/.loa.config.yaml" "$WS/.loa.config.yaml"; fi
+  export SM_FRAMEWORK_ROOT="$HOME_DIR"
+elif [[ "$LOA_MOUNT" == true ]]; then
   lib_call mount_prompt_surface "$WS" "$SOURCE_TREE" -
 fi
 # closed mount (cycle-131 FR-1): the overlay before the toggles, the check after the manifest
@@ -673,7 +807,7 @@ if [[ "$KIND" == review-catch && "$LOA_MOUNT" == true ]]; then
   if [[ "$ORACLE_OPEN" == true ]]; then
     printf 'mount_overlay=none\n' >> "$ARM_EVIDENCE_FILE"
   else
-    lib_call overlay_answer_paths "$WS" "$FIXTURE_DIR" "$OVERLAY_MODE" "$SOURCE_TREE" "$SOURCE_COMMIT"
+    lib_call overlay_answer_paths "$WS" "$FIXTURE_DIR" "$OVERLAY_MODE" "$SOURCE_TREE" "$SOURCE_COMMIT" "$MOUNT_ARG"
     copy_source="$(sed -n 's/^copy_source=//p' "$ARM_EVIDENCE_FILE" | sed -n '$p')"
     [[ "$copy_source" == "$SOURCE_COMMIT" ]] || infra "copy_source ${copy_source:-<none>} differs from source_commit $SOURCE_COMMIT"
     grep -qE '^mount_overlay=(head|base):[0-9]+$' "$ARM_EVIDENCE_FILE" || infra "overlay_answer_paths printed no mount_overlay"
@@ -687,11 +821,24 @@ if [[ "$LOA_MOUNT" == true ]]; then
   lib_call init_sandbox_beads "$WS" "$(jq -r '.title // .id' <<<"$TASK_JSON")"
   mkdir -p "$WS/.run"
   [[ -e "$WS/.run/zone-guard-authorization.json" ]] && infra "sandbox carries .run/zone-guard-authorization.json"
-  lib_call regen_sandbox_manifest "$WS"
+  lib_call regen_sandbox_manifest "$FW_ROOT"
   grep -q '^manifest_sha256=' "$ARM_EVIDENCE_FILE" || infra "regen_sandbox_manifest printed no manifest_sha256"
   # the checked surface is the launched one: after the toggles, the config writes and the manifest
   if [[ "$CLOSED_MOUNT" == true ]]; then
     lib_call check_mount_closed "$WS" "$FIXTURE_DIR" "$SOURCE_TREE"
+  fi
+  if [[ "$HS" == true ]]; then
+    # meta/mount.json: what the session loads and from where, so a version or flag change is visible in the record
+    jq -n --arg ss "$SETTING_SOURCES" --arg cc "${CC_VERSION:-}" --arg sf "$SM_SURFACE_DERIVED_FOR" --arg sc "$SOURCE_COMMIT" \
+      --arg man "$(sed -n 's/^manifest_sha256=//p' "$ARM_EVIDENCE_FILE" | sed -n '$p')" \
+      --arg ver "$(sed -n 's/^home_verify=//p' "$ARM_EVIDENCE_FILE" | sed -n '$p')" \
+      --arg hooks "$(sed -n 's/^home_hook_counts=//p' "$ARM_EVIDENCE_FILE" | sed -n '$p')" \
+      --slurpfile tx "$META/mount-transform.json" '
+      {schema_version: 1, mount_mode: "home-scope", setting_sources: $ss, claude_code_version: $cc,
+       surface_derived_for: $sf, source_commit: $sc, framework_root_var: $tx[0].framework_root_var,
+       framework_root: $tx[0].framework_root, framework_manifest_sha256: $man, home_verify: $ver, home_hook_counts: $hooks,
+       transform: ($tx[0] | {files, files_transformed, rules, residual, shell_relative_refs})}' > "$META/mount.json" \
+      || infra "could not write meta/mount.json"
   fi
 else
   [[ -e "$WS/.claude" || -e "$WS/CLAUDE.md" ]] && infra "loa_mount: false but the sandbox has .claude/ or CLAUDE.md"
@@ -715,12 +862,12 @@ if [[ "$LOA_MOUNT" == true && "$GATES_OFF" != true ]]; then
   fi
 fi
 if [[ "$LOA_MOUNT" == true ]]; then
-  if [[ ! -d "$WS/.claude/adapters/loa_cheval" || -L "$WS/.claude/adapters" || -L "$WS/.claude/adapters/loa_cheval" ]]; then
+  if [[ ! -d "$FW_ROOT/.claude/adapters/loa_cheval" || -L "$FW_ROOT/.claude/adapters" || -L "$FW_ROOT/.claude/adapters/loa_cheval" ]]; then
     MOUNT_CHEVAL="broken:no .claude/adapters/loa_cheval"
   else
     cheval_rc=0
     cheval_err="$(env -i PATH="$PATH" LC_ALL=C timeout 60 python3 -I -B -c \
-      'import sys; sys.path.insert(0, sys.argv[1]); import loa_cheval, loa_cheval.providers' "$WS/.claude/adapters" 2>&1 >/dev/null)" \
+      'import sys; sys.path.insert(0, sys.argv[1]); import loa_cheval, loa_cheval.providers' "$FW_ROOT/.claude/adapters" 2>&1 >/dev/null)" \
       || cheval_rc=$?
     if [[ $cheval_rc -eq 0 ]]; then MOUNT_CHEVAL=ok
     else
@@ -776,6 +923,10 @@ while IFS= read -r arm_hit; do
   if [[ "$ARM_PR_NATIVE" == true ]] && pr_derived "$rel"; then continue; fi
   infra "arm id appears in the sandbox: $rel"
 done < <(grep -rIl --exclude-dir=.git -F -e "$ARM" "$WS" 2>/dev/null | LC_ALL=C sort || true)
+if [[ "$HS" == true ]]; then
+  arm_hit="$(grep -rIl -F -e "$ARM" "$HOME_DIR/.claude" 2>/dev/null | LC_ALL=C sort | sed -n '1p' || true)"
+  [[ -z "$arm_hit" ]] || infra "arm id appears in the HOME framework: ${arm_hit#"$HOME_DIR"/}"
+fi
 
 leak_scan() {  # leak_scan <file> — `hidden`, a defect key or any arm id → non-zero
   local f="$1" id
@@ -838,58 +989,9 @@ build_prompt() {  # build_prompt <name> <out-file>
 # unless LOA_EVAL_CODEX_APIKEY_COPY=1 (API-key mode only; the run otherwise has no codex
 # credential and says so). ~/.claude/.credentials.json and
 # ~/.claude/settings.json are never copied: the Bedrock route authenticates from AWS_BEARER_TOKEN_BEDROCK in the environment,
-# and --setting-sources project ignores user settings.
-CREDS_HOME="${LOA_EVAL_CREDS_HOME:-$HOME}"
-make_home() {
-  mkdir -p "$HOME_DIR/.claude" "$HOME_DIR/.aws" "$HOME_DIR/.codex"
-  # the sandbox project is pre-trusted so the mounted tree's project settings apply without the dialog
-  # (the CLI otherwise ignores permissions.allow and warns; lead, Sprint 258 smoke)
-  printf '{"projects":{"/workspace":{"hasTrustDialogAccepted":true}}}\n' > "$HOME_DIR/.claude.json"
-  if [[ -f "$CREDS_HOME/.codex/config.toml" ]]; then cp "$CREDS_HOME/.codex/config.toml" "$HOME_DIR/.codex/config.toml"; fi
-  # auth.json: a copy whose refresh token is a placeholder (KF-048). The real one is single-use; a
-  # container that refreshed with a verbatim copy consumed the host's token and every later run and
-  # the host failed with 401 refresh_token_reused. The key must stay: the codex CLI treats a missing
-  # refresh_token as logged out and sends no bearer at all (401 Missing bearer; KF-048 recurrence 2),
-  # so the value is a placeholder that can only fail to refresh. Paths only in argv; the host file is never written.
-  if [[ -f "$CREDS_HOME/.codex/auth.json" ]]; then
-    python3 -I -c '
-import json, os, sys
-src, dst = sys.argv[1], sys.argv[2]
-try:
-    with open(src, "rb") as fh:
-        data = json.loads(fh.read().decode("utf-8"))
-except Exception:
-    data = None
-if not isinstance(data, dict):
-    sys.exit(3)
-tok = data.get("tokens")
-if isinstance(tok, dict):
-    if "refresh_token" in tok:
-        tok["refresh_token"] = "loa-ablation-no-refresh-token"
-# OPENAI_API_KEY (Sprint 261 audit DISS-C-001): a long-lived key never reaches the agent-writable HOME
-# unless the operator accepts the exposure with LOA_EVAL_CODEX_APIKEY_COPY=1 and the file is in API-key
-# mode (no usable access token); in ChatGPT mode the key is unused by codex and is dropped.
-has_at = isinstance(tok, dict) and isinstance(tok.get("access_token"), str) and bool(tok.get("access_token"))
-key = data.get("OPENAI_API_KEY")
-if isinstance(key, str) and key:
-    if has_at or os.environ.get("LOA_EVAL_CODEX_APIKEY_COPY") != "1":
-        data["OPENAI_API_KEY"] = None
-        if not has_at:
-            sys.stderr.write("pipeline-run: WARN codex auth.json is in API-key mode; the key is not copied into the "
-                             "agent-writable HOME (set LOA_EVAL_CODEX_APIKEY_COPY=1 to accept the exposure); "
-                             "the run has no codex credential\n")
-fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-os.fchmod(fd, 0o600)
-with os.fdopen(fd, "w", encoding="utf-8") as out:
-    json.dump(data, out)
-    out.write("\n")
-' "$CREDS_HOME/.codex/auth.json" "$HOME_DIR/.codex/auth.json" \
-      || { rm -f "$HOME_DIR/.codex/auth.json"
-           echo "pipeline-run: WARN codex auth.json unreadable; the run has no codex credential" >&2; }
-  fi
-  chmod 0700 "$HOME_DIR" "$HOME_DIR/.claude" "$HOME_DIR/.aws" "$HOME_DIR/.codex"
-}
-[[ "$EXECUTOR" == container ]] && make_home
+# and --setting-sources project ignores user settings (home-scope's user scope is the pinned framework the mount
+# writes into this HOME, never the operator's).
+[[ "$EXECUTOR" == container && "$HS" != true ]] && make_home
 
 # --- pricing: price_for / price_events / unmetered_tail come from lib/session-exec.sh (C-6) ---
 
@@ -899,6 +1001,20 @@ in_container_path() { local p="$1"; printf '%s' "/workspace${p#"$WS"}"; }
 
 # ENV_SHIM, PASS_KEYS and SECRET_KEYS come from lib/session-exec.sh: the shim is used on the
 # host (host mode, and around the docker client) and inside the container.
+
+# ps_sampler <container> <out-file> <max-s> — home-scope: one-second process samples of the phase container from the
+# host (`docker top`; the container cannot write them): "# sample <epoch>" then "<pid> <ppid> <args>" lines
+ps_sampler() {
+  local c="$1" out="$2" max="$3" t=0 s
+  : > "$out"
+  while [[ $t -lt $max ]]; do
+    if s="$("$DOCKER_BIN" top "$c" -eo pid,ppid,args 2>/dev/null)" && [[ -n "$s" ]]; then
+      { printf '# sample %s\n' "$(date +%s)"; printf '%s\n' "$s" | sed '1d'; } >> "$out"
+    fi
+    sleep 1
+    t=$((t + 1))
+  done
+}
 
 run_phase() {  # run_phase <name> <label>
   local name="$1" label="$2" model turns tsec prompt_file events errf argv_file
@@ -918,7 +1034,7 @@ run_phase() {  # run_phase <name> <label>
   fi
   local cbin="$CLAUDE_BIN"; [[ "$EXECUTOR" == container ]] && cbin="${LOA_EVAL_CONTAINER_CLAUDE_BIN:-claude}"
   cargv=("$cbin" -p "$(cat "$prompt_file")" --output-format stream-json --verbose --model "$model"
-         --permission-mode bypassPermissions --dangerously-skip-permissions --setting-sources project
+         --permission-mode bypassPermissions --dangerously-skip-permissions --setting-sources "$SETTING_SOURCES"
          --tools "$TOOLS" --max-turns "$turns")
   [[ -n "$EFFORT_FLAG" ]] && cargv+=(--effort "$EFFORT_FLAG")
   [[ -n "$resume" ]] && cargv+=(--resume "$resume")
@@ -937,6 +1053,7 @@ run_phase() {  # run_phase <name> <label>
           "LOA_MODELINV_LOG_PATH=$ev_ws/.eval/model-invoke.jsonl"
           "LOA_COST_LEDGER_PATH=$ev_ws/.eval/cost-ledger.jsonl"
           "GIT_CONFIG_GLOBAL=/dev/null" "GIT_CONFIG_NOSYSTEM=1" "GH_CONFIG_DIR=$ev_ws/.eval/gh-empty")
+  [[ "$HS" == true ]] && envkv+=("LOA_FRAMEWORK_ROOT=$home_v")
   local kv_arm have_enforce=false
   while IFS= read -r kv_arm; do
     [[ "$kv_arm" =~ ^LOA_[A-Z0-9_]+= ]] || continue    # the arm's own variables only (never PATH, HOME, keys)
@@ -1027,6 +1144,10 @@ run_phase() {  # run_phase <name> <label>
     if [[ "$EXECUTOR" == host ]]; then for kv in "${envkv[@]}"; do export "$kv"; done; fi
     exec "${full[@]}" ) < /dev/null > "$events" 2> "$errf" &
   CUR_PID=$!
+  local ps_pid=""
+  if [[ "$HS" == true && "$EXECUTOR" == container ]]; then
+    ps_sampler "$cname" "$META/ps-$label.txt" $((tsec + 120)) & ps_pid=$!
+  fi
   local poll="${LOA_EVAL_WATCHDOG_POLL_S:-1}"
   while kill -0 "$CUR_PID" 2>/dev/null; do
     sleep "$poll" || true
@@ -1054,6 +1175,7 @@ run_phase() {  # run_phase <name> <label>
     [[ $rc2 -ne 127 ]] && rc=$rc2
   fi
   end_s="$(now_ms)"
+  if [[ -n "$ps_pid" ]]; then kill "$ps_pid" 2>/dev/null || true; wait "$ps_pid" 2>/dev/null || true; fi
   CUR_PID="" CUR_CONTAINER=""
   if [[ "$metering" == metered ]]; then
     if ! est_new="$(price_events "$events" "$prices" "$budget")" || [[ "$est_new" == ERR ]]; then

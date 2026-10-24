@@ -1,0 +1,3 @@
+{"fixture": "pr-nc", "defects": [
+  {"id": "NC1-silent-skip", "file": ".claude/protocols/nc-guard.md", "anchor_line": 8, "severity": "high", "category": "logic",
+   "must_match": "When the budget flag is unset the guard silently skips the spend check entirely."}]}
