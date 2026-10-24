@@ -297,9 +297,26 @@ if [[ "$EXECUTOR" == container ]]; then
   CUR_NAME="loa-blind-$(basename "$OUT" | tr -c 'A-Za-z0-9_.-' '-' | cut -c1-80)-$(printf '%s' "$OUT" | python3 -I -c 'import hashlib, sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest()[:10])')"
   hostkeys="PATH,HOME,DOCKER_HOST,DOCKER_CONFIG,XDG_RUNTIME_DIR"
   for k in $SECRET_KEYS; do if [[ -n "${!k:-}" ]]; then hostkeys="$hostkeys,$k"; fi; done
+  # cycle-133 FR-9 (SDD C-9) the egress block: with $LOA_EVAL_EGRESS_NETWORK (loa-egress-<batch>, up through
+  # lib/egress-proxy.sh) the session joins the internal network, DNS sinkholed, the sidecar loa-proxy-<batch>
+  # its only way out; without it --network bridge. <out>/egress.json records the decision; record-address
+  # (background) writes <out>/egress-addr.jsonl and the session's denials to <out>/egress-denied.jsonl.
+  EGRESS_NET="${LOA_EVAL_EGRESS_NETWORK:-}" EGRESS_PURL="" NETARGS=(--network bridge)
+  if [[ -n "$EGRESS_NET" ]]; then
+    [[ "$EGRESS_NET" =~ ^loa-egress-[A-Za-z0-9._-]{1,80}$ ]] || die_usage "LOA_EVAL_EGRESS_NETWORK '$EGRESS_NET' is not loa-egress-<batch>"
+    EGRESS_PURL="http://loa-proxy-${EGRESS_NET#loa-egress-}:8888" NETARGS=(--network "$EGRESS_NET" --dns 0.0.0.1)
+    for pv in HTTPS_PROXY https_proxy HTTP_PROXY http_proxy; do envkv+=("$pv=$EGRESS_PURL"); keys="$keys,$pv"; done
+    envkv+=("NO_PROXY=" "no_proxy="); keys="$keys,NO_PROXY,no_proxy"
+    "$SCRIPT_DIR/lib/egress-proxy.sh" record-address --network "$EGRESS_NET" --container "$CUR_NAME" --label blind \
+      --meta "$OUT" --event watch --max-s $((TSEC + 120)) --parent-pid $$ --docker-bin "$DOCKER_BIN" \
+      </dev/null >/dev/null 2>>"$OUT/egress-record.log" &
+  fi
+  jq -cn --arg n "${NETARGS[1]}" --arg p "$EGRESS_PURL" \
+    '{egress: (if $p == "" then "bridge" else "blocked" end), network: $n, proxy_url: (if $p == "" then null else $p end),
+      enforced: ($p != ""), dns: (if $p == "" then null else "0.0.0.1" end)}' > "$OUT/egress.json"
   full=(python3 -I -c "$ENV_SHIM" "$hostkeys"
         "$DOCKER_BIN" run --rm --name "$CUR_NAME" --user "$(id -u):$(id -g)"
-        --network bridge --read-only --tmpfs /tmp:rw,size=1g
+        "${NETARGS[@]}" --read-only --tmpfs /tmp:rw,size=1g
         --pids-limit 512 --memory 4g --cpus 2
         -v "$WS:/workspace:rw"
         -v "$HOME_DIR:/home/evaluser:rw"

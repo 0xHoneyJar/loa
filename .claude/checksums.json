@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-24T00:14:48Z",
+  "generated": "2026-10-24T06:49:06Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -662,7 +662,7 @@
     ".claude/data/user-invoked-commands.txt": "36034250119e596b1a3509f1bbebb4408d87d36c9eac4108549fa19bcc0e4bd5",
     ".claude/data/zones.schema.yaml": "02196687542124d276373b8be46e0ef8c6444d33f2407a5efb7be736977eb2d4",
     ".claude/defaults/aliases-legacy.yaml": "1788c0f621159c4cbc4be1f7d7efc0e6d0c26675c3a6685c6596cfd9971f5fb2",
-    ".claude/defaults/model-config.yaml": "ba767f5384694feb85c1bf59857ff8d21172744ed54a9214e9444872597c122c",
+    ".claude/defaults/model-config.yaml": "7352890668ab0eccb7d04ded727c5024cdc6811bde603a0b26ee043bc868f0a6",
     ".claude/defaults/model-config.yaml.checksum": "a0dee07f255fbd80eca544db3fb01451fb658bb01172d9b94629eb88b31eab50",
     ".claude/docs/runbooks/model-health-probe-incident.md": "64b8b607430a3525a863a66f8daa76b43bdb16f05388b4527c88302a475bee0c",
     ".claude/evals/flatline-3model.sh": "5e1f10389980c4f52bd79e1d81befb414a4c7aea9eb6bb9310aa5e5c9e194ebe",

@@ -134,6 +134,18 @@ arms:
   - {id: a8_no_ceremonies, label: A8, absent: true,
      evidence: "no /meeting command, skill or sosyete config key at 4d69c3c4 (grep -rli sosyete .claude/ docs/; ls .claude/commands .claude/skills)"}
 
+# cycle-133 FR-9 (SDD C-9; D-2.5 DEC-0854): the network of each arm's sandbox. blocked = the batch's egress block
+# (lib/egress-proxy.sh: internal network, DNS sinkholed, the tinyproxy sidecar with the egress_hosts[] allowlist
+# of .claude/defaults/model-config.yaml); bridge = the docker bridge, allowed only as a factor the batch records.
+# Resolution: arms[].egress, else egress.arms.<id>, else egress.default, else blocked. Recorded in MANIFEST.json
+# `egress` and each run's meta/egress.jsonl. The open-mount control keeps blocked.
+egress:
+  default: blocked
+  arms: {a0_bare: blocked, a1_full: blocked, a2_no_sprint_plan: blocked, a3_one_voice: blocked, a4_no_gates: blocked,
+         a5_no_flatline: blocked, a6_one_window: blocked, a7_effort_medium: blocked, a0_bare_fable: blocked,
+         a1_review_only: blocked, a1_no_dissent: blocked, a1_full_openmount: blocked, a0_bare_matched: blocked,
+         a0_bare_fable_matched: blocked, a8_no_ceremonies: blocked}
+
 rules:   # D-A5: pre-registered, mirrored in NOTES
   threshold_points: 0.03
   cost_lower_pct: 15

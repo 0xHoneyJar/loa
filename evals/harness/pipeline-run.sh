@@ -946,9 +946,32 @@ run_phase() {  # run_phase <name> <label>
     # the docker client keeps only what it needs plus the secrets it forwards by name
     local hostkeys="PATH,HOME,DOCKER_HOST,DOCKER_CONFIG,XDG_RUNTIME_DIR"
     for k in $SECRET_KEYS; do if [[ -n "${!k:-}" ]]; then hostkeys="$hostkeys,$k"; fi; done
+    # cycle-133 FR-9 (SDD C-9) the egress block. The arm's `egress` (arms[].egress, else the suite's
+    # egress.arms.<id>, else egress.default, else blocked) and $LOA_EVAL_EGRESS_NETWORK (run-ablation.sh
+    # exports it after checking the block is up): a blocked arm joins loa-egress-<batch> (internal, no route
+    # out) with DNS sinkholed and the sidecar loa-proxy-<batch> as its only way out; otherwise --network bridge.
+    # meta/egress.json records the decision; lib/egress-proxy.sh record-address (background) records the
+    # container's address in meta/egress-addr.jsonl and its denials in meta/egress-denied.jsonl.
+    local egress_mode egress_net="${LOA_EVAL_EGRESS_NETWORK:-}" egress_purl="" pv
+    local -a netargs=(--network bridge)
+    egress_mode="$(jq -r --arg a "$ARM" --argjson s "$SUITE_JSON" '.egress // ($s.egress // {} | .arms // {})[$a] // ($s.egress // {}).default // "blocked"' <<<"$ARM_DEF")"
+    case "$egress_mode" in blocked|bridge) ;; *) infra "arm $ARM: egress '$egress_mode' is not blocked|bridge" ;; esac
+    if [[ "$egress_mode" == blocked && -n "$egress_net" ]]; then
+      [[ "$egress_net" =~ ^loa-egress-[A-Za-z0-9._-]{1,80}$ ]] || infra "LOA_EVAL_EGRESS_NETWORK '$egress_net' is not loa-egress-<batch>"
+      egress_purl="http://loa-proxy-${egress_net#loa-egress-}:8888"
+      netargs=(--network "$egress_net" --dns 0.0.0.1)
+      for pv in HTTPS_PROXY https_proxy HTTP_PROXY http_proxy; do envkv+=("$pv=$egress_purl"); keys="$keys,$pv"; done
+      envkv+=("NO_PROXY=" "no_proxy="); keys="$keys,NO_PROXY,no_proxy"
+      LOA_EGRESS_ADDR_WAIT_S=30 "$SCRIPT_DIR/lib/egress-proxy.sh" record-address --network "$egress_net" --container "$cname" \
+        --label "$label" --meta "$META" --event watch --max-s $((tsec + 120)) --parent-pid $$ --docker-bin "$DOCKER_BIN" \
+        </dev/null >/dev/null 2>>"$META/egress-record.log" &
+    fi
+    jq -cn --arg m "$egress_mode" --arg n "${netargs[1]}" --arg p "$egress_purl" --arg l "$label" \
+      '{label: $l, egress: $m, network: $n, proxy_url: (if $p == "" then null else $p end), enforced: ($p != ""),
+        dns: (if $p == "" then null else "0.0.0.1" end)}' >> "$META/egress.jsonl"
     full=(python3 -I -c "$ENV_SHIM" "$hostkeys"
           "$DOCKER_BIN" run --rm --name "$cname" --user "$(id -u):$(id -g)"
-          --network bridge --read-only --tmpfs /tmp:rw,size=1g
+          "${netargs[@]}" --read-only --tmpfs /tmp:rw,size=1g
           --pids-limit 512 --memory 4g --cpus 2
           -v "$WS:/workspace:rw"
           -v "$HOME_DIR:/home/evaluser:rw"

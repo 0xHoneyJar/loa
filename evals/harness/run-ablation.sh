@@ -959,6 +959,33 @@ if [[ "$EXECUTOR" == container ]]; then
   IMAGE_DIGEST="$("$DOCKER_BIN" image inspect --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{else}}{{.Id}}{{end}}' "$IMAGE" 2>/dev/null | head -1 || true)"
   [[ -n "$IMAGE_DIGEST" ]] || refuse "image $IMAGE not found (docker image inspect)"
 fi
+# cycle-133 FR-9 (SDD C-9) the egress block. Every arm's `egress` (arms[].egress, else the suite's
+# egress.arms.<id>, else egress.default, else blocked). A container batch with a blocked arm needs the
+# block up — lib/egress-proxy.sh up <batch> + self-check, then LOA_EVAL_EGRESS_NETWORK=loa-egress-<batch>
+# (exported to pipeline-run.sh, which joins it) — else the batch is refused before any write; --dry-run
+# and the bats stubs (LOA_EGRESS_TEST_MODE=1 inside bats) record enforced: false instead. MANIFEST `egress`.
+EGRESS_NET="${LOA_EVAL_EGRESS_NETWORK:-}" EGRESS_ENFORCED=false
+EGRESS_ARMS_JSON="$(jq -c --argjson arms "$(printf '%s\n' "${ARMS[@]}" | jq -R . | jq -sc .)" '. as $s
+  | [$arms[] | . as $a | {($a): ([$s.arms // [] | .[] | select(.id == $a)][0].egress // ($s.egress // {} | .arms // {})[$a]
+      // ($s.egress // {}).default // "blocked")}] | add // {}' <<<"$SUITE_JSON")" || refuse "the suite's egress keys do not parse"
+EGRESS_BAD="$(jq -r 'to_entries[] | select(.value != "blocked" and .value != "bridge") | "\(.key)=\(.value)"' <<<"$EGRESS_ARMS_JSON")"
+[[ -z "$EGRESS_BAD" ]] || refuse "egress must be blocked or bridge: $EGRESS_BAD"
+EGRESS_BLOCKED="$(jq -r '[to_entries[] | select(.value == "blocked") | .key] | join(",")' <<<"$EGRESS_ARMS_JSON")"
+if [[ "$EXECUTOR" == container && -n "$EGRESS_NET" ]]; then
+  [[ "$EGRESS_NET" =~ ^loa-egress-[A-Za-z0-9._-]{1,80}$ ]] || refuse "LOA_EVAL_EGRESS_NETWORK '$EGRESS_NET' is not loa-egress-<batch>"
+  [[ "$("$DOCKER_BIN" network inspect -f '{{.Internal}}' "$EGRESS_NET" 2>/dev/null || true)" == true ]] \
+    || refuse "egress network $EGRESS_NET is not an internal docker network; bring the block up: evals/harness/lib/egress-proxy.sh up ${EGRESS_NET#loa-egress-} <allowlist-file>"
+  [[ "$("$DOCKER_BIN" container inspect -f '{{.State.Running}}' "loa-proxy-${EGRESS_NET#loa-egress-}" 2>/dev/null || true)" == true ]] \
+    || refuse "egress sidecar loa-proxy-${EGRESS_NET#loa-egress-} is not running; bring the block up: evals/harness/lib/egress-proxy.sh up ${EGRESS_NET#loa-egress-} <allowlist-file>"
+  EGRESS_ENFORCED=true; export LOA_EVAL_EGRESS_NETWORK="$EGRESS_NET"
+elif [[ "$EXECUTOR" == container && -n "$EGRESS_BLOCKED" && "$DRY_RUN" != true ]] \
+     && ! [[ "${LOA_EGRESS_TEST_MODE:-}" == 1 && -n "${BATS_TEST_FILENAME:-}" ]]; then
+  refuse "arm(s) $EGRESS_BLOCKED are egress: blocked and no egress block is named; run evals/harness/lib/egress-proxy.sh allowlist > <f>, up <batch> <f>, self-check <batch> --image $IMAGE, then export LOA_EVAL_EGRESS_NETWORK=loa-egress-<batch> (or record egress: bridge for the arm as a factor)"
+else
+  unset LOA_EVAL_EGRESS_NETWORK; EGRESS_NET=""
+fi
+EGRESS_JSON="$(jq -c --arg n "$EGRESS_NET" --argjson e "$EGRESS_ENFORCED" \
+  '{arms: ., network: (if $n == "" then null else $n end), proxy: (if $n == "" then null else "loa-proxy-" + ($n | ltrimstr("loa-egress-")) end), enforced: $e}' <<<"$EGRESS_ARMS_JSON")"
 
 if [[ -n "${LOA_ABLATION_SOURCE_TREE:-}" ]]; then
   TREE="$(abspath "$LOA_ABLATION_SOURCE_TREE")"
@@ -1281,7 +1308,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
     --arg jq_v "$(jq --version 2>/dev/null)" --arg yq_v "$(yq --version 2>/dev/null)" \
     --arg py_v "$(python3 --version 2>/dev/null)" --arg git_v "$(git --version 2>/dev/null)" \
     --arg bctx "$BATCH_CONTEXT" --arg reg_sha "$REG_SHA" --arg reg_path "$REGISTRATION" --argjson reg "$REG_JSON" \
-    --argjson sgate "$SPEND_GATE_JSON" --arg reserve "$RESERVE_CAP" --argjson sup "$SUP_ARGS_JSON" '
+    --argjson sgate "$SPEND_GATE_JSON" --arg reserve "$RESERVE_CAP" --argjson sup "$SUP_ARGS_JSON" --argjson egress "${EGRESS_JSON:-null}" '
     $plan_f[0] as $p | $suite_f[0] as $s | $gate_f[0] as $g
     | {schema_version: 1, suite: ($s.name // "ablation-2.0"), batch: $batch, dry_run: $dry, smoke: $smoke, created: $created,
        source_commit: $src, source_worktree: $tree, source_commit_dot_claude_delta: $delta,
@@ -1314,7 +1341,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
        registration_sha256: (if $reg_sha == "" then null else $reg_sha end),
        registration_path: (if $reg_sha == "" then null else $reg_path end),
        preregistration_sha256: (($reg // {}).preregistration_sha256 // null),
-       registration: $reg, spend_gate: $sgate, supervisor: $sup,
+       registration: $reg, spend_gate: $sgate, supervisor: $sup, egress: $egress,
        environment: {os: $os, bash: $bash_v, jq: $jq_v, yq: $yq_v, python: $py_v, git: $git_v}}' > "$out.tmp"
   mv "$out.tmp" "$out"
 }
