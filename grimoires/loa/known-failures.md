@@ -2168,6 +2168,7 @@ Under home-scope two roots exist: LOA_FRAMEWORK_ROOT (HOME) for framework files 
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-10-24 | round 2 with --exclude for dist, finding vectors, reports, fixtures, decisions.yaml, REPO-MAP, checksums.json, CHANGELOG, the suite root | pending | ~/.cache/loa/cycle-133/bb/round1.log (line 77), round2.log; PR #1292 |
+| 2026-10-24 | round 2 with --exclude for dist, finding vectors, reports, fixtures, decisions.yaml, REPO-MAP, checksums.json, CHANGELOG and the suite root (prompt shrunk and de-weighted) | no refusal: both voices completed; the round still ended DEGRADED (coverage 23/374 at max_files_per_pr 50, enrichment guard rejected the writer output) so G-2 was recorded as not met; nine triage beads (bd-oik13 carries the remedy) | PR #1292 comments 6386296457, 6386303901, 6386491267; ~/.cache/loa/cycle-133/bb/round2.log |
 
 ### Reading guide
 
