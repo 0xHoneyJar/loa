@@ -19,7 +19,7 @@ setup() {
  {"id":"bd-zzz99","title":"gone","status":"closed","issue_type":"task","priority":2,"labels":[],"created_at":"2026-01-01T00:00:00Z","description":"d5"}
 ]}
 JSON
-  printf '#!/usr/bin/env bash\ncase "$1 $2" in\n  "list --json"*) cat "%s" ;;\n  *) printf "%%s\\n" "$*" >> "%s" ;;\nesac\n' "$T/beads.json" "$T/br.log" > "$T/bin/br"
+  printf '#!/usr/bin/env bash\ncase "$1 $2" in\n  "list --json"*) cat "%s" ;;\n  "close bd-bbb22") case " $* " in *" --force "*) printf "%%s\\n" "$*" >> "%s" ;; *) echo "Warning: Skipped bd-bbb22: blocked by: ${BR_BLOCKER:-bd-aaa11}" >&2; exit 3 ;; esac ;;\n  *) printf "%%s\\n" "$*" >> "%s" ;;\nesac\n' "$T/beads.json" "$T/br.log" "$T/br.log" > "$T/bin/br"
   chmod +x "$T/bin/br"
   export PATH="$T/bin:$PATH"
   printf 'bd-ddd44\n# a comment\n\n' > "$T/tier1.txt"
@@ -107,7 +107,7 @@ write_manifests() {  # a complete, valid partition: one closure with a commit, o
   run "$APPLY" --inventory "$T/sw" --manifests "$T/man" --apply --sprint 275 --review-by 2027-01-31
   [ "$status" -eq 0 ]; [[ "$output" == *"applied 3 row(s), skipped 0"* ]]
   grep -q "^close bd-aaa11 --reason implemented: $HEAD_SHA\$" "$T/br.log"
-  grep -q '^close bd-bbb22 --reason obsolete: CHANGELOG.md$' "$T/br.log"
+  grep -q '^close bd-bbb22 --reason obsolete: CHANGELOG.md (blockers bd-aaa11 close in the same sweep) --force$' "$T/br.log"   # blocked by a closure of this sweep → forced
   grep -q '^label add bd-ccc33 backlog-2026-10$' "$T/br.log"
   grep -q '^comments add bd-ccc33 status: kept — still wanted; review-by 2027-01-31 (sweep sprint-275)$' "$T/br.log"
   [ "$(wc -l < "$T/sw/applied.jsonl")" -eq 3 ]
@@ -144,4 +144,20 @@ write_manifests() {  # a complete, valid partition: one closure with a commit, o
   jq -c '{id, agree: false, evidence: "the fix never landed"}' "$T/s1.jsonl" | head -1 > "$T/v-bad.jsonl"
   run "$SAMPLE" --check "$T/s1.jsonl" "$T/v-bad.jsonl"
   [ "$status" -eq 1 ]; [[ "$output" == *"DISAGREES"* ]]; [[ "$output" == *"no verification row"* ]]
+}
+
+
+@test "SW-10 apply: a bead br refuses as blocked by a bead this sweep KEEPS is logged skipped-blocked, the rest apply, exit 1 names it; a re-run skips the log" {
+  freeze; write_manifests
+  export BR_BLOCKER=bd-ccc33   # kept in the manifests, so bd-bbb22 must not be forced
+  run "$APPLY" --inventory "$T/sw" --manifests "$T/man" --apply --sprint 275 --review-by 2027-01-31
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"bd-bbb22 (closed-obsolete): skipped-blocked"* ]]
+  [[ "$output" == *"applied 2 row(s), skipped 0 already in applied.jsonl, 1 not applied"* ]]
+  ! grep -q 'close bd-bbb22' "$T/br.log"
+  grep -q '^close bd-aaa11 ' "$T/br.log"; grep -q '^label add bd-ccc33 backlog-2026-10$' "$T/br.log"
+  jq -e 'select(.id == "bd-bbb22") | .action == "skipped-blocked"' "$T/sw/applied.jsonl" >/dev/null
+  : > "$T/br.log"
+  run "$APPLY" --inventory "$T/sw" --manifests "$T/man" --apply --sprint 275 --review-by 2027-01-31
+  [ "$status" -eq 0 ]; [[ "$output" == *"applied 0 row(s), skipped 3"* ]]; [ ! -s "$T/br.log" ]
 }

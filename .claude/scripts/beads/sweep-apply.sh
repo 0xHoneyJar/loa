@@ -34,7 +34,9 @@
 #     several references may be separated by `;` or `,` — at least one must resolve
 #   - a closure's bead is still open in the tracker (br list) — a bead closed meanwhile is reported, not re-closed
 #
-# Exit: 0 valid / applied · 1 invalid (nothing mutated) · 2 usage.
+# Exit: 0 valid / applied · 1 invalid (nothing mutated) or a row not applied (the others are; re-run after fixing) · 2 usage.
+#   A bead br refuses as blocked by open dependencies is force-closed only when every blocker is a closure of this sweep;
+#   otherwise the row is logged as skipped-blocked and reported.
 # =============================================================================
 set -euo pipefail
 export LC_ALL=C
@@ -148,23 +150,47 @@ echo "sweep-apply: VALID — $N rows over ${#MFILES[@]} manifest(s) form a compl
 # 5. apply (idempotent through the applied log)
 touch "$APPLIED"
 DONE_IDS="$(jq -r '.id' "$APPLIED" 2>/dev/null || true)"
-run() { if [[ "$DRY" == true ]]; then printf 'DRY: %s\n' "$*"; else "$@" >/dev/null; fi; }
-applied=0 skipped=0
+# run <cmd…>: one tracker call; its stderr is kept in $RUN_ERR, its exit code returned (never aborts the loop)
+RUN_ERR=""
+run() {
+  if [[ "$DRY" == true ]]; then printf 'DRY: %s\n' "$*"; return 0; fi
+  local out; out="$("$@" 2>&1)" && { RUN_ERR=""; return 0; }
+  RUN_ERR="$out"; return 1
+}
+CLOSURE_IDS="$(jq -r 'select(.category | startswith("closed")) | .id' "$ROWS")"
+# close_bead <id> <reason>: a bead that br refuses as "blocked by" open dependencies is force-closed only when every
+# blocker is itself a closure of this sweep (the partition closes them together); otherwise the row is logged skipped
+close_bead() {
+  local id="$1" reason="$2" blockers b
+  run "$BR" close "$id" --reason "$reason" && return 0
+  blockers="$(grep -oE 'blocked by: *[A-Za-z0-9, -]+' <<<"$RUN_ERR" | head -1 | sed -E 's/blocked by: *//' | tr ',' ' ')"
+  [[ -n "$blockers" ]] || return 1
+  for b in $blockers; do grep -qx -- "$b" <<<"$CLOSURE_IDS" || { RUN_ERR="blocked by $b, which this sweep keeps open"; return 2; }; done
+  run "$BR" close "$id" --reason "$reason (blockers $blockers close in the same sweep)" --force
+}
+applied=0 skipped=0 failed=0
 while IFS=$'\t' read -r id cat ev; do
   if grep -qx -- "$id" <<<"$DONE_IDS"; then skipped=$((skipped + 1)); continue; fi
-  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; ok=0
   case "$cat" in
-    closed-implemented) reason="implemented: $ev"; run "$BR" close "$id" --reason "$reason" ; action=close ;;
-    closed-obsolete)    reason="obsolete: $ev";    run "$BR" close "$id" --reason "$reason" ; action=close ;;
-    kept)  reason="status: kept — $ev; review-by $REVIEW_BY (sweep sprint-$SPRINT)"
-           run "$BR" label add "$id" "$LABEL"; run "$BR" comments add "$id" "$reason"; action="label $LABEL" ;;
-    pulled-in) reason="pulled in: $ev (sweep sprint-$SPRINT)"
-           run "$BR" label add "$id" "sprint:$SPRINT"; run "$BR" comments add "$id" "$reason"; action="label sprint:$SPRINT" ;;
+    closed-implemented) reason="implemented: $ev"; close_bead "$id" "$reason" || ok=$?; action=close ;;
+    closed-obsolete)    reason="obsolete: $ev";    close_bead "$id" "$reason" || ok=$?; action=close ;;
+    kept)  reason="status: kept — $ev; review-by $REVIEW_BY (sweep sprint-$SPRINT)"; action="label $LABEL"
+           { run "$BR" label add "$id" "$LABEL" && run "$BR" comments add "$id" "$reason"; } || ok=$? ;;
+    pulled-in) reason="pulled in: $ev (sweep sprint-$SPRINT)"; action="label sprint:$SPRINT"
+           { run "$BR" label add "$id" "sprint:$SPRINT" && run "$BR" comments add "$id" "$reason"; } || ok=$? ;;
   esac
-  if [[ "$DRY" != true ]]; then
+  if [[ "$ok" -ne 0 ]]; then
+    failed=$((failed + 1)); action="$( [[ "$ok" -eq 2 ]] && echo skipped-blocked || echo failed)"
+    echo "sweep-apply: $id ($cat): $action — $(head -c 160 <<<"$RUN_ERR" | tr '\n' ' ')" >&2
+    reason="$action: $(head -c 300 <<<"$RUN_ERR" | tr '\n' ' ')"
+  else
+    applied=$((applied + 1))
+  fi
+  if [[ "$DRY" != true && ( "$ok" -eq 0 || "$ok" -eq 2 ) ]]; then
     jq -n -c --arg id "$id" --arg cat "$cat" --arg action "$action" --arg reason "$reason" --arg ts "$ts" \
       '{id: $id, category: $cat, action: $action, reason: $reason, ts: $ts}' >> "$APPLIED"
   fi
-  applied=$((applied + 1))
 done < <(jq -r '[.id, .category, .evidence] | @tsv' "$ROWS")
-echo "sweep-apply: applied $applied row(s), skipped $skipped already in $(basename "$APPLIED")$( [[ "$DRY" == true ]] && printf ' (dry run: nothing mutated, nothing logged)')"
+echo "sweep-apply: applied $applied row(s), skipped $skipped already in $(basename "$APPLIED"), $failed not applied$( [[ "$DRY" == true ]] && printf ' (dry run: nothing mutated, nothing logged)')"
+[[ "$failed" -eq 0 ]] || exit 1
