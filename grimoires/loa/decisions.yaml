@@ -31165,3 +31165,187 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0928"
+    created_at: "2026-10-24T10:00:24Z"
+    updated_at: "2026-10-24T10:00:24Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "KF-058 fix: each blocked sandbox runs in its own guard namespace (a proxy-image container with netfilter), not in a namespace shared with the sidecar."
+    decision: "egress-proxy.sh guard <batch> <name> starts one guard container per blocked sandbox on the internal network; the sandbox runs with --network container:<guard>. The guard's netfilter reaches loopback and the sidecar's port 8888 only and rejects everything else in-namespace."
+    rationale: "A shared sidecar namespace has one loopback and one port space, so two phase containers or a self-check would collide and denials could not be attributed per container; a guard per container keeps one address per sandbox."
+    alternatives_considered:
+      - option: "the sandbox shares the sidecar's network namespace with owner-matched netfilter (the brief's recommendation)"
+        rejected_because: "one loopback and port space for every container; per-container attribution lost"
+      - option: "rely on the host firewall"
+        rejected_because: "the CI runner has none; the measurement host is not the only host"
+    consequences:
+      positive:
+        - "the host gateway is unreachable without host privileges and without weakening the allowlist"
+      negative:
+        - "one extra container per phase; the guard's lifecycle is the watcher's"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "874fc64a"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-e.md § Judgment calls (guard namespace per container)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:00:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "874fc64a9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0929"
+    created_at: "2026-10-24T10:00:27Z"
+    updated_at: "2026-10-24T10:00:27Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Only an in-namespace rejection (EHOSTUNREACH, ENETUNREACH, EACCES, EPERM) passes must_unreach; a connect, a host refusal or a timeout all FAIL."
+    decision: "The guard rejects with icmp-admin-prohibited so a blocked connect returns EHOSTUNREACH; self-check and EGR-8 accept only those errno classes. An unbindable gateway listener is a FAIL in self-check (the batch gate); EGR-8 skips with the reason only after its 22, 80 and 443 checks pass."
+    rationale: "The old any-failure check was host-dependent: on the implementer's host the pre-fix listener passed by firewall timeout while the CI runner reached the host."
+    alternatives_considered:
+      - option: "any connection failure passes"
+        rejected_because: "a host firewall timeout masked the gap (KF-058 first observed in CI only)"
+    consequences:
+      positive:
+        - "the probe result is the same on every host"
+      negative:
+        - "a host that forbids binding the gateway address fails self-check"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "874fc64a"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-e.md § Judgment calls (Only an in-namespace rejection passes)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:00:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "874fc64a9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0930"
+    created_at: "2026-10-24T10:00:30Z"
+    updated_at: "2026-10-24T10:00:30Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The guard runs from the sidecar's own image, still tagged loa-egress-proxy:259, marked by label org.loa.egress.guard=1; unlabelled images are refused."
+    decision: "Dockerfile.proxy gains the loa-egress-guard entrypoint and the guard label; the tag stays 259 and the old image is kept as 259-pre-kf058 on the build host. egress-proxy.sh up and run-ablation.sh pre-flight refuse a proxy image without the label with the rebuild line."
+    rationale: "A new tag would ripple into every pin row; the sandbox image would need iptables and capabilities it must not have."
+    alternatives_considered:
+      - option: "a new proxy image tag"
+        rejected_because: "ripples into the pins"
+      - option: "put the guard into the sandbox image"
+        rejected_because: "the sandbox must not carry iptables or NET_ADMIN"
+    consequences:
+      positive:
+        - "one image to rebuild; stale images are refused mechanically"
+      negative:
+        - "other hosts must rebuild loa-egress-proxy:259 before the next batch"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "874fc64a"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-e.md § Judgment calls (The guard uses the sidecar's own image)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:00:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "874fc64a9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0931"
+    created_at: "2026-10-24T10:00:33Z"
+    updated_at: "2026-10-24T10:00:33Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Guard names are unique per container; the watcher owns the guard's lifecycle (removes it after the end record, only if labelled); down sweeps leftovers."
+    decision: "Each guard name carries a random suffix; the record-address watcher takes --guard and removes the guard after the end record, refusing to remove anything not labelled as a guard; egress-proxy.sh down sweeps the batch's guards. Launchers keep one contiguous egress block each."
+    rationale: "With a fixed name a retry's leftover watcher could remove the next attempt's guard; container names are not artefacts, so uniqueness costs nothing."
+    alternatives_considered:
+      - option: "a fixed guard name per phase label"
+        rejected_because: "a leftover watcher from a retry could remove the next attempt's guard"
+    consequences:
+      positive:
+        - "per-container attribution of denials by the guard's address"
+      negative:
+        - "a crashed watcher leaves a guard until down runs"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "874fc64a"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-e.md § Judgment calls (Guard names are unique; The watcher owns the guard's lifecycle)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:00:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "874fc64a9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0932"
+    created_at: "2026-10-24T10:00:36Z"
+    updated_at: "2026-10-24T10:00:36Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "--dns 0.0.0.1 moves from the sandbox to the guard; records keep dns and network and add the guard; the recorded address is the guard's."
+    decision: "Docker refuses --dns with --network container:<x>, so the guard carries it. meta/egress.jsonl rows keep dns and network and gain guard; meta/egress-addr.jsonl records the guard's address, which is the sandbox's source address."
+    rationale: "The sandbox's traffic leaves through the guard's namespace, so the guard's address is the one the sidecar sees."
+    alternatives_considered:
+      - option: "drop the dns field from the records"
+        rejected_because: "consumers of meta/egress.jsonl read it"
+    consequences:
+      positive:
+        - "the sdd § 1.9 record shape is unchanged apart from one added key"
+      negative:
+        - "sprint.md Task 2.4's wording had to be amended"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "874fc64a"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-e.md § Judgment calls (--dns moved to the guard)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:00:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "874fc64a9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

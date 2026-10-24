@@ -105,7 +105,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-055](#kf-055-bridgebuilder-consensus-enrichment-posts-a-tool-call-transcript-instead-of-the-review-the-body-derived-verdict-reads-unknown-and-mergeblocked-true-even-when-the-consensus-json-says-comment) | OPEN — upstream fix filed as bead bd-cpvc6; cycle-132 read the per-voice JSON blocks and the round-1 consensus JSON directly | .claude/skills/bridgebuilder-review (multi-model enrichment writer anthropic/claude-headless; body-derived verdict in the summary JSON) | 1 |
 | [KF-056](#kf-056-dec-rows-written-during-planning-carry-the-previous-cycles-id) | Open (fix candidate on bead bd-d7dwt; Sprint 4 sweep) | dec-write-lib.sh default_cycle / decisions.yaml cycle field | 1 |
 | [KF-057](#kf-057-bats-tests-that-spawn-a-nested-bats-via-npx-pass-locally-and-fail-in-ci) | Fixed for tests/unit/quarantine-expiry.bats (a0624b285); pattern to follow in any test that runs a nested bats | tests/unit/*.bats nested bats runs; .github/workflows/bats-tests.yml (bats-core v1.13.0 installed on PATH) | 1 |
-| [KF-058](#kf-058-an---internal-docker-network-still-reaches-the-hosts-bridge-gateway-address) | Open — fix in cycle-133 Sprint 274 (egress follow-up s3-e) | evals/harness/lib/egress-proxy.sh egress block; evals/tests/egress-proxy.bats EGR-8/EGR-12; evals/harness/Dockerfile.proxy | 1 |
+| [KF-058](#kf-058-an---internal-docker-network-still-reaches-the-hosts-bridge-gateway-address) | Fixed (874fc64a9) | evals/harness/lib/egress-proxy.sh egress block; evals/tests/egress-proxy.bats EGR-8/EGR-12; evals/harness/Dockerfile.proxy | 1 |
 
 ---
 
@@ -2062,7 +2062,7 @@ Not a bats or test defect: the test's choice of launcher. Locally bats comes fro
 
 ## KF-058: An --internal docker network still reaches the host's bridge gateway address
 
-**Status**: Open — fix in cycle-133 Sprint 274 (egress follow-up s3-e)
+**Status**: Fixed in the harness (874fc64a9, cycle-133 Sprint 274 s3-e: a guard namespace per blocked sandbox); rebuild `loa-egress-proxy:259` on every host before the next batch
 **Feature**: evals/harness/lib/egress-proxy.sh egress block; evals/tests/egress-proxy.bats EGR-8/EGR-12; evals/harness/Dockerfile.proxy
 **Symptom**: CI 'Run eval harness tests': not ok EGR-8 … 'deny host gateway 22 without proxy: FAIL succeeded: tcp_open 172.19.0.1 22' and EGR-12 self-check FAIL on the GitHub runner; locally the same probe reaches the host (ConnectionRefused on closed ports, a firewall timeout on open ones)
 **First observed**: 2026-10-24 cycle-133 Sprint 273 head c3b059cf3 (run 40074686664)
@@ -2076,6 +2076,7 @@ Not a bats or test defect: the test's choice of launcher. Locally bats comes fro
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-10-24 | implementer D4 (s3-e) dispatched with the shared-namespace + owner-matched netfilter design; EGR-8 to gain a deterministic gateway listener probe | pending | CI run 40074686664; brief ~/.cache/loa/cycle-133/briefs/s3-e.md |
+| 2026-10-24 | implementer D4 (s3-e) landed: a guard namespace per blocked sandbox (proxy-image container with in-namespace netfilter; sandbox joins with --network container:<guard>); EGR-8 rewritten with a deterministic gateway-listener probe, EGR-13/EP-9 new; must_unreach accepts only in-namespace rejections | fixed — gate 22/22 with real containers on two hosts, launcher regression 189/189, pin self-check 62 PASS 0 FAIL, spike user arm SPIKE-OK 0 denials; CI confirmation pending on the next push | commit 874fc64a9; proxy image sha256:95c4c379; ~/.cache/loa/cycle-133/tests/s3e-lead-gate-094721.log |
 
 ### Reading guide
 
