@@ -32259,3 +32259,123 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0957"
+    created_at: "2026-10-24T16:34:31Z"
+    updated_at: "2026-10-24T16:34:31Z"
+    phase: "implementation"
+    category: "release"
+    summary: "G-2 not met after two Bridgebuilder rounds on #1292 (voice refusal, cap-bound coverage, writer guard); no split, no round 3; merge on review+audit+green CI."
+    decision: "The cycle PR's Bridgebuilder verdict is recorded as degraded (G-2 NOT MET). Round 1: the anthropic/claude-headless voice was refused by the model's safeguards on the security-heavy diff (KF-062). Round 2 with --exclude for generated, fixture and evidence paths: 2/2 voices, 17 findings, 0 blockers, highest MEDIUM, but coverage 23 of 374 files (242 reviewable omitted by max_files_per_pr 50, 24 by max_diff_bytes) and the enrichment guard rejected the writer output, so the verdict is UNKNOWN by the C-1/C-2 design. The merge proceeds on the sprint's merge preconditions (review and audit APPROVED on head 37547f3a4, every required check green); the structural remedy is filed as bd-oik13 for cycle-134."
+    rationale: "The degradation is the design working: C-1 blocks the merge verdict when reviewable files are cut by the cap, and a four-sprint consolidated PR of 374 files cannot fit one review window at the default cap. A third round that completed coverage would need the cap raised to about 300 files and would exceed the USD 20 Bridgebuilder allocation (USD 15.67 spent); the refusal was content-based, not shape-based."
+    alternatives_considered:
+      - option: "split PR #1292 into per-sprint PRs before reading G-2 (the FR-12 single-PR guidance)"
+        rejected_because: "the refusal was content-based and the coverage bound is structural; splitting after four approved sprints re-binds every review, audit and CI run and delays rc.8 by a day for a verdict the design would still degrade on the largest sprint"
+      - option: "round 3 with max_files_per_pr raised to 300 and max_diff_bytes raised"
+        rejected_because: "exceeds the USD 20 allocation and the 200k-token voice input bound; the plateau rule stops after a round adding no new HIGH or MEDIUM only if the next round can change the verdict"
+      - option: "treat the APPROVED voice band as the verdict"
+        rejected_because: "the summary verdict must equal the consensus block's (G-2 wording); overriding a degraded verdict is the mis-approval C-2 exists to prevent"
+    consequences:
+      positive:
+        - "the honest G-2 reading is recorded with its mechanism and spend"
+        - "the merge keeps the review/audit binding to the audited head"
+      negative:
+        - "rc.8 ships without a non-degraded Bridgebuilder verdict on its own PR"
+        - "G-2's remedy moves to cycle-134 (bd-oik13)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "65db3583"
+    source: "grimoires/loa/a2a/sprint-275/e2e.md § G-2; PR #1292 comments 6386296457, 6386296833, 6386303901 and the triage comment; ~/.cache/loa/cycle-133/bb/round{1,2}.log"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T16:34:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "PR #1292 comments 6386303901 (round 2 consensus) and the triage comment; KF-062"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0958"
+    created_at: "2026-10-24T16:34:34Z"
+    updated_at: "2026-10-24T16:34:34Z"
+    phase: "implementation"
+    category: "release"
+    summary: "Bridgebuilder round 2 triage: 2 MEDIUM + 7 LOW + 1 SPECULATION filed as nine beads for cycle-134, not fixed on the audited head; F-008 rejected with evidence."
+    decision: "Every non-PRAISE finding got a disposition on the PR: the two MEDIUMs (took-effect.sh compares hook executions against the configured-command count; an executed phase without a transcript passes the surface check) are accepted at their severity and deferred with FR-10, which rc.8 lands but does not claim (DEC-0950, KF-060) — bd-bex39, bd-k3dia, to be fixed before the first claimed home-scope measurement; the seven LOWs and F-009 are accepted as follow-up beads; F-008 (literal control characters in jq programs) is rejected because the on-disk programs use \\u0000/\\u001f escapes and the file holds zero control bytes."
+    rationale: "The MEDIUMs are validator defects in an unclaimed feature, not release-path defects; fixing them on the PR head would invalidate the audit binding (37547f3a4) and restart a 30-minute CI cycle for code rc.8 does not claim. Filing at severity with the finding ids keeps the findings visible instead of relabelling them."
+    alternatives_considered:
+      - option: "fix the two MEDIUMs on the PR branch and re-run review, audit and CI"
+        rejected_because: "the audited head is bound to its CI evidence; FR-10 is not claimed in rc.8, so the fixes change nothing the release asserts"
+      - option: "demote the MEDIUMs to LOW because the feature is unclaimed"
+        rejected_because: "severity describes the defect, not the release scope (the zero-blocker demotion antipattern)"
+    consequences:
+      positive:
+        - "every finding has a disposition and an owner"
+        - "the validator defects are scheduled before the measurement that would rely on them"
+      negative:
+        - "took-effect.sh oracle_closed stays wrong until bd-bex39 and bd-k3dia land"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "65db3583"
+    source: "PR #1292 triage comment; grimoires/loa/a2a/sprint-275/e2e.md § G-2; beads bd-bex39 bd-k3dia bd-htzy2 bd-kgfh5 bd-1br0v bd-ruo5b bd-kdk3l bd-4pv1j bd-oik13"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T16:34:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "PR #1292 triage comment; beads listed in source"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0959"
+    created_at: "2026-10-24T16:35:12Z"
+    updated_at: "2026-10-24T16:35:12Z"
+    phase: "implementation"
+    category: "release"
+    summary: "rc.8 shipped through the fixed C-3 path: PR #1292 admin-merged (3e5b9d368), record stage 1 (603732b95), v2.0.0-rc.8 on the merge, pre-release with notes."
+    decision: "The ship followed the plan of record: every required check green on the exact head 37547f3a4; gh pr merge --merge --admin (the sole maintainer cannot review their own PR) → merge 3e5b9d368857630c1ec94ddbb78e15aa9d7d0453; record-branch.sh stage 1 → 603732b95af5945b0bb089df22a2f540b6df1b91 (four prose mentions of the audit-key pattern name accepted by scan_tree; no credential-shaped hit); the post-merge.yml candidate (schema 2, digest ae442ae7…93e0) recovered in an isolated full clone and published with --approve-sha256: annotated tag v2.0.0-rc.8 (object 6560ac030) on the merge, reachable from main; release 422847479 as a pre-release with the curated notes; ledger commit 928b3b9e6 fast-forwarded onto main with expected_old = the merge."
+    rationale: "C-3 (Sprint 272) exists so the tag targets the merge commit and main can reach it (rc.6 and rc.7 could not); running it once end to end on its own release is the FR-14 acceptance. Two refusals on the way were the design working: the clone origin had to match the candidate URL byte for byte, and a re-download refused to overwrite the verified artifact."
+    alternatives_considered:
+      - option: "publish from the lead working tree instead of an isolated clone"
+        rejected_because: "the runbook requires the candidate bytes verified in a clone whose HEAD is the merge; the working tree carries untracked evidence"
+      - option: "wait for a non-degraded Bridgebuilder verdict before merging"
+        rejected_because: "G-2 is structural for this PR shape (DEC-0957); the sprint merge preconditions are review, audit and CI"
+    consequences:
+      positive:
+        - "G-3 met: the release tag is reachable from main"
+        - "the publish path is exercised on a real release"
+      negative:
+        - "rc.8 carries the floor amendment row until the operator removes it"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "65db3583"
+    source: "grimoires/loa/reports/release-2.0.0-rc.8-operator-steps.md steps 9-13; grimoires/loa/a2a/sprint-275/e2e.md § G-3; https://github.com/0xHoneyJar/loa/releases/tag/v2.0.0-rc.8"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T16:35:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "merge 3e5b9d368857630c1ec94ddbb78e15aa9d7d0453; record 603732b95af5945b0bb089df22a2f540b6df1b91; tag object 6560ac030014813bb1e2b57b4e5ba00636634396; ledger 928b3b9e6690209045485f8a34eb99692691ac68"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
