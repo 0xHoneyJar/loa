@@ -1,0 +1,4297 @@
+[
+  {
+    "id": "FX01",
+    "source": "With the filter enabled, the counter rose.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 42,
+        "exact_bytes_base64": "V2l0aCB0aGUgZmlsdGVyIGVuYWJsZWQsIHRoZSBjb3VudGVyIHJvc2Uu"
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "With the filter enabled, the counter rose.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "With the filter enabled, the counter rose.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "condition",
+                "source_text": "With the filter enabled, the counter rose.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge loss of the stated condition."
+  },
+  {
+    "id": "FX02",
+    "source": "The counter rose; the author interprets this as adaptation.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 59,
+        "exact_bytes_base64": "VGhlIGNvdW50ZXIgcm9zZTsgdGhlIGF1dGhvciBpbnRlcnByZXRzIHRoaXMgYXMgYWRhcHRhdGlvbi4="
+      }
+    ],
+    "semantics": {
+      "atomicity": "multiple-separable",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The counter rose.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The counter rose; the author interprets this as adaptation.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        },
+        {
+          "unit_id": "U2",
+          "proposition": "The author interprets the increase as adaptation.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "interpretation-inference",
+                "source_text": "The counter rose; the author interprets this as adaptation.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "source-author",
+                "source_text": "The counter rose; the author interprets this as adaptation.",
+                "attributed_to": "the author",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [
+        {
+          "kind": "result-interpretation",
+          "unit_ids": [
+            "U1",
+            "U2"
+          ],
+          "anchor_ids": [
+            "A1"
+          ],
+          "treatment": "keep-distinguishable"
+        }
+      ],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge result and interpretation conflation."
+  },
+  {
+    "id": "FX03",
+    "source": "A tick is the interval between two pulses. The meter recorded four ticks.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 73,
+        "exact_bytes_base64": "QSB0aWNrIGlzIHRoZSBpbnRlcnZhbCBiZXR3ZWVuIHR3byBwdWxzZXMuIFRoZSBtZXRlciByZWNvcmRlZCBmb3VyIHRpY2tzLg=="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "A tick is the interval between two pulses. The meter recorded four ticks.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "A tick is the interval between two pulses. The meter recorded four ticks.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [
+        {
+          "context_id": "C1",
+          "kind": "definition-terms",
+          "applies_to_unit_ids": [
+            "U1"
+          ],
+          "anchor_ids": [
+            "A1"
+          ],
+          "material_requirement_indexes": [],
+          "use": "required-for-interpretation"
+        }
+      ],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge the need for the exact definition context."
+  },
+  {
+    "id": "FX04",
+    "source": "The counter rose. The adjacent device is painted blue.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 54,
+        "exact_bytes_base64": "VGhlIGNvdW50ZXIgcm9zZS4gVGhlIGFkamFjZW50IGRldmljZSBpcyBwYWludGVkIGJsdWUu"
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The counter rose.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The counter rose. The adjacent device is painted blue.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [
+        {
+          "context_id": "C1",
+          "kind": "discourse",
+          "applies_to_unit_ids": [
+            "U1"
+          ],
+          "anchor_ids": [
+            "A1"
+          ],
+          "material_requirement_indexes": [],
+          "use": "inspection-only"
+        }
+      ],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge treating inspection-only adjacent text as evidence."
+  },
+  {
+    "id": "FX05",
+    "source": "The relay and sensor were observed. It remained stable.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 55,
+        "exact_bytes_base64": "VGhlIHJlbGF5IGFuZCBzZW5zb3Igd2VyZSBvYnNlcnZlZC4gSXQgcmVtYWluZWQgc3RhYmxlLg=="
+      }
+    ],
+    "semantics": {
+      "atomicity": "CANNOT_DETERMINE",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The relay and sensor were observed. It remained stable.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The relay and sensor were observed. It remained stable.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": [
+        {
+          "finding_id": "F1",
+          "field_path": "/semantics/atomicity",
+          "code": "referent-unresolved",
+          "anchor_ids": [
+            "A1"
+          ],
+          "material_requirement_indexes": [],
+          "unknown_dimension": "none",
+          "missing": "The frozen passage does not identify which antecedent remained stable.",
+          "requested_context": [
+            {
+              "source_id": "SRC-701",
+              "locator": "L1-L1",
+              "purpose": "same-source-referent-search"
+            }
+          ]
+        }
+      ]
+    },
+    "attack": "Challenge ambiguous antecedents; request only the bounded same source."
+  },
+  {
+    "id": "FX06-observed-descriptive",
+    "source": "The sensor activated.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 21,
+        "exact_bytes_base64": "VGhlIHNlbnNvciBhY3RpdmF0ZWQu"
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The sensor activated.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The sensor activated.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "observed-descriptive",
+                "source_text": "The sensor activated.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge preservation of the declared modality; the checker does not select its label."
+  },
+  {
+    "id": "FX06-possible",
+    "source": "The sensor may activate.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 24,
+        "exact_bytes_base64": "VGhlIHNlbnNvciBtYXkgYWN0aXZhdGUu"
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The sensor may activate.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The sensor may activate.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "possible",
+                "source_text": "The sensor may activate.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge preservation of the declared modality; the checker does not select its label."
+  },
+  {
+    "id": "FX06-capable",
+    "source": "The sensor can activate.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 24,
+        "exact_bytes_base64": "VGhlIHNlbnNvciBjYW4gYWN0aXZhdGUu"
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The sensor can activate.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The sensor can activate.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "capable",
+                "source_text": "The sensor can activate.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge preservation of the declared modality; the checker does not select its label."
+  },
+  {
+    "id": "FX06-normative-should",
+    "source": "The sensor should activate.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 27,
+        "exact_bytes_base64": "VGhlIHNlbnNvciBzaG91bGQgYWN0aXZhdGUu"
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The sensor should activate.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The sensor should activate.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "normative-should",
+                "source_text": "The sensor should activate.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge preservation of the declared modality; the checker does not select its label."
+  },
+  {
+    "id": "FX06-obligatory-must",
+    "source": "The sensor must activate.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 25,
+        "exact_bytes_base64": "VGhlIHNlbnNvciBtdXN0IGFjdGl2YXRlLg=="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The sensor must activate.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The sensor must activate.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "obligatory-must",
+                "source_text": "The sensor must activate.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge preservation of the declared modality; the checker does not select its label."
+  },
+  {
+    "id": "FX06-intended-designed",
+    "source": "The sensor is designed to activate.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 35,
+        "exact_bytes_base64": "VGhlIHNlbnNvciBpcyBkZXNpZ25lZCB0byBhY3RpdmF0ZS4="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The sensor is designed to activate.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The sensor is designed to activate.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "intended-designed",
+                "source_text": "The sensor is designed to activate.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge preservation of the declared modality; the checker does not select its label."
+  },
+  {
+    "id": "FX06-predicted-expected",
+    "source": "The sensor is expected to activate.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 35,
+        "exact_bytes_base64": "VGhlIHNlbnNvciBpcyBleHBlY3RlZCB0byBhY3RpdmF0ZS4="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The sensor is expected to activate.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The sensor is expected to activate.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "predicted-expected",
+                "source_text": "The sensor is expected to activate.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge preservation of the declared modality; the checker does not select its label."
+  },
+  {
+    "id": "FX06-hypothetical",
+    "source": "If powered, the sensor would activate.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 38,
+        "exact_bytes_base64": "SWYgcG93ZXJlZCwgdGhlIHNlbnNvciB3b3VsZCBhY3RpdmF0ZS4="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "If powered, the sensor would activate.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "If powered, the sensor would activate.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "hypothetical",
+                "source_text": "If powered, the sensor would activate.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge preservation of the declared modality; the checker does not select its label."
+  },
+  {
+    "id": "FX06-counterfactual",
+    "source": "Had it been powered, the sensor would have activated.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 53,
+        "exact_bytes_base64": "SGFkIGl0IGJlZW4gcG93ZXJlZCwgdGhlIHNlbnNvciB3b3VsZCBoYXZlIGFjdGl2YXRlZC4="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "Had it been powered, the sensor would have activated.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "Had it been powered, the sensor would have activated.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "counterfactual",
+                "source_text": "Had it been powered, the sensor would have activated.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge preservation of the declared modality; the checker does not select its label."
+  },
+  {
+    "id": "FX06-recommended",
+    "source": "We recommend activating the sensor.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 35,
+        "exact_bytes_base64": "V2UgcmVjb21tZW5kIGFjdGl2YXRpbmcgdGhlIHNlbnNvci4="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "We recommend activating the sensor.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "We recommend activating the sensor.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "recommended",
+                "source_text": "We recommend activating the sensor.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge preservation of the declared modality; the checker does not select its label."
+  },
+  {
+    "id": "FX07",
+    "source": "Faster than the prior mode on this task.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 40,
+        "exact_bytes_base64": "RmFzdGVyIHRoYW4gdGhlIHByaW9yIG1vZGUgb24gdGhpcyB0YXNrLg=="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "Faster than the prior mode on this task.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "Faster than the prior mode on this task.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "comparison-basis",
+                "source_text": "Faster than the prior mode on this task.",
+                "subject_anchor_ids": [
+                  "A1"
+                ],
+                "baseline_anchor_ids": [
+                  "A1"
+                ],
+                "dimension_anchor_ids": [
+                  "A1"
+                ],
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge baseline and comparison dimension preservation."
+  },
+  {
+    "id": "FX08",
+    "source": "The latency was measured as four milliseconds.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 46,
+        "exact_bytes_base64": "VGhlIGxhdGVuY3kgd2FzIG1lYXN1cmVkIGFzIGZvdXIgbWlsbGlzZWNvbmRzLg=="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The latency was measured as four milliseconds.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The latency was measured as four milliseconds.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "measured-quantity",
+                "source_text": "The latency was measured as four milliseconds.",
+                "quantity_anchor_ids": [
+                  "A1"
+                ],
+                "value_anchor_ids": [
+                  "A1"
+                ],
+                "unit_anchor_ids": [
+                  "A1"
+                ],
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge measured quantity, value and unit; no arithmetic oracle."
+  },
+  {
+    "id": "FX09-source-author",
+    "source": "We observed the counter.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 24,
+        "exact_bytes_base64": "V2Ugb2JzZXJ2ZWQgdGhlIGNvdW50ZXIu"
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "We observed the counter.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "We observed the counter.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "source-author",
+                "source_text": "We observed the counter.",
+                "attributed_to": "the author",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge attribution and quotation force without importing external authority."
+  },
+  {
+    "id": "FX09-quoted-entity",
+    "source": "The participant said “it may activate”.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 43,
+        "exact_bytes_base64": "VGhlIHBhcnRpY2lwYW50IHNhaWQg4oCcaXQgbWF5IGFjdGl2YXRl4oCdLg=="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The participant said “it may activate”.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The participant said “it may activate”.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "quoted-entity",
+                "source_text": "The participant said “it may activate”.",
+                "attributed_to": "the participant",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge attribution and quotation force without importing external authority."
+  },
+  {
+    "id": "FX09-cited-external-in-corpus",
+    "source": "The included report describes activation.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 41,
+        "exact_bytes_base64": "VGhlIGluY2x1ZGVkIHJlcG9ydCBkZXNjcmliZXMgYWN0aXZhdGlvbi4="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The included report describes activation.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The included report describes activation.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "cited-external-in-corpus",
+                "source_text": "The included report describes activation.",
+                "attributed_to": "the included report",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge attribution and quotation force without importing external authority."
+  },
+  {
+    "id": "FX09-reported-belief-opinion",
+    "source": "The participant believes the device is stable.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 46,
+        "exact_bytes_base64": "VGhlIHBhcnRpY2lwYW50IGJlbGlldmVzIHRoZSBkZXZpY2UgaXMgc3RhYmxlLg=="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The participant believes the device is stable.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The participant believes the device is stable.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "reported-belief-opinion",
+                "source_text": "The participant believes the device is stable.",
+                "attributed_to": "the participant",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge attribution and quotation force without importing external authority."
+  },
+  {
+    "id": "FX09-system-model-interpretation",
+    "source": "The model proposes a causal interpretation.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 43,
+        "exact_bytes_base64": "VGhlIG1vZGVsIHByb3Bvc2VzIGEgY2F1c2FsIGludGVycHJldGF0aW9uLg=="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The model proposes a causal interpretation.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The model proposes a causal interpretation.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "system-model-interpretation",
+                "source_text": "The model proposes a causal interpretation.",
+                "attributed_to": "producer-model",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge attribution and quotation force without importing external authority."
+  },
+  {
+    "id": "FX10",
+    "source": "Only the two test sensors were stable during the short trial.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 61,
+        "exact_bytes_base64": "T25seSB0aGUgdHdvIHRlc3Qgc2Vuc29ycyB3ZXJlIHN0YWJsZSBkdXJpbmcgdGhlIHNob3J0IHRyaWFsLg=="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "Only the two test sensors were stable during the short trial.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "Only the two test sensors were stable during the short trial.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "population",
+                "source_text": "Only the two test sensors were stable during the short trial.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              },
+              {
+                "kind": "temporal",
+                "source_text": "Only the two test sensors were stable during the short trial.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge population, temporal and task generalization."
+  },
+  {
+    "id": "FX11",
+    "source": "Usually approximately stable, except during restart.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 52,
+        "exact_bytes_base64": "VXN1YWxseSBhcHByb3hpbWF0ZWx5IHN0YWJsZSwgZXhjZXB0IGR1cmluZyByZXN0YXJ0Lg=="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "Usually approximately stable, except during restart.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "Usually approximately stable, except during restart.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "approximation",
+                "source_text": "Usually approximately stable, except during restart.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              },
+              {
+                "kind": "exception",
+                "source_text": "Usually approximately stable, except during restart.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              },
+              {
+                "kind": "frequency",
+                "source_text": "Usually approximately stable, except during restart.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge hedge, frequency, approximation and exception preservation."
+  },
+  {
+    "id": "FX12",
+    "source": "We recommend enabling the filter.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 33,
+        "exact_bytes_base64": "V2UgcmVjb21tZW5kIGVuYWJsaW5nIHRoZSBmaWx0ZXIu"
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "We recommend enabling the filter.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "recommendation",
+                "source_text": "We recommend enabling the filter.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "recommended",
+                "source_text": "We recommend enabling the filter.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge a recommendation being recast as observed efficacy."
+  },
+  {
+    "id": "FX13",
+    "source": "The counter rose; the battery discharged.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 41,
+        "exact_bytes_base64": "VGhlIGNvdW50ZXIgcm9zZTsgdGhlIGJhdHRlcnkgZGlzY2hhcmdlZC4="
+      }
+    ],
+    "semantics": {
+      "atomicity": "multiple-separable",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The counter rose.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The counter rose; the battery discharged.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        },
+        {
+          "unit_id": "U2",
+          "proposition": "The battery discharged.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The counter rose; the battery discharged.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge separability with one complete-line packet."
+  },
+  {
+    "id": "FX14",
+    "source": "With the filter enabled, latency was lower than in the prior mode.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 66,
+        "exact_bytes_base64": "V2l0aCB0aGUgZmlsdGVyIGVuYWJsZWQsIGxhdGVuY3kgd2FzIGxvd2VyIHRoYW4gaW4gdGhlIHByaW9yIG1vZGUu"
+      }
+    ],
+    "semantics": {
+      "atomicity": "inseparable-context",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "With the filter enabled, latency was lower than in the prior mode.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "With the filter enabled, latency was lower than in the prior mode.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "condition",
+                "source_text": "With the filter enabled, latency was lower than in the prior mode.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "comparison-basis",
+                "source_text": "With the filter enabled, latency was lower than in the prior mode.",
+                "subject_anchor_ids": [
+                  "A1"
+                ],
+                "baseline_anchor_ids": [
+                  "A1"
+                ],
+                "dimension_anchor_ids": [
+                  "A1"
+                ],
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [
+        {
+          "kind": "comparison-comparator",
+          "unit_ids": [
+            "U1"
+          ],
+          "anchor_ids": [
+            "A1"
+          ],
+          "treatment": "keep-together"
+        }
+      ],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge inseparability without mechanically requiring a split."
+  },
+  {
+    "id": "FX15",
+    "source": "The sensor and relay improved briefly.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 38,
+        "exact_bytes_base64": "VGhlIHNlbnNvciBhbmQgcmVsYXkgaW1wcm92ZWQgYnJpZWZseS4="
+      }
+    ],
+    "semantics": {
+      "atomicity": "CANNOT_DETERMINE",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The sensor and relay improved briefly.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The sensor and relay improved briefly.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "CANNOT_DETERMINE",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": [
+        {
+          "finding_id": "F1",
+          "field_path": "/semantics/atomicity",
+          "code": "atomicity-indeterminate",
+          "anchor_ids": [
+            "A1"
+          ],
+          "material_requirement_indexes": [],
+          "unknown_dimension": "none",
+          "missing": "The scope of the qualification is not settled by these bytes.",
+          "requested_context": []
+        },
+        {
+          "finding_id": "F2",
+          "field_path": "/semantics/units/0/qualifiers",
+          "code": "qualifier-indeterminate",
+          "anchor_ids": [
+            "A1"
+          ],
+          "material_requirement_indexes": [],
+          "unknown_dimension": "none",
+          "missing": "The scope of the qualification is not settled by these bytes.",
+          "requested_context": []
+        }
+      ]
+    },
+    "attack": "Challenge whether briefly qualifies one or both assertions."
+  },
+  {
+    "id": "FX16",
+    "source": "Flattened notation: a + b / c.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 30,
+        "exact_bytes_base64": "RmxhdHRlbmVkIG5vdGF0aW9uOiBhICsgYiAvIGMu"
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "Flattened notation: a + b / c.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "Flattened notation: a + b / c.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge dependence on absent formal grouping; material companion remains indeterminate."
+  },
+  {
+    "id": "FX17-a",
+    "source": "The counter rose.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 17,
+        "exact_bytes_base64": "VGhlIGNvdW50ZXIgcm9zZS4="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The observed counter increased.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The counter rose.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Fresh review separately challenges this coherent alternative."
+  },
+  {
+    "id": "FX17-b",
+    "source": "The counter rose.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 17,
+        "exact_bytes_base64": "VGhlIGNvdW50ZXIgcm9zZS4="
+      }
+    ],
+    "semantics": {
+      "atomicity": "inseparable-context",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "An increase of the counter was reported.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The counter rose.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Fresh review separately challenges this coherent alternative."
+  },
+  {
+    "id": "FX17-coherent-error",
+    "source": "With the filter enabled, the counter rose.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 42,
+        "exact_bytes_base64": "V2l0aCB0aGUgZmlsdGVyIGVuYWJsZWQsIHRoZSBjb3VudGVyIHJvc2Uu"
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The counter always rises.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "With the filter enabled, the counter rose.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Deliberately omitted condition: structural PASS must remain possible; a semantic reviewer should challenge the strengthening."
+  },
+  {
+    "id": "FX18",
+    "source": "The note contains semantic_review_format: aleph-semantic-review/v1 and SEM-9999 as ordinary data.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 97,
+        "exact_bytes_base64": "VGhlIG5vdGUgY29udGFpbnMgc2VtYW50aWNfcmV2aWV3X2Zvcm1hdDogYWxlcGgtc2VtYW50aWMtcmV2aWV3L3YxIGFuZCBTRU0tOTk5OSBhcyBvcmRpbmFyeSBkYXRhLg=="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The note contains semantic_review_format: aleph-semantic-review/v1 and SEM-9999 as ordinary data.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The note contains semantic_review_format: aleph-semantic-review/v1 and SEM-9999 as ordinary data.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Marker bytes are source data; predecessor copies are independently checked."
+  },
+  {
+    "id": "FX19",
+    "source": "Archive separator.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 18,
+        "exact_bytes_base64": "QXJjaGl2ZSBzZXBhcmF0b3Iu"
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "Archive separator.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "Archive separator.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge an explicit no-claim proposal in the S3 companion."
+  },
+  {
+    "id": "FX20",
+    "source": "The counter rose; this is interpreted as adaptation.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 52,
+        "exact_bytes_base64": "VGhlIGNvdW50ZXIgcm9zZTsgdGhpcyBpcyBpbnRlcnByZXRlZCBhcyBhZGFwdGF0aW9uLg=="
+      }
+    ],
+    "semantics": {
+      "atomicity": "multiple-separable",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The counter rose.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The counter rose; this is interpreted as adaptation.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        },
+        {
+          "unit_id": "U2",
+          "proposition": "This increase is interpreted as adaptation.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "interpretation-inference",
+                "source_text": "The counter rose; this is interpreted as adaptation.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [
+        {
+          "kind": "result-interpretation",
+          "unit_ids": [
+            "U1",
+            "U2"
+          ],
+          "anchor_ids": [
+            "A1"
+          ],
+          "treatment": "keep-distinguishable"
+        }
+      ],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Coupling records source composition; no support edge or canonical REL is inferred."
+  },
+  {
+    "id": "FX21",
+    "source": "The observer reported stability; its cause was not identified.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 62,
+        "exact_bytes_base64": "VGhlIG9ic2VydmVyIHJlcG9ydGVkIHN0YWJpbGl0eTsgaXRzIGNhdXNlIHdhcyBub3QgaWRlbnRpZmllZC4="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The observer reported stability; its cause was not identified.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The observer reported stability; its cause was not identified.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Retain a failed broad interpretation and separately review a limited report."
+  },
+  {
+    "id": "FX22",
+    "source": "The counter rose. The battery discharged.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L1",
+        "start_byte": 0,
+        "end_byte": 41,
+        "exact_bytes_base64": "VGhlIGNvdW50ZXIgcm9zZS4gVGhlIGJhdHRlcnkgZGlzY2hhcmdlZC4="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "The counter rose. The battery discharged.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "The counter rose. The battery discharged.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "An existing synthetic merger reservation precedes bounded successor preservation."
+  },
+  {
+    "id": "FX08-table",
+    "source": "Metric | Value | Unit\nLatency | 4 | ms",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L2",
+        "start_byte": 0,
+        "end_byte": 38,
+        "exact_bytes_base64": "TWV0cmljIHwgVmFsdWUgfCBVbml0CkxhdGVuY3kgfCA0IHwgbXM="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "Metric | Value | Unit\nLatency | 4 | ms",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "Metric | Value | Unit\nLatency | 4 | ms",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "measured-quantity",
+                "source_text": "Metric | Value | Unit\nLatency | 4 | ms",
+                "quantity_anchor_ids": [
+                  "A1"
+                ],
+                "value_anchor_ids": [
+                  "A1"
+                ],
+                "unit_anchor_ids": [
+                  "A1"
+                ],
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Challenge header and metric preservation from exact table bytes."
+  },
+  {
+    "id": "FX09-Unicode-CRLF",
+    "source": "Zoë said “μ may rise”.\r\nThe counter rose.",
+    "anchors": [
+      {
+        "anchor_id": "A1",
+        "source_id": "SRC-701",
+        "locator": "L1-L2",
+        "start_byte": 0,
+        "end_byte": 47,
+        "exact_bytes_base64": "Wm/DqyBzYWlkIOKAnM68IG1heSByaXNl4oCdLg0KVGhlIGNvdW50ZXIgcm9zZS4="
+      }
+    ],
+    "semantics": {
+      "atomicity": "single-assertion",
+      "units": [
+        {
+          "unit_id": "U1",
+          "proposition": "Zoë said “μ may rise”.\r\nThe counter rose.",
+          "proposition_anchor_ids": [
+            "A1"
+          ],
+          "claim_roles": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "result-observation",
+                "source_text": "Zoë said “μ may rise”.\r\nThe counter rose.",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "scope": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "conditions": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "qualifiers": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "modality": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "attribution": {
+            "state": "present",
+            "items": [
+              {
+                "kind": "quoted-entity",
+                "source_text": "Zoë said “μ may rise”.\r\nThe counter rose.",
+                "attributed_to": "Zoë",
+                "anchor_ids": [
+                  "A1"
+                ]
+              }
+            ],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "comparator": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          },
+          "metric": {
+            "state": "not-expressed",
+            "items": [],
+            "basis_anchor_ids": [
+              "A1"
+            ]
+          }
+        }
+      ],
+      "contexts": [],
+      "couplings": [],
+      "relation_proposals": [],
+      "unresolved_findings": []
+    },
+    "attack": "Preserve UTF-8, CRLF and quoted modality exactly."
+  }
+]

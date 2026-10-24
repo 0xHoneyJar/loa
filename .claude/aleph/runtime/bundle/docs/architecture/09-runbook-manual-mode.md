@@ -54,19 +54,87 @@ deeply, write down the criteria your instincts are using — honesty beats
 ritual purity.
 
 **S2 (packets).** Walk each source top to bottom with the criteria beside
-you. A packet row by hand uses every T3.1 field:
+you. Maintain `ledgers/source-walk.md` beside the packet index. Record
+contiguous zero-based half-open UTF-8 byte intervals from byte zero onward;
+classify each interval as admitted, no-candidate-observed, excluded, deferred,
+or unsupported. Record a next-work cursor whenever you stop. If two candidate
+events share one source position, give them one shared-position key and
+contiguous ordinals. If you stop after processing the first, the cursor remains
+at that position and points to ordinal 2; if you commit the siblings
+uninterrupted, do not fabricate an intermediate cursor. Do not advance to the
+next line until every shared sibling is committed. A packet row by hand uses
+every T3.1 field:
 `PKT-0042 | SRC-003 | L118-L131 | sha256:<hex> | "tight quote..." | 2 |
 active`. Canonical line ranges (or declared message locators for chat exports)
-are your locators; compute the span hash over the frozen bytes. Do a whole
-source in one sitting where possible — split
+are your locators; compute the span hash over the frozen bytes. For the
+versioned exact-evidence form, use one packet per fragment, copy each exact
+fragment as canonical base64, record explicit order, and declare
+`single-fragment`, `adjacent-fragments`, or `separate-fragments`. The quote is
+only a display preview. Never substitute normalized punctuation, ligatures,
+whitespace, or newlines; record unavailable bytes as degraded and non-exact
+with their source ID, source-local locator, and reason instead of creating a
+packet. Do a whole source in one sitting where possible — split
 sittings are where spans get skipped; if you must split, mark the exact
-resume point.
+next-work byte/event, predecessor record, and source hash. After the primary
+walk, perform a separate gap-review pass from the frozen source, criteria,
+walk, and packet evidence. Record the terminal primary cursor and recomputed
+review-basis digest before the result. Prefer a genuinely independent reviewer. If the
+same human must review in a later sitting, record that this is temporal
+separation, not proven fresh-context independence. Record no-gap-candidate,
+located gap-candidate, or cannot-determine. Validate and append any found
+candidate before closing the source; before reconciliation an open candidate
+has no packet/event IDs. Its reconciliation event must match the candidate
+coordinates and lie within the packet's exact fragment. A same-position
+reconciliation takes the next contiguous event ordinal without backdating a
+primary cursor or changing the primary review basis. Open or indeterminate
+results block S2. Neither a source-end cursor, review-basis digest, nor your
+no-gap result proves perfect recall or independent process isolation.
 
-**S3–S4 (claims, merges).** Draft claims on one pass, merge on a second,
-separate pass over the whole inventory (the barrier matters by hand too —
-merging while drafting is how duplicate conviction sneaks through). The
-contradiction rule is absolute: never merge two claims because reconciling
-prose is easy to write.
+**S3–S4 (claims, merges, relations).** Draft claims on one pass, merge on a
+second, separate pass over the whole inventory (the barrier matters by hand
+too — merging while drafting is how duplicate conviction sneaks through).
+The contradiction rule is absolute: never merge two claims because
+reconciling prose is easy to write.
+
+During an S2 one-source sitting or an S3 one-batch sitting, retain only
+relation proposals available from that legal context. Do not open another
+source or claim batch to discover a relation. Move any global, cross-source,
+cross-batch, or lineage-current-inventory question to S4. At S4, first finish
+lineage and merge/duplicate currentness. Then perform relation production and
+semantic challenge as separate passes or sittings. The same human may perform
+both only with recorded temporal separation; do not describe that as
+independent fresh-context isolation.
+
+For each complete proposal, serialize the fixed-order compact JSON review
+subject, preserving every canonical string and the packet-basis order, and
+compute `sha256:<lowercase hex>`. The review record's target must equal
+`relation-review-subject:<digest>` exactly. Only an `upheld` verdict for that
+exact subject may become a canonical row. `refuted` or `cannot-determine`
+cannot authorize it; retaining an indeterminate result requires a separate
+complete indeterminate proposal and upheld review.
+
+`ledgers/relations.md` may be absent or marker plus empty table before the S4
+closure barrier. For run format 1.5, write all canonical REL rows at C1 after
+endpoint currentness is known, run K2.16, and record
+`S4-C1-relations-closed` only after success. Refuse append, deletion, edit,
+retarget, replacement, supersession, normalization, or silent C1 rerun before
+bytes change. Record the procedure in the run log, but do not claim that a
+later K2.16 PASS proves the historical append instant. A relation is
+context/structure only: never count it as support, corroboration,
+contradiction, disposition, or authority.
+
+For 1.5 C2, use
+[`templates/09-internal-ambiguity.md`](templates/09-internal-ambiguity.md).
+Preserve exact expression bytes, perform only same-source search, retain the
+review subject and fresh verdict, and name affected C1 REL IDs explicitly.
+Review material impact against pinned Core requirements. Class B continues
+without a request. For Class C, present the complete Core-projected legal
+actions and consequences to the required human, halt, retain the response
+bytes exactly, and apply the selected procedural action once. Never infer a
+missing response or let procedure select a candidate, relation, disposition,
+or source meaning. Human observation/comment bytes are never semantic worker
+input. Record `S4-C2-ambiguities-finalized` only after all durable C2 state is
+legal; then record `S4-C3-exit` before S5.
 
 **S5 (dispositions).** One claim, one disposition, one line of reason for
 anything not obviously carried. Do dispositions in a different sitting from
@@ -116,7 +184,9 @@ self-check worksheet (§4). For the ⚖ items, manual mode substitutes **sampled
 self-audit**: pick the samples doc 06 §3 marks exhaustive (all exclusions,
 all contradictions, all big merges) plus a handful per disposition class, and
 re-derive each cold before comparing. Record what you sampled — the sampling
-record is part of the honesty, not paperwork.
+record is part of the honesty, not paperwork. A same-person S2 gap review or
+S12 self-audit remains a documented manual limitation and must not be described
+as independently isolated.
 
 **S13 (acceptance).** Same as agent mode: branch, PR, independent audit,
 authority acceptance. Manual work gets no audit discount.
@@ -176,3 +246,11 @@ The sparse rules trim representation, never guarantees. Even at full sparsity:
 - external facts come only from supplied referents;
 - the known-incompleteness section tells the truth about what sampling and
   sparsity left unchecked.
+
+## Manual representation records (1.6)
+
+Apply T2.3 and T3.6 without adapter control files. Preserve SRC bytes separately from AST outputs, freeze the exact inventory at S0, and record a receipt for each canonical PKT/CC/REL plus failed OBJ candidates. Required unavailable structure yields CANNOT_DETERMINE; never reconstruct equations or infer chart values. Obtain the specified fresh material-use review and seal uses at C1. Derive the section 17 limitation summary from retained material. Manual mode remains the only sanctioned execution path.
+
+## Slice 7 semantic review (1.7)
+
+New 1.7 manual runs follow T3.7 exact semantic files and seals. Retain distinct producer/reviewer actors and pass IDs with the exact seven-field manual evidence record. A same-person later sitting is temporal evidence and does not satisfy independent producer/reviewer review. These are manual semantic roles, not human semantic-authority gates. Original retained procedures and runs are not migrated.

@@ -26,6 +26,15 @@ superseding ledger rows citing this `VER` id (verdicts never edit ledgers);
 quorum panels produce one verdict file per member plus a one-line quorum
 summary in the stage folder's `README.md`.
 
+For a typed-relation review, `target` is exactly
+`relation-review-subject:sha256:<64 lowercase hex>`, identifying one complete
+pre-canonical relation subject. Only `upheld` may be cited by a REL row.
+`refuted` recommends `revise`, `reject`, or `not-applicable`; a revision is a
+new complete subject/digest/review. `cannot-determine` cannot authorize the
+original row; retaining an indeterminate canonical assessment requires its
+own complete proposal and upheld verdict. Exact target binding proves neither
+semantic correctness nor fresh-context independence.
+
 <!-- example -->
 | target | ledgers/claim-inventory.md CC-107 |
 | lens | disposition-refuter |
@@ -54,3 +63,11 @@ into Précis §17.
 
 <!-- example -->
 | S5 | disposition adversarial review | all exclusions + contradictions; 5/class sample | 14 claims | 9 | yes | VER-0032 (CC-104 note) |
+
+## L2F exact material use review (1.6)
+
+Use the existing VER field table with lens `L2F`, stage `S3` or `S4`, and target `representation-use-subject:sha256:<64-lowercase-hex>`. Verdicts remain `upheld`, `refuted`, or `cannot-determine`; candidate_evidence is empty. Only upheld permits the identical reserved usable CC/REL subject. The canonical use receipt names that VER. Show the exact subject, packet bytes/hashes, selected structural dependencies and provenance/limitations; withhold producer rationale, other batches, dispositions, authority responses, narratives and calibration answers. A retained VER is structural evidence, not proof of live freshness.
+
+## Slice 7 semantic review (1.7)
+
+L2S has the dedicated closed SemanticResult contract in T3.7. Keep the canonical JSON plus the T7.1 companion with exact target semantic-review-subject:sha256:<hex>, L2S lens and stage. Every field has an ordered review slot; candidate_evidence is exactly []. Assignment and execution evidence are retained outside reviewer attachments.

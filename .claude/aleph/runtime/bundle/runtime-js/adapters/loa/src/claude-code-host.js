@@ -613,6 +613,7 @@ export function buildClaudeCodeWorkerPrompt(invocation) {
         }
         chunks.push(`BEGIN CORE PART ${String(index + 1)} path=${JSON.stringify(part.path)} selector=${JSON.stringify(part.selector)} bytes=${String(bytes.byteLength)} digest=${part.digest}`, decodeUtf8(bytes, `Core prompt part ${part.materialized_path}`), `END CORE PART ${String(index + 1)}`, '');
     }
+    chunks.push(`BEGIN CORE PROCEDURAL RESTRICTIONS bytes=${String(Buffer.byteLength(stableJson(request.procedural_restrictions)))}`, stableJson(request.procedural_restrictions), 'END CORE PROCEDURAL RESTRICTIONS', '', `BEGIN TYPED DOWNSTREAM OPERATIONS bytes=${String(Buffer.byteLength(stableJson(request.downstream_operations)))}`, stableJson(request.downstream_operations), 'END TYPED DOWNSTREAM OPERATIONS', '');
     chunks.push(`BEGIN TASK bytes=${String(Buffer.byteLength(request.task_line))}`, request.task_line, 'END TASK', '');
     for (const [index, attachment] of request.allowlist.entries()) {
         const path = join(invocation.worker_bundle_root, attachment.attachment_path);

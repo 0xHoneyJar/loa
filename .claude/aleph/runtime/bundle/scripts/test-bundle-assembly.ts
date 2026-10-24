@@ -640,6 +640,79 @@ function execute(): TestReport {
       expectByteIdenticalTrees(baseline.hermes, repeated.hermes);
     });
 
+    runCase(results, 'identical payload under a different commit changes only provenance-bound identities', () => {
+      const source = copyFreshRepository(
+        tempRoot,
+        inventory,
+        frozenSource,
+        'alternate-provenance',
+      );
+      runGit(
+        source,
+        [
+          '-c',
+          'user.name=Aleph Bundle Tests',
+          '-c',
+          'user.email=aleph-bundle-tests.invalid',
+          '-c',
+          'commit.gpgsign=false',
+          'commit',
+          '--amend',
+          '-qm',
+          'same tree with alternate source provenance',
+        ],
+        true,
+      );
+      const changed = assembleOrFail(source, join(tempRoot, 'alternate-provenance-output'));
+      for (const target of ['loa', 'hermes'] as const) {
+        expectEqual(
+          changed.locks[target].core.tree_digest,
+          baseline.locks[target].core.tree_digest,
+          `${target} Core content identity`,
+        );
+        expectEqual(
+          changed.locks[target].checker_digest,
+          baseline.locks[target].checker_digest,
+          `${target} checker content identity`,
+        );
+        expectEqual(
+          changed.locks[target].adapter.tree_digest,
+          baseline.locks[target].adapter.tree_digest,
+          `${target} adapter content identity`,
+        );
+        expectEqual(
+          changed.locks[target].bundle.payload_digest,
+          baseline.locks[target].bundle.payload_digest,
+          `${target} payload content identity`,
+        );
+        expectEqual(
+          canonicalJson(changed.locks[target].files),
+          canonicalJson(baseline.locks[target].files),
+          `${target} file inventory`,
+        );
+        expectEqual(
+          changed.locks[target].provenance.vcs.commit_tree,
+          baseline.locks[target].provenance.vcs.commit_tree,
+          `${target} source tree identity`,
+        );
+        expectNotEqual(
+          changed.locks[target].provenance.vcs.commit,
+          baseline.locks[target].provenance.vcs.commit,
+          `${target} selected provenance commit`,
+        );
+        expectNotEqual(
+          changed.locks[target].lock_digest,
+          baseline.locks[target].lock_digest,
+          `${target} provenance-bound lock identity`,
+        );
+        expectNotEqual(
+          changed.locks[target].bundle.digest,
+          baseline.locks[target].bundle.digest,
+          `${target} provenance-bound bundle identity`,
+        );
+      }
+    });
+
     runCase(results, 'canonical JSON rejects unpaired UTF-16 surrogates', () => {
       let error = '';
       try {

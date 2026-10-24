@@ -434,13 +434,27 @@ function discoverFixtures(): DiscoveryResult {
   const legacy = new Set(SLICES.map((slice) => slice.name));
   const precis: PrecisFixture[] = [];
   const delegated: DelegatedFixture[] = [];
+  const visit = (name: string, dir: string): boolean => {
+    const readmePath = join(dir, 'README.md');
+    const readme = existsSync(readmePath) ? readFileSync(readmePath, 'utf8') : '';
+    if (!readme.includes('```aleph-fixture')) {
+      let found = false;
+      for (const child of readdirSync(dir, { withFileTypes: true }).filter((item) => item.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
+        found = visit(`${name}/${child.name}`, join(dir, child.name)) || found;
+      }
+      return found;
+    }
+    const declaration = parseFixtureDeclaration(name, dir);
+    if (declaration) {
+      if (declaration.kind === 'precis') precis.push(declaration);
+      else delegated.push(declaration);
+    }
+    return true;
+  };
   for (const entry of entries.filter((item) => item.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
     if (legacy.has(entry.name)) continue;
     const dir = join(FIXTURES_DIR, entry.name);
-    const declaration = parseFixtureDeclaration(entry.name, dir);
-    if (!declaration) continue;
-    if (declaration.kind === 'precis') precis.push(declaration);
-    else delegated.push(declaration);
+    if (!visit(entry.name, dir)) parseFixtureDeclaration(entry.name, dir);
   }
   if (!failures.some((message) => /\bK1\.[123]\b/.test(message))) {
     pass(
