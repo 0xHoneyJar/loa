@@ -966,7 +966,7 @@ fi
 # and the bats stubs (LOA_EGRESS_TEST_MODE=1 inside bats) record enforced: false instead. MANIFEST `egress`.
 EGRESS_NET="${LOA_EVAL_EGRESS_NETWORK:-}" EGRESS_ENFORCED=false
 EGRESS_ARMS_JSON="$(jq -c --argjson arms "$(printf '%s\n' "${ARMS[@]}" | jq -R . | jq -sc .)" '. as $s
-  | [$arms[] | . as $a | {($a): ([$s.arms // [] | .[] | select(.id == $a)][0].egress // ($s.egress // {} | .arms // {})[$a]
+  | [$arms[] as $a | {($a): ([$s.arms // [] | .[] | select(.id == $a)][0].egress // ($s.egress // {} | .arms // {})[$a]
       // ($s.egress // {}).default // "blocked")}] | add // {}' <<<"$SUITE_JSON")" || refuse "the suite's egress keys do not parse"
 EGRESS_BAD="$(jq -r 'to_entries[] | select(.value != "blocked" and .value != "bridge") | "\(.key)=\(.value)"' <<<"$EGRESS_ARMS_JSON")"
 [[ -z "$EGRESS_BAD" ]] || refuse "egress must be blocked or bridge: $EGRESS_BAD"

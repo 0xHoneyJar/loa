@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-24T06:49:06Z",
+  "generated": "2026-10-24T07:14:09Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -608,7 +608,7 @@
     ".claude/data/red-team-golden-set.json": "cfe26be6672eccf349cae83037c522f66c9edbc93b23bb0b1dcc081513854d7b",
     ".claude/data/schemas/advisor-strategy.schema.json": "7ce26abc1a0ddfca00f38d8525def7e01e7c0744bb763602727de8f6aa61fb50",
     ".claude/data/schemas/model-config-v2.schema.json": "be4ebe4440b4475d0097169dd7e998b019fcbaaaf50e6911f187ecc54f05b0eb",
-    ".claude/data/schemas/model-config-v3.schema.json": "b9950365e237ce6a17e9d55d0c3f86df9cc9d84eccabbace22436f32a7e68a04",
+    ".claude/data/schemas/model-config-v3.schema.json": "0b6b2cda0658649673f47b0e8b9073af365572f140926bc07b54d7f06de4a311",
     ".claude/data/schemas/model-economy-rollup.schema.json": "c12453bb96b6925d00f49483bc93c09481abe4e820294d4e82e6d8ddec913be4",
     ".claude/data/schemas/spiral-cycle-outcome.schema.json": "376115e2d2d8826d043f6c30086d18446184679dc3b8e50e9bbc0afe55193077",
     ".claude/data/schemas/verdict-quality.schema.json": "19ca6dea776c229b4756e1c7a83a7cd87049f1b8219b20987de7b140b272ca42",
@@ -663,7 +663,7 @@
     ".claude/data/zones.schema.yaml": "02196687542124d276373b8be46e0ef8c6444d33f2407a5efb7be736977eb2d4",
     ".claude/defaults/aliases-legacy.yaml": "1788c0f621159c4cbc4be1f7d7efc0e6d0c26675c3a6685c6596cfd9971f5fb2",
     ".claude/defaults/model-config.yaml": "7352890668ab0eccb7d04ded727c5024cdc6811bde603a0b26ee043bc868f0a6",
-    ".claude/defaults/model-config.yaml.checksum": "a0dee07f255fbd80eca544db3fb01451fb658bb01172d9b94629eb88b31eab50",
+    ".claude/defaults/model-config.yaml.checksum": "5956f5aecc87cee9e4b8ca0aef99ca313e32701f867243e20024d554c6086f65",
     ".claude/docs/runbooks/model-health-probe-incident.md": "64b8b607430a3525a863a66f8daa76b43bdb16f05388b4527c88302a475bee0c",
     ".claude/evals/flatline-3model.sh": "5e1f10389980c4f52bd79e1d81befb414a4c7aea9eb6bb9310aa5e5c9e194ebe",
     ".claude/hooks/README.md": "9bf2efcf0e514176c3265fe9ab1cdeb93e28937b9de79a620bdd268384d90d4e",
