@@ -135,9 +135,33 @@ A pipeline version is a commit of this repository together with the images it ru
 | Version | Commit | Images and CLI | Recorded in |
 |---|---|---|---|
 | intermediate, after Sprint 273 | `50881e6f4` | `loa-ablation:259`, `loa-egress-proxy:259`, Claude Code 2.1.299 | DEC-0906 and the next section |
-| measurement pin, after Sprint 274 | not yet recorded | not yet recorded | Task 3.5 adds it here and in a DEC row, after Tasks 3.1 to 3.3 land and the integrated self-check and the egress suite pass on the image |
+| measurement pin, after Sprint 274 | the commit that lands § Pipeline version (cycle-133 Sprint 274 pin) below | `loa-ablation:259`, `loa-egress-proxy:259` (rebuilt with the guard label), Claude Code 2.1.299 | the DEC row written right after that commit and the section below |
 
 `evals/analysis/c132/reproduce.sh` reproduces the cycle-132 record at that cycle's own pin by default, and `--pin` names a later version.
+
+## Pipeline version (cycle-133 Sprint 274 pin — the measurement pin)
+
+The measurement pin (sdd.md § 7.3; sprint.md Task 3.5) is **the commit that lands this section** — recorded with its tree
+hash in `grimoires/loa/decisions.yaml` (the DEC row written right after it) and named by the Task 3.5 smoke, by every later
+cycle-133 measurement and by `evals/analysis/c132/reproduce.sh --pin` for runs made at it. Later docs-only commits do not
+invalidate it; a change under `evals/harness`, `evals/suites`, `evals/graders`, `evals/fixtures` or `evals/analysis` does.
+
+| Component | Value |
+|---|---|
+| sandbox image | `loa-ablation:259` — `sha256:61e88d02d78519f3ecf20fc3bc162cc1b7a56cd927673ce9d94a7fdb78246dbb` (unchanged since the Sprint 273 pin) |
+| proxy image | `loa-egress-proxy:259` — `sha256:95c4c379107c2ae0ce7aea6ca653b9277b4a97c8eb91e2d91af35c1664b86eb0`, rebuilt from `evals/harness/Dockerfile.proxy` with the `loa-egress-guard` entrypoint and label `org.loa.egress.guard=1` (KF-058); `up` and the runner refuse the unlabelled image |
+| Claude Code in the image | `2.1.299` (label `org.loa.claude_code_version`; the home-scope surface is derived for this version, `SM_SURFACE_DERIVED_FOR`) |
+| grader | 1.5.0 (`ablation-grade.sh`, `--judge-verdicts`) · row writer 1.6 (`ablation-row.sh`) · session library `lib/session-exec.sh` · registration v2 (`registration.py`, `looks_seen`) · the four finding validators (`.claude/schemas/finding.schema.json` v1) · seeding library `lib/corpus-seed.sh` |
+| mount modes | `pinned-root` (default) and `home-scope` (`lib/sandbox-mount.sh`, `took-effect.sh` clauses (e)–(g), clause (f) credits Read-tool and single-file Bash reads by content) |
+| egress block | `lib/egress-proxy.sh` with a guard namespace per blocked sandbox (`guard`, `--network container:<guard>`); allowlist from `.claude/defaults/model-config.yaml` `egress_hosts[]` (10 hosts) |
+| self-check | `grimoires/loa/reports/ablation-2.0/self-check-c133-s274.txt` — 62 checks PASS, 0 FAIL at this pin: a CONNECT probe per allowlisted host (no credential, no completion token), every denial case, both gateways on 22/80/443 and a host listener unreachable from the guard, the sidecar's 22/443, metadata |
+| egress suite | `evals/tests/egress-proxy.bats` EP-1 … 9, EGR-1 … 13 — 22/22 with real containers on this host (`~/.cache/loa/cycle-133/tests/s3e-lead-gate-094721.log`) and the CI eval job green on the GitHub runner (run 40085119807); never quarantined |
+| supervisor | `lib/batch-supervisor.sh` (`run-ablation.sh --supervised`) |
+
+A live batch at this pin: `egress-proxy.sh allowlist > hosts; egress-proxy.sh up <batch> hosts --image loa-egress-proxy:259;
+egress-proxy.sh self-check <batch> --image loa-ablation:259; LOA_EVAL_EGRESS_NETWORK=loa-egress-<batch> run-ablation.sh …
+--image loa-ablation:259 [--supervised]`; `egress-proxy.sh down <batch> --log-dir <dir>` afterwards. The Task 3.5 smoke
+used the lead's driver (`grimoires/loa/reports/ablation-2.0/c133-smoke/README.md`).
 
 ## Pipeline version (cycle-133 Sprint 273 pin)
 
