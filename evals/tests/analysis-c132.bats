@@ -3,7 +3,7 @@
 # evals/tests/analysis-c132.bats — cycle-132 Sprint 1 Task 1.8 (FR-5, FR-6; SDD §1.4, §5.2, §5.3)
 #
 # Runs the stdlib unit tests of evals/analysis/c132/ (python3 -m unittest discover) and pins the
-# case count, then drives each CLI as CI and the lead will: python3 -I from a foreign working
+# case count (tests/COUNT), then drives each CLI as CI and the lead will: python3 -I from a foreign working
 # directory (reads-c132.py --make-inputs / --placebo / --look / --final on a synthetic batch,
 # power.py on the frozen mini fixture, judge_agree.py usage) — byte-identical across two runs.
 # =============================================================================
@@ -27,9 +27,15 @@ PY
 }
 
 @test "AC-1 the unit tests pass and the case count is pinned" {
+  # the count lives in tests/COUNT (one line: the unittest-collected case count); a change that adds or drops a
+  # case updates it deliberately, so a silently lost test fails here instead of passing with fewer cases
+  # (Sprint 272 CI fix: the literal 129 had been stale since Sprint 270; design by Sprint 273 implementer B)
+  local want
+  want="$(tr -d '[:space:]' < "$A/tests/COUNT")"
+  [[ "$want" =~ ^[0-9]+$ ]]
   run python3 -m unittest discover -s "$A/tests"
   [ "$status" -eq 0 ]
-  [[ "$output" == *"Ran 129 tests"* ]]
+  [[ "$output" == *"Ran $want tests"* ]]
   [[ "$output" == *$'\nOK'* ]]
 }
 
