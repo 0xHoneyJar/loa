@@ -136,3 +136,15 @@ grimoires/loa/ledger.json merge=ours
 
 *.md diff=markdown
 *.json diff=json
+
+# =============================================================================
+# FROZEN FIXTURE TREES (cycle-133 FR-5, bd-dt5r8)
+# =============================================================================
+# Vendored framework snapshots of the review-catch corpus and the sensitivity
+# grade trees are frozen data: collapsed in GitHub diffs and language stats,
+# and `-diff` also hides their content in local `git diff` (use
+# `git diff --text` to see it). The markdown and TSV at the fixture root stay
+# reviewable. Repo-wide lint walks exclude the same trees
+# (tests/unit/lint-walk-excludes-fixtures.bats).
+evals/fixtures/review-prs/pr-*/** linguist-generated -diff
+grimoires/loa/reports/ablation-2.0/*-grades/** linguist-generated -diff

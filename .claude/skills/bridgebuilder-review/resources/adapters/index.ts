@@ -54,6 +54,7 @@ export function createLocalAdapters(
 
   const ghAdapter = new GitHubCLIAdapter({
     reviewMarker: config.reviewMarker,
+    ...(config.ghMaxBufferBytes !== undefined ? { ghMaxBufferBytes: config.ghMaxBufferBytes } : {}),
   });
 
   // Shared deriveTimeoutMs helper. Sprint-bug-143 #789a granted OpenAI

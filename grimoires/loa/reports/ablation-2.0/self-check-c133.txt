@@ -1,0 +1,50 @@
+WARNING: Your kernel does not support memory limit capabilities or the cgroup is not mounted. Limitation discarded.
+allow api.anthropic.com: PASS connect 200
+allow api.openai.com: PASS connect 200
+allow auth.openai.com: PASS connect 200
+allow bedrock-runtime.us-east-1.amazonaws.com: PASS connect 200
+allow bedrock.us-east-1.amazonaws.com: PASS connect 200
+allow chatgpt.com: PASS connect 200
+allow generativelanguage.googleapis.com: PASS connect 200
+allow oauth2.googleapis.com: PASS connect 200
+allow sts.amazonaws.com: PASS connect 200
+allow sts.us-east-1.amazonaws.com: PASS connect 200
+deny github.com: PASS connect 403 (https://github.com/)
+deny raw.githubusercontent.com: PASS connect 403 (https://raw.githubusercontent.com/)
+deny gitlab.com: PASS connect 403 (https://gitlab.com/)
+deny api.github.com: PASS connect 403 (https://api.github.com/)
+deny codeload.github.com: PASS connect 403 (https://codeload.github.com/)
+deny objects.githubusercontent.com: PASS connect 403 (https://objects.githubusercontent.com/)
+deny git ls-remote github.com: PASS failed as required
+deny git ls-remote raw.githubusercontent.com: PASS failed as required
+deny git ls-remote gitlab.com: PASS failed as required
+deny direct IPv4 via proxy: PASS connect 403 (https://1.1.1.1/)
+deny direct IPv6 via proxy: PASS connect 403 (https://[2606:4700:4700::1111]/)
+deny direct IPv4 without proxy: PASS failed as required
+deny direct IPv6 without proxy: PASS failed as required
+deny github.com without proxy: PASS failed as required
+deny CONNECT allowlisted host port 22: PASS connect 403 (https://api.anthropic.com:22/)
+deny CONNECT allowlisted host port 80: PASS connect 403 (https://api.anthropic.com:80/)
+deny plain HTTP github.com: PASS HTTP 403 (http://github.com/)
+deny plain HTTP allowlisted host port 80: PASS HTTP 500 (http://api.anthropic.com/)
+deny metadata via proxy: PASS connect 403 (https://169.254.169.254/)
+deny metadata without proxy: PASS failed as required
+deny host gateway via proxy: PASS connect 403 (https://192.168.48.1/)
+deny host gateway 80 without proxy: PASS failed as required
+deny host gateway 443 without proxy: PASS failed as required
+deny host gateway 22 without proxy: PASS failed as required
+deny encoding https://GITHUB.COM/: PASS connect 403 (https://GITHUB.COM/)
+deny encoding https://github.com./: PASS connect 403 (https://github.com./)
+deny encoding https://16843009/: PASS connect 403 (https://16843009/)
+deny encoding https://0x01010101/: PASS connect 403 (https://0x01010101/)
+deny encoding https://0177.0.0.1/: PASS connect 403 (https://0177.0.0.1/)
+deny encoding https://[::ffff:1.1.1.1]/: PASS connect 403 (https://[::ffff:1.1.1.1]/)
+deny encoding https://github.com%2e/: PASS connect 403 (https://github.com%2e/)
+deny resolver lookup github.com: PASS failed as required
+deny external DNS udp 8.8.8.8: PASS failed as required
+deny external DNS tcp 1.1.1.1: PASS failed as required
+deny misconfigured proxy port: PASS failed as required
+deny misconfigured proxy host: PASS failed as required
+deny no proxy at all: PASS failed as required
+denial attribution: PASS source 192.168.48.3: 1.1.1.1 127.0.0.1 169.254.169.254 192.168.48.1 2606:4700:4700::1111 ::ffff:1.1.1.1 api.anthropic.com api.github.com codeload.github.com github.com github.com. gitlab.com objects.githubusercontent.com raw.githubusercontent.com
+sidecar netfilter: PASS default DROP, private/loopback/link-local/CGNAT rejected, tcp 443 only

@@ -2498,8 +2498,23 @@ bridgebuilder:
   # Maximum files per PR (excess truncated, risk-prioritized: security files first)
   max_files_per_pr: 50
 
-  # Maximum diff size in bytes (100KB default)
+  # Maximum retained and submitted patch bytes. The code default is 512000 (SKILL.md table); the paged
+  # fetch (cycle-133 C-1) plans the budget on the recorded per-file sizes in selection order: the first
+  # file over the budget is retained cut (`patch_truncated`), the rest are omitted (`byte_budget`) and
+  # named in the posted coverage record. Any omission of a reviewable file blocks the merge verdict.
   max_diff_bytes: 100000
+
+  # Per-`gh` call buffer in bytes (cycle-133 C-1; KF-054). Each call receives ONE page of the files list
+  # (paged, SHA-pinned fetch), so this bounds memory only. 1 MiB … 512 MiB; out of range → the default
+  # 64 MiB with a warning. Env: BRIDGEBUILDER_GH_MAX_BUFFER_BYTES is not read; set it here.
+  gh_max_buffer_bytes: 67108864
+
+  # Writer-role allowlist (cycle-133 C-2; KF-055): the routes allowed to WRITE the enriched consensus
+  # review. Read from the TRUSTED configuration only (the base branch's .loa.config.yaml or
+  # BRIDGEBUILDER_TRUSTED_CONFIG), never from the PR head; it NARROWS the proven set and never widens it
+  # (a route the code has not proven no-tools — codex-headless today — is refused even if listed). A writer
+  # whose reply carries tool-call markup is rejected and the un-enriched consensus is posted (exit 3).
+  writer_role_allowlist: [claude-headless, anthropic-api, openai-api, google-api, bedrock-api]
 
   # Token budget for LLM input (persona + diff + metadata)
   max_input_tokens: 8000

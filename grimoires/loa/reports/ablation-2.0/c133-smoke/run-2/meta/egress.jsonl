@@ -1,0 +1,2 @@
+{"label":"REVIEW","egress":"blocked","network":"loa-egress-smoke-c133-s274-r2","guard":"loa-abl-smoke-c133-s274-r2-a1_full-smoke-review-c133b-t1-REVIEW-guard-461315958","proxy_url":"http://loa-proxy-smoke-c133-s274-r2:8888","enforced":true,"dns":"0.0.0.1"}
+{"label":"AUDIT","egress":"blocked","network":"loa-egress-smoke-c133-s274-r2","guard":"loa-abl-smoke-c133-s274-r2-a1_full-smoke-review-c133b-t1-AUDIT-guard-69553605","proxy_url":"http://loa-proxy-smoke-c133-s274-r2:8888","enforced":true,"dns":"0.0.0.1"}

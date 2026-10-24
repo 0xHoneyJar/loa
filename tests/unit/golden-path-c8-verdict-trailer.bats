@@ -18,6 +18,9 @@ setup() {
         cp "$PROJECT_ROOT/.claude/scripts/$f" "$TEST_TMPDIR/.claude/scripts/"
     done
     chmod +x "$TEST_TMPDIR/.claude/scripts/verdict-derive.sh"
+    # (cycle-133 C-11: verdict-derive.sh judges finding bullets through lib/finding-validate.sh)
+    mkdir -p "$TEST_TMPDIR/.claude/scripts/lib"
+    cp "$PROJECT_ROOT/.claude/scripts/lib/finding-validate.sh" "$TEST_TMPDIR/.claude/scripts/lib/"
 
     # Initialize git repo for bootstrap's PROJECT_ROOT detection
     cd "$TEST_TMPDIR"
@@ -276,7 +279,7 @@ All good
 
 ## Observations
 
-- **HIGH** (speculative, confidence: low) `src/x.py:1` — might race under load
+- **HIGH** (speculative, confidence: low) `src/x.py:1` — might race under load. Failure: when two workers flush the same queue then one batch is written twice.
 
 <!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":1,"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
 EOF
@@ -298,8 +301,8 @@ All good
 
 ## Observations
 
-- **HIGH** (speculative, confidence: low) `src/x.py:1` — might race under load
-- **HIGH** (speculative, confidence: low) `src/y.py:9` — might leak a handle
+- **HIGH** (speculative, confidence: low) `src/x.py:1` — might race under load. Failure: when two workers flush the same queue then one batch is written twice.
+- **HIGH** (speculative, confidence: low) `src/y.py:9` — might leak a handle. Failure: when two workers flush the same queue then one batch is written twice.
 
 <!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":2,"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
 EOF
@@ -319,7 +322,7 @@ All good
 
 ## Observations
 
-- **HIGH** (speculative, confidence: low) `src/x.py:1` — might race under load
+- **HIGH** (speculative, confidence: low) `src/x.py:1` — might race under load. Failure: when two workers flush the same queue then one batch is written twice.
 
 <!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":1,"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
 EOF
@@ -374,7 +377,7 @@ All good
 
 ## Observations
 
-- **HIGH** (speculative, confidence: low) `src/x.py:1` — might race under load
+- **HIGH** (speculative, confidence: low) `src/x.py:1` — might race under load. Failure: when two workers flush the same queue then one batch is written twice.
 
 <!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":0},"excluded":1,"sprint_id":"sprint-1","ts":"2026-07-07T00:00:00Z"} -->
 EOF

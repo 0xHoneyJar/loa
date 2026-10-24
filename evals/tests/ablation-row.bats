@@ -574,7 +574,7 @@ envset() {  # envset <run> <gate> <jq filter on the envelope>
   run "$ROW" --validate "$T/rows.jsonl"
   [ "$status" -eq 0 ]
   local r; r="$(last)"
-  [ "$(jq -r '"\(.row_writer_version) \(.defect_catch_rate) \(.defect_catch_rate_pm3) \(.defect_catch_rate_pm3_v1)"' <<<"$r")" = "1.5 0.6667 0.3333 0.3333" ]   # cycle-132: row writer 1.5 (additive)
+  [ "$(jq -r '"\(.row_writer_version) \(.defect_catch_rate) \(.defect_catch_rate_pm3) \(.defect_catch_rate_pm3_v1)"' <<<"$r")" = "1.6 0.6667 0.3333 0.3333" ]   # cycle-132: row writer 1.5 (additive); cycle-133: 1.6 (additive)
   [ "$(jq -c '[.defects_missed, .defects_missed_pm3, .defects_missed_pm3_v1, .credits_function_only, .oracle_exposed_defects, .oracle_exposed_unknown]' <<<"$r")" = '[["d3"],["d2","d3"],["d2","d3"],["d2"],["d1"],[]]' ]
   [ "$(jq -r '"\(.grader_rule) \(.grader_version) \(.corpus_sha256)"' <<<"$r")" = "pm3_or_same_function 1.3.0 c0ffee" ]
   # a 1.2.x grade names no rule: grader_rule pm3, the new rates null
@@ -712,7 +712,7 @@ make_cell_rows() {
   run "$ROW" --validate "$T/rows.jsonl"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   local r; r="$(last)"
-  [ "$(jq -r .row_writer_version <<<"$r")" = 1.5 ]
+  [ "$(jq -r .row_writer_version <<<"$r")" = 1.6 ]   # cycle-133: row writer 1.6 (additive)
   [ "$(jq -r '[.bare_sessions, .sessions_valid, .sessions_attempted, .session_costs, .dollar_match, .recall_session1] | map(tostring) | join(" ")' <<<"$r")" = "null null null null null null" ]
   [ "$(jq -r '(.all_spend_usd - .cost_usd) * 100 | round' <<<"$r")" = 225 ]
   [ "$(jq -r '"\(.batch_context) \(.mount_cheval) \(.label_set) \(.attempts)"' <<<"$r")" = "batch-x ok v2 2" ]
@@ -857,4 +857,14 @@ make_cell_rows() {
     "$T/runs/a3-review/grade.json" > "$T/g" && mv "$T/g" "$T/runs/a3-review/grade.json"
   row a3-review "$REVIEW_TASK"
   [ "$(jq -c '.contaminated' <<<"$(last)")" = '{"phase":"BARE","pattern":"outside_path"}' ]
+}
+
+@test "RW-c133-a2 (review r1 DISS-001) an infrastructure_error run whose reason is unmetered_attempt carries metering_unmetered: true and stays an invalid row; any other row carries false" {
+  edit_pipe a1-build '.status = "infrastructure_error" | .reason = "unmetered_attempt: IMPLEMENT" | (.phases[1].metering = "unmetered_attempt")'
+  row a1-build "$BUILD_TASK"
+  [ "$(jq -r '"\(.status) \(.metering_unmetered)"' <<<"$(last)")" = "infrastructure_error true" ]
+  run "$ROW" --validate "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+  row a0-build "$BUILD_TASK"
+  [ "$(jq -r '.metering_unmetered' <<<"$(last)")" = false ]
 }

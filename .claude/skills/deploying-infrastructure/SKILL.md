@@ -329,20 +329,21 @@ Automated mode is active when ALL conditions hold:
 | RELEASE | Generate release body | Retained in candidate; publication deferred |
 | NOTIFY | Generate notification body | Retained in candidate; publication deferred |
 
-Inspect `.run/post-merge-candidate.json`, its exact target commit and the
-generated patch before publishing. From a clean checkout of that target,
-with the same origin, use:
+Inspect `.run/post-merge-candidate.json` (schema 2: `target_commit` = the
+merge; tree, title, notes and ledger-patch digests sealed) and the patch.
+From a FULL clone at the merge or `generated_head`, with
+`post-merge-ledger.patch` beside the candidate:
 
 ```bash
 .claude/scripts/post-merge-orchestrator.sh \
   --publish .run/post-merge-candidate.json \
-  --approve-sha256 <digest-of-the-inspected-candidate>
+  --approve-sha256 <inspected-digest>   # exit 3 → add --ledger-only
 ```
 
-Publication verifies the remote tag, release and comment by read-back.
-Failure is recorded as `FAILED` and returns nonzero. A local tag or attempted
-GitHub operation is not publication evidence. See
-`grimoires/loa/runbooks/post-merge-candidates.md` for artifact recovery.
+The tag lands on the merge once a fetch proves it an ancestor of `main`;
+tag, release, comment are read back; the leased ledger fast-forward defers
+(exit 3) if `main` moved. Failure records `FAILED`, nonzero. See
+`grimoires/loa/runbooks/post-merge-candidates.md`.
 
 ### Manual vs Automated
 

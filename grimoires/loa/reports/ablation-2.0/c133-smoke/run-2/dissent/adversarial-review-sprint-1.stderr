@@ -1,0 +1,18 @@
+[adversarial-review] adversarial review run started 2026-10-24T11:56:04Z (if it leaves no record: --record-fallback failed --since <this time>)
+[adversarial-review] Starting adversarial review review for sprint-1
+[adversarial-review] Model: gpt-5.5-pro, Budget: 200c, Timeout: 600s
+[adversarial-review] budget: estimate 55c over 2 planned voice(s) (primary gpt-5.5-pro 43c, companion claude-headless 12c)
+[adversarial-review] budget: budget_scale=diff — configured 200c, estimate 55c, effective 200c (max 1200c)
+[adversarial-review] Dissenter input: model=gpt-5.5-pro estimated_input_tokens=2619 primary_budget=24000 max_output_tokens=16000
+[adversarial-review] Size cap: skipping .claude/scripts/ledger-lib.sh (858 lines, 24493 bytes)
+[adversarial-review] Size cap: skipping .claude/scripts/mount-submodule.sh (974 lines, 30925 bytes)
+[adversarial-review] Escalated P0 file: .claude/scripts/classify-pr-type.sh (1179 tokens, 1/3)
+[adversarial-review] Secret scan: 1 redaction(s) applied
+[adversarial-review] Fallback chain: gpt-5.5-pro gpt-5.5 gemini-3.1-pro claude-headless
+[adversarial-review] Companion voice (anthropic family): claude-headless (wait cap 940s)
+[model-adapter:shim] Using model-invoke (cheval) dispatch (cycle-109 T3.6 unconditional)
+[model-adapter:shim] Mode 'dissent' → Agent 'flatline-dissenter'
+[model-adapter:shim] Model: gpt-5.5-pro → openai:gpt-5.5-pro, Phase: review
+[adversarial-review] WARN: `failure_mode` is an alias of `failure_scenario`; removed in 2.1.0 (4 finding(s) named only failure_mode)
+[adversarial-review] Companion voice: claude-headless succeeded
+[adversarial-review] Output written: /workspace/grimoires/loa/a2a/sprint-1/adversarial-review.json

@@ -27,8 +27,16 @@
 #   notes-guard.sh rotate [--file PATH]
 #       Copy the whole file to <dir>/archive/notes/NOTES-<UTC>.md, fsync the
 #       archive, refuse an existing target (exit 4), then rewrite the live
-#       file with the `read` selection plus an `## Archive pointers` line via
-#       tmp file + mv. Never stashes (the issue #555 data-loss class).
+#       file section by section via tmp file + mv (cycle-133 C-4(b)):
+#       every `## Blockers` block whole, every `## Active Sub-Goals` block
+#       whole, the newest `## Session Continuity*` block whole, the three
+#       newest `## Decision Log*` blocks (the only section truncated: to the
+#       69,632-byte budget the others leave, headings always kept, plus a
+#       truncation line naming the archive), the newest 20 `## Session Log`
+#       entries (table rows or list items; the first block's preamble and
+#       table header kept), then `## Archive pointers`. A section whose
+#       header is missing from the source is emitted as its header alone.
+#       Other sections stay in the archive. Never stashes (issue #555 class).
 #
 # Thresholds are literals on purpose (PRD FR-10: no config key, no env knob).
 # Default --file: $LOA_GRIMOIRE_DIR/NOTES.md, else <repo>/grimoires/loa/NOTES.md.
@@ -105,6 +113,8 @@ index_blocks() {
       if (heading ~ /^## Blockers/) kind = "blockers"
       else if (heading ~ /^## Session Continuity/) kind = "sc"
       else if (heading ~ /^## Decision Log/) kind = "dl"
+      else if (heading ~ /^## Active Sub-Goals/) kind = "asg"
+      else if (heading ~ /^## Session Log/) kind = "slog"
       if (match(heading, /[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/)) date = substr(heading, RSTART, RLENGTH)
       next
     }
@@ -219,6 +229,68 @@ cmd_read() {
 }
 
 # --- rotate ------------------------------------------------------------------
+# Ranges ("start end") of every block of one kind, file order.
+kind_ranges() { awk -F'\t' -v k="$2" '$3 == k { print $1 " " $2 }' <<<"$1"; }
+# The newest N blocks of one kind (heading date desc, then position), as select_ranges ranks them.
+newest_ranges() {
+  awk -F'\t' -v k="$2" '$3 == k { print $4 "\t" $1 "\t" $2 }' <<<"$1" \
+    | sort -t"$(printf '\t')" -k1,1r -k2,2n | head -"$3" | awk -F'\t' '{ print $2 " " $3 }'
+}
+# Emit the ranges given in $1, or the bare header $2 when there are none.
+whole_or_header() {
+  if [[ -n "$1" ]]; then emit_ranges <<<"$1"; else printf '%s\n' "$2"; fi
+}
+# Session Log: the first block's heading and preamble (comments, table header
+# and separator), then the newest 20 entries across every Session Log block
+# (append-only: the newest are last). An entry is a list item or a table row
+# that is neither a separator nor a header (a row followed by a separator).
+session_log_part() {  # $1=ranges
+  [[ -n "$1" ]] || { printf '## Session Log\n'; return 0; }
+  emit_ranges <<<"$1" | awk -v keep=20 '
+    function is_sep(x) { return x ~ /^\|[[:space:]:|-]+\|?[[:space:]]*$/ }
+    { line[NR] = $0 }
+    END {
+      blk = 0; ne = 0; np = 0; started = 0
+      for (i = 1; i <= NR; i++) {
+        l = line[i]
+        if (l ~ /^## Session Log/) { blk++; if (blk == 1) pre[++np] = l; started = 0; continue }
+        sep = is_sep(l)
+        hdr = (l ~ /^\|/ && !sep && i < NR && is_sep(line[i + 1]))
+        if (!sep && !hdr && (l ~ /^\|/ || l ~ /^[-*] /)) { ent[++ne] = l; started = 1; continue }
+        if (blk == 1 && !started && (sep || hdr || l ~ /^<!--/ || l == "")) pre[++np] = l
+      }
+      while (np > 1 && pre[np] == "") np--
+      for (i = 1; i <= np; i++) print pre[i]
+      for (i = (ne > keep ? ne - keep + 1 : 1); i <= ne; i++) print ent[i]
+    }'
+}
+# The retained file of rotate, on stdout. $1 = the archive path a truncation line names.
+build_retained() {
+  local archive="$1" idx w budget used i
+  idx=$(index_blocks)
+  w=$(mktemp -d)
+  whole_or_header "$(kind_ranges "$idx" blockers)" "## Blockers" > "$w/1"
+  whole_or_header "$(kind_ranges "$idx" asg)" "## Active Sub-Goals" > "$w/2"
+  whole_or_header "$(newest_ranges "$idx" sc 1)" "## Session Continuity" > "$w/3"
+  whole_or_header "$(newest_ranges "$idx" dl 3)" "## Decision Log" > "$w/4"
+  session_log_part "$(kind_ranges "$idx" slog)" > "$w/5"
+  used=$(( $(stat -c%s "$w/1") + $(stat -c%s "$w/2") + $(stat -c%s "$w/3") + $(stat -c%s "$w/5") ))
+  budget=$(( READ_CAP - used ))
+  if (( $(stat -c%s "$w/4") > budget )); then
+    # every heading kept; body lines past the budget dropped; the archive holds the rest
+    awk -v b="$budget" '/^## / { print; n += length($0) + 1; next }
+      { n += length($0) + 1; if (n <= b) print }' "$w/4" > "$w/4c"
+    printf '[notes-guard: Decision Log truncated at the %d-byte retention budget — full blocks in %s]\n' "$READ_CAP" "$archive" >> "$w/4c"
+    mv -f -- "$w/4c" "$w/4"
+  fi
+  for i in 1 2 3 4 5; do
+    (( i == 1 )) || printf '\n'
+    cat -- "$w/$i"
+  done
+  find "$w" -mindepth 1 -delete
+  rmdir -- "$w"
+}
+
 cmd_rotate() {
   if [[ ! -f "$file" ]]; then echo "notes-guard: $file does not exist — nothing to rotate" >&2; return 2; fi
   local dir archive_dir stamp target tmp sel ranges
@@ -234,18 +306,20 @@ cmd_rotate() {
   # 1. archive the whole file and make it durable BEFORE the live file changes
   cp -- "$file" "$target"
   sync -d -- "$target" 2>/dev/null || sync
-  # 2. retained content = the read selection (same order, same cap) + archive pointer
+  # 2. retained content = section by section (build_retained) + archive pointer
   sel=$(mktemp)
-  ranges=$(select_ranges)
-  if [[ -n "$ranges" ]]; then emit_ranges <<<"$ranges" > "$sel"; else cat -- "$file" > "$sel"; fi
+  build_retained "$target" > "$sel"
   tmp=$(mktemp -- "$dir/.NOTES.md.rotate.XXXXXX")
-  head -c "$READ_CAP" -- "$sel" > "$tmp"
+  cat -- "$sel" > "$tmp"
   printf '\n## Archive pointers\n\n- %s — %s bytes archived %s by notes-guard.sh rotate (full history: notes-guard.sh read --full --file %s)\n' \
     "$target" "$(stat -c%s "$target")" "$stamp" "$target" >> "$tmp"
   rm -f -- "$sel"
   # 3. atomic replace in the same directory; no stash, no in-place edit
   mv -f -- "$tmp" "$file"
   echo "notes-guard: rotated $file → $target ($(stat -c%s "$target") bytes archived, $(stat -c%s "$file") bytes retained)" >&2
+  if (( $(stat -c%s "$file") >= WARN_BYTES )); then
+    echo "NOTES-WARN: the whole-kept sections (Blockers, Active Sub-Goals, Session Continuity) leave $(stat -c%s "$file") bytes — close resolved blockers and finished sub-goals" >&2
+  fi
   return 0
 }
 

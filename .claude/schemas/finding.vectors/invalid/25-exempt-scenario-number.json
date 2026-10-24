@@ -1,0 +1,16 @@
+{
+  "description": "an exempt severity's scenario must still be a string",
+  "expect": {
+    "errors": [
+      "failure_scenario"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "failure_scenario": 5,
+    "severity": "PRAISE"
+  },
+  "markdown": null
+}

@@ -447,7 +447,7 @@ _vd_envelope() {  # <file> <rejected_summary json array> [type — default: audi
         echo "- a (MEDIUM, x.sh:1) — missing-severity: not a defect, the guard is two lines up."
         echo "- b (LOW, y.sh:2) — missing-category: real; counted under Observations as LOW."; echo
         # (the LOW the bullet counts is in the body, so the trailer's low:1 describes the file — thirtieth run, c2c DISS-C-001)
-        echo "## Observations"; echo; echo "- [LOW] y.sh:2 — b: the category is missing (the rejected payload above)."; echo
+        echo "## Observations"; echo; echo '- **LOW** (confidence: high) `y.sh:2` — b: the category is missing (the rejected payload above). Failure: when two workers flush the same queue then one batch is written twice.'; echo
         echo '<!-- LOA-VERDICT {"gate":"review","verdict":"APPROVED","counts":{"critical":0,"high":0,"medium":0,"low":1},"excluded":0,"sprint_id":"sprint-9","ts":"2026-09-25T00:00:00Z"} -->'
     } > "$d/engineer-feedback.md"
     run "$SCRIPT" --file "$d/engineer-feedback.md" --gate review

@@ -8,11 +8,21 @@
 # The image's tool versions (below) are the batch's versions: every arm runs here.
 #
 # Build (no build context is needed; nothing is COPY'd):
-#   docker build -t loa-ablation:258 - < evals/harness/Dockerfile.ablation
+#   docker build -t loa-ablation:259 - < evals/harness/Dockerfile.ablation
 # Run:
-#   evals/harness/pipeline-run.sh --executor container --image loa-ablation:258 …
-#   (pipeline-run.sh passes --rm --name --user --network bridge --read-only --tmpfs /tmp
-#    --pids-limit 512 --memory 4g --cpus 2 and exactly the two mounts)
+#   evals/harness/pipeline-run.sh --executor container --image loa-ablation:259 …
+#   (pipeline-run.sh passes --rm --name --user --read-only --tmpfs /tmp --pids-limit 512
+#    --memory 4g --cpus 2, exactly the two mounts, and the network: inside the egress block
+#    (cycle-133 FR-9, lib/egress-proxy.sh) --network loa-egress-<batch> --dns 0.0.0.1 with
+#    HTTPS_PROXY/HTTP_PROXY=http://loa-proxy-<batch>:8888 and NO_PROXY=, else --network bridge)
+#
+# 259 (cycle-133 FR-9; SDD C-9): the CA and proxy defaults below (the system CA bundle for node,
+# python, git and curl — the proxy tunnels CONNECT and never terminates TLS, so no private CA is
+# added; the proxy variables default to an address that never resolves, so a process that inherits
+# the image environment outside the egress block fails closed instead of going direct), and the
+# Claude Code version pinned (CLAUDE_CODE_VERSION), printed by the build's health check and
+# recorded in the image label org.loa.claude_code_version and /etc/loa-claude-code-version
+# (run-ablation.sh records `claude --version` from the image as MANIFEST cli_version).
 #
 # Digest pinned 2026-02-11 (same base as Dockerfile.sandbox):
 #   docker manifest inspect node:20.11.0-bookworm-slim | jq '.manifests[0].digest'
@@ -59,6 +69,8 @@ RUN npm install -g --no-fund --no-audit \
       "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
       "@openai/codex@${CODEX_VERSION}" \
     && npm cache clean --force
+# cycle-133 FR-9 (259): the pinned Claude Code version, readable without running the CLI
+RUN printf '%s\n' "${CLAUDE_CODE_VERSION}" > /etc/loa-claude-code-version
 
 # pytest for Python fixtures (bookworm's pip is externally managed)
 RUN pip3 install --no-cache-dir --break-system-packages "pytest==${PYTEST_VERSION}"
@@ -91,6 +103,19 @@ ENV LC_ALL=C
 ENV HOME=/home/evaluser
 ENV NPM_CONFIG_IGNORE_SCRIPTS=true
 ENV CLAUDE_CODE_USE_BEDROCK=1
+# cycle-133 FR-9 (259): CA and proxy defaults (see the header). pipeline-run.sh and blind-session.sh
+# pass their own values through the exec shim; these only cover a process that inherits the image's.
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    GIT_SSL_CAINFO=/etc/ssl/certs/ca-certificates.crt \
+    HTTPS_PROXY=http://loa-egress-unset.invalid:8888 \
+    https_proxy=http://loa-egress-unset.invalid:8888 \
+    HTTP_PROXY=http://loa-egress-unset.invalid:8888 \
+    http_proxy=http://loa-egress-unset.invalid:8888 \
+    NO_PROXY= \
+    no_proxy=
+LABEL org.loa.image="loa-ablation:259" org.loa.claude_code_version="${CLAUDE_CODE_VERSION}" org.loa.codex_version="${CODEX_VERSION}"
 
 USER evaluser
 WORKDIR /workspace
@@ -99,6 +124,8 @@ WORKDIR /workspace
 RUN bash --version && git --version && jq --version && node --version && \
     python3 --version && python3 -m pytest --version && yq --version && \
     bats --version && claude --version && codex --version && \
+    test "$(claude --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)" = "${CLAUDE_CODE_VERSION}" && \
+    echo "Claude Code ${CLAUDE_CODE_VERSION} (pinned)" && \
     echo "All tools verified"
 
 ENTRYPOINT []

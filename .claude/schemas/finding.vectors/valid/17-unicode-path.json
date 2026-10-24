@@ -1,0 +1,27 @@
+{
+  "description": "a non-ASCII path segment is a valid POSIX path",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "anchor_line": 1,
+      "blocking": false,
+      "confidence": "medium",
+      "failure_scenario": "when a caller imports the module by its ASCII name then the import fails",
+      "file": "src/ünï.py",
+      "id": "F-99b6e4",
+      "severity": "LOW",
+      "title": "naming"
+    },
+    "valid": true,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 1,
+    "confidence": "medium",
+    "failure_scenario": "when a caller imports the module by its ASCII name then the import fails",
+    "file": "src/ünï.py",
+    "severity": "LOW",
+    "title": "naming"
+  },
+  "markdown": "- **LOW** (confidence: medium) `src/ünï.py:1` — naming. Failure: when a caller imports the module by its ASCII name then the import fails."
+}

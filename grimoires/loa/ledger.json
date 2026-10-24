@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": null,
+  "active_cycle": "cycle-133-follow-through",
   "cycles": [
     {
       "id": "cycle-036",
@@ -2715,6 +2715,46 @@
           "completed": "2026-10-23T15:53:22Z"
         }
       ]
+    },
+    {
+      "id": "cycle-133-follow-through",
+      "label": "cycle-133 — the follow-through: every cycle-132 carry-over, every framework defect the cycle exposed, Loa reviewing Loa, the finding contract, external corpus seeding, beads hygiene; release 2.0.0-rc.8",
+      "status": "active",
+      "created": "2026-10-23T21:25:35Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 272,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-23T22:15:21Z",
+          "completed": "2026-10-24T04:59:35Z"
+        },
+        {
+          "global_id": 273,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-10-23T22:15:22Z",
+          "completed": "2026-10-24T13:44:44Z"
+        },
+        {
+          "global_id": 274,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-10-23T22:15:22Z",
+          "completed": "2026-10-24T13:09:05Z"
+        },
+        {
+          "global_id": 275,
+          "local_label": "sprint-4",
+          "status": "completed",
+          "created": "2026-10-23T22:15:22Z",
+          "completed": "2026-10-24T14:55:34Z"
+        }
+      ]
     }
   ],
   "global_sprint_counter": 268,
@@ -3160,6 +3200,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 272,
-  "last_updated": "2026-10-23T16:49:49Z"
+  "next_sprint_number": 276,
+  "last_updated": "2026-10-24T14:55:34Z"
 }

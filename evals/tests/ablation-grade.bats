@@ -36,6 +36,14 @@ setup() {
   T="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/ag.XXXXXX")"
   S="$T/suite"
   export LOA_EVAL_ALLOW_HOST_GRADING=1   # grader 1.2.0 (LOW-A1): host mode is opt-in; AG-28 unsets it
+  # cycle-133 (grader 1.4.0's full-suite regression, fixtures/grader-1.4/regress.sh): with AG_REGRESS_OLD and
+  # AG_REGRESS_DIR set, every grade call of this file also runs the older grader (regress-wrap.sh); unset, no effect
+  GRADER_SRC="$GRADER"   # the grader's source, which AG-27 reads (never the regression wrapper)
+  if [[ -n "${AG_REGRESS_OLD:-}" && -n "${AG_REGRESS_DIR:-}" ]]; then
+    export AG_REGRESS_TEST="$BATS_TEST_NUMBER" AG_REGRESS_NEW="$GRADER"
+    printf '%s\t%s\n' "$BATS_TEST_NUMBER" "$BATS_TEST_DESCRIPTION" >> "$AG_REGRESS_DIR/tests.tsv"
+    GRADER="$TESTS_DIR/fixtures/grader-1.4/regress-wrap.sh"
+  fi
   make_bin
   make_bf_py
   make_bf_sh
@@ -255,12 +263,12 @@ G() { jq -r "$1" "$RD/grade.json"; }
   [ -f "$RD/grading/final/tests/test_slug.py" ] && [ -f "$RD/grade.json" ]
   [ ! -e "$RD/grading/final/.git" ] && [ ! -e "$RD/grading/final/CLAUDE.md" ] && [ ! -e "$RD/grading/final/grimoires" ]
   [ "$(G '.hidden_tests | "\(.passed)/\(.total)"')" = "7/7" ]
-  [ "$(G '.executor_mode')" = container ] && [ "$(G '.image')" = "loa-ablation:258" ]
+  [ "$(G '.executor_mode')" = container ] && [ "$(G '.image')" = "loa-ablation:259" ]
   [ "$(G '.diff_lines')" = 2 ] && [ "$(G '.files_changed')" = 1 ]
   # the docker argv: init, a name, no network, read-only root, tmpfs, limits, no capabilities, the caller's
   # uid, one rw mount, a kill deadline, the pytest shape (grader 1.2.0: MEDIUM-A1, HIGH-A1 -o addopts=)
   argv="$(tr '\0' ' ' < "$T/dlog/run-1.argv")"
-  [[ "$argv" == "run --rm --init --name ablgrade-run-final-"*" --network none --read-only --tmpfs /tmp:rw,size=256m --pids-limit 256 --memory 2g --cpus 2 --cap-drop ALL --security-opt no-new-privileges --user $(id -u):$(id -g) -v $RD/grading/final:/workspace:rw -w /workspace -e HOME=/tmp -e LC_ALL=C -e TMPDIR=/tmp loa-ablation:258 timeout --signal=TERM --kill-after=10 120 python3 -I -s -m pytest -p no:cacheprovider -o addopts= -q --rootdir /workspace -rA tests "* ]]
+  [[ "$argv" == "run --rm --init --name ablgrade-run-final-"*" --network none --read-only --tmpfs /tmp:rw,size=256m --pids-limit 256 --memory 2g --cpus 2 --cap-drop ALL --security-opt no-new-privileges --user $(id -u):$(id -g) -v $RD/grading/final:/workspace:rw -w /workspace -e HOME=/tmp -e LC_ALL=C -e TMPDIR=/tmp loa-ablation:259 timeout --signal=TERM --kill-after=10 120 python3 -I -s -m pytest -p no:cacheprovider -o addopts= -q --rootdir /workspace -rA tests "* ]]
   [ "$(tr '\0' '\n' < "$T/dlog/run-1.argv" | grep -cx -- -q)" -eq 1 ]
 }
 
@@ -386,6 +394,7 @@ G() { jq -r "$1" "$RD/grade.json"; }
   cp "$REPO_ROOT/evals/harness/pipeline-run.sh" "$REPO_ROOT/evals/harness/fingerprint.sh" "$H/"
   cp -a "$REPO_ROOT/evals/harness/lib/phase-prompts" "$H/lib/"
   cp "$TESTS_DIR/fixtures/mount-lib-stub.sh" "$H/lib/sandbox-mount.sh"
+  cp "$REPO_ROOT/evals/harness/lib/session-exec.sh" "$H/lib/"   # cycle-133 C-6: the session library
   for sk in planning-sprints implementing-tasks reviewing-code auditing-security; do
     mkdir -p "$T/src/.claude/skills/$sk"; printf -- '---\nname: %s\neffort: xhigh\n---\nbody\n' "$sk" > "$T/src/.claude/skills/$sk/SKILL.md"
   done
@@ -630,12 +639,12 @@ EOF
 @test "AG-13 the grader source never reads meta/ (only the comment saying so) and keeps the trust boundary" {
   # every meta/ mention is a comment; the code's one meta read is the union's meta/cell.json (grader 1.3.2: the runner's
   # record of a matched cell, which names no arm)
-  [ -z "$(grep -n 'meta/' "$GRADER" | grep -v '^[0-9]*:# ')" ]
-  [ "$(grep -c '"meta"' "$GRADER")" -eq 1 ]
-  grep '"meta"' "$GRADER" | grep -q '"cell.json"'
-  ! grep -nE '^[[:space:]]*(source|\.)[[:space:]].*\$' "$GRADER"
-  ! grep -nE '(^|[^A-Za-z_])eval[[:space:]].*\$' "$GRADER"
-  ! grep -n 'sha256sum\|\.claude/scripts' "$GRADER"
+  [ -z "$(grep -n 'meta/' "$GRADER_SRC" | grep -v '^[0-9]*:# ')" ]
+  [ "$(grep -c '"meta"' "$GRADER_SRC")" -eq 1 ]
+  grep '"meta"' "$GRADER_SRC" | grep -q '"cell.json"'
+  ! grep -nE '^[[:space:]]*(source|\.)[[:space:]].*\$' "$GRADER_SRC"
+  ! grep -nE '(^|[^A-Za-z_])eval[[:space:]].*\$' "$GRADER_SRC"
+  ! grep -n 'sha256sum\|\.claude/scripts' "$GRADER_SRC"
 }
 
 # --- self-check (DEC-0401, AC-2.3) on the smoke tasks, through the docker stub ----------------------------
@@ -1167,7 +1176,7 @@ bash_case() {
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ]
   [ "$(G '.heredoc_interpreters')" = 5 ]
-  [ "$(G '.grader_version')" = 1.3.8 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+  [ "$(G '.grader_version')" = 1.5.0 ]   # cycle-133: 1.5.0 adds judge fields behind --judge-verdicts only (AG-c133-J1), 1.4.0 changes contamination only (AG-c133-5); cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
 }
 
 # --- grader 1.2.12: the collision removal reaches only pytest-collectable, package-less test modules --------------
@@ -1437,7 +1446,7 @@ OX() { jq -r '"diff=\(.oracle_exposed_by_form.diff | join(",")) read=\(.oracle_e
   printf 'pr/head/.claude/scripts/g.sh:26 the option guard\n' > "$RD/sandbox/review.md"   # 6 from O1, inside check()
   grade "$RD" rc-o
   [ "$status" -eq 0 ]
-  [ "$(G '.grader_version')" = 1.3.8 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+  [ "$(G '.grader_version')" = 1.5.0 ]   # cycle-133: 1.5.0 adds judge fields behind --judge-verdicts only (AG-c133-J1), 1.4.0 changes contamination only (AG-c133-5); cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
   [ "$(G '.recall | "\(.recall) \(.recall_pm3) \(.recall_pm3_v1) \(.v1_manifest) \(.rule)"')" = "0.3333 0.0 0.0 false pm3_or_same_function" ]
   [ "$(G '.recall | "\(.credits_function_only | join(",")) \(.missed | join(",")) \(.missed_pm3 | join(",")) \(.missed_pm3_v1 | join(","))"')" = "d1 d2,d3 d1,d2,d3 d1,d2,d3" ]
   [ "$(G '.recall.defects_caught')" = 1 ]
@@ -1531,7 +1540,7 @@ CASES
     tu "$RD" REVIEW "e$i" Bash "$(bash_in "$cmd")" "$(printf '%b' "$res")" true
     grade "$RD" rc-o
     [ "$status" -eq 0 ]
-    [ "$(G '.grader_version')" = 1.3.8 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+    [ "$(G '.grader_version')" = 1.5.0 ]   # cycle-133: 1.5.0 adds judge fields behind --judge-verdicts only (AG-c133-J1), 1.4.0 changes contamination only (AG-c133-5); cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
     [ "$(OX)" = "$want" ] || { echo "case $i ($cmd): $(OX) want $want"; return 1; }
   done <<'CASES'
 diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\n20c20\n< a\n---\n> b	diff=d1 read= unknown= exposed=d1
@@ -1836,7 +1845,7 @@ make_cell() {
   make_cell
   union "$C"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  [ "$(U .grader_version)" = 1.3.8 ]
+  [ "$(U .grader_version)" = 1.5.0 ]
   [ "$(U '.union, .bare_sessions, .sessions_valid' | tr '\n' ' ')" = "true 3 2 " ]
   [ "$(U '.sessions_graded | join(",")')" = "s1,s2" ]
   [ "$(U '.recall | "\(.defects_caught)/\(.defects_seeded) \(.recall) \(.recall_pm3) \(.missed | join(","))"')" = "1/2 0.5 0.5 d2" ]   # D02 only in the invalid s3
@@ -2001,7 +2010,7 @@ YAML
   grade "$RD" rc-long
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(G '.recall.missed | join(",")')" = d1 ]
-  [ "$(G '.grader_version')" = 1.3.8 ]
+  [ "$(G '.grader_version')" = 1.5.0 ]
 }
 
 @test "AG-c132-7 grader 1.3.4 class 9 per simple command (dissent DISS-001/C-001/C-003): reviewer prose in a cat heredoc, words on separate commands, grep/rg/echo naming a host are clean; real curl, git fetch, python -c requests, a bash heredoc body and \$(curl …) are egress" {
@@ -2134,11 +2143,11 @@ EOF
   make_cell
   union "$C"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  [ "$(U '[.per_session[] | .grader_version // "null"] | join(",")')" = "1.3.8,1.3.8,null" ]   # s3 is invalid: never read
+  [ "$(U '[.per_session[] | .grader_version // "null"] | join(",")')" = "1.5.0,1.5.0,null" ]   # s3 is invalid: never read
   jq '.grader_version = "1.3.4"' "$C/sessions/s2/grade.json" > "$T/g" && mv "$T/g" "$C/sessions/s2/grade.json"
   union "$C"
   [ "$status" -eq 2 ]
-  grep -q "session s2 was graded by grader '1.3.4', not 1.3.8" <<<"$output"
+  grep -q "session s2 was graded by grader '1.3.4', not 1.5.0" <<<"$output"
   # an invalid session's stale grade does not matter
   jq '.grader_version = "1.2.0"' "$C/sessions/s3/grade.json" > "$T/g" && mv "$T/g" "$C/sessions/s3/grade.json"
   grade "$C/sessions/s2" rc-x
@@ -2278,4 +2287,310 @@ EOF
   grade "$RD" rc-x
   [ "$(G '.contaminated.pattern')" = repo_name ]
   [ "$(G '.repo_token_pr_native')" = false ]
+}
+
+# --- grader 1.4.0 (cycle-133 Sprint 273 Task 2.3; SDD C-8; PRD FR-8; bd-kddde shapes 1 and 2) -------------------------
+GF() { printf '%s' "$TESTS_DIR/fixtures/grader-1.4/$1"; }
+# jeq <a.json> <b.json> [key…]: the two objects are equal once the named top-level keys are dropped (a diff on stdout)
+jeq() {
+  python3 -I - "$@" <<'PY2'
+import json, sys
+a, b = (json.load(open(p, encoding="utf-8")) for p in sys.argv[1:3])
+for k in sys.argv[3:]:
+    a.pop(k, None); b.pop(k, None)
+diff = sorted(k for k in set(a) | set(b) if a.get(k, "<absent>") != b.get(k, "<absent>"))
+for k in diff:
+    print(f"{k}: {json.dumps(a.get(k, '<absent>'))[:300]} != {json.dumps(b.get(k, '<absent>'))[:300]}")
+sys.exit(1 if diff else 0)
+PY2
+}
+pr_native_token() { printf 'if: github.repository == %s0xHoneyJar/loa%s\n' "'" "'" >> "$T/prs/pr-77/head/lib/x.sh"; }
+# hcase <want> <task> <command>: one Bash tool_use in AUDIT; <want> is the contamination pattern or null
+hcase() {
+  n=$((${n:-0} + 1)); RD="$T/h$n"; make_run "$2" "$RD"
+  tool_use "$RD" AUDIT Bash "$(jq -cn --arg c "$3" '{command: $c}')"
+  grade "$RD" "$2" ${HC_ARGS:-}
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [ "$(G '.contaminated.pattern // "null"')" = "$1" ] || { echo "case $n ($3): want $1, got $(G .contaminated)"; return 1; }
+}
+
+@test "AG-c133-1 grader 1.4.0 class 7 (bd-kddde shape 1): with the token PR-native, the r27 AUDIT report written by heredoc (cat > …md <<'EOF') is exempt as repo_name_pr_native_report, like the Write tool; 1.3.8 read it as repo_name" {
+  pr_native_token
+  RD="$T/r27"; make_run rc-x "$RD"
+  tool_use "$RD" AUDIT Bash "$(jq -cn --rawfile c "$(GF r27-audit-426.txt)" '{command: $c}')"
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '.grader_version')" = 1.5.0 ]
+  [ "$(G '.repo_token_pr_native')" = true ]
+  [ "$(G '.contaminated')" = null ]
+  [ "$(G '[.contamination_exempt[] | "\(.excerpt_id) \(.pattern) \(.class)"] | join(";")')" = "AUDIT:1 repo_name repo_name_pr_native_report" ]
+  # the other report-writing shapes the rule accepts
+  hcase null rc-x $'cat <<\'EOF\' > notes.md\nthe upstream 0xHoneyJar/loa guard\nEOF'
+  hcase null rc-x $'tee grimoires/loa/a2a/sprint-1/engineer-feedback.md <<\'EOF\' >/dev/null\nscoped to 0xHoneyJar/loa only\nEOF'
+  hcase null rc-x $'tee -a review.md <<EOF\nscoped to 0xHoneyJar/loa only\nEOF'
+  hcase null rc-x $'cat > /workspace/review.txt <<\'EOF\'\nscoped to 0xHoneyJar/loa only\nEOF\nwc -l /workspace/review.txt'
+  [ "$(G '[.contamination_exempt[] | .class] | join(",")')" = repo_name_pr_native_report ]
+}
+
+@test "AG-c133-2 grader 1.4.0 class 7 shape 1 bounds: a non-report target, a pipe or interpreter, an unquoted substitution, an extra writer argument, a network command beside the write, a token outside the body, a build task and a PR without the token stay repo_name" {
+  pr_native_token
+  while IFS='|' read -r want cmd; do
+    hcase "$want" rc-x "$(printf '%b' "$cmd")"
+  done <<'EOF'
+repo_name|cat > run.sh <<'EOF2'\necho 0xHoneyJar/loa\nEOF2
+repo_name|cat > /root/notes.md <<'EOF2'\nthe 0xHoneyJar/loa guard\nEOF2
+repo_name|cat > ../outside/notes.md <<'EOF2'\nthe 0xHoneyJar/loa guard\nEOF2
+repo_name|cat > "$OUT".md <<'EOF2'\nthe 0xHoneyJar/loa guard\nEOF2
+repo_name|cat <<'EOF2' | bash\necho 0xHoneyJar/loa\nEOF2
+repo_name|cat <<'EOF2' | tee notes.md\nthe 0xHoneyJar/loa guard\nEOF2
+repo_name|python3 - <<'PY' > out.md\nprint("0xHoneyJar/loa")\nPY
+repo_name|cat > notes.md <<EOF2\n$(cat pr/PR.md) 0xHoneyJar/loa\nEOF2
+repo_name|cat extra.md - > notes.md <<'EOF2'\nthe 0xHoneyJar/loa guard\nEOF2
+repo_name|sort > notes.md <<'EOF2'\nthe 0xHoneyJar/loa guard\nEOF2
+repo_name|cat > repos.txt <<'EOF2'\n0xHoneyJar/loa\nEOF2\nxargs -a repos.txt -I{} gh api repos/{}/pulls
+repo_name|echo 0xHoneyJar/loa; cat > notes.md <<'EOF2'\nthe 0xHoneyJar/loa guard\nEOF2
+repo_name|cat > notes.md <<'EOF2'\nthe 0xHoneyJar/loa guard\nEOF2\ncurl -s https://example.com/x
+EOF
+  [ "$(G '[.contamination_exempt[] | select(.class == "repo_name_pr_native_report")] | length')" = 0 ]
+  # a build task has no PR, so the token is never PR-native there
+  hcase repo_name bf-py $'cat > notes.md <<\'EOF\'\nthe 0xHoneyJar/loa guard\nEOF'
+  # a review-catch PR without the token: the heredoc report is a hit as in 1.3.8
+  printf '%s\n' "$(sed '$d' "$T/prs/pr-77/head/lib/x.sh")" > "$T/x"; cp "$T/x" "$T/prs/pr-77/head/lib/x.sh"
+  hcase repo_name rc-x $'cat > notes.md <<\'EOF\'\nthe 0xHoneyJar/loa guard\nEOF'
+  [ "$(G '.repo_token_pr_native')" = false ]
+}
+
+@test "AG-c133-3 grader 1.4.0 outside_path (bd-kddde shape 2): in container mode the r14 REVIEW command (findmnt -no OPTIONS /home) and the other bare /home mount probes are exempt as home_mount_probe; 1.3.8 read them as outside_path" {
+  RD="$T/r14"; make_run rc-x "$RD"
+  tool_use "$RD" REVIEW Bash "$(jq -cn --rawfile c "$(GF r14-review-445.txt)" '{command: $c}')"
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '.grader_version')" = 1.5.0 ]
+  [ "$(G '.executor_mode')" = container ]
+  [ "$(G '.contaminated')" = null ]
+  [ "$(G '[.contamination_exempt[] | "\(.excerpt_id) \(.pattern) \(.class)"] | join(";")')" = "REVIEW:1 outside_path home_mount_probe" ]
+  hcase null rc-x 'findmnt -no OPTIONS /home'
+  hcase null rc-x 'df -h /home/ | tail -1'
+  hcase null rc-x 'mountpoint -q /home && echo mounted || echo not'
+  hcase null rc-x "findmnt -no OPTIONS '/home' 2>/dev/null; findmnt -no OPTIONS /tmp"
+  [ "$(G '[.contamination_exempt[] | .class] | join(",")')" = home_mount_probe ]
+}
+
+@test "AG-c133-4 grader 1.4.0 shape 2 bounds: a listing, a cd, an assignment, a glob, du, a second /home word outside the probe, a deeper path and host mode stay outside_path" {
+  while IFS='|' read -r want cmd; do
+    hcase "$want" rc-x "$cmd"
+  done <<'EOF'
+outside_path|ls /home
+outside_path|cd /home && ls
+outside_path|H=/home; findmnt -no OPTIONS $H
+outside_path|findmnt -no OPTIONS /home*
+outside_path|du -sh /home
+outside_path|findmnt -no OPTIONS /home; ls /home
+outside_path|findmnt -no OPTIONS /home/operator
+outside_path|stat /home
+EOF
+  [ "$(G '[.contamination_exempt[] | select(.class == "home_mount_probe")] | length')" = 0 ]
+  # host mode: the host's /home holds real users, so the probe stays outside the sandbox as in 1.3.8
+  RD="$T/host"; make_run rc-x "$RD"
+  tool_use "$RD" REVIEW Bash '{"command": "findmnt -no OPTIONS /home"}'
+  run "$GRADER" "$RD" rc-x --suite-root "$S" --allow-unfrozen --executor host
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '.contaminated.pattern')" = outside_path ]
+  [ "$(G '.contamination_exempt | length')" = 0 ]
+}
+
+@test "AG-c133-5 grader 1.4.0 regression: the 1.3.8 grader of the cycle-132 pin and 1.4.0 grade every fixture shape identically except the two new exemptions (grader_version aside)" {
+  local pin=fbd36a0c
+  git -C "$REPO_ROOT" cat-file -e "$pin^{commit}" 2>/dev/null || skip "the cycle-132 pin $pin is not in this clone (a shallow checkout)"
+  mkdir -p "$T/old"
+  git -C "$REPO_ROOT" archive "$pin" evals/harness/ablation-grade.sh evals/harness/freeze.sh evals/harness/validate-suite.sh \
+    evals/harness/took-effect.sh evals/harness/lib evals/graders/recall-vs-defects.sh | tar -x -C "$T/old"
+  grep -q '^GRADER_VERSION = "1.3.8"$' "$T/old/evals/harness/ablation-grade.sh"
+  pr_native_token
+  # <class>|<tool>|<input json>: same = identical grades; else the 1.4.0 class whose exemption is the only difference
+  local k=0 cls tool inp
+  while IFS='|' read -r cls tool inp; do
+    k=$((k + 1)); RD="$T/g$k"; make_run rc-x "$RD"; cite "$RD" "head/lib/x.sh:5"
+    tool_use "$RD" AUDIT "$tool" "$inp"
+    grade "$RD" rc-x
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    run "$T/old/evals/harness/ablation-grade.sh" "$RD" rc-x --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker" --out "$T/old$k.json"
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    if [ "$cls" = same ]; then
+      jeq "$T/old$k.json" "$RD/grade.json" grader_version image || { echo "case $k ($inp) differs"; false; }   # image: the pinned grader defaults to 258, this one to 259 (Sprint 274)
+    else
+      jeq "$T/old$k.json" "$RD/grade.json" grader_version image contaminated contamination_exempt history_probes heredoc_interpreters
+      [ "$(jq -r '.contaminated.pattern' "$T/old$k.json")" != null ]
+      [ "$(G '.contaminated')" = null ]
+      [ "$(jq -r --arg c "$cls" '[.contamination_exempt[] | select(.class == $c)] | length' "$RD/grade.json")" = 1 ]
+    fi
+  done < <(jq -r '.[] | "\(.[0])|\(.[1])|\(.[2] | tojson)"' <<'JSON'
+[["same", "Bash", {"command": "grep -n line_ pr/head/lib/x.sh"}],
+ ["same", "Bash", {"command": "grep -rn 0xHoneyJar/loa pr/head"}],
+ ["same", "Grep", {"pattern": "0xHoneyJar/loa", "path": "pr/head"}],
+ ["same", "Bash", {"command": "grep -rn 0xHoneyJar/loa pr/head > /tmp/hits.txt"}],
+ ["same", "Bash", {"command": "curl -sL https://github.com/0xHoneyJar/loa/raw/main/README.md"}],
+ ["same", "Bash", {"command": "cat > repos.txt <<'EOF'\n0xHoneyJar/loa\nEOF\nxargs -a repos.txt -I{} gh api repos/{}/pulls"}],
+ ["same", "Bash", {"command": "cat > run.sh <<'EOF'\necho 0xHoneyJar/loa\nEOF"}],
+ ["same", "Bash", {"command": "cat > notes.md <<'EOF'\nif: github.repository == '0xHoneyJar/loa'\nEOF"}],
+ ["same", "Bash", {"command": "ls /home"}],
+ ["same", "Bash", {"command": "ls '/home'"}],
+ ["same", "Bash", {"command": "cat /home/operator/notes.txt"}],
+ ["same", "Bash", {"command": "cat > a.md <<EOF\n/home/operator\nEOF\nls /home"}],
+ ["same", "Bash", {"command": "grep -E ' /tmp | /home ' f"}],
+ ["same", "Bash", {"command": "findmnt -no OPTIONS /home; ls /home"}],
+ ["same", "Bash", {"command": "du -sh /home"}],
+ ["same", "Read", {"file_path": "/home/operator/code/loa/README.md"}],
+ ["same", "Bash", {"command": "cat ~/.ssh/id_rsa"}],
+ ["same", "Bash", {"command": "sed -n '/x/,/y/p' /home/operator/notes.txt"}],
+ ["same", "Bash", {"command": "find /root -name x"}],
+ ["same", "Write", {"file_path": "notes.md", "content": "0xHoneyJar/loa /home"}],
+ ["repo_name_pr_native_report", "Bash", {"command": "cd /workspace && cat > grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md <<'EOF'\nthe upstream 0xHoneyJar/loa guard\nEOF\necho written"}],
+ ["home_mount_probe", "Bash", {"command": "findmnt -no OPTIONS /home 2>/dev/null | head -1"}]]
+JSON
+)
+  [ "$k" -eq 22 ]
+}
+
+# --- grader 1.5.0: --judge-verdicts (cycle-133 Sprint 274 Task 3.2; sdd.md C-11; PRD FR-11) ---------------------------
+# A credited pair is (citation, defect) under pm3 (±3 of a site, the decision rule); its finding is the citation's
+# canonical reference {id, file, anchor_line[, anchor_line_end]}, id F-<6 hex of sha256("<file>:<line>:")>; the pair key
+# is (run_id, finding_id, defect_key). jv <file> <run_id> <finding_id> <defect> <verdict> <blind> [field=json …]: one row.
+jv() {
+  local f="$1" run="$2" fid="$3" dk="$4" v="$5" b="$6"; shift 6
+  local fsha fx
+  fsha=$(jq -r --arg f "$fid" --arg d "$dk" '.credited_pairs[] | select(.finding_id == $f and .defect_key == $d) | .finding_sha256' "$T/pairs.json" | head -1)
+  fx=$(jq -r '.fixture_sha256' "$T/pairs.json")
+  jq -nc --arg r "$run" --arg f "$fid" --arg fs "${fsha:-0000000000000000000000000000000000000000000000000000000000000000}" --arg d "$dk" --arg fx "$fx" \
+     --arg v "$v" --argjson b "$b" \
+     '{run_id: $r, finding_id: $f, finding_sha256: $fs, defect_key: $d, fixture_sha256: $fx, grader_version: "1.5.0",
+       verdict: $v, judge_model: "judge-x", judge_prompt_sha256: ("ab" * 32), blind: $b, ts: "2026-10-24T00:00:00Z"}' > "$T/row.json"
+  local kv
+  for kv in "$@"; do jq -c --arg k "${kv%%=*}" --argjson v "${kv#*=}" '.[$k] = $v' "$T/row.json" > "$T/row2.json" && mv "$T/row2.json" "$T/row.json"; done
+  cat "$T/row.json" >> "$f"
+}
+# judge_run: the rc-x run citing both defects (d1 at line 5 twice — head/ and bare — and d2 at line 20) plus a stray
+judge_run() {
+  RD="$T/run"; make_run rc-x "$RD"; cite "$RD" "head/lib/x.sh:5" "lib/x.sh:6" "lib/x.sh:20" "lib/x.sh:28"
+  : > "$T/empty.jsonl"
+  grade "$RD" rc-x --judge-verdicts "$T/empty.jsonl"
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  cp "$RD/grade.json" "$T/pairs.json"
+  F5=$(jq -r '.credited_pairs[] | select(.defect_key == "d1") | .finding_id' "$T/pairs.json" | head -1)
+  F20=$(jq -r '.credited_pairs[] | select(.defect_key == "d2") | .finding_id' "$T/pairs.json" | head -1)
+}
+
+@test "AG-c133-J1 grader 1.5.0 without --judge-verdicts: no judge field, the 1.4.0 key set" {
+  RD="$T/run"; make_run rc-x "$RD"; cite "$RD" "head/lib/x.sh:5"
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ]
+  [ "$(G '.grader_version')" = 1.5.0 ]
+  [ "$(G '[keys[] | select(. == "credited_pairs" or . == "recall_judged" or . == "judge" or . == "fixture_sha256" or . == "unjudged_pairs")] | length')" = 0 ]
+}
+
+@test "AG-c133-J2 an empty verdicts file lists the credited pairs (pm3, one per finding and defect) with their hashes; all unjudged" {
+  judge_run
+  RD="$T/run"
+  # head/lib/x.sh:5 and lib/x.sh:5 are one finding; lib/x.sh:6 another; both credit d1. 20 credits d2; 28 credits nothing
+  [ "$(G '[.credited_pairs[] | "\(.defect_key)"] | join(",")')" = "d1,d1,d2" ]
+  [ "$(G '[.judged_pairs, .unjudged_pairs, .recall_judged, .judged_pairs_unblind] == [0, 3, 0, 0]')" = true ]
+  # the hashes, re-derived here: id = F-<sha256("lib/x.sh:5:")[:6]>; finding_sha256 = sha256(JCS(the reference)); fixture = JCS(key)
+  run python3 -I - "$RD/grade.json" "$T/manifests/pr-77.json" <<'PY'
+import hashlib, json, sys
+g = json.load(open(sys.argv[1])); key = json.load(open(sys.argv[2]))
+jcs = lambda o: json.dumps(o, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+fid = "F-" + hashlib.sha256(b"lib/x.sh:5:").hexdigest()[:6]
+ref = {"anchor_line": 5, "file": "lib/x.sh", "id": fid}
+p = [x for x in g["credited_pairs"] if x["finding_id"] == fid]
+assert p and p[0]["finding_sha256"] == hashlib.sha256(jcs(ref)).hexdigest(), p
+assert g["fixture_sha256"] == hashlib.sha256(jcs(key)).hexdigest()
+assert g["judge"]["run_id"] == "run" and g["judge"]["rows_this_run"] == 0
+print("ok")
+PY
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "AG-c133-J3 blind verdicts give recall_judged, judged_pairs and the provenance; an unjudged pair stays counted" {
+  judge_run
+  jv "$T/v.jsonl" run "$F5" d1 describes true
+  jv "$T/v.jsonl" run "$F20" d2 does_not_describe true
+  grade "$RD" rc-x --judge-verdicts "$T/v.jsonl"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '[.recall_judged, .judged_pairs, .unjudged_pairs] == [0.5, 2, 1]')" = true ]
+  [ "$(G '.judge.judge_models | join(",")') $(G '.judge.judge_prompt_sha256 | length')" = "judge-x 1" ]
+  [ "$(G '.judge.verdicts_sha256')" = "$(sha256sum "$T/v.jsonl" | cut -c1-64)" ]
+  [ "$(G '.recall.recall == 1')" = true ]   # the grader's recall is unchanged by the judge
+}
+
+@test "AG-c133-J4 a blind: false verdict is excluded from recall_judged and reported in recall_judged_unblind" {
+  judge_run
+  jv "$T/v.jsonl" run "$F5" d1 describes true
+  jv "$T/v.jsonl" run "$F20" d2 describes false
+  grade "$RD" rc-x --judge-verdicts "$T/v.jsonl"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '[.recall_judged, .recall_judged_unblind, .judged_pairs, .judged_pairs_unblind] == [0.5, 1, 1, 1]')" = true ]
+}
+
+@test "AG-c133-J5 a second verdict for a pair is refused unless it names the first in supersedes; then it wins" {
+  judge_run
+  jv "$T/v.jsonl" run "$F5" d1 does_not_describe true
+  jv "$T/v.jsonl" run "$F5" d1 describes true
+  grade "$RD" rc-x --judge-verdicts "$T/v.jsonl"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"duplicate verdict"*"supersedes"* ]]
+  first=$(head -1 "$T/v.jsonl" | python3 -I -c 'import hashlib, json, sys; print(hashlib.sha256(json.dumps(json.loads(sys.stdin.read()), sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest())')
+  head -1 "$T/v.jsonl" > "$T/v2.jsonl"
+  jv "$T/v2.jsonl" run "$F5" d1 describes true "supersedes=\"$first\""
+  grade "$RD" rc-x --judge-verdicts "$T/v2.jsonl"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '[.recall_judged, .judge.rows_superseded] == [0.5, 1]')" = true ]
+  # a supersedes naming no row of this pair is refused
+  jv "$T/v3.jsonl" run "$F5" d1 describes true "supersedes=\"$(printf 'cd%.0s' $(seq 1 32))\""
+  grade "$RD" rc-x --judge-verdicts "$T/v3.jsonl"
+  [ "$status" -eq 2 ]
+}
+
+@test "AG-c133-J6 stale verdicts reject the run: finding hash, fixture hash, grader version, a pair the grade does not credit" {
+  judge_run
+  local case
+  for case in 'finding_sha256="1111111111111111111111111111111111111111111111111111111111111111"' \
+              'fixture_sha256="2222222222222222222222222222222222222222222222222222222222222222"' \
+              'grader_version="1.4.0"'; do
+    : > "$T/v.jsonl"; jv "$T/v.jsonl" run "$F5" d1 describes true "$case"
+    grade "$RD" rc-x --judge-verdicts "$T/v.jsonl"
+    [ "$status" -eq 2 ] || { echo "$case: $output"; false; }
+    [[ "$output" == *"stale"* ]] || { echo "$case: $output"; false; }
+  done
+  : > "$T/v.jsonl"; jv "$T/v.jsonl" run "$F5" d2 describes true
+  grade "$RD" rc-x --judge-verdicts "$T/v.jsonl"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"no credited pair"* ]]
+  # nothing is written on a refusal: the grade.json of the empty-file grade stands
+  [ "$(G '.judged_pairs')" = 0 ]
+}
+
+@test "AG-c133-J7 another run's rows are ignored and counted; a malformed row refuses; --run-id names the run" {
+  judge_run
+  jv "$T/v.jsonl" other-run "$F5" d1 does_not_describe true
+  jv "$T/v.jsonl" run "$F5" d1 describes true
+  grade "$RD" rc-x --judge-verdicts "$T/v.jsonl"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '[.judge.rows_other_runs, .recall_judged] == [1, 0.5]')" = true ]
+  grade "$RD" rc-x --judge-verdicts "$T/v.jsonl" --run-id other-run
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '[.judge.run_id, .recall_judged] == ["other-run", 0]')" = true ]
+  jq -c 'del(.judge_prompt_sha256)' <<<"$(head -1 "$T/v.jsonl")" > "$T/bad.jsonl"
+  grade "$RD" rc-x --judge-verdicts "$T/bad.jsonl"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"line 1"*"judge_prompt_sha256"* ]]
+  grade "$RD" rc-x --judge-verdicts "$T/nope.jsonl"
+  [ "$status" -eq 2 ]
+}
+
+@test "AG-c133-J8 --judge-verdicts applies to review-catch grades only" {
+  RD="$T/run"; make_run bf-py "$RD"; apply_ref "$RD"; snap "$RD" IMPLEMENT
+  : > "$T/empty.jsonl"
+  grade "$RD" bf-py --judge-verdicts "$T/empty.jsonl"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"review-catch"* ]]
 }

@@ -1,0 +1,30 @@
+{
+  "description": "a LOW on a line range marked blocking",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "anchor_line": 10,
+      "anchor_line_end": 14,
+      "blocking": true,
+      "confidence": "low",
+      "failure_scenario": "When the list is empty, then the loop never exits.",
+      "file": "a/b.ts",
+      "id": "F-c6ab6e",
+      "severity": "LOW",
+      "title": "unbounded loop"
+    },
+    "valid": true,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 10,
+    "anchor_line_end": 14,
+    "blocking": true,
+    "confidence": "low",
+    "failure_scenario": "When the list is empty, then the loop never exits.",
+    "file": "a/b.ts",
+    "severity": "LOW",
+    "title": "unbounded loop"
+  },
+  "markdown": "- **LOW** (blocking, confidence: low) `a/b.ts:10-14` — unbounded loop. Failure: When the list is empty, then the loop never exits."
+}

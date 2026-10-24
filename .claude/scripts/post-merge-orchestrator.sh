@@ -9,11 +9,44 @@
 #   .claude/scripts/post-merge-orchestrator.sh \
 #     --pr <number> --type <cycle|bugfix|other> --sha <commit> \
 #     [--dry-run] [--skip-gt] [--skip-rtfm]
+#   .claude/scripts/post-merge-orchestrator.sh --publish FILE --approve-sha256 HEX \
+#     [--ledger-only] [--allow-v1 REASON]
 #
-# Exit Codes:
+# Candidate schema_version 2 (cycle-133 C-3, FR-3, bd-kwloh):
+#   --generate writes .run/post-merge-candidate.json as its own RFC 8785 form
+#   (lib/jcs.sh), so the file's SHA-256 is the approval digest. It is sealed:
+#   merge_sha, target_commit (= merge_sha: the tag is reachable from main by
+#   construction), target_tree, tag, prerelease, release_title, release_body,
+#   release_notes_sha256, target_on_main, remote_origin, remote_push_url,
+#   main_ref, generated_head, unpublished_paths and, when the merge archives
+#   a ledger cycle, ledger_cycle, ledger_patch_file (.run/post-merge-ledger.patch, beside the
+#   candidate), ledger_patch_sha256, ledger_commit {author, committer,
+#   message} with fixed dates (the merge's committer date) and ref_updates
+#   [{ref, expected_old: merge_sha, new}], `new` being the deterministic
+#   ledger commit. Any other generated change (a CHANGELOG fill, version
+#   markers, ground truth) cannot ride a tag on the merge: it stays local and
+#   is named in unpublished_paths, with a warning at generate and at publish.
+#   --publish re-verifies that merge_sha is an ancestor of the freshly
+#   fetched remote main before each visible step, tags the merge (an existing
+#   tag is accepted only when it is annotated on the merge with the subject
+#   "Release <tag>"), creates or accepts the release on the same identity,
+#   then pushes the ledger commit with --force-with-lease=<main_ref>:<merge>.
+#   A main that moved (lease failure, later merge, push rejected) defers the
+#   ledger step: .run/post-merge-ledger-deferred.json (+ .patch) is written
+#   and the run exits 3. --ledger-only re-applies the patch onto the then-
+#   current main under the same lease rule. Each phase is verified-or-
+#   performed, so a re-run after a crash completes without duplicates; the
+#   mutable record is .run/post-merge-progress.json.
+#   A schema_version 1 candidate (tags a generated commit that never reaches
+#   main) is refused; --allow-v1 REASON publishes it as before and records
+#   the reason in the run state.
+#
+# Exit Codes (sdd.md § 5.4):
 #   0 - Candidate prepared or publication verified (RTFM/lore are advisory)
-#   1 - Invalid arguments, generation failure, or publication failure
-#   2 - Fatal setup error (state file corruption, missing dependencies)
+#   1 - Invalid arguments, generation failure, or a publication step failed
+#   2 - Refusal before any write (digest, schema, v1, ancestry, tag identity,
+#       ledger patch), fatal setup error
+#   3 - Published, degraded: the ledger step was deferred (ledger_deferred)
 
 #
 # Pipeline invariants (C-MERGE-003/004/005, cycle-121: these live HERE and in
@@ -52,6 +85,31 @@ TARGET_COMMIT=""
 PUSH_URL=""
 GITHUB_HOST=""
 GITHUB_REPOSITORY=""
+# cycle-133 C-3: candidate schema_version 2 publication.
+LEDGER_ONLY=false
+ALLOW_V1=false
+ALLOW_V1_REASON=""
+CANDIDATE_V2=false
+CANDIDATE_ORIGINAL=""
+MAIN_REF="refs/heads/main"
+OBSERVED_REF="refs/loa/post-merge/observed-main"
+OBSERVED_MAIN=""
+RELEASE_TITLE=""
+LEDGER_PATH="grimoires/loa/ledger.json"
+LEDGER_PATCH_NAME="post-merge-ledger.patch"
+LEDGER_PATCH=""
+LEDGER_NEW=""
+LEDGER_CYCLE=""
+LEDGER_DEFERRED=false
+LEDGER_AUTHOR_NAME=""
+LEDGER_AUTHOR_EMAIL=""
+LEDGER_AUTHOR_DATE=""
+LEDGER_COMMITTER_NAME=""
+LEDGER_COMMITTER_EMAIL=""
+LEDGER_COMMITTER_DATE=""
+LEDGER_MESSAGE=""
+PROGRESS_FILE="${PROJECT_ROOT}/.run/post-merge-progress.json"
+DEFERRED_FILE="${PROJECT_ROOT}/.run/post-merge-ledger-deferred.json"
 
 # Phase matrix: which phases run for each PR type.
 # lore_promote (cycle-061, #484) runs after release for every PR type when
@@ -85,7 +143,13 @@ Options:
   --generate           Prepare an inspectable local candidate (the default)
   --publish FILE       Publish a previously generated candidate
   --approve-sha256 HEX  Digest of the exact candidate approved for publication
+  --ledger-only        With --publish: complete a deferred ledger step only
+  --allow-v1 REASON    With --publish: publish a schema_version 1 candidate
+                       (its tag never reaches main); REASON is recorded
   --help               Show this help
+
+Exit codes: 0 done; 1 a step failed; 2 refusal before any write;
+3 published with the ledger step deferred (rerun with --ledger-only).
 USAGE
 }
 
@@ -1016,22 +1080,43 @@ phase_tag() {
     return 0
   fi
 
-  local target="${TARGET_COMMIT:-}" existing remote
+  local target="${TARGET_COMMIT:-}" remote remote_tag
   [[ -n "$target" ]] || target=$(git -C "$PROJECT_ROOT" rev-parse HEAD)
-  if existing=$(git -C "$PROJECT_ROOT" rev-parse --verify "refs/tags/${tag}^{commit}" 2>/dev/null); then
-    if [[ "$existing" != "$target" ]]; then
-      fail_phase tag "Existing tag points to a different commit"
-      return 1
-    fi
-  elif ! git -C "$PROJECT_ROOT" tag -a "$tag" "$target" -m "Release ${tag}"; then
-    fail_phase tag "Local tag creation failed"
+  if ! publish_gate tag; then
+    fail_phase tag "Remote main does not contain the merge; tag not pushed"
     return 1
   fi
-  local tag_object
-  tag_object=$(git -C "$PROJECT_ROOT" rev-parse "refs/tags/$tag") || return 1
-  if ! git -C "$PROJECT_ROOT" push "${PUSH_URL:-origin}" "${tag_object}:refs/tags/$tag"; then
-    fail_phase tag "Tag push failed"
+  # cycle-133 C-3: an existing tag (local or remote) is accepted only on the
+  # identical target and release identity; anything else is a refusal.
+  if git -C "$PROJECT_ROOT" rev-parse --quiet --verify "refs/tags/${tag}" >/dev/null &&
+      ! tag_identity_matches "refs/tags/${tag}" "$tag" "$target"; then
+    fail_phase tag "Existing local tag ${tag} differs from the candidate (target or release identity)"
+    return 2
+  fi
+  if ! remote_tag=$(git -C "$PROJECT_ROOT" ls-remote "${PUSH_URL:-origin}" "refs/tags/${tag}"); then
+    fail_phase tag "Cannot read remote tags"
     return 1
+  fi
+  if [[ -n "$remote_tag" ]]; then
+    if ! git -C "$PROJECT_ROOT" fetch --no-tags --quiet "${PUSH_URL:-origin}" \
+        "+refs/tags/${tag}:refs/loa/post-merge/observed-tag" ||
+        ! tag_identity_matches refs/loa/post-merge/observed-tag "$tag" "$target"; then
+      fail_phase tag "Remote tag ${tag} exists with another target or release identity"
+      return 2
+    fi
+    echo "[TAG] Existing remote ${tag} matches the candidate; not pushed again"
+  else
+    if ! git -C "$PROJECT_ROOT" rev-parse --quiet --verify "refs/tags/${tag}" >/dev/null &&
+        ! git -C "$PROJECT_ROOT" tag -a "$tag" "$target" -m "Release ${tag}"; then
+      fail_phase tag "Local tag creation failed"
+      return 1
+    fi
+    local tag_object
+    tag_object=$(git -C "$PROJECT_ROOT" rev-parse "refs/tags/$tag") || return 1
+    if ! git -C "$PROJECT_ROOT" push "${PUSH_URL:-origin}" "${tag_object}:refs/tags/$tag"; then
+      fail_phase tag "Tag push failed"
+      return 1
+    fi
   fi
   if ! remote=$(git -C "$PROJECT_ROOT" ls-remote --exit-code "${PUSH_URL:-origin}" "refs/tags/${tag}^{}") ||
       [[ "${remote%%$'\t'*}" != "$target" ]]; then
@@ -1104,6 +1189,13 @@ phase_release() {
       [[ -n "$subtitle" ]] && release_title="${tag} — ${subtitle}"
     fi
   fi
+  # cycle-133 C-3: a v2 candidate seals the title; an existing release is
+  # accepted only on the same identity (tag, title, notes, flags).
+  [[ -z "$RELEASE_TITLE" ]] || release_title="$RELEASE_TITLE"
+  if ! publish_gate release; then
+    fail_phase release "Remote main does not contain the merge; release not created"
+    return 1
+  fi
 
   local response id readback
   if ! response=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}"); then
@@ -1117,7 +1209,9 @@ phase_release() {
   if ! id=$(jq -er '.id | select(type == "number" and . > 0)' <<< "$response") ||
       ! readback=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/releases/${id}") ||
       ! jq -e --argjson id "$id" --arg tag "$tag" --arg body "$notes" --argjson pre "$prerelease" \
-        '.id == $id and .tag_name == $tag and .body == $body and .draft == false and .prerelease == $pre' <<< "$readback" >/dev/null; then
+        --arg title "$RELEASE_TITLE" \
+        '.id == $id and .tag_name == $tag and .body == $body and .draft == false and .prerelease == $pre
+         and ($title == "" or .name == $title)' <<< "$readback" >/dev/null; then
     fail_phase release "Release identifier or read-back mismatch"
     return 1
   fi
@@ -1263,6 +1357,10 @@ phase_notify() {
   local response id readback issue_url
   if ! check_gh || [[ -z "$PR_NUMBER" ]]; then
     fail_phase notify "GitHub CLI and PR number are required"
+    return 1
+  fi
+  if ! publish_gate notify; then
+    fail_phase notify "Remote main does not contain the merge; not notified"
     return 1
   fi
   if ! response=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}") ||
@@ -1434,21 +1532,507 @@ PY
   IFS=$'\t' read -r GITHUB_HOST GITHUB_REPOSITORY <<< "$identity"
 }
 
+# =============================================================================
+# cycle-133 C-3 (FR-3, bd-kwloh): candidate schema_version 2 helpers
+# =============================================================================
+
+sha256_stdin() {
+  python3 -c 'import hashlib, sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest())'
+}
+
+# RFC 8785 bytes of a JSON file through lib/jcs.sh (rfc8785). Where it is not
+# available (a mount without the repository-root lib/, a runner without the
+# rfc8785 package) the stdlib form below is used: it is exact RFC 8785 for the
+# candidate's value domain (strings, integers within 2^53, booleans, null,
+# arrays, objects; keys ordered by UTF-16 code units) and refuses anything
+# else, so a disagreement can only ever refuse a publish, never mis-approve.
+jcs_file() {
+  local lib="${SCRIPT_DIR}/../../lib/jcs.sh"
+  if [[ -f "$lib" ]] && ( source "$lib" && jcs_available 2>/dev/null ); then
+    ( source "$lib" && jcs_canonicalize_file "$1" )
+  else
+    jcs_stdlib_file "$1"
+  fi
+}
+
+jcs_stdlib_file() {
+  python3 -I - "$1" <<'PY'
+import json
+import sys
+
+
+def emit(value):
+    if value is None or isinstance(value, bool):
+        return json.dumps(value)
+    if isinstance(value, int):
+        if abs(value) > 2 ** 53:
+            raise ValueError("integer outside the exact range")
+        return str(value)
+    if isinstance(value, str):
+        if any(0xD800 <= ord(ch) <= 0xDFFF for ch in value):
+            raise ValueError("lone surrogate")
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, list):
+        return "[" + ",".join(emit(item) for item in value) + "]"
+    if isinstance(value, dict):
+        keys = sorted(value, key=lambda key: key.encode("utf-16-be"))
+        return "{" + ",".join(emit(key) + ":" + emit(value[key]) for key in keys) + "}"
+    raise ValueError(f"unsupported value type {type(value).__name__}")
+
+
+try:
+    with open(sys.argv[1], encoding="utf-8") as stream:
+        document = json.load(stream)
+    sys.stdout.buffer.write(emit(document).encode("utf-8"))
+except (OSError, ValueError) as error:
+    print(f"jcs: cannot canonicalise {sys.argv[1]}: {error}", file=sys.stderr)
+    sys.exit(1)
+PY
+}
+
+# Fetch the approved push destination's main into a private ref; print it.
+observe_remote_main() {
+  git -C "$PROJECT_ROOT" fetch --no-tags --quiet "$PUSH_URL" "+${MAIN_REF}:${OBSERVED_REF}" || return 1
+  git -C "$PROJECT_ROOT" rev-parse --verify --quiet "${OBSERVED_REF}^{commit}"
+}
+
+# The merge must be an ancestor of the freshly fetched remote main (equality
+# is not required: a later merge must not make the candidate unpublishable).
+verify_main_ancestry() {
+  local step="$1"
+  if ! OBSERVED_MAIN=$(observe_remote_main); then
+    echo "ERROR: [${step}] Cannot read ${MAIN_REF} from the approved push destination" >&2
+    return 1
+  fi
+  if ! git -C "$PROJECT_ROOT" merge-base --is-ancestor "$MERGE_SHA" "$OBSERVED_MAIN"; then
+    echo "ERROR: [${step}] Merge ${MERGE_SHA} is not an ancestor of the remote ${MAIN_REF} (${OBSERVED_MAIN}); nothing further is published" >&2
+    return 1
+  fi
+}
+
+# Re-verified immediately before each externally visible step (v2 only).
+publish_gate() {
+  [[ "$CANDIDATE_V2" == true ]] || return 0
+  verify_main_ancestry "$1"
+}
+
+# A tag's release identity: annotated, directly on the target commit, named
+# the tag, subject "Release <tag>" (a signature after the subject is allowed).
+tag_identity_matches() {
+  local ref="$1" tag="$2" target="$3" body subject
+  [[ "$(git -C "$PROJECT_ROOT" cat-file -t "$ref")" == tag ]] || return 1
+  body=$(git -C "$PROJECT_ROOT" cat-file tag "$ref") || return 1
+  subject=$(awk 'found { print; exit } /^$/ { found = 1 }' <<< "$body")
+  [[ "$(sed -n 1p <<< "$body")" == "object ${target}" &&
+     "$(sed -n 2p <<< "$body")" == "type commit" &&
+     "$(sed -n 3p <<< "$body")" == "tag ${tag}" &&
+     "$subject" == "Release ${tag}" ]]
+}
+
+# The remote carries the candidate's tag with the candidate's identity.
+tag_published() {
+  local tag="$1" remote_tag
+  remote_tag=$(git -C "$PROJECT_ROOT" ls-remote "$PUSH_URL" "refs/tags/${tag}") || return 1
+  [[ -n "$remote_tag" ]] || return 1
+  git -C "$PROJECT_ROOT" fetch --no-tags --quiet "$PUSH_URL" \
+    "+refs/tags/${tag}:refs/loa/post-merge/observed-tag" || return 1
+  tag_identity_matches refs/loa/post-merge/observed-tag "$tag" "$MERGE_SHA"
+}
+
+# The ledger patch may only modify grimoires/loa/ledger.json as text.
+validate_ledger_patch() {
+  local patch="$1" numstat summary headers
+  headers=$(grep -c '^diff --git ' "$patch" || :)
+  if [[ "$headers" != 1 ]] ||
+      ! grep -qxF "diff --git a/${LEDGER_PATH} b/${LEDGER_PATH}" "$patch" ||
+      ! numstat=$(git -C "$PROJECT_ROOT" apply --numstat "$patch") ||
+      ! summary=$(git -C "$PROJECT_ROOT" apply --summary "$patch") ||
+      ! [[ "$numstat" =~ ^[0-9]+[[:blank:]]+[0-9]+[[:blank:]]+(.*)$ ]] ||
+      [[ "${BASH_REMATCH[1]}" != "$LEDGER_PATH" || -n "$summary" ]]; then
+    echo "ERROR: The ledger patch may modify only ${LEDGER_PATH} (one text change, no mode, rename or other path); refusing" >&2
+    return 2
+  fi
+}
+
+ledger_blob_to() {
+  git -C "$PROJECT_ROOT" cat-file blob "$1:${LEDGER_PATH}" > "$2"
+}
+
+# The one cycle whose status goes active -> archived between two ledgers.
+ledger_archived_cycle() {
+  jq -er -n --slurpfile a "$1" --slurpfile b "$2" '
+    [$a[0].cycles[] | select(.status == "active") | (.cycle_id // .id)] as $was |
+    [$b[0].cycles[] | select(.status == "archived") | (.cycle_id // .id) |
+      select(. as $c | any($was[]; . == $c))] |
+    if length == 1 then .[0] else error("expected exactly one active to archived cycle") end'
+}
+
+# Nothing but the cycle's status (active -> archived), its archived_at and a
+# nulled active_cycle may differ between the two ledgers.
+ledger_transition_ok() {
+  jq -e -n --slurpfile a "$1" --slurpfile b "$2" --arg c "$3" '
+    def mine: [.cycles[] | select((.cycle_id // .id) == $c)];
+    def rest: (.cycles |= map(if (.cycle_id // .id) == $c then del(.status, .archived_at) else . end))
+      | del(.active_cycle);
+    $a[0] as $x | $b[0] as $y |
+    ($x | mine | length) == 1 and ($y | mine | length) == 1 and
+    ($x | mine | .[0].status) == "active" and ($y | mine | .[0].status) == "archived" and
+    ($x | has("active_cycle")) == ($y | has("active_cycle")) and
+    ($y.active_cycle // null) == null and
+    ($x | rest) == ($y | rest)' >/dev/null
+}
+
+ledger_cycle_archived_at() {
+  local work rc=0
+  work=$(mktemp "${TMPDIR:-/tmp}/loa-ledger.XXXXXXXX") || return 1
+  if ! ledger_blob_to "$1" "$work" ||
+      ! jq -e --arg c "$LEDGER_CYCLE" \
+        '[.cycles[] | select((.cycle_id // .id) == $c)] | length == 1 and .[0].status == "archived"' \
+        "$work" >/dev/null; then
+    rc=1
+  fi
+  rm -f "$work"
+  return "$rc"
+}
+
+# Apply the ledger patch onto <base> in a temporary index (the operator's
+# checkout and index are untouched) and commit it with the recorded identity
+# and dates; print the commit id. Deterministic for a given base and patch.
+build_ledger_commit() {
+  local base="$1" patch="$2" cycle="$3" work tree
+  validate_ledger_patch "$patch" || return 2
+  work=$(mktemp -d "${TMPDIR:-/tmp}/loa-ledger-commit.XXXXXXXX") || return 1
+  if ! GIT_INDEX_FILE="$work/index" git -C "$PROJECT_ROOT" read-tree "$base" ||
+      ! GIT_INDEX_FILE="$work/index" git -C "$PROJECT_ROOT" apply --cached --whitespace=nowarn "$patch"; then
+    rm -rf "$work"
+    echo "ERROR: The ledger patch does not apply onto ${base}; refusing" >&2
+    return 2
+  fi
+  if ! tree=$(GIT_INDEX_FILE="$work/index" git -C "$PROJECT_ROOT" write-tree) ||
+      ! ledger_blob_to "$base" "$work/before" || ! ledger_blob_to "$tree" "$work/after"; then
+    rm -rf "$work"
+    return 1
+  fi
+  if ! ledger_transition_ok "$work/before" "$work/after" "$cycle"; then
+    rm -rf "$work"
+    echo "ERROR: The ledger patch must express only the ${cycle} active to archived transition; refusing" >&2
+    return 2
+  fi
+  rm -rf "$work"
+  GIT_AUTHOR_NAME="$LEDGER_AUTHOR_NAME" GIT_AUTHOR_EMAIL="$LEDGER_AUTHOR_EMAIL" \
+    GIT_AUTHOR_DATE="$LEDGER_AUTHOR_DATE" GIT_COMMITTER_NAME="$LEDGER_COMMITTER_NAME" \
+    GIT_COMMITTER_EMAIL="$LEDGER_COMMITTER_EMAIL" GIT_COMMITTER_DATE="$LEDGER_COMMITTER_DATE" \
+    git -C "$PROJECT_ROOT" -c i18n.commitEncoding=UTF-8 \
+      commit-tree --no-gpg-sign "$tree" -p "$base" -m "$LEDGER_MESSAGE"
+}
+
+# Generation: the operator's configured identity, dated at the merge's
+# committer time, so the ledger commit id is fixed in the candidate.
+ledger_identity_for_generation() {
+  local merge="$1" name email when
+  name=$(git -C "$PROJECT_ROOT" config user.name || :)
+  email=$(git -C "$PROJECT_ROOT" config user.email || :)
+  if [[ -z "$name" || -z "$email" ]]; then
+    echo "ERROR: Configure git user.name and user.email; they are the recorded identity of the ledger commit" >&2
+    return 2
+  fi
+  when="$(git -C "$PROJECT_ROOT" show -s --format=%ct "$merge") +0000" || return 1
+  LEDGER_AUTHOR_NAME="$name" LEDGER_COMMITTER_NAME="$name"
+  LEDGER_AUTHOR_EMAIL="$email" LEDGER_COMMITTER_EMAIL="$email"
+  LEDGER_AUTHOR_DATE="$when" LEDGER_COMMITTER_DATE="$when"
+  LEDGER_MESSAGE="chore(ledger): archive ${LEDGER_CYCLE} after merge"
+}
+
+load_ledger_identity() {
+  local fields
+  fields=$(jq -er '.ledger_commit |
+    [.author.name, .author.email, .author.date, .committer.name, .committer.email, .committer.date, .message] |
+    if all(.[]; type == "string" and length > 0 and (test("[\u0000-\u001f]") | not)) then join("\u001f")
+    else error("incomplete ledger_commit identity") end' "$1") || return 1
+  IFS=$'\x1f' read -r LEDGER_AUTHOR_NAME LEDGER_AUTHOR_EMAIL LEDGER_AUTHOR_DATE \
+    LEDGER_COMMITTER_NAME LEDGER_COMMITTER_EMAIL LEDGER_COMMITTER_DATE LEDGER_MESSAGE <<< "$fields"
+}
+
+progress_init() {
+  [[ "$CANDIDATE_V2" == true ]] || return 0
+  if [[ -f "$PROGRESS_FILE" ]] &&
+      jq -e --arg d "$APPROVED_DIGEST" '.candidate_digest == $d' "$PROGRESS_FILE" >/dev/null; then
+    return 0
+  fi
+  jq -n --arg d "$APPROVED_DIGEST" \
+    '{schema_version:1, candidate_digest:$d, tag:null, release:null, ledger:null, notify:null}' \
+    > "${PROGRESS_FILE}.tmp.$$" && mv "${PROGRESS_FILE}.tmp.$$" "$PROGRESS_FILE"
+}
+
+# Mirror a phase's verified post-condition into the mutable progress file.
+progress_record() {
+  [[ "$CANDIDATE_V2" == true ]] || return 0
+  jq --arg p "$1" --slurpfile s "$STATE_FILE" \
+    '.[$p] = (($s[0].phases[$p].result // {}) + {status: $s[0].phases[$p].status})' \
+    "$PROGRESS_FILE" > "${PROGRESS_FILE}.tmp.$$" && mv "${PROGRESS_FILE}.tmp.$$" "$PROGRESS_FILE"
+}
+
+ledger_done() {
+  local state="$1" commit="$2" observed="$3"
+  update_phase ledger completed "$(jq -nc --arg s "$state" --arg c "$commit" --arg o "$observed" \
+    '{state:$s, commit:(if $c == "" then null else $c end), observed_main:$o, verified:true}')"
+  increment_metric phases_completed
+  if [[ -f "$DEFERRED_FILE" ]] &&
+      jq -e --arg d "$APPROVED_DIGEST" '.candidate_digest == $d' "$DEFERRED_FILE" >/dev/null; then
+    rm -f "$DEFERRED_FILE" "${DEFERRED_FILE%.json}.patch"
+  fi
+  echo "[LEDGER] ${state}: ${MAIN_REF} at ${observed}${commit:+ (ledger commit ${commit})}"
+}
+
+ledger_defer() {
+  local reason="$1" observed="$2" deferred_patch="${DEFERRED_FILE%.json}.patch"
+  LEDGER_DEFERRED=true
+  cp "$LEDGER_PATCH" "${deferred_patch}.tmp.$$" && mv "${deferred_patch}.tmp.$$" "$deferred_patch" || return 1
+  jq -n --slurpfile cand "$PUBLISH_CANDIDATE" --arg d "$APPROVED_DIGEST" \
+    --arg candidate "$CANDIDATE_ORIGINAL" --arg patch ".run/${deferred_patch##*/}" \
+    --arg reason "$reason" --arg observed "$observed" \
+    '{schema_version:1, candidate:$candidate, candidate_digest:$d,
+      ledger_cycle:$cand[0].ledger_cycle, ledger_patch:$patch,
+      ledger_patch_sha256:$cand[0].ledger_patch_sha256, ledger_commit:$cand[0].ledger_commit,
+      ref:$cand[0].main_ref, expected_old:$cand[0].merge_sha, approved_new:$cand[0].ref_updates[0].new,
+      observed_main:$observed, reason:$reason,
+      deferred_at:(now | strftime("%Y-%m-%dT%H:%M:%SZ"))}' > "${DEFERRED_FILE}.tmp.$$" &&
+    mv "${DEFERRED_FILE}.tmp.$$" "$DEFERRED_FILE" || return 1
+  update_phase ledger deferred "$(jq -nc --arg r "$reason" --arg o "$observed" \
+    '{state:"deferred", reason:$r, observed_main:$o}')"
+  echo "[LEDGER] Deferred (${reason}): ${MAIN_REF} is ${observed}; the approved update expects ${MERGE_SHA}." >&2
+  echo "[LEDGER] Complete it with: .claude/scripts/post-merge-orchestrator.sh --publish ${CANDIDATE_ORIGINAL} --approve-sha256 ${APPROVED_DIGEST} --ledger-only" >&2
+}
+
+# Conditional update of main: lease against the observed value. A rejected
+# push (moved main, or a protection rule) defers instead of failing.
+ledger_push() {
+  local observed="$1" commit="$2" now
+  if git -C "$PROJECT_ROOT" push --quiet "$PUSH_URL" \
+      "--force-with-lease=${MAIN_REF}:${observed}" "${commit}:${MAIN_REF}"; then
+    if ! now=$(observe_remote_main) ||
+        ! git -C "$PROJECT_ROOT" merge-base --is-ancestor "$commit" "$now"; then
+      fail_phase ledger "Remote main read-back does not contain the ledger commit"
+      return 1
+    fi
+    ledger_done published "$commit" "$observed"
+    return 0
+  fi
+  if now=$(observe_remote_main) && [[ "$now" != "$observed" ]]; then
+    ledger_defer lease_failed "$now"
+  else
+    ledger_defer push_rejected "$observed"
+  fi
+}
+
+# Recovery state machine for the ledger step: published (the named commit is
+# on main) or already archived: done; main still at the merge: push the named
+# commit; main moved: defer to --ledger-only.
+phase_ledger() {
+  update_phase ledger in_progress
+  if ! verify_main_ancestry ledger; then
+    fail_phase ledger "Remote main does not contain the merge; ledger not pushed"
+    return 1
+  fi
+  local observed="$OBSERVED_MAIN"
+  if git -C "$PROJECT_ROOT" merge-base --is-ancestor "$LEDGER_NEW" "$observed"; then
+    ledger_done published "$LEDGER_NEW" "$observed"
+  elif [[ "$observed" != "$MERGE_SHA" ]]; then
+    if ledger_cycle_archived_at "$observed"; then
+      ledger_done already_archived "" "$observed"
+    else
+      ledger_defer main_moved "$observed"
+    fi
+  else
+    ledger_push "$observed" "$LEDGER_NEW"
+  fi
+}
+
+# --ledger-only: re-apply the approved patch onto the then-current main.
+publish_ledger_only() {
+  local tag commit rc=0
+  if [[ -z "$LEDGER_NEW" ]]; then
+    echo "ERROR: The candidate carries no ledger update" >&2
+    return 2
+  fi
+  if [[ ! -f "$STATE_FILE" ]] ||
+      ! jq -e --arg d "$APPROVED_DIGEST" '.candidate_digest == $d' "$STATE_FILE" >/dev/null; then
+    echo "ERROR: --ledger-only completes a deferred ledger step; run --publish with this candidate first" >&2
+    return 2
+  fi
+  tag=$(jq -r '.tag' "$PUBLISH_CANDIDATE")
+  if ! tag_published "$tag"; then
+    echo "ERROR: Tag ${tag} is not published on the merge; run --publish first" >&2
+    return 2
+  fi
+  progress_init
+  update_phase ledger in_progress
+  if ! verify_main_ancestry ledger; then
+    fail_phase ledger "Remote main does not contain the merge; ledger not pushed" || :
+    rc=1
+  elif git -C "$PROJECT_ROOT" merge-base --is-ancestor "$LEDGER_NEW" "$OBSERVED_MAIN"; then
+    ledger_done published "$LEDGER_NEW" "$OBSERVED_MAIN"
+  elif ledger_cycle_archived_at "$OBSERVED_MAIN"; then
+    ledger_done already_archived "" "$OBSERVED_MAIN"
+  elif ! commit=$(build_ledger_commit "$OBSERVED_MAIN" "$LEDGER_PATCH" "$LEDGER_CYCLE"); then
+    rc=2
+    fail_phase ledger "The ledger patch does not re-apply onto ${MAIN_REF} ${OBSERVED_MAIN}" || :
+  else
+    ledger_push "$OBSERVED_MAIN" "$commit" || rc=$?
+  fi
+  progress_record ledger
+  if [[ "$rc" -ne 0 ]]; then
+    atomic_state_update '.state = "FAILED"'
+    return "$rc"
+  fi
+  if [[ "$LEDGER_DEFERRED" == true ]]; then
+    atomic_state_update '.state = "DONE" | .degraded_reason = "ledger_deferred"'
+    return 3
+  fi
+  atomic_state_update '.state = "DONE" | del(.degraded_reason) | .timestamps.completed = (now | strftime("%Y-%m-%dT%H:%M:%SZ"))'
+  echo "[PUBLISH] Ledger step verified"
+}
+
+validate_candidate_v2() {
+  local candidate="$1" source_dir="$2" snapdir="$3" merge rebuilt
+  if ! jq -e -s 'length == 1 and (.[0] |
+    .schema_version == 2 and (.pr_number | type == "number" and . > 0) and
+    (.pr_type == "cycle" or .pr_type == "bugfix" or .pr_type == "other") and
+    (.merge_sha | type == "string" and test("^[0-9a-f]{40}$")) and .target_commit == .merge_sha and
+    (.target_tree | type == "string" and test("^[0-9a-f]{40}$")) and
+    (.generated_head | type == "string" and test("^[0-9a-f]{40}$")) and
+    (.unpublished_paths | type == "array" and all(.[]; type == "string")) and
+    .target_on_main == true and .main_ref == "refs/heads/main" and
+    (.remote_origin | type == "string" and length > 0) and
+    (.remote_push_url | type == "string" and length > 0) and
+    (.release_body | type == "string" and length > 0) and
+    (.release_notes_sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+    (.notification_body | type == "string" and length > 0) and
+    (.tag | type == "string") and .release_title == .tag and
+    .tag == ("v" + .prepared_state.phases.semver.result.next) and
+    .prerelease == (.tag | test("-")) and
+    ((.ref_updates == [] and .ledger_cycle == null and .ledger_patch_file == null and
+      .ledger_patch_sha256 == null and .ledger_commit == null) or
+     ((.ref_updates | type == "array" and length == 1) and
+      .ref_updates[0].ref == .main_ref and .ref_updates[0].expected_old == .merge_sha and
+      (.ref_updates[0].new | type == "string" and test("^[0-9a-f]{40}$")) and
+      (.ledger_cycle | type == "string" and length > 0) and
+      .ledger_patch_file == "post-merge-ledger.patch" and
+      (.ledger_patch_sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+      (.ledger_commit | type == "object"))))' "$candidate" >/dev/null; then
+    echo "ERROR: Invalid release candidate (schema_version 2)" >&2
+    return 2
+  fi
+  if ! jcs_file "$candidate" | cmp -s - "$candidate"; then
+    echo "ERROR: The candidate is not in its RFC 8785 canonical form (lib/jcs.sh); regenerate it" >&2
+    return 2
+  fi
+  if [[ "$(jq -j '.release_body' "$candidate" | sha256_stdin)" != "$(jq -r '.release_notes_sha256' "$candidate")" ]]; then
+    echo "ERROR: release_body does not match release_notes_sha256; refusing" >&2
+    return 2
+  fi
+  merge=$(jq -r '.merge_sha' "$candidate")
+  if ! git -C "$PROJECT_ROOT" cat-file -e "${merge}^{commit}"; then
+    echo "ERROR: The candidate's merge ${merge} is not in this repository" >&2
+    return 2
+  fi
+  LEDGER_NEW=$(jq -r '.ref_updates[0].new // ""' "$candidate")
+  [[ -n "$LEDGER_NEW" ]] || return 0
+  LEDGER_CYCLE=$(jq -r '.ledger_cycle' "$candidate")
+  LEDGER_PATCH="${snapdir}/ledger.patch"
+  if ! cp "${source_dir}/${LEDGER_PATCH_NAME}" "$LEDGER_PATCH"; then
+    echo "ERROR: The approved ledger patch ${LEDGER_PATCH_NAME} is missing beside the candidate" >&2
+    return 2
+  fi
+  if [[ "$(sha256_stdin < "$LEDGER_PATCH")" != "$(jq -r '.ledger_patch_sha256' "$candidate")" ]]; then
+    echo "ERROR: ${LEDGER_PATCH_NAME} does not match ledger_patch_sha256; refusing" >&2
+    return 2
+  fi
+  if ! load_ledger_identity "$candidate"; then
+    echo "ERROR: Invalid ledger_commit identity in the candidate" >&2
+    return 2
+  fi
+  rebuilt=$(build_ledger_commit "$merge" "$LEDGER_PATCH" "$LEDGER_CYCLE") || return 2
+  if [[ "$rebuilt" != "$LEDGER_NEW" ]]; then
+    echo "ERROR: The ledger patch and identity produce ${rebuilt}, not the approved ref_updates[0].new ${LEDGER_NEW}; refusing" >&2
+    return 2
+  fi
+}
+
 prepare_candidate() {
   local candidate="${PROJECT_ROOT}/.run/post-merge-candidate.json"
-  local version target tree origin push_url notes notification tmp
+  local patch_file="${PROJECT_ROOT}/.run/${LEDGER_PATCH_NAME}"
+  local version merge head tree origin push_url notes notification tmp work changed others
+  local ledger='{"ledger_cycle":null,"ledger_patch_file":null,"ledger_patch_sha256":null,"ledger_commit":null,"ref_updates":[]}'
   if ! git -C "$PROJECT_ROOT" diff --quiet || ! git -C "$PROJECT_ROOT" diff --cached --quiet; then
     echo "ERROR: Generated files are not committed; no candidate will be prepared" >&2
     return 1
   fi
   version=$(read_state '.phases.semver.result.next')
-  target=$(git -C "$PROJECT_ROOT" rev-parse HEAD) || return 1
-  tree=$(git -C "$PROJECT_ROOT" rev-parse 'HEAD^{tree}') || return 1
+  merge=$(git -C "$PROJECT_ROOT" rev-parse --verify "${MERGE_SHA}^{commit}") || return 1
+  head=$(git -C "$PROJECT_ROOT" rev-parse HEAD) || return 1
+  tree=$(git -C "$PROJECT_ROOT" rev-parse "${merge}^{tree}") || return 1
+  if ! git -C "$PROJECT_ROOT" merge-base --is-ancestor "$merge" "$head"; then
+    echo "ERROR: The checkout does not descend from the merge ${merge}" >&2
+    return 2
+  fi
   origin=$(git -C "$PROJECT_ROOT" remote get-url origin) || return 1
   push_url=$(git -C "$PROJECT_ROOT" remote get-url --push --all origin) || return 1
   if [[ -z "$push_url" || "$push_url" == *$'\n'* ]]; then
     echo "ERROR: Candidate requires exactly one push destination" >&2
     return 1
+  fi
+  # cycle-133 C-3: the tag targets the merge, so the only post-merge change
+  # publication carries is the ledger archive, as one named commit on main.
+  # Other generated changes (CHANGELOG fill, markers, ground truth) stay
+  # local; the sealed unpublished_paths names them for the inspector.
+  changed=$(git -C "$PROJECT_ROOT" -c core.quotePath=false diff --name-only --no-renames "$merge" "$head") || return 1
+  others=$(grep -vxF "$LEDGER_PATH" <<< "$changed" || :)
+  if [[ -n "$others" ]]; then
+    echo "WARNING: Generated changes not published (the tag targets the merge): $(tr '\n' ' ' <<< "$others")" >&2
+    echo "WARNING: Land them through a PR (CHANGELOG heading, version markers) for the release to carry them" >&2
+  fi
+  if grep -qxF "$LEDGER_PATH" <<< "$changed"; then
+    work=$(mktemp -d "${TMPDIR:-/tmp}/loa-ledger-generate.XXXXXXXX") || return 1
+    if ! ledger_blob_to "$merge" "$work/before" || ! ledger_blob_to "$head" "$work/after"; then
+      rm -rf "$work"
+      return 1
+    fi
+    if ! LEDGER_CYCLE=$(ledger_archived_cycle "$work/before" "$work/after"); then
+      rm -rf "$work"
+      echo "ERROR: The ledger change after the merge is not one cycle's active to archived transition" >&2
+      return 2
+    fi
+    if ! git -C "$PROJECT_ROOT" diff --no-ext-diff --no-textconv --no-color --binary --full-index \
+        --no-renames -U3 --src-prefix=a/ --dst-prefix=b/ "$merge" "$head" -- "$LEDGER_PATH" > "$work/patch" ||
+        ! ledger_identity_for_generation "$merge"; then
+      rm -rf "$work"
+      return 2
+    fi
+    if ! LEDGER_NEW=$(build_ledger_commit "$merge" "$work/patch" "$LEDGER_CYCLE"); then
+      rm -rf "$work"
+      return 2
+    fi
+    if [[ "$(git -C "$PROJECT_ROOT" rev-parse "${LEDGER_NEW}:${LEDGER_PATH}")" != "$(git -C "$PROJECT_ROOT" rev-parse "${head}:${LEDGER_PATH}")" ]]; then
+      rm -rf "$work"
+      echo "ERROR: The ledger commit does not reproduce the generated ledger" >&2
+      return 1
+    fi
+    if ! cp "$work/patch" "${patch_file}.tmp.$$" || ! mv "${patch_file}.tmp.$$" "$patch_file"; then
+      rm -rf "$work"
+      return 1
+    fi
+    rm -rf "$work"
+    ledger=$(jq -nc --arg cycle "$LEDGER_CYCLE" --arg file "$LEDGER_PATCH_NAME" \
+      --arg sha "$(sha256_stdin < "$patch_file")" --arg ref "$MAIN_REF" --arg merge "$merge" --arg new "$LEDGER_NEW" \
+      --arg an "$LEDGER_AUTHOR_NAME" --arg ae "$LEDGER_AUTHOR_EMAIL" --arg ad "$LEDGER_AUTHOR_DATE" \
+      --arg cn "$LEDGER_COMMITTER_NAME" --arg ce "$LEDGER_COMMITTER_EMAIL" --arg cd "$LEDGER_COMMITTER_DATE" \
+      --arg msg "$LEDGER_MESSAGE" \
+      '{ledger_cycle:$cycle, ledger_patch_file:$file, ledger_patch_sha256:$sha,
+        ledger_commit:{author:{name:$an, email:$ae, date:$ad}, committer:{name:$cn, email:$ce, date:$cd}, message:$msg},
+        ref_updates:[{ref:$ref, expected_old:$merge, new:$new}]}') || return 1
+  else
+    rm -f "$patch_file"
   fi
   notes=$(jq -r '"## Release v" + .phases.semver.result.next + "\n\n" +
     ([.phases.semver.result.commits[] | "- " + .subject] | join("\n"))' "$STATE_FILE") || return 1
@@ -1462,68 +2046,129 @@ prepare_candidate() {
   fi
   tmp=$(mktemp "${candidate}.tmp.XXXXXXXX") || return 1
   if ! jq -n --slurpfile state "$STATE_FILE" \
-    --arg target "$target" --arg tree "$tree" --arg origin "$origin" \
-    --arg push_url "$push_url" --argjson prerelease "$prerelease" \
+    --arg merge "$merge" --arg tree "$tree" --arg head "$head" --arg origin "$origin" \
+    --arg push_url "$push_url" --argjson prerelease "$prerelease" --arg main_ref "$MAIN_REF" \
     --arg tag "v${version}" --arg notes "$notes" --arg notification "$notification" \
+    --arg notes_sha "$(printf '%s' "$notes" | sha256_stdin)" --argjson ledger "$ledger" \
+    --argjson unpublished "$(jq -R -s -c 'split("\n") | map(select(length > 0)) | sort' <<< "$others")" \
     '{
-      schema_version:1, pr_number:$state[0].pr_number, pr_type:$state[0].pr_type,
-      merge_sha:$state[0].merge_sha, target_commit:$target, target_tree:$tree,
+      schema_version:2, pr_number:$state[0].pr_number, pr_type:$state[0].pr_type,
+      merge_sha:$merge, target_commit:$merge, target_tree:$tree, target_on_main:true,
+      main_ref:$main_ref, generated_head:$head, unpublished_paths:$unpublished,
       remote_origin:$origin, remote_push_url:$push_url, tag:$tag, prerelease:$prerelease,
-      release_body:$notes, notification_body:$notification, prepared_state:$state[0]
-    }' > "$tmp"; then
-    rm -f "$tmp"
-    return 1
+      release_title:$tag, release_body:$notes, release_notes_sha256:$notes_sha,
+      notification_body:$notification, prepared_state:$state[0]
+    } + $ledger' > "${tmp}.raw" || ! jcs_file "${tmp}.raw" > "$tmp"; then
+    rm -f "$tmp" "${tmp}.raw"
+    echo "ERROR: Candidate canonicalisation failed (lib/jcs.sh needs python3 with rfc8785)" >&2
+    return 2
   fi
+  rm -f "${tmp}.raw"
   mv "$tmp" "$candidate" || return 1
-  echo "[PREPARED] Inspect ${candidate} and commit ${target}"
+  echo "[PREPARED] Inspect ${candidate}: tag v${version} on the merge ${merge} (target_on_main)"
+  if [[ -n "$LEDGER_NEW" ]]; then
+    echo "[PREPARED] Ledger: ${patch_file} gives commit ${LEDGER_NEW} (${MAIN_REF} ${merge} to ${LEDGER_NEW})"
+  fi
   echo "[PREPARED] SHA256 $(candidate_digest "$candidate")"
   echo "[PREPARED] Publish only after inspection with --publish FILE --approve-sha256 DIGEST"
 }
 
 publish_candidate() (
-  local snapshot
-  snapshot=$(mktemp "${TMPDIR:-/tmp}/loa-release-candidate.XXXXXXXX") || return 1
-  trap 'rm -f "$snapshot"' EXIT
-  cp "$PUBLISH_CANDIDATE" "$snapshot" || return 1
+  local snapdir snapshot source_dir schema head
+  snapdir=$(mktemp -d "${TMPDIR:-/tmp}/loa-release-candidate.XXXXXXXX") || return 2
+  trap 'rm -rf "$snapdir"' EXIT
+  snapshot="${snapdir}/candidate.json"
+  source_dir=$(cd "$(dirname "$PUBLISH_CANDIDATE")" && pwd) || return 2
+  CANDIDATE_ORIGINAL="$PUBLISH_CANDIDATE"
+  cp "$PUBLISH_CANDIDATE" "$snapshot" || return 2
   PUBLISH_CANDIDATE="$snapshot"
   if [[ ! "$APPROVED_DIGEST" =~ ^[0-9a-f]{64}$ ]] ||
       [[ "$(candidate_digest "$PUBLISH_CANDIDATE")" != "$APPROVED_DIGEST" ]]; then
     echo "ERROR: An exact approved candidate SHA256 is required" >&2
-    return 1
+    return 2
   fi
-  if ! jq -e -s 'length == 1 and (.[0] |
-    .schema_version == 1 and (.pr_number | type == "number" and . > 0) and
-    (.pr_type == "cycle" or .pr_type == "bugfix" or .pr_type == "other") and
-    (.target_commit | test("^[0-9a-f]{40}$")) and
-    (.target_tree | test("^[0-9a-f]{40}$")) and
-    (.remote_push_url | type == "string" and length > 0) and
-    (.release_body | type == "string" and length > 0) and
-    (.notification_body | type == "string" and length > 0) and
-    .tag == ("v" + .prepared_state.phases.semver.result.next) and
-    ((.prerelease // false) == (.tag | test("-"))))' "$PUBLISH_CANDIDATE" >/dev/null; then
+  if ! schema=$(jq -er '.schema_version | select(type == "number")' "$PUBLISH_CANDIDATE"); then
     echo "ERROR: Invalid release candidate" >&2
-    return 1
+    return 2
+  fi
+  case "$schema" in
+    1)
+      if [[ "$ALLOW_V1" != true ]]; then
+        echo "ERROR: Candidate schema_version 1 tags a generated commit that never reaches main; regenerate it with --generate (schema_version 2), or pass --allow-v1 REASON to publish it as is" >&2
+        return 2
+      fi
+      if ! jq -e -s 'length == 1 and (.[0] |
+        .schema_version == 1 and (.pr_number | type == "number" and . > 0) and
+        (.pr_type == "cycle" or .pr_type == "bugfix" or .pr_type == "other") and
+        (.target_commit | test("^[0-9a-f]{40}$")) and
+        (.target_tree | test("^[0-9a-f]{40}$")) and
+        (.remote_push_url | type == "string" and length > 0) and
+        (.release_body | type == "string" and length > 0) and
+        (.notification_body | type == "string" and length > 0) and
+        .tag == ("v" + .prepared_state.phases.semver.result.next) and
+        ((.prerelease // false) == (.tag | test("-"))))' "$PUBLISH_CANDIDATE" >/dev/null; then
+        echo "ERROR: Invalid release candidate" >&2
+        return 2
+      fi
+      echo "[PUBLISH] WARNING: publishing a schema_version 1 candidate under --allow-v1: ${ALLOW_V1_REASON}" >&2
+      ;;
+    2)
+      CANDIDATE_V2=true
+      validate_candidate_v2 "$PUBLISH_CANDIDATE" "$source_dir" "$snapdir" || return 2
+      RELEASE_TITLE=$(jq -r '.release_title' "$PUBLISH_CANDIDATE")
+      if jq -e '.unpublished_paths | length > 0' "$PUBLISH_CANDIDATE" >/dev/null; then
+        echo "[PUBLISH] WARNING: generated changes stay unpublished (the tag targets the merge): $(jq -r '.unpublished_paths | join(" ")' "$PUBLISH_CANDIDATE")" >&2
+      fi
+      ;;
+    *)
+      echo "ERROR: Invalid release candidate (unknown schema_version ${schema})" >&2
+      return 2
+      ;;
+  esac
+  if [[ "$LEDGER_ONLY" == true && "$CANDIDATE_V2" != true ]]; then
+    echo "ERROR: --ledger-only needs a schema_version 2 candidate" >&2
+    return 2
   fi
   TARGET_COMMIT=$(jq -r '.target_commit' "$PUBLISH_CANDIDATE")
-  if [[ "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" != "$TARGET_COMMIT" ]] ||
-      [[ "$(git -C "$PROJECT_ROOT" rev-parse 'HEAD^{tree}')" != "$(jq -r '.target_tree' "$PUBLISH_CANDIDATE")" ]] ||
-      [[ "$(git -C "$PROJECT_ROOT" remote get-url origin)" != "$(jq -r '.remote_origin' "$PUBLISH_CANDIDATE")" ]] ||
+  MERGE_SHA=$(jq -r '.merge_sha' "$PUBLISH_CANDIDATE")
+  head=$(git -C "$PROJECT_ROOT" rev-parse HEAD) || return 2
+  if [[ "$CANDIDATE_V2" == true ]]; then
+    # The publishing code is the approved checkout: the merge, the generated
+    # head, or the named ledger commit.
+    if [[ "$head" != "$MERGE_SHA" && "$head" != "$(jq -r '.generated_head' "$PUBLISH_CANDIDATE")" &&
+          ( -z "$LEDGER_NEW" || "$head" != "$LEDGER_NEW" ) ]] ||
+        [[ "$(git -C "$PROJECT_ROOT" rev-parse "${MERGE_SHA}^{tree}")" != "$(jq -r '.target_tree' "$PUBLISH_CANDIDATE")" ]]; then
+      echo "ERROR: Checkout or origin differs from the approved candidate" >&2
+      return 2
+    fi
+  elif [[ "$head" != "$TARGET_COMMIT" ]] ||
+      [[ "$(git -C "$PROJECT_ROOT" rev-parse 'HEAD^{tree}')" != "$(jq -r '.target_tree' "$PUBLISH_CANDIDATE")" ]]; then
+    echo "ERROR: Checkout or origin differs from the approved candidate" >&2
+    return 2
+  fi
+  if [[ "$(git -C "$PROJECT_ROOT" remote get-url origin)" != "$(jq -r '.remote_origin' "$PUBLISH_CANDIDATE")" ]] ||
       [[ "$(git -C "$PROJECT_ROOT" remote get-url --push --all origin)" != "$(jq -r '.remote_push_url' "$PUBLISH_CANDIDATE")" ]] ||
       ! git -C "$PROJECT_ROOT" diff --quiet ||
       ! git -C "$PROJECT_ROOT" diff --cached --quiet; then
     echo "ERROR: Checkout or origin differs from the approved candidate" >&2
-    return 1
+    return 2
   fi
   PR_NUMBER=$(jq -r '.pr_number' "$PUBLISH_CANDIDATE")
   PR_TYPE=$(jq -r '.pr_type' "$PUBLISH_CANDIDATE")
-  MERGE_SHA=$(jq -r '.merge_sha' "$PUBLISH_CANDIDATE")
   RELEASE_BODY=$(jq -r '.release_body' "$PUBLISH_CANDIDATE")
   NOTIFICATION_BODY=$(jq -r '.notification_body' "$PUBLISH_CANDIDATE")
   PUSH_URL=$(jq -r '.remote_push_url' "$PUBLISH_CANDIDATE")
   # Bind both host and repository before any publication side effect.
   # Explicit API arguments take precedence over ambient GH_HOST/GH_REPO.
-  bind_github_origin "$(jq -r '.remote_origin' "$PUBLISH_CANDIDATE")" || return 1
+  bind_github_origin "$(jq -r '.remote_origin' "$PUBLISH_CANDIDATE")" || return 2
   mkdir -p "$(dirname "$STATE_FILE")"
+  if [[ "$CANDIDATE_V2" == true ]] && ! verify_main_ancestry preflight; then
+    return 2
+  fi
+  if [[ "$LEDGER_ONLY" == true ]]; then
+    publish_ledger_only
+    return $?
+  fi
   # Only receipt identifiers may survive a retry. Every publication input
   # (including semver) is reconstructed from the approved snapshot.
   local comment_receipt='{}'
@@ -1532,17 +2177,32 @@ publish_candidate() (
     comment_receipt=$(jq -c '.phases.notify.result |
       if (.id | type) == "number" then {id:.id} else {} end' "$STATE_FILE") || return 1
   fi
-  jq --argjson receipt "$comment_receipt" \
-    '.prepared_state | .phases.notify.result = $receipt' "$PUBLISH_CANDIDATE" > "$STATE_FILE" || return 1
+  jq --argjson receipt "$comment_receipt" --argjson v2 "$CANDIDATE_V2" --arg reason "$ALLOW_V1_REASON" \
+    '.prepared_state | .phases.notify.result = $receipt
+     | if $v2 then .phases.ledger = {status: "pending", result: null}
+       else .allow_v1 = {reason: $reason} end' "$PUBLISH_CANDIDATE" > "$STATE_FILE" || return 1
   atomic_state_update --arg digest "$APPROVED_DIGEST" '.candidate_digest = $digest | .state = "PUBLISHING"'
-  local phase
-  for phase in tag release notify; do
-    should_run_phase "$phase" || continue
-    if ! "phase_${phase}"; then
+  progress_init
+  local phase rc
+  for phase in tag release ledger notify; do
+    if [[ "$phase" == ledger ]]; then
+      [[ -n "$LEDGER_NEW" ]] || continue
+    elif ! should_run_phase "$phase"; then
+      continue
+    fi
+    rc=0
+    "phase_${phase}" || rc=$?
+    progress_record "$phase"
+    if [[ "$rc" -ne 0 ]]; then
       atomic_state_update '.state = "FAILED"'
-      return 1
+      return "$rc"
     fi
   done
+  if [[ "$LEDGER_DEFERRED" == true ]]; then
+    atomic_state_update '.state = "DONE" | .degraded_reason = "ledger_deferred" | .timestamps.completed = (now | strftime("%Y-%m-%dT%H:%M:%SZ"))'
+    echo "[PUBLISH] Tag, release and notification verified; ledger step deferred (degraded: ledger_deferred)"
+    return 3
+  fi
   atomic_state_update '.state = "DONE" | .timestamps.completed = (now | strftime("%Y-%m-%dT%H:%M:%SZ"))'
   echo "[PUBLISH] All published objects verified"
 )
@@ -1627,10 +2287,22 @@ main() {
       --generate) shift ;;
       --publish) PUBLISH_CANDIDATE="$2"; shift 2 ;;
       --approve-sha256) APPROVED_DIGEST="$2"; shift 2 ;;
+      --ledger-only) LEDGER_ONLY=true; shift ;;
+      --allow-v1)
+        [[ $# -ge 2 ]] || { echo "ERROR: --allow-v1 requires a REASON" >&2; exit 2; }
+        ALLOW_V1=true; ALLOW_V1_REASON="$2"; shift 2 ;;
       --help|-h) usage; exit 0 ;;
       *) echo "ERROR: Unknown argument: $1" >&2; usage; exit 1 ;;
     esac
   done
+  if [[ -z "$PUBLISH_CANDIDATE" && ( "$LEDGER_ONLY" == true || "$ALLOW_V1" == true ) ]]; then
+    echo "ERROR: --ledger-only and --allow-v1 apply to --publish only" >&2
+    return 2
+  fi
+  if [[ "$ALLOW_V1" == true && -z "${ALLOW_V1_REASON//[[:space:]]/}" ]]; then
+    echo "ERROR: --allow-v1 requires a non-empty REASON (it is recorded in the run state)" >&2
+    return 2
+  fi
   if [[ -n "$PUBLISH_CANDIDATE" ]]; then
     [[ "$DRY_RUN" != true ]] || { echo "ERROR: --publish and --dry-run are exclusive" >&2; return 1; }
     mkdir -p "$(dirname "$STATE_FILE")"
@@ -1691,10 +2363,13 @@ main() {
       echo "ERROR: Candidate generation requires a clean tracked checkout and index" >&2
       return 1
     fi
-    local candidate="${PROJECT_ROOT}/.run/post-merge-candidate.json"
-    if [[ -f "$candidate" ]] &&
-        [[ "$(jq -r '.merge_sha // ""' "$candidate")" == "$MERGE_SHA" ]] &&
-        [[ "$(jq -r '.target_commit // ""' "$candidate")" == "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" ]]; then
+    local candidate="${PROJECT_ROOT}/.run/post-merge-candidate.json" merge_full
+    merge_full=$(git -C "$PROJECT_ROOT" rev-parse --verify --quiet "${MERGE_SHA}^{commit}" || :)
+    # cycle-133 C-3: a v2 candidate is current when it seals this merge and
+    # was generated at this checkout's HEAD (target_commit is the merge).
+    if [[ -f "$candidate" && -n "$merge_full" ]] &&
+        jq -e --arg m "$merge_full" --arg h "$(git -C "$PROJECT_ROOT" rev-parse HEAD)" \
+          '.schema_version == 2 and .merge_sha == $m and .generated_head == $h' "$candidate" >/dev/null; then
       echo "[PREPARED] Existing candidate: ${candidate}"
       echo "[PREPARED] SHA256 $(candidate_digest "$candidate")"
       return 0

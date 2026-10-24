@@ -1,0 +1,19 @@
+{
+  "description": "a CRITICAL with no scenario at all (the markdown bullet has no Failure clause)",
+  "expect": {
+    "errors": [
+      "failure_scenario"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 2,
+    "confidence": "high",
+    "file": "src/a.py",
+    "severity": "CRITICAL",
+    "title": "token check bypass"
+  },
+  "markdown": "- **CRITICAL** (confidence: high) `src/a.py:2` — token check bypass."
+}

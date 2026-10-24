@@ -64,7 +64,7 @@ ARMS_TRANSPORT_RE='rate.?limit|overloaded|session limit|usage limit|out of extra
 
 is_transport_failure() {  # is_transport_failure <sandbox-ws>
   local ws="$1" out="$1/.eval/agent-output.json" err="$1/.eval/agent-stderr.log" rc
-  rc="$(jq -r '.exit_code // 0' "$ws/.eval/executor.json" 2>/dev/null || echo 0)"
+  rc="$(jq -r '.exit_code // 0' "$ws/.eval/executor.json" 2>/dev/null || echo 0)"  # check-no-swallowed-jq: ok (classification only: an unreadable executor.json falls to the agent-output checks below; pending #1025 sweep)
   case "$rc" in 124|137|143) return 0 ;; esac
   [[ "$(jq -r '.subtype // ""' "$out" 2>/dev/null)" == "missing" ]] && return 0
   [[ -n "$(jq -r '.api_error_status // empty' "$out" 2>/dev/null)" ]] && return 0

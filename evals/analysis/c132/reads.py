@@ -2,7 +2,7 @@
 
 Usage:
   reads-c132.py --rows F --results-root DIR [--results-root DIR …] --inputs INPUTS.json
-                [--registration REGISTRATION.json] (--look N | --final | --placebo) --out DIR
+                [--registration REGISTRATION.json] (--look N | --final | --placebo | --judge-defects) --out DIR
                 [--power power.json] [--sensitivity-grades DIR] [--judge DIR]
                 [--arm-a ARM] [--arm-b ARM] [--seed N] [--name STEM] [--placebo-n 200]
                 [--interval t|percentile] [--validity c132|c131]
@@ -33,6 +33,14 @@ Modes (sdd.md §5.2, §5.3; prd.md FR-5, D16, D17):
                (calibration); mean |Δ| and the other interval's share are diagnostics (round 1).
                --registration is optional here (the Phase 0 placebo precedes it; the output says
                "unregistered"); --arm-a/--arm-b pick the contrast (default a1_full, a0_bare_matched).
+  --judge-defects  (cycle-133 C-11, a registered read under the registration schema v2 chain — sdd.md C-12; --registration
+               required and schema_version 2, else inputs invalid) the defect-level judged recall of grader 1.5.0's
+               --judge-verdicts grades: per cell, the defects with a blind `describes` verdict on a credited pair
+               (grade.json credited_pairs; blind: false verdicts are reported beside, never counted); the --arm-a − --arm-b
+               primary read (cluster bootstrap over PRs, the pairing and validity of the primary read) on the pairs whose
+               two cells were graded by 1.5.0 with every credited pair judged (unjudged_pairs 0) — the others are listed as
+               pairs_unjudged with the reason; per arm the cells, pairs judged / unjudged, grader recall and judged recall
+               over the fully judged valid cells; the judge models, prompt hashes and verdicts-file hashes seen.
   --interval t (default; round 1) the primary 95 % / 90 % intervals are the cluster-t intervals
                Δ̂ ± t_{P−1, 0.975 | 0.95}·SE_boot and the group-sequential boundaries move to the t
                scale (same upper-tail mass, df = valid PRs − 1) for the crossing rule and the RCI; the
@@ -860,6 +868,95 @@ COST_LEGEND = ("Cost per extra defect = cost increment ÷ extra defects, defined
                "and caught no more; the value is then not reported and both increments are printed.")
 
 
+# ---------------------------------------------------------------- the judged defect read (cycle-133 C-11, registration v2)
+JUDGE_GRADER = "1.5.0"
+
+
+def judge_view(c):
+    """(judged caught ids | None, reason): a cell's defects with a blind `describes` verdict, or why it has none"""
+    g = c.get("grade") or {}
+    if g.get("grader_version") != JUDGE_GRADER or not isinstance(g.get("credited_pairs"), list):
+        return None, "not_judged_grade"
+    if g.get("unjudged_pairs") != 0:
+        return None, "unjudged_pairs"
+    caught = sorted({p.get("defect_key") for p in g["credited_pairs"]
+                     if isinstance(p, dict) and p.get("verdict") == "describes" and p.get("blind") is True
+                     and p.get("defect_key") in c["defect_ids"]}, key=lambda d: int(d[1:]))
+    return caught, None
+
+
+def judge_defects_read(cells, reg, seed, arm_a=PRIMARY_A, arm_b=PRIMARY_B):
+    if reg.get("schema_version") != 2:
+        raise InputError("--judge-defects is registered under the registration schema v2 chain (sdd.md C-11/C-12); the "
+                         "registration is schema_version %r — register the read with registration.py v2" % reg.get("schema_version"))
+    pairs, lost = common.make_pairs(cells, arm_a, arm_b)
+    by_key = {c["key"]: c for c in cells}
+    used, unjudged = [], []
+    for p in pairs:
+        va, ra = judge_view(by_key[p["full"]["key"]])
+        vb, rb = judge_view(by_key[p["matched"]["key"]])
+        if va is None or vb is None:
+            unjudged.append({"pr": p["pr"], "trial": p["trial"], "a": ra, "b": rb})
+            continue
+        q = {"pr": p["pr"], "trial": p["trial"], "full": dict(p["full"], caught=len(va), caught_ids=va),
+             "matched": dict(p["matched"], caught=len(vb), caught_ids=vb)}
+        q["full"].pop("session1", None)
+        q["matched"].pop("session1", None)
+        used.append(q)
+    per_arm, models, prompts, vfiles = {}, set(), set(), set()
+    for arm in (arm_a, arm_b):
+        cs = [c for c in cells if c["arm"] == arm and c["valid"]]
+        e = {"cells_valid": len(cs), "cells_judged": 0, "credited_pairs": 0, "judged_pairs": 0, "judged_pairs_unblind": 0,
+             "unjudged_pairs": 0, "defects": 0, "caught_grader": 0, "caught_judged": 0}
+        for c in cs:
+            g = c.get("grade") or {}
+            if g.get("grader_version") != JUDGE_GRADER or not isinstance(g.get("credited_pairs"), list):
+                continue
+            j = g.get("judge") or {}
+            models.update(x for x in j.get("judge_models") or [] if isinstance(x, str))
+            prompts.update(x for x in j.get("judge_prompt_sha256") or [] if isinstance(x, str))
+            if isinstance(j.get("verdicts_sha256"), str):
+                vfiles.add(j["verdicts_sha256"])
+            e["credited_pairs"] += len(g["credited_pairs"])
+            for k in ("judged_pairs", "judged_pairs_unblind", "unjudged_pairs"):
+                e[k] += g.get(k) if isinstance(g.get(k), int) and not isinstance(g.get(k), bool) else 0
+            caught, why = judge_view(c)
+            if caught is None:
+                continue
+            e["cells_judged"] += 1
+            e["defects"] += c["defects"] or 0
+            e["caught_grader"] += c["caught"] or 0
+            e["caught_judged"] += len(caught)
+        e["recall_grader"] = e["caught_grader"] / e["defects"] if e["defects"] else None
+        e["recall_judged"] = e["caught_judged"] / e["defects"] if e["defects"] else None
+        per_arm[arm] = e
+    return {"label": "registered read (cycle-133 C-11; registration schema v2)", "grader_version": JUDGE_GRADER,
+            "arm_a": arm_a, "arm_b": arm_b, "primary": primary_read(used, seed), "pairs_used": len(used),
+            "pairs_lost": len(lost), "pairs_unjudged": sorted(unjudged, key=lambda x: (str(x["pr"]), x["trial"])),
+            "per_arm": per_arm, "judge_models": sorted(models), "judge_prompt_sha256": sorted(prompts),
+            "verdicts_sha256": sorted(vfiles)}
+
+
+def md_judge_defects(j):
+    L = ["## Judged defect read (%s)\n\n" % j["label"],
+         "Contrast `%s` − `%s` on %d pair(s) with every credited pair judged (grader %s); %d valid pair(s) not fully "
+         "judged; %d pair(s) lost to validity.\n\n" % (j["arm_a"], j["arm_b"], j["pairs_used"], j["grader_version"],
+                                                       len(j["pairs_unjudged"]), j["pairs_lost"]),
+         "| read | Δ | 95 % | 90 % | SE | PRs, pairs, defects | diag |\n|---|---|---|---|---|---|---|\n",
+         md_primary("judged recall", j["primary"]), "\n",
+         "| arm | cells valid | cells judged | credited pairs | judged (blind) | judged (unblind) | unjudged | grader recall | judged recall |\n"
+         "|---|---|---|---|---|---|---|---|---|\n"]
+    for arm in (j["arm_a"], j["arm_b"]):
+        e = j["per_arm"][arm]
+        L.append("| `%s` | %d | %d | %d | %d | %d | %d | %s | %s |\n" % (
+            arm, e["cells_valid"], e["cells_judged"], e["credited_pairs"], e["judged_pairs"], e["judged_pairs_unblind"],
+            e["unjudged_pairs"], f4(e["recall_grader"]), f4(e["recall_judged"])))
+    L.append("\nJudge models: %s; prompt sha256: %s; verdicts files: %d.\n" % (
+        ", ".join("`%s`" % m for m in j["judge_models"]) or "none",
+        ", ".join("`%s`" % h[:12] for h in j["judge_prompt_sha256"]) or "none", len(j["verdicts_sha256"])))
+    return "".join(L)
+
+
 def render_md(doc):
     L = ["# cycle-132 reads — mode `%s`\n" % doc["mode"], "\n"]
     inp = doc["inputs"]
@@ -888,6 +985,9 @@ def render_md(doc):
             L.append("| status `%s` |\n\n" % p.get("status"))
         L.append("Primary read on the unshuffled pairs (descriptive):\n\n")
         L.append(md_primary("unshuffled", doc["unshuffled"]))
+        return "".join(L)
+    if doc["mode"] == "judge_defects":
+        L.append(md_judge_defects(doc["judge_defects"]))
         return "".join(L)
     if doc.get("looks"):
         L.append("## Looks\n\n| look | PRs | defects | Δ | SE | t | z_yes | b_yes | z_no | b_no | CP yes | CP no | RCI | decision |\n"
@@ -1077,6 +1177,7 @@ def parse(argv):
     m.add_argument("--final", action="store_true")
     m.add_argument("--placebo", action="store_true")
     m.add_argument("--make-inputs", action="store_true")
+    m.add_argument("--judge-defects", action="store_true")
     ap.add_argument("--out", required=True)
     ap.add_argument("--power")
     ap.add_argument("--sensitivity-grades")
@@ -1097,8 +1198,8 @@ def parse(argv):
         ap.error("--name must be a bare file stem")
     if not a.make_inputs and not a.inputs:
         ap.error("--inputs INPUTS.json is required (D-7.5)")
-    if (a.look is not None or a.final) and not a.registration:
-        ap.error("--registration is required for --look and --final")
+    if (a.look is not None or a.final or a.judge_defects) and not a.registration:
+        ap.error("--registration is required for --look, --final and --judge-defects")
     return a
 
 
@@ -1138,7 +1239,9 @@ def main(argv=None):
                           "inputs_sha256": common.sha256_file(a.inputs), "registration_sha256": reg_sha,
                           "n_rows": len(rows), "registrations": reg_prov},
                "seed": seed, "interval": INTERVAL, "validity": VALIDITY}
-        if a.placebo:
+        if a.judge_defects:
+            doc.update(mode="judge_defects", judge_defects=judge_defects_read(cells, reg, seed, a.arm_a, a.arm_b))
+        elif a.placebo:
             pairs, lost = common.make_pairs(cells, a.arm_a, a.arm_b)
             doc.update(mode="placebo", arm_a=a.arm_a, arm_b=a.arm_b, pairs_lost=len(lost),
                        placebo=stats.placebo(pairs, seed=seed, n=a.placebo_n, boot=PLACEBO_BOOT, interval=INTERVAL),

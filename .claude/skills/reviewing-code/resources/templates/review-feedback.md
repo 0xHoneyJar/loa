@@ -17,12 +17,14 @@
 
 ## Changes Required
 
-{Every critical/high finding, whatever its confidence. First line of each entry:
-`- **{CRITICAL|HIGH}** (confidence: {high|medium|low}) `{path}:{line}` — {failure scenario}`}
+{Every critical/high finding, whatever its confidence. First line of each entry (the canonical finding grammar,
+.claude/schemas/finding.schema.json; verdict-derive.sh refuses a CRITICAL/HIGH/MEDIUM/LOW bullet without a valid
+`Failure:` clause, and a CRITICAL, HIGH or `blocking` bullet can never ride an APPROVED trailer):
+`- **{CRITICAL|HIGH}** (confidence: {high|medium|low}[, blocking]) `{path}:{line}[-{end}]` — {title}. Failure: {when <input or state> then <what breaks> — or at least 12 words; never TODO, n/a, see above}.`}
 
 ### 1. {Issue Category - e.g., Security, Testing, Functionality}
 
-- **{CRITICAL|HIGH}** (confidence: {high|medium|low}) `{path/to/file.ts}:{line}` — {what fails, and how}
+- **{CRITICAL|HIGH}** (confidence: {high|medium|low}) `{path/to/file.ts}:{line}` — {title}. Failure: {when <input or state> then <what breaks> — or at least 12 words; never TODO, n/a, see above}.
 **File:** `{path/to/file.ts}:{line}`
 **Issue:** {Clear description of what's wrong}
 **Why This Matters:** {Explain the impact - security risk, user experience, maintainability}
@@ -50,7 +52,7 @@
 
 ### 1. {Improvement Category}
 
-- **{MEDIUM|LOW}** (confidence: {high|medium|low}) `{path/to/file.ts}:{line}` — {what could fail}
+- **{MEDIUM|LOW}** (confidence: {high|medium|low}) `{path/to/file.ts}:{line}` — {title}. Failure: {when <input or state> then <what breaks> — or at least 12 words; never TODO, n/a, see above}.
 **File:** `{path/to/file.ts}:{line}`
 **Suggestion:** {What could be better}
 **Benefit:** {Why this improvement matters}

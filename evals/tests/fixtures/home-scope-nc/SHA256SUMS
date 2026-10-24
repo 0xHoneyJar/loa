@@ -1,0 +1,7 @@
+85fa14cb992ea75f60aa41dca36ee87b888b98d0ca7122d34ed6fe763b056130  manifests/pr-nc.json
+4bf5e62e0d3afc5f478612ada68bd47ba6861ebc51a71e699212a9be3b91051b  pinned/.claude/loa/CLAUDE.loa.md
+ee2d3b152451d1a018c6aa2eb79a2f025899536e6e0a4afc2fa06fa61d769fdc  pinned/.claude/protocols/nc-guard.md
+2b1bb3b976a33d9bac33a26e791ec5d25428af6bfafee1818c58251a537fd09f  pr-nc/PR.md
+3a935c9bf64a471f350cd146c1c316fa98f3bffd079accd9625527ea5be14094  pr-nc/head.diff
+891488794fcf7a77c39e4d769e8f2151dd817516202caf0763e33cc5dbf745c1  pr-nc/base/.claude/protocols/nc-guard.md
+a778ac82c2d0c93ac0e70411736ddca6090cb5fb675e8761894885096cdb846a  pr-nc/head/.claude/protocols/nc-guard.md

@@ -1,0 +1,19 @@
+{
+  "description": "a boolean confidence",
+  "expect": {
+    "errors": [
+      "confidence"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 1,
+    "confidence": true,
+    "failure_scenario": "the second request reads the cached token after it expired and the API accepts it for an hour",
+    "file": "a.py",
+    "severity": "LOW"
+  },
+  "markdown": null
+}

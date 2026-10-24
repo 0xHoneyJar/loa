@@ -1,0 +1,25 @@
+{
+  "description": "failure_scenario equal to failure_mode: no conflict, no warning",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "anchor_line": 9,
+      "blocking": false,
+      "failure_scenario": "the second request reads the cached token after it expired and the API accepts it for an hour",
+      "file": "x.py",
+      "id": "F-6f2e1e",
+      "severity": "LOW"
+    },
+    "valid": true,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 9,
+    "description": "a different human summary",
+    "failure_mode": "the second request reads the cached token after it expired and the API accepts it for an hour",
+    "failure_scenario": "the second request reads the cached token after it expired and the API accepts it for an hour",
+    "file": "x.py",
+    "severity": "LOW"
+  },
+  "markdown": null
+}

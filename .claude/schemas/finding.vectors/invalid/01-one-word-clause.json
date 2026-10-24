@@ -1,0 +1,20 @@
+{
+  "description": "the seam: a HIGH with a one-word Failure clause",
+  "expect": {
+    "errors": [
+      "failure_scenario"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 41,
+    "confidence": "high",
+    "failure_scenario": "race",
+    "file": "src/cache.py",
+    "severity": "HIGH",
+    "title": "stale read"
+  },
+  "markdown": "- **HIGH** (confidence: high) `src/cache.py:41` — stale read. Failure: race."
+}

@@ -27,7 +27,13 @@
 
 ## Critical Security Issues (Must Fix)
 
+{First line under each finding heading: the canonical finding bullet (.claude/schemas/finding.schema.json) —
+verdict-derive.sh refuses a CRITICAL/HIGH/MEDIUM/LOW bullet without a valid `Failure:` clause, and a CRITICAL, HIGH
+or `blocking` bullet can never ride an APPROVED trailer.}
+
 ### [CRITICAL-001] {Title}
+
+- **CRITICAL** (confidence: {high|medium|low}) `{path}:{line}` — {title}. Failure: {when <input or state> then <what breaks> — or at least 12 words; never TODO, n/a, see above}.
 
 **Severity:** CRITICAL
 **File:** `{path}:{line}`
@@ -50,6 +56,8 @@
 
 ### [HIGH-001] {Title}
 
+- **HIGH** (confidence: {high|medium|low}) `{path}:{line}` — {title}. Failure: {when <input or state> then <what breaks> — or at least 12 words; never TODO, n/a, see above}.
+
 **Severity:** HIGH
 **File:** `{path}:{line}`
 **Issue:** {Description}
@@ -61,6 +69,7 @@
 ## Medium/Low Priority Issues
 
 ### [MED-001] {Title}
+- **MEDIUM** (confidence: {high|medium|low}) `{path}:{line}` — {title}. Failure: {when <input or state> then <what breaks> — or at least 12 words; never TODO, n/a, see above}.
 - **File:** `{path}:{line}`
 - **Issue:** {Description}
 - **Fix:** {Suggestion}

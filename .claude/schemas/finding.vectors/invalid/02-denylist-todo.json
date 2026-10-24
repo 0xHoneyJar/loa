@@ -1,0 +1,20 @@
+{
+  "description": "a 12-token scenario holding TODO",
+  "expect": {
+    "errors": [
+      "failure_scenario"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 2,
+    "confidence": "high",
+    "failure_scenario": "TODO describe how the token check is bypassed by a crafted header value later",
+    "file": "src/a.py",
+    "severity": "CRITICAL",
+    "title": "auth"
+  },
+  "markdown": "- **CRITICAL** (confidence: high) `src/a.py:2` — auth. Failure: TODO describe how the token check is bypassed by a crafted header value later."
+}

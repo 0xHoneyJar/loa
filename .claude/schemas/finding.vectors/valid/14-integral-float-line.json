@@ -1,0 +1,21 @@
+{
+  "description": "an integral float line (12.0) is accepted as 12",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "anchor_line": 12,
+      "blocking": false,
+      "file": "x.py",
+      "id": "F-4dc271",
+      "severity": "INFO"
+    },
+    "valid": true,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 12.0,
+    "file": "x.py",
+    "severity": "INFO"
+  },
+  "markdown": null
+}

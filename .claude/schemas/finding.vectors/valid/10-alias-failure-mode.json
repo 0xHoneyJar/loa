@@ -1,0 +1,26 @@
+{
+  "description": "failure_mode alone normalises to failure_scenario with the warning",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "anchor_line": 9,
+      "blocking": false,
+      "failure_scenario": "the second request reads the cached token after it expired and the API accepts it for an hour",
+      "file": "x.py",
+      "id": "F-6f2e1e",
+      "severity": "HIGH"
+    },
+    "valid": true,
+    "warnings": [
+      "`failure_mode` is an alias of `failure_scenario`; removed in 2.1.0"
+    ]
+  },
+  "finding": {
+    "anchor_line": 9,
+    "category": "error-handling",
+    "failure_mode": "the second request reads the cached token after it expired and the API accepts it for an hour",
+    "file": "x.py",
+    "severity": "HIGH"
+  },
+  "markdown": null
+}

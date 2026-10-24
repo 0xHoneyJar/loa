@@ -768,11 +768,20 @@ validate_ledger() {
         return $LEDGER_VALIDATION_ERROR
     fi
 
-    # Check required fields
+    # Check required fields. cycle-133 (bd-4pjqm): the live ledger carries
+    # `schema_version`; the legacy `version` (init_ledger's older shape) is
+    # accepted as an alias. Either must be a positive integer.
     local version
-    version=$(jq -r '.version // "missing"' "$ledger_path")
+    version=$(jq -r '(.schema_version // .version // "missing") | tostring' "$ledger_path") || {
+        echo "Could not read schema_version" >&2
+        return $LEDGER_VALIDATION_ERROR
+    }
     if [[ "$version" == "missing" ]]; then
-        echo "Missing required field: version" >&2
+        echo "Missing required field: schema_version (legacy alias: version)" >&2
+        return $LEDGER_VALIDATION_ERROR
+    fi
+    if ! [[ "$version" =~ ^[1-9][0-9]*$ ]]; then
+        echo "schema_version must be a positive integer, got: $version" >&2
         return $LEDGER_VALIDATION_ERROR
     fi
 

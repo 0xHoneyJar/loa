@@ -1,0 +1,20 @@
+{
+  "description": "then as the last token is no when … then … shape",
+  "expect": {
+    "errors": [
+      "failure_scenario"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 1,
+    "confidence": "high",
+    "failure_scenario": "it breaks when called then",
+    "file": "a.py",
+    "severity": "HIGH",
+    "title": "x"
+  },
+  "markdown": "- **HIGH** (confidence: high) `a.py:1` — x. Failure: it breaks when called then."
+}

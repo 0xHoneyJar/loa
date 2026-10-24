@@ -1,0 +1,16 @@
+{
+  "description": "a whitespace-only id",
+  "expect": {
+    "errors": [
+      "id"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "id": " \t",
+    "severity": "PRAISE"
+  },
+  "markdown": null
+}

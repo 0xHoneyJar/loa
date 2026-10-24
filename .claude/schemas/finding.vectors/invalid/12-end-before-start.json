@@ -1,0 +1,19 @@
+{
+  "description": "anchor_line_end below anchor_line",
+  "expect": {
+    "errors": [
+      "anchor_line_end"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 12,
+    "anchor_line_end": 11,
+    "failure_scenario": "the second request reads the cached token after it expired and the API accepts it for an hour",
+    "file": "a.py",
+    "severity": "HIGH"
+  },
+  "markdown": null
+}

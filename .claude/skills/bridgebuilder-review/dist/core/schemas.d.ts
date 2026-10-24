@@ -17,7 +17,9 @@ export declare const FindingSchema: z.ZodObject<{
  * Zod schema for the findings block extracted from bridge-findings markers.
  *
  * Validates the top-level structure: schema_version (number) and findings (array).
- * Individual findings are validated per FindingSchema.
+ * Individual findings are validated per FindingSchema (the lenient extraction shape). The finding contract is the
+ * canonical `.claude/schemas/finding.schema.json` v1 (cycle-133 C-11): its zod validator is
+ * `CanonicalFindingSchema` / `validateCanonicalFinding` in ./finding-schema.ts, named in this schema's metadata.
  */
 export declare const FindingsBlockSchema: z.ZodObject<{
     schema_version: z.ZodNumber;

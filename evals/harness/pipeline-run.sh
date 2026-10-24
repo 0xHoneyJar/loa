@@ -70,11 +70,12 @@
 #                eval/ copy's sha256 or null). Later phases cannot rewrite them (audit MEDIUM-A1).
 #   meta/        pipeline.json, phase-<label>.argv.json (argv + captured env),
 #                prompt-<label>.md, arm, arm-evidence.txt, arm-env, refused.json,
-#                home/ (container mode: the per-run HOME; deleted at exit)
+#                home/ (container mode: the per-run HOME; deleted at exit); home-scope (C-10) also writes
+#                mount.json, mount-transform.json, ps-<label>.txt (process samples), home-integrity.json
 #
 # Session (D-4.3, DEC-0394 as amended, DEC-0412): `claude -p <prompt> --output-format
 # stream-json --verbose --model <id> --permission-mode bypassPermissions
-# --dangerously-skip-permissions --setting-sources project --tools <list>
+# --dangerously-skip-permissions --setting-sources project|user --tools <list>
 # --max-turns <cap> [--effort <v>] [--resume <id>]`, cwd sandbox/, with exactly this
 # environment: PATH HOME LANG LC_ALL TERM TMPDIR CLAUDE_CODE_USE_BEDROCK
 # CLAUDE_CODE_SUBAGENT_MODEL LOA_MODELINV_LOG_PATH LOA_COST_LEDGER_PATH
@@ -111,6 +112,20 @@
 # overrides) and SIGTERMs the phase when spent + estimate ≥ the cap (cap_turn
 # recorded). After each phase the result's total_cost_usd (authoritative) plus the
 # sandbox cost-ledger rows written during the phase are added; ≥ cap → cap_failure.
+# Metering fails closed (cycle-133 C-6, lib/session-exec.sh): before the first phase every
+# planned phase model must have a valid price (an unknown id, a malformed
+# $LOA_EVAL_PRICING_JSON or a null/negative/non-finite price → infrastructure_error, reason
+# `metering_incomplete: …`, no phase runs); a phase stream that cannot be priced (an
+# invalid token count, a completed turn without usage) stops the phase — SIGTERM while it
+# runs — and the run (infrastructure_error, reason `metering_incomplete: <label> …`, the
+# phase record carries metering: incomplete). Each phase record carries metering
+# metered | incomplete | unmetered_attempt (the phase started, no usage event and no
+# result cost: spend unknown, not zero). An unmetered_attempt is an accounting failure
+# (review r1 DISS-001): the run ends infrastructure_error (exit 2), reason
+# `unmetered_attempt: <label>`, and the phase is charged its cap allowance — there is no
+# per-phase USD cap, so the allowance is the run cap minus the spend before the phase
+# (the most the watchdog would have let it spend): cost_usd = that, cost_source
+# cap_unmetered, and spent_usd reaches the run cap.
 #
 # Exit codes:
 #   0  finished (any verdict)                                   status completed
@@ -157,6 +172,26 @@
 # trial it launches (batch and smoke); --dry-run honours the same flag, so the operator dry-runs
 # the open-mount arm with `pipeline-run.sh … --batch-context <id> --dry-run`.
 #
+# Mount mode (cycle-133 C-10, FR-10): arms[].mount_mode, else the suite's mount_mode.default, else pinned-root (the
+# closed mount above, unchanged: --setting-sources project). home-scope (a mounted review-catch arm, container executor
+# only; the host executor and build tasks are refused, exit 2, dry run included; an unmounted arm ignores the mode):
+#   - the image must record org.loa.claude_code_version = lib/sandbox-mount.sh SM_SURFACE_DERIVED_FOR (2.1.299, the
+#     Sprint 274 spike's version), else infrastructure_error before any phase;
+#   - the per-run HOME is built first and lib mount_home_scope materialises the pinned framework in HOME/.claude/
+#     (redirected through LOA_FRAMEWORK_ROOT=/home/evaluser; user memory importing CLAUDE.loa.md and the rules by
+#     absolute path); the project config (.loa.config.yaml) is copied to the workspace root;
+#   - overlay_answer_paths runs with mount mode home-scope (the PR's changed .claude/ data at the root, the surface only
+#     under pr/head/); the toggles and beads act on the HOME copy (SM_FRAMEWORK_ROOT), the manifest is the HOME's,
+#     the mount_cheval probe imports the HOME adapters, the arm-id guard also scans HOME/.claude;
+#   - meta/mount.json {mount_mode, setting_sources, claude_code_version, surface_derived_for, framework_root(_var),
+#     framework_manifest_sha256, home_verify, home_hook_counts, transform} records what the session loads;
+#   - every phase runs `--setting-sources user` with LOA_FRAMEWORK_ROOT (the HOME) and LOA_PROJECT_ROOT (/workspace) in
+#     its environment, under a one-second
+#     `docker top` sampler (meta/ps-<label>.txt: "# sample <epoch>" then "<pid> <ppid> <args>");
+#   - before the HOME is deleted, meta/home-integrity.json checks the HOME framework against its manifest
+#     (took-effect.sh integrity_clean reads it).
+#
+
 # Arm-id leak guard (AC-4.2; cycle-132 round 5, PREREGISTRATION §12 addendum 1): before the first phase the running
 # arm's id may appear nowhere in the sandbox, with one exception — an id the PR content itself names
 # (arm_ids_pr_native=<sorted comma list>|none in arm-evidence: the suite's arm ids found under pr/) may appear in a
@@ -182,9 +217,13 @@
 #
 # Mount library: lib/sandbox-mount.sh beside this script, sourced by a literal path.
 # Exported to it: ARM_EVIDENCE_FILE, ARM_ENV_FILE (meta/arm-env), LOA_EVAL_SUITE_FILE.
+# Session library: lib/session-exec.sh beside this script, sourced by a literal path (the one
+# copy of the exec shim, the pass-through/secret keys and the pricing; blind-session.sh
+# shares it); its startup assertion assert_secret_keys failing is infrastructure_error.
 #
 # Tested by evals/tests/pipeline-run.bats (stub claude, stub docker, and a temporary
-# copy of this harness whose lib/sandbox-mount.sh is the stub mount library).
+# copy of this harness whose lib/sandbox-mount.sh is the stub mount library and whose
+# lib/session-exec.sh is the shipped one).
 # =============================================================================
 set -euo pipefail
 export LC_ALL=C
@@ -301,8 +340,27 @@ case "$(jq -r 'if (.toggles // {}) | has("oracle_open") then (.toggles.oracle_op
   absent|boolean) ;;
   *) echo "pipeline-run.sh: refused: arm '$ARM': toggles.oracle_open must be a JSON boolean (true|false)" >&2; exit 2 ;;
 esac
+# mount mode (cycle-133 C-10): arms[].mount_mode, else the suite's mount_mode.default, else pinned-root (the cycle-132
+# mount). home-scope runs a mounted review-catch arm in the container executor only (the host HOME is the operator's);
+# an unmounted arm (loa_mount: false) has no mount, whatever the mode says. Refusals are exit 2 before any write.
+MOUNT_MODE="$(jq -r --argjson s "$SUITE_JSON" '.mount_mode // ($s.mount_mode // {}).default // "pinned-root"' <<<"$ARM_DEF")"
+case "$MOUNT_MODE" in
+  pinned-root) ;;
+  home-scope)
+    if [[ "$(jq -r '.loa_mount' <<<"$SUITE_TOGGLES")" == false ]]; then MOUNT_MODE=pinned-root
+    elif [[ "$KIND" != review-catch ]]; then
+      echo "pipeline-run.sh: refused: arm '$ARM': mount_mode home-scope mounts a review-catch PR (task type $TASK_TYPE)" >&2; exit 2
+    elif [[ "$EXECUTOR" != container ]]; then
+      echo "pipeline-run.sh: refused: arm '$ARM': mount_mode home-scope needs --executor container (the host HOME is the operator's)" >&2; exit 2
+    fi ;;
+  *) echo "pipeline-run.sh: refused: arm '$ARM': mount_mode '$MOUNT_MODE' is not pinned-root|home-scope" >&2; exit 2 ;;
+esac
+# the Claude Code scopes a mounted session loads: project (pinned-root: the framework at the workspace root) or user
+# (home-scope: the framework under the session HOME; the Sprint 274 spike showed `user` loads nothing of the project)
+SETTING_SOURCES=project; [[ "$MOUNT_MODE" == home-scope ]] && SETTING_SOURCES=user
 EVAL_ONLY=false
 [[ "$(jq -r '(.eval_only == true) or (.toggles.oracle_open == true)' <<<"$ARM_DEF")" == true ]] && EVAL_ONLY=true
+
 if [[ "$EVAL_ONLY" == true && -z "$BATCH_CONTEXT" ]]; then
   echo "pipeline-run.sh: refused: arm '$ARM': eval_only arm outside an evaluation batch (run-ablation.sh passes --batch-context <batch> to its trials)" >&2
   exit 2
@@ -382,6 +440,7 @@ if [[ "$DRY_RUN" == true ]]; then
     sb_mount=none sb_overlay="none(no mount)" sb_variant=none sb_edits=-
   else
     sb_mount=loa sb_variant=eval
+    [[ "$MOUNT_MODE" == home-scope ]] && sb_mount=home-scope
     if [[ "$KIND" != review-catch ]]; then sb_overlay="none(build)"
     elif [[ "$(jq -r '.oracle_open' <<<"$SUITE_TOGGLES")" == true ]]; then sb_overlay="none(oracle_open)"
     else sb_overlay="$OVERLAY_MODE"; fi
@@ -491,9 +550,36 @@ write_pipeline() {  # write_pipeline — (re)write meta/pipeline.json from the c
     > "$META/pipeline.json.tmp" && mv "$META/pipeline.json.tmp" "$META/pipeline.json"
 }
 
+# home_integrity — home-scope: the HOME framework copy against its manifest (the HOME is deleted at exit, so
+# took-effect.sh integrity_clean reads this record): meta/home-integrity.json {files, tampered, missing,
+# manifest_sha256, first}; written once, when a manifest exists
+home_integrity() {
+  [[ "${HS:-false}" == true && -f "$HOME_DIR/.claude/checksums.json" && ! -e "$META/home-integrity.json" ]] || return 0
+  python3 -I -c '
+import hashlib, json, os, sys
+root, man, out = sys.argv[1], sys.argv[2], sys.argv[3]
+def sha(p):
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+files = json.load(open(man)).get("files") or {}
+bad = missing = 0; first = None
+for rel, want in sorted(files.items()):
+    p = os.path.join(root, rel)
+    if os.path.islink(p) or not os.path.isfile(p):
+        missing += 1; first = first or "missing " + rel
+    elif sha(p) != want:
+        bad += 1; first = first or "tampered " + rel
+json.dump({"files": len(files), "tampered": bad, "missing": missing, "manifest_sha256": sha(man), "first": first},
+          open(out, "w"), sort_keys=True)' "$HOME_DIR" "$HOME_DIR/.claude/checksums.json" "$META/home-integrity.json"
+}
+
 finish() {  # finish <status> <exit> [reason]
   STATUS="$1"; [[ -n "${3:-}" ]] && REASON="$3"
   compute_mount_integrity || true
+  home_integrity || true
   write_pipeline
   FINAL_WRITTEN=1
   remove_tree "$HOME_DIR"
@@ -504,6 +590,7 @@ infra() { finish infrastructure_error 2 "$*"; }
 
 on_exit() {
   local rc=$?
+  home_integrity 2>/dev/null || true
   remove_tree "$HOME_DIR"
   if [[ "$FINAL_WRITTEN" -eq 0 ]]; then
     STATUS=infrastructure_error; REASON="${REASON:-driver aborted (rc $rc)}"
@@ -541,10 +628,18 @@ for fn in mount_prompt_surface resolve_arm_toggles apply_arm_toggles regen_sandb
           overlay_answer_paths check_mount_closed apply_eval_config_variant; do
   declare -F "$fn" >/dev/null || infra "mount library lacks $fn"
 done
+# --- session library (cycle-133 C-6): the exec shim, pass-through/secret keys, pricing ------
+# eval.yml trust boundary: a literal in-tree path, no variable on the source line.
+[[ -f "$SCRIPT_DIR/lib/session-exec.sh" ]] || infra "session library not found: $SCRIPT_DIR/lib/session-exec.sh"
+pushd "$SCRIPT_DIR" >/dev/null
+# shellcheck source=lib/session-exec.sh
+source ./lib/session-exec.sh || { popd >/dev/null; infra "session library failed to load"; }
+popd >/dev/null
 # the library may set its own shell options or traps; the driver's stay as declared
 set -euo pipefail
 trap on_exit EXIT
 trap on_signal TERM INT HUP
+assert_secret_keys || infra "refused: a secret-shaped pass-through key is not in SECRET_KEYS (lib/session-exec.sh)"
 # the library's contract: arm environment lines (gates: false → LOA_ADVERSARIAL_REVIEW_ENFORCE=false)
 # land in ARM_ENV_FILE; write_sandbox_grimoire resolves sprint_plan from LOA_EVAL_SUITE_FILE
 export ARM_ENV_FILE="$META/arm-env"; : > "$ARM_ENV_FILE"
@@ -588,9 +683,66 @@ if [[ "$EXECUTOR" == container ]]; then
   command -v "$DOCKER_BIN" >/dev/null 2>&1 || [[ -x "$DOCKER_BIN" ]] || infra "docker CLI not found: $DOCKER_BIN"
   IMAGE_DIGEST="$("$DOCKER_BIN" image inspect --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{else}}{{.Id}}{{end}}' "$IMAGE" 2>/dev/null || true)"
   [[ -n "$IMAGE_DIGEST" ]] || infra "container image not found: $IMAGE"
+  if [[ "$MOUNT_MODE" == home-scope ]]; then
+    CC_VERSION="$("$DOCKER_BIN" image inspect --format '{{index .Config.Labels "org.loa.claude_code_version"}}' "$IMAGE" 2>/dev/null || true)"
+    [[ "$CC_VERSION" == "$SM_SURFACE_DERIVED_FOR" ]] \
+      || infra "refused: mount_mode home-scope: the surface is derived for Claude Code $SM_SURFACE_DERIVED_FOR but the image records '${CC_VERSION:-none}' (org.loa.claude_code_version); re-run the scope spike and re-derive lib/sandbox-mount.sh surface()"
+  fi
 else
   IMAGE_DIGEST="$FINGERPRINT"
 fi
+
+# the per-run HOME builder (defined here: home-scope materialises the framework into it; see the HOME notes below)
+CREDS_HOME="${LOA_EVAL_CREDS_HOME:-$HOME}"
+make_home() {
+  mkdir -p "$HOME_DIR/.claude" "$HOME_DIR/.aws" "$HOME_DIR/.codex"
+  # the sandbox project is pre-trusted so the mounted tree's project settings apply without the dialog
+  # (the CLI otherwise ignores permissions.allow and warns; lead, Sprint 258 smoke)
+  printf '{"projects":{"/workspace":{"hasTrustDialogAccepted":true}}}\n' > "$HOME_DIR/.claude.json"
+  if [[ -f "$CREDS_HOME/.codex/config.toml" ]]; then cp "$CREDS_HOME/.codex/config.toml" "$HOME_DIR/.codex/config.toml"; fi
+  # auth.json: a copy whose refresh token is a placeholder (KF-048). The real one is single-use; a
+  # container that refreshed with a verbatim copy consumed the host's token and every later run and
+  # the host failed with 401 refresh_token_reused. The key must stay: the codex CLI treats a missing
+  # refresh_token as logged out and sends no bearer at all (401 Missing bearer; KF-048 recurrence 2),
+  # so the value is a placeholder that can only fail to refresh. Paths only in argv; the host file is never written.
+  if [[ -f "$CREDS_HOME/.codex/auth.json" ]]; then
+    python3 -I -c '
+import json, os, sys
+src, dst = sys.argv[1], sys.argv[2]
+try:
+    with open(src, "rb") as fh:
+        data = json.loads(fh.read().decode("utf-8"))
+except Exception:
+    data = None
+if not isinstance(data, dict):
+    sys.exit(3)
+tok = data.get("tokens")
+if isinstance(tok, dict):
+    if "refresh_token" in tok:
+        tok["refresh_token"] = "loa-ablation-no-refresh-token"
+# OPENAI_API_KEY (Sprint 261 audit DISS-C-001): a long-lived key never reaches the agent-writable HOME
+# unless the operator accepts the exposure with LOA_EVAL_CODEX_APIKEY_COPY=1 and the file is in API-key
+# mode (no usable access token); in ChatGPT mode the key is unused by codex and is dropped.
+has_at = isinstance(tok, dict) and isinstance(tok.get("access_token"), str) and bool(tok.get("access_token"))
+key = data.get("OPENAI_API_KEY")
+if isinstance(key, str) and key:
+    if has_at or os.environ.get("LOA_EVAL_CODEX_APIKEY_COPY") != "1":
+        data["OPENAI_API_KEY"] = None
+        if not has_at:
+            sys.stderr.write("pipeline-run: WARN codex auth.json is in API-key mode; the key is not copied into the "
+                             "agent-writable HOME (set LOA_EVAL_CODEX_APIKEY_COPY=1 to accept the exposure); "
+                             "the run has no codex credential\n")
+fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+os.fchmod(fd, 0o600)
+with os.fdopen(fd, "w", encoding="utf-8") as out:
+    json.dump(data, out)
+    out.write("\n")
+' "$CREDS_HOME/.codex/auth.json" "$HOME_DIR/.codex/auth.json" \
+      || { rm -f "$HOME_DIR/.codex/auth.json"
+           echo "pipeline-run: WARN codex auth.json unreadable; the run has no codex credential" >&2; }
+  fi
+  chmod 0700 "$HOME_DIR" "$HOME_DIR/.claude" "$HOME_DIR/.aws" "$HOME_DIR/.codex"
+}
 
 # --- materialisation (D-4.5) -------------------------------------------------------
 resolve_rel() {  # resolve_rel <relpath> → first existing dir among the candidate roots
@@ -638,7 +790,16 @@ sgit commit -q --allow-empty -m base
 BASE_COMMIT="$(sgit rev-parse HEAD)"
 printf 'base_commit=%s\n' "$BASE_COMMIT" >> "$ARM_EVIDENCE_FILE"
 
-if [[ "$LOA_MOUNT" == true ]]; then
+HS=false MOUNT_ARG=pinned-root FW_ROOT="$WS"
+if [[ "$LOA_MOUNT" == true && "$MOUNT_MODE" == home-scope ]]; then
+  # home-scope (C-10): the pinned framework under the session HOME, redirected through LOA_FRAMEWORK_ROOT; the
+  # project config stays at the workspace root; toggles, beads and the manifest act on the HOME copy
+  HS=true MOUNT_ARG=home-scope FW_ROOT="$HOME_DIR"
+  make_home
+  lib_call mount_home_scope "$HOME_DIR" "$SOURCE_TREE" /home/evaluser "$META/mount-transform.json"
+  if [[ -f "$SOURCE_TREE/.loa.config.yaml" ]]; then cp "$SOURCE_TREE/.loa.config.yaml" "$WS/.loa.config.yaml"; fi
+  export SM_FRAMEWORK_ROOT="$HOME_DIR"
+elif [[ "$LOA_MOUNT" == true ]]; then
   lib_call mount_prompt_surface "$WS" "$SOURCE_TREE" -
 fi
 # closed mount (cycle-131 FR-1): the overlay before the toggles, the check after the manifest
@@ -647,7 +808,7 @@ if [[ "$KIND" == review-catch && "$LOA_MOUNT" == true ]]; then
   if [[ "$ORACLE_OPEN" == true ]]; then
     printf 'mount_overlay=none\n' >> "$ARM_EVIDENCE_FILE"
   else
-    lib_call overlay_answer_paths "$WS" "$FIXTURE_DIR" "$OVERLAY_MODE" "$SOURCE_TREE" "$SOURCE_COMMIT"
+    lib_call overlay_answer_paths "$WS" "$FIXTURE_DIR" "$OVERLAY_MODE" "$SOURCE_TREE" "$SOURCE_COMMIT" "$MOUNT_ARG"
     copy_source="$(sed -n 's/^copy_source=//p' "$ARM_EVIDENCE_FILE" | sed -n '$p')"
     [[ "$copy_source" == "$SOURCE_COMMIT" ]] || infra "copy_source ${copy_source:-<none>} differs from source_commit $SOURCE_COMMIT"
     grep -qE '^mount_overlay=(head|base):[0-9]+$' "$ARM_EVIDENCE_FILE" || infra "overlay_answer_paths printed no mount_overlay"
@@ -661,11 +822,24 @@ if [[ "$LOA_MOUNT" == true ]]; then
   lib_call init_sandbox_beads "$WS" "$(jq -r '.title // .id' <<<"$TASK_JSON")"
   mkdir -p "$WS/.run"
   [[ -e "$WS/.run/zone-guard-authorization.json" ]] && infra "sandbox carries .run/zone-guard-authorization.json"
-  lib_call regen_sandbox_manifest "$WS"
+  lib_call regen_sandbox_manifest "$FW_ROOT"
   grep -q '^manifest_sha256=' "$ARM_EVIDENCE_FILE" || infra "regen_sandbox_manifest printed no manifest_sha256"
   # the checked surface is the launched one: after the toggles, the config writes and the manifest
   if [[ "$CLOSED_MOUNT" == true ]]; then
     lib_call check_mount_closed "$WS" "$FIXTURE_DIR" "$SOURCE_TREE"
+  fi
+  if [[ "$HS" == true ]]; then
+    # meta/mount.json: what the session loads and from where, so a version or flag change is visible in the record
+    jq -n --arg ss "$SETTING_SOURCES" --arg cc "${CC_VERSION:-}" --arg sf "$SM_SURFACE_DERIVED_FOR" --arg sc "$SOURCE_COMMIT" \
+      --arg man "$(sed -n 's/^manifest_sha256=//p' "$ARM_EVIDENCE_FILE" | sed -n '$p')" \
+      --arg ver "$(sed -n 's/^home_verify=//p' "$ARM_EVIDENCE_FILE" | sed -n '$p')" \
+      --arg hooks "$(sed -n 's/^home_hook_counts=//p' "$ARM_EVIDENCE_FILE" | sed -n '$p')" \
+      --slurpfile tx "$META/mount-transform.json" '
+      {schema_version: 1, mount_mode: "home-scope", setting_sources: $ss, claude_code_version: $cc,
+       surface_derived_for: $sf, source_commit: $sc, framework_root_var: $tx[0].framework_root_var,
+       framework_root: $tx[0].framework_root, framework_manifest_sha256: $man, home_verify: $ver, home_hook_counts: $hooks,
+       transform: ($tx[0] | {files, files_transformed, rules, residual, shell_relative_refs})}' > "$META/mount.json" \
+      || infra "could not write meta/mount.json"
   fi
 else
   [[ -e "$WS/.claude" || -e "$WS/CLAUDE.md" ]] && infra "loa_mount: false but the sandbox has .claude/ or CLAUDE.md"
@@ -689,12 +863,12 @@ if [[ "$LOA_MOUNT" == true && "$GATES_OFF" != true ]]; then
   fi
 fi
 if [[ "$LOA_MOUNT" == true ]]; then
-  if [[ ! -d "$WS/.claude/adapters/loa_cheval" || -L "$WS/.claude/adapters" || -L "$WS/.claude/adapters/loa_cheval" ]]; then
+  if [[ ! -d "$FW_ROOT/.claude/adapters/loa_cheval" || -L "$FW_ROOT/.claude/adapters" || -L "$FW_ROOT/.claude/adapters/loa_cheval" ]]; then
     MOUNT_CHEVAL="broken:no .claude/adapters/loa_cheval"
   else
     cheval_rc=0
     cheval_err="$(env -i PATH="$PATH" LC_ALL=C timeout 60 python3 -I -B -c \
-      'import sys; sys.path.insert(0, sys.argv[1]); import loa_cheval, loa_cheval.providers' "$WS/.claude/adapters" 2>&1 >/dev/null)" \
+      'import sys; sys.path.insert(0, sys.argv[1]); import loa_cheval, loa_cheval.providers' "$FW_ROOT/.claude/adapters" 2>&1 >/dev/null)" \
       || cheval_rc=$?
     if [[ $cheval_rc -eq 0 ]]; then MOUNT_CHEVAL=ok
     else
@@ -750,6 +924,10 @@ while IFS= read -r arm_hit; do
   if [[ "$ARM_PR_NATIVE" == true ]] && pr_derived "$rel"; then continue; fi
   infra "arm id appears in the sandbox: $rel"
 done < <(grep -rIl --exclude-dir=.git -F -e "$ARM" "$WS" 2>/dev/null | LC_ALL=C sort || true)
+if [[ "$HS" == true ]]; then
+  arm_hit="$(grep -rIl -F -e "$ARM" "$HOME_DIR/.claude" 2>/dev/null | LC_ALL=C sort | sed -n '1p' || true)"
+  [[ -z "$arm_hit" ]] || infra "arm id appears in the HOME framework: ${arm_hit#"$HOME_DIR"/}"
+fi
 
 leak_scan() {  # leak_scan <file> — `hidden`, a defect key or any arm id → non-zero
   local f="$1" id
@@ -812,116 +990,32 @@ build_prompt() {  # build_prompt <name> <out-file>
 # unless LOA_EVAL_CODEX_APIKEY_COPY=1 (API-key mode only; the run otherwise has no codex
 # credential and says so). ~/.claude/.credentials.json and
 # ~/.claude/settings.json are never copied: the Bedrock route authenticates from AWS_BEARER_TOKEN_BEDROCK in the environment,
-# and --setting-sources project ignores user settings.
-CREDS_HOME="${LOA_EVAL_CREDS_HOME:-$HOME}"
-make_home() {
-  mkdir -p "$HOME_DIR/.claude" "$HOME_DIR/.aws" "$HOME_DIR/.codex"
-  # the sandbox project is pre-trusted so the mounted tree's project settings apply without the dialog
-  # (the CLI otherwise ignores permissions.allow and warns; lead, Sprint 258 smoke)
-  printf '{"projects":{"/workspace":{"hasTrustDialogAccepted":true}}}\n' > "$HOME_DIR/.claude.json"
-  if [[ -f "$CREDS_HOME/.codex/config.toml" ]]; then cp "$CREDS_HOME/.codex/config.toml" "$HOME_DIR/.codex/config.toml"; fi
-  # auth.json: a copy whose refresh token is a placeholder (KF-048). The real one is single-use; a
-  # container that refreshed with a verbatim copy consumed the host's token and every later run and
-  # the host failed with 401 refresh_token_reused. The key must stay: the codex CLI treats a missing
-  # refresh_token as logged out and sends no bearer at all (401 Missing bearer; KF-048 recurrence 2),
-  # so the value is a placeholder that can only fail to refresh. Paths only in argv; the host file is never written.
-  if [[ -f "$CREDS_HOME/.codex/auth.json" ]]; then
-    python3 -I -c '
-import json, os, sys
-src, dst = sys.argv[1], sys.argv[2]
-try:
-    with open(src, "rb") as fh:
-        data = json.loads(fh.read().decode("utf-8"))
-except Exception:
-    data = None
-if not isinstance(data, dict):
-    sys.exit(3)
-tok = data.get("tokens")
-if isinstance(tok, dict):
-    if "refresh_token" in tok:
-        tok["refresh_token"] = "loa-ablation-no-refresh-token"
-# OPENAI_API_KEY (Sprint 261 audit DISS-C-001): a long-lived key never reaches the agent-writable HOME
-# unless the operator accepts the exposure with LOA_EVAL_CODEX_APIKEY_COPY=1 and the file is in API-key
-# mode (no usable access token); in ChatGPT mode the key is unused by codex and is dropped.
-has_at = isinstance(tok, dict) and isinstance(tok.get("access_token"), str) and bool(tok.get("access_token"))
-key = data.get("OPENAI_API_KEY")
-if isinstance(key, str) and key:
-    if has_at or os.environ.get("LOA_EVAL_CODEX_APIKEY_COPY") != "1":
-        data["OPENAI_API_KEY"] = None
-        if not has_at:
-            sys.stderr.write("pipeline-run: WARN codex auth.json is in API-key mode; the key is not copied into the "
-                             "agent-writable HOME (set LOA_EVAL_CODEX_APIKEY_COPY=1 to accept the exposure); "
-                             "the run has no codex credential\n")
-fd = os.open(dst, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-os.fchmod(fd, 0o600)
-with os.fdopen(fd, "w", encoding="utf-8") as out:
-    json.dump(data, out)
-    out.write("\n")
-' "$CREDS_HOME/.codex/auth.json" "$HOME_DIR/.codex/auth.json" \
-      || { rm -f "$HOME_DIR/.codex/auth.json"
-           echo "pipeline-run: WARN codex auth.json unreadable; the run has no codex credential" >&2; }
-  fi
-  chmod 0700 "$HOME_DIR" "$HOME_DIR/.claude" "$HOME_DIR/.aws" "$HOME_DIR/.codex"
-}
-[[ "$EXECUTOR" == container ]] && make_home
+# and --setting-sources project ignores user settings (home-scope's user scope is the pinned framework the mount
+# writes into this HOME, never the operator's).
+[[ "$EXECUTOR" == container && "$HS" != true ]] && make_home
 
-# --- pricing (one lookup per model; D-4.10) ---------------------------------------------
-PRICE_CACHE=""
-price_for() {  # price_for <model id> → {"in":…,"out":…,"cr":…,"cc":…} micro-USD per Mtok, or null
-  local m="$1" hit alias j
-  hit="$(printf '%s\n' "$PRICE_CACHE" | awk -F'\t' -v m="$m" '$1 == m {print $2; exit}')"
-  [[ -n "$hit" ]] && { printf '%s' "$hit"; return 0; }
-  if [[ -n "${LOA_EVAL_PRICING_JSON:-}" ]]; then
-    j="$(jq -c --arg m "$m" '.[$m] // null' <<<"$LOA_EVAL_PRICING_JSON" 2>/dev/null || echo null)"
-  else
-    alias="$(printf '%s' "$m" | sed -E 's/^([a-z]+\.)?anthropic\.//; s/-v[0-9]+(:[0-9]+)?$//')"
-    j="$(cd "$REPO_ROOT/.claude/adapters" && python3 -I "$REPO_ROOT/.claude/adapters/loa_cheval/metering/pricing.py" \
-          --alias "$alias" --json 2>/dev/null | sed -n '1p' || true)"
-    [[ -n "$j" ]] || j=null
-  fi
-  j="$(jq -c 'if (type == "object") and (.input_per_mtok != null) and (.output_per_mtok != null)
-              then {in: .input_per_mtok, out: .output_per_mtok,
-                    cr: (.cache_read_per_mtok // (.input_per_mtok * 0.1)),
-                    cc: (.cache_write_per_mtok // .cache_creation_per_mtok // (.input_per_mtok * 1.25))}
-              else null end' <<<"$j" 2>/dev/null || echo null)"
-  PRICE_CACHE="$PRICE_CACHE$m"$'\t'"$j"$'\n'
-  printf '%s' "$j"
-}
-# price_events <events> <prices> <budget_micro> → "<turns> <estimate_micro> <crossing_turn|0>"
-price_events() {
-  jq -R -n -r --argjson p "$2" --argjson budget "$3" '
-    def cost(u): ((u.input_tokens // 0) * $p.in + (u.output_tokens // 0) * $p.out
-                  + (u.cache_read_input_tokens // 0) * $p.cr + (u.cache_creation_input_tokens // 0) * $p.cc) / 1000000;
-    reduce (inputs | fromjson? | select(type == "object" and .type == "assistant"
-                                        and ((.message.usage // null) | type) == "object")) as $e
-      ({order: [], u: {}, n: 0};
-       .n += 1
-       | ($e.message.id // ("event-" + (.n | tostring))) as $id
-       | (if .u[$id] == null then .order += [$id] else . end)
-       | .u[$id] = $e.message.usage)
-    | [.order[] as $id | cost(.u[$id])] as $c
-    | (reduce range(0; $c | length) as $i ({s: 0, x: 0};
-         if .x == 0 then (.s += $c[$i]) | (if .s >= $budget then .x = ($i + 1) else . end) else . end)) as $r
-    | "\($c | length) \(($c | add // 0) | round) \($r.x)"' 2>/dev/null < "$1" || echo "0 0 0"
-}
+# --- pricing: price_for / price_events / unmetered_tail come from lib/session-exec.sh (C-6) ---
 
 # --- phase execution ----------------------------------------------------------------
 IMPL_SESSION="" LAST_VERDICT="none" CUR_LABEL=""
 in_container_path() { local p="$1"; printf '%s' "/workspace${p#"$WS"}"; }
 
-# ENV_SHIM <keys-csv> <cmd…>: close every descriptor above 2 (DEC-0412), keep exactly the
-# named environment variables, exec <cmd>. Used on the host (host mode, and around the
-# docker client) and inside the container. No eval (eval.yml trust boundary), and secret
-# values never appear in any argv: they travel in the environment only.
-ENV_SHIM='import os, sys
-keys = [k for k in sys.argv[1].split(",") if k]
-env = {k: os.environ[k] for k in keys if k in os.environ}
-os.closerange(3, 65536)
-os.execvpe(sys.argv[2], sys.argv[2:], env)'
-# pass-through keys, taken from the driver's environment when set; SECRET_KEYS are never
-# written to an argv or a capture (recorded as <set>)
-PASS_KEYS="AWS_REGION AWS_DEFAULT_REGION AWS_PROFILE AWS_BEARER_TOKEN_BEDROCK ANTHROPIC_BEDROCK_REGION_PREFIX ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL"
-SECRET_KEYS=" AWS_BEARER_TOKEN_BEDROCK "
+# ENV_SHIM, PASS_KEYS and SECRET_KEYS come from lib/session-exec.sh: the shim is used on the
+# host (host mode, and around the docker client) and inside the container.
+
+# ps_sampler <container> <out-file> <max-s> — home-scope: one-second process samples of the phase container from the
+# host (`docker top`; the container cannot write them): "# sample <epoch>" then "<pid> <ppid> <args>" lines
+ps_sampler() {
+  local c="$1" out="$2" max="$3" t=0 s
+  : > "$out"
+  while [[ $t -lt $max ]]; do
+    if s="$("$DOCKER_BIN" top "$c" -eo pid,ppid,args 2>/dev/null)" && [[ -n "$s" ]]; then
+      { printf '# sample %s\n' "$(date +%s)"; printf '%s\n' "$s" | sed '1d'; } >> "$out"
+    fi
+    sleep 1
+    t=$((t + 1))
+  done
+}
 
 run_phase() {  # run_phase <name> <label>
   local name="$1" label="$2" model turns tsec prompt_file events errf argv_file
@@ -941,7 +1035,7 @@ run_phase() {  # run_phase <name> <label>
   fi
   local cbin="$CLAUDE_BIN"; [[ "$EXECUTOR" == container ]] && cbin="${LOA_EVAL_CONTAINER_CLAUDE_BIN:-claude}"
   cargv=("$cbin" -p "$(cat "$prompt_file")" --output-format stream-json --verbose --model "$model"
-         --permission-mode bypassPermissions --dangerously-skip-permissions --setting-sources project
+         --permission-mode bypassPermissions --dangerously-skip-permissions --setting-sources "$SETTING_SOURCES"
          --tools "$TOOLS" --max-turns "$turns")
   [[ -n "$EFFORT_FLAG" ]] && cargv+=(--effort "$EFFORT_FLAG")
   [[ -n "$resume" ]] && cargv+=(--resume "$resume")
@@ -960,6 +1054,9 @@ run_phase() {  # run_phase <name> <label>
           "LOA_MODELINV_LOG_PATH=$ev_ws/.eval/model-invoke.jsonl"
           "LOA_COST_LEDGER_PATH=$ev_ws/.eval/cost-ledger.jsonl"
           "GIT_CONFIG_GLOBAL=/dev/null" "GIT_CONFIG_NOSYSTEM=1" "GH_CONFIG_DIR=$ev_ws/.eval/gh-empty")
+  # home-scope: the framework root is the HOME, the PROJECT root the workspace (s3-a3: the framework derives its project
+  # root from its own location, which is the HOME there)
+  [[ "$HS" == true ]] && envkv+=("LOA_FRAMEWORK_ROOT=$home_v" "LOA_PROJECT_ROOT=$ev_ws")
   local kv_arm have_enforce=false
   while IFS= read -r kv_arm; do
     [[ "$kv_arm" =~ ^LOA_[A-Z0-9_]+= ]] || continue    # the arm's own variables only (never PATH, HOME, keys)
@@ -974,9 +1071,39 @@ run_phase() {  # run_phase <name> <label>
     # the docker client keeps only what it needs plus the secrets it forwards by name
     local hostkeys="PATH,HOME,DOCKER_HOST,DOCKER_CONFIG,XDG_RUNTIME_DIR"
     for k in $SECRET_KEYS; do if [[ -n "${!k:-}" ]]; then hostkeys="$hostkeys,$k"; fi; done
+    # cycle-133 FR-9 (SDD C-9) the egress block. The arm's `egress` (arms[].egress, else the suite's
+    # egress.arms.<id>, else egress.default, else blocked) and $LOA_EVAL_EGRESS_NETWORK (run-ablation.sh
+    # exports it after checking the block is up): a blocked arm joins loa-egress-<batch> (internal, no route
+    # out) with DNS sinkholed and the sidecar loa-proxy-<batch> as its only way out; otherwise --network bridge.
+    # The container never sits on that network itself (KF-058: its gateway is the host and answers): it runs in
+    # the namespace of its own guard (egress-proxy.sh guard; --network container:<guard>), whose netfilter
+    # reaches the sidecar's port only. The guard's name is unique per container (a retry's watcher never
+    # removes the next attempt's guard).
+    # meta/egress.jsonl records the decision; lib/egress-proxy.sh record-address (background) records the
+    # guard's address in meta/egress-addr.jsonl and its denials in meta/egress-denied.jsonl, then removes it.
+    local egress_mode egress_net="${LOA_EVAL_EGRESS_NETWORK:-}" egress_purl="" egress_guard="" egress_gnet pv
+    local -a netargs=(--network bridge)
+    egress_mode="$(jq -r --arg a "$ARM" --argjson s "$SUITE_JSON" '.egress // ($s.egress // {} | .arms // {})[$a] // ($s.egress // {}).default // "blocked"' <<<"$ARM_DEF")"
+    case "$egress_mode" in blocked|bridge) ;; *) infra "arm $ARM: egress '$egress_mode' is not blocked|bridge" ;; esac
+    if [[ "$egress_mode" == blocked && -n "$egress_net" ]]; then
+      [[ "$egress_net" =~ ^loa-egress-[A-Za-z0-9._-]{1,80}$ ]] || infra "LOA_EVAL_EGRESS_NETWORK '$egress_net' is not loa-egress-<batch>"
+      egress_purl="http://loa-proxy-${egress_net#loa-egress-}:8888"
+      egress_guard="$cname-guard-$RANDOM$RANDOM"
+      egress_gnet="$("$SCRIPT_DIR/lib/egress-proxy.sh" guard "${egress_net#loa-egress-}" "$egress_guard" --docker-bin "$DOCKER_BIN" \
+        2>>"$META/egress-record.log")" || infra "egress guard $egress_guard did not start (meta/egress-record.log)"
+      netargs=(--network "$egress_gnet")
+      for pv in HTTPS_PROXY https_proxy HTTP_PROXY http_proxy; do envkv+=("$pv=$egress_purl"); keys="$keys,$pv"; done
+      envkv+=("NO_PROXY=" "no_proxy="); keys="$keys,NO_PROXY,no_proxy"
+      LOA_EGRESS_ADDR_WAIT_S=30 "$SCRIPT_DIR/lib/egress-proxy.sh" record-address --network "$egress_net" --container "$cname" \
+        --guard "$egress_guard" --label "$label" --meta "$META" --event watch --max-s $((tsec + 120)) --parent-pid $$ \
+        --docker-bin "$DOCKER_BIN" </dev/null >/dev/null 2>>"$META/egress-record.log" &
+    fi
+    jq -cn --arg m "$egress_mode" --arg n "${egress_purl:+$egress_net}" --arg g "$egress_guard" --arg p "$egress_purl" --arg l "$label" \
+      '{label: $l, egress: $m, network: (if $n == "" then "bridge" else $n end), guard: (if $g == "" then null else $g end),
+        proxy_url: (if $p == "" then null else $p end), enforced: ($p != ""), dns: (if $p == "" then null else "0.0.0.1" end)}' >> "$META/egress.jsonl"
     full=(python3 -I -c "$ENV_SHIM" "$hostkeys"
           "$DOCKER_BIN" run --rm --name "$cname" --user "$(id -u):$(id -g)"
-          --network bridge --read-only --tmpfs /tmp:rw,size=1g
+          "${netargs[@]}" --read-only --tmpfs /tmp:rw,size=1g
           --pids-limit 512 --memory 4g --cpus 2
           -v "$WS:/workspace:rw"
           -v "$HOME_DIR:/home/evaluser:rw"
@@ -1002,12 +1129,16 @@ run_phase() {  # run_phase <name> <label>
       launcher_argv: $launcher, container: ($executor == "container")}' > "$argv_file"
 
   local ledger_before=0 started_iso start_s end_s rc=0 prices killed=0 cap_turn=0 est="0 0 0" budget
+  local metering=metered est_new="" um=""
   ledger_before="$(wc -l < "$WS/.eval/cost-ledger.jsonl" | tr -d ' ')"
   local minv_before minv_after
   minv_before="$(wc -l < "$WS/.eval/model-invoke.jsonl" | tr -d ' ')"
   started_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   start_s="$(now_ms)"
-  prices="$(price_for "$model")"
+  prices=ERR
+  if ! prices="$(price_for "$model")" || [[ "$prices" == ERR ]]; then
+    finish infrastructure_error 2 "metering_incomplete: no valid price for model $model (phase $label)"
+  fi
   budget=$(( CAP_MICRO - SPENT_MICRO ))
   CUR_LABEL="$label" CUR_CONTAINER="$cname"
   # the allowlist values enter the launcher's environment by export (never argv); the
@@ -1016,18 +1147,26 @@ run_phase() {  # run_phase <name> <label>
     if [[ "$EXECUTOR" == host ]]; then for kv in "${envkv[@]}"; do export "$kv"; done; fi
     exec "${full[@]}" ) < /dev/null > "$events" 2> "$errf" &
   CUR_PID=$!
+  local ps_pid=""
+  if [[ "$HS" == true && "$EXECUTOR" == container ]]; then
+    ps_sampler "$cname" "$META/ps-$label.txt" $((tsec + 120)) & ps_pid=$!
+  fi
   local poll="${LOA_EVAL_WATCHDOG_POLL_S:-1}"
   while kill -0 "$CUR_PID" 2>/dev/null; do
     sleep "$poll" || true
     [[ "$INTERRUPTED" -eq 1 ]] && break
-    if [[ "$prices" != null ]]; then
-      est="$(price_events "$events" "$prices" "$budget")"
-      if [[ "${est##* }" -gt 0 ]]; then
-        killed=1; cap_turn="${est##* }"
-        echo "pipeline-run.sh: watchdog: $label estimate passes the cap at turn $cap_turn; SIGTERM" >&2
-        kill_phase
-        break
-      fi
+    if ! est_new="$(price_events "$events" "$prices" "$budget")" || [[ "$est_new" == ERR ]]; then
+      metering=incomplete
+      echo "pipeline-run.sh: watchdog: $label metering_incomplete (the stream cannot be priced); SIGTERM" >&2
+      kill_phase
+      break
+    fi
+    est="$est_new"
+    if [[ "${est##* }" -gt 0 ]]; then
+      killed=1; cap_turn="${est##* }"
+      echo "pipeline-run.sh: watchdog: $label estimate passes the cap at turn $cap_turn; SIGTERM" >&2
+      kill_phase
+      break
     fi
   done
   wait "$CUR_PID" 2>/dev/null || rc=$?
@@ -1039,8 +1178,15 @@ run_phase() {  # run_phase <name> <label>
     [[ $rc2 -ne 127 ]] && rc=$rc2
   fi
   end_s="$(now_ms)"
+  if [[ -n "$ps_pid" ]]; then kill "$ps_pid" 2>/dev/null || true; wait "$ps_pid" 2>/dev/null || true; fi
   CUR_PID="" CUR_CONTAINER=""
-  [[ "$prices" != null ]] && est="$(price_events "$events" "$prices" "$budget")"
+  if [[ "$metering" == metered ]]; then
+    if ! est_new="$(price_events "$events" "$prices" "$budget")" || [[ "$est_new" == ERR ]]; then
+      metering=incomplete
+    else
+      est="$est_new"
+    fi
+  fi
 
   # --- record ---
   local result init_sid sid ledger_rows ledger_micro rf timed_out=false elapsed_ms
@@ -1051,6 +1197,11 @@ run_phase() {  # run_phase <name> <label>
   fi
   init_sid="$(jq -R -r 'fromjson? | select(.type == "system" and .subtype == "init") | .session_id // empty' "$events" 2>/dev/null | sed -n '1p' || true)"
   sid="${init_sid:-$(jq -r '.session_id // empty' <<<"$result")}"
+  # an attempt without any usage event and without a result cost is unmetered, never zero spend (C-6)
+  if [[ "$metering" == metered ]] && ! jq -e '(.total_cost_usd | type) == "number"' >/dev/null 2>&1 <<<"$result"; then
+    if ! um="$(unmetered_tail "$events")" || [[ "$um" == ERR ]]; then metering=incomplete
+    elif [[ "$um" == true ]]; then metering=unmetered_attempt; fi
+  fi
   if [[ "$SINGLE_SESSION" == true && -z "$IMPL_SESSION" && -n "$sid" ]]; then
     case "$name" in PLAN|IMPLEMENT|FIX) IMPL_SESSION="$sid" ;; esac
   fi
@@ -1121,7 +1272,7 @@ run_phase() {  # run_phase <name> <label>
     --argjson minv_from "$((minv_before + 1))" --argjson minv_to "$minv_after" \
     --argjson ledger_from "$((ledger_before + 1))" --argjson turn_cap_hit "$turn_cap_hit" \
     --argjson gate_recovered "$gate_recovered" --argjson cli_exit "$cli_exit" \
-    --arg env_gate "$env_gate" --argjson env_copied "$env_copied" --arg env_sha "$env_sha" '
+    --arg env_gate "$env_gate" --argjson env_copied "$env_copied" --arg env_sha "$env_sha" --arg metering "$metering" --argjson budget "$budget" '
     def u(k1; k2): ($result.usage[k1] // $result.usage[k2] // 0);
     {name: $name, label: $label, skipped: false,
      session_id: (if $sid == "" then null else $sid end),
@@ -1132,8 +1283,10 @@ run_phase() {  # run_phase <name> <label>
      tokens_in: u("input_tokens"; "inputTokens"), tokens_out: u("output_tokens"; "outputTokens"),
      cache_read_tokens: u("cache_read_input_tokens"; "cacheReadInputTokens"),
      cache_creation_tokens: u("cache_creation_input_tokens"; "cacheCreationInputTokens"),
-     cost_usd: ($result.total_cost_usd // ($est_micro / 1000000)),
-     cost_source: (if $result.total_cost_usd != null then "result" else "watchdog_estimate" end),
+     cost_usd: (if $metering == "unmetered_attempt" then ([$budget, 0] | max) / 1000000
+                else ($result.total_cost_usd // ($est_micro / 1000000)) end),
+     cost_source: (if $metering == "unmetered_attempt" then "cap_unmetered"
+                   elif $result.total_cost_usd != null then "result" else "watchdog_estimate" end),
      ledger_cost_usd: ($ledger / 1000000),
      duration_ms: ($result.duration_ms // $dur), wall_ms: $dur,
      num_turns: ($result.num_turns // $est_turns), max_turns: $turns, timeout_s: $tsec,
@@ -1146,6 +1299,7 @@ run_phase() {  # run_phase <name> <label>
      verdict: (if $verdict == "null" or $verdict == "" then null else $verdict end),
      watchdog: {priced: ($priced != "null"), estimate_usd: ($est_micro / 1000000), turns_seen: $est_turns,
                 killed: ($killed == 1), cap_turn: (if $killed == 1 then $cap_turn else null end)},
+     metering: $metering,
      started: $started, finished: $finished}
     + (if $env_gate == "" then {} else {envelope_copied: $env_copied,
                                         envelope_sha256: (if $env_sha == "" then null else $env_sha end)} end)' >> "$PHASES_FILE"
@@ -1153,8 +1307,14 @@ run_phase() {  # run_phase <name> <label>
   # --- account and decide ---
   local cost_micro
   cost_micro="$(jq -r --argjson e "${est_micro:-0}" '(.total_cost_usd // ($e / 1000000)) * 1000000 | round' <<<"$result")"
+  # an unmetered attempt is charged the phase's cap allowance (never zero; DISS-001)
+  if [[ "$metering" == unmetered_attempt ]]; then cost_micro=$(( budget > 0 ? budget : 0 )); fi
   SPENT_MICRO=$(( SPENT_MICRO + cost_micro + ledger_micro ))
   if [[ "$INTERRUPTED" -eq 1 ]]; then finish interrupted 4 "driver received a signal during $label"; fi
+  if [[ "$metering" == incomplete ]]; then
+    finish infrastructure_error 2 "metering_incomplete: phase $label: the stream cannot be priced (an invalid token count or a completed turn without usage)"
+  fi
+  if [[ "$metering" == unmetered_attempt ]]; then finish infrastructure_error 2 "unmetered_attempt: $label"; fi
   if [[ "$killed" -eq 1 ]]; then CAP_PHASE="$label"; CAP_TURN="$cap_turn"; finish cap_failure 3 "watchdog stopped $label at turn $cap_turn"; fi
   if [[ "$timed_out" == false ]] && { [[ $rc -eq 143 ]] || [[ $rc -eq 137 ]] || [[ $rc -eq 129 ]] || [[ $rc -eq 130 ]]; }; then
     finish interrupted 4 "phase $label was killed from outside (exit $rc)"
@@ -1191,6 +1351,13 @@ done < <(jq -r '.[] | [.name, .label] | @tsv' <<<"$PLAN_JSON")
 [[ ${#PLAN_NAMES[@]} -gt 0 ]] || infra "the phase plan is empty"
 for name in "${PLAN_NAMES[@]}"; do
   [[ -f "$PROMPTS_DIR/$name.md" ]] || infra "no phase prompt for $name"
+done
+# metering fails closed (C-6): every planned phase model is priced before the first launch
+for name in "${PLAN_NAMES[@]}"; do
+  pm="$(phase_model "$name")"; pp=ERR
+  if ! pp="$(price_for "$pm")" || [[ "$pp" == ERR ]]; then
+    finish infrastructure_error 2 "metering_incomplete: no valid price for model $pm (phase $name)"
+  fi
 done
 
 write_pipeline

@@ -538,3 +538,28 @@ earlier sets are sensitivities, never pooled with the v2 reads.
 ```
 
 Tests: `evals/tests/{arm-toggles,run-arms,arms-report,seed-corpus}.bats`.
+
+## Index: the ablation harness, its analysis and test health (cycle-130 to cycle-133)
+
+The Loa 2.0 ablation runs whole pipelines in containers, beside the single-skill suites above. Its contract is `harness/README.md`. That file covers the mount modes, the egress block, the supervisor, the refusal policy, the denominators, the pipeline versions, the exit codes and test health.
+
+| Path | What it is |
+|---|---|
+| `harness/README.md` | the ablation harness contract; start here |
+| `harness/run-ablation.sh` | the batch driver: pre-flight, plan, dispatch, rows, `MANIFEST.json` and `STATUS.json` |
+| `harness/pipeline-run.sh` | one trial: sandbox, mount, phases in a container, `meta/pipeline.json` |
+| `harness/took-effect.sh` | did the arm take effect, and is the mount closed |
+| `harness/ablation-grade.sh` | the grader |
+| `harness/ablation-row.sh` | the row writer, `--validate` and `--refusal-rate` |
+| `harness/blind-session.sh` | one blind labelling session |
+| `harness/spend.sh` | the spend meter over rows and the cost ledger |
+| `harness/lib/sandbox-mount.sh` | mount modes, arm toggles and the closed-mount check |
+| `harness/lib/session-exec.sh` | the one copy of the session shim, the secret keys and the pricing |
+| `harness/lib/egress-proxy.sh` | the egress block: `allowlist`, `up`, `self-check`, `down` |
+| `harness/lib/batch-supervisor.sh` | the supervisor behind `run-ablation.sh --supervised` |
+| `harness/Dockerfile.ablation`, `harness/Dockerfile.proxy` | the sandbox image and the egress sidecar image |
+| `suites/ablation-2.0.yaml` | the arms, their toggles, `refusal_policy` and `egress` |
+| `fixtures/review-prs/` | the review-catch corpus; the frozen `pr-*/` trees are hidden from `git diff` |
+| `analysis/c132/` | the cycle-132 analysis, `reproduce.sh` and `registration.py`; pytest under `analysis/c132/tests/` |
+| `tests/*.bats` | the harness tests; run `npx --no-install bats evals/tests/<file>.bats` from the repository root |
+| `../tests/QUARANTINE.tsv`, `../tools/check-quarantine-expiry.sh`, `../tests/unit/helpers/quarantine.bash` | the quarantine list, its CI gate and its skip helper (`harness/README.md` § Test health) |

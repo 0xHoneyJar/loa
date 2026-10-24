@@ -3,8 +3,8 @@
 # evals/tests/manifest-v2.bats — cycle-132 Sprint 1 Task 1.5 (PRD FR-2; SDD §3.2 manifest v2, §3.4, D-2.3)
 #
 # The frozen-set migration and the manifest v2 schema:
-#   - manifests/c131/pr-11 … pr-18.json are the cycle-131 curated keys, byte-identical to main (pinned
-#     digests; also compared with `git show main:` when that ref resolves); manifests/v1/ is unchanged;
+#   - manifests/c131/pr-11 … pr-18.json are the cycle-131 curated keys (pinned digests; no comparison
+#     with main, whose top-level manifests are v2 since Sprint 269); manifests/v1/ is unchanged;
 #     labels/review/pr-NN.tsv rebuild manifests/c131/pr-NN.json byte for byte
 #   - every suite-root task.yaml review_catch.manifest resolves; the frozen roots name manifests/c131/
 #   - evals/harness/schemas/review-manifest.schema.json accepts every tracked manifest and a v2 manifest
@@ -27,14 +27,11 @@ teardown() { find "$T" -mindepth 1 -delete 2>/dev/null || true; rmdir "$T" 2>/de
 sha() { python3 -I -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$1"; }
 validate() { python3 -I "$MERGE" --validate "$SCHEMA" "$@"; }
 
-@test "MV-1 manifests/c131/pr-11 … pr-18 are the cycle-131 curated keys byte for byte (pinned; and main's when the ref resolves); manifests/v1/ unchanged" {
+@test "MV-1 manifests/c131/pr-11 … pr-18 are the cycle-131 curated keys byte for byte (pinned by digest); manifests/v1/ unchanged" {
   local want n bad=""
   while read -r want n; do
+    # the digests are the cycle-131 keys; no comparison with main's top-level manifests, which are v2 since Sprint 269
     [ "$(sha "$CORPUS/manifests/c131/pr-$n.json")" = "$want" ] || bad="$bad c131/pr-$n"
-    if git -C "$REPO_ROOT" rev-parse --verify --quiet main >/dev/null; then
-      git -C "$REPO_ROOT" show "main:evals/fixtures/review-prs/manifests/pr-$n.json" > "$T/main.json" 2>/dev/null \
-        && { cmp -s "$T/main.json" "$CORPUS/manifests/c131/pr-$n.json" || bad="$bad main:pr-$n"; }
-    fi
   done <<'PINS'
 76d7a58d224dd713142d9addcbac11bfc7d588259f582da34f88ace37987341b 11
 54d76e13016dcf86cb067c9d96771462ec119f81ae032f6df228f1aa8aabf55a 12

@@ -1,0 +1,25 @@
+{
+  "description": "a numeric confidence of 0.75 normalises to high",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "anchor_line": 3,
+      "blocking": false,
+      "confidence": "high",
+      "failure_scenario": "the second request reads the cached token after it expired and the API accepts it for an hour",
+      "file": "x.py",
+      "id": "F-b00e07",
+      "severity": "HIGH"
+    },
+    "valid": true,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 3,
+    "confidence": 0.75,
+    "failure_scenario": "the second request reads the cached token after it expired and the API accepts it for an hour",
+    "file": "x.py",
+    "severity": "HIGH"
+  },
+  "markdown": null
+}

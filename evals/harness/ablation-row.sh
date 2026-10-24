@@ -136,15 +136,47 @@
 # ⌈k/2⌉ (reason "sessions_valid < k/2 (<n> of <k>)") or when a VALID session's record degrades (an invalid
 # session's refusal fallback is the reason it is invalid, not a degradation of the cell).
 #
-# Row writer version: 1.5 (1.0 Sprint 258; 1.1 the Sprint 258 audit round 1 fields —
+# Row writer 1.6 fields (cycle-133 Sprint 273 Task 2.3, SDD C-8, PRD FR-8, bd-r9abp; additive — schema_version stays 1;
+# --validate requires every 1.6 field on a row whose row_writer_version is "1.6", and the 1.5 checks apply to it):
+#   refusal_policy_applied  the arm's suite refusal_policy, exclude | keep | rerun-once: --refusal-policy, else the batch
+#                       MANIFEST.json refusal_policy[<arm>] (run-ablation.sh records it before execution), else exclude
+#   attempt             1, or 2 for the rerun-once relaunch of a refused trial (--refusal-attempt); not `attempts`, which
+#                       counts transport retries and re-runs (D-7.3)
+#   refusal_attempts    [] or, on attempt 2, [{attempt: 1, run_dir (basename), status, cost_usd, refusal_fallbacks:
+#                       [{label, refusal_fallbacks: [{from, to, category, scope}]}]}] from --refused-attempt's
+#                       meta/pipeline.json (the refused attempt, kept untouched); its spend reaches all_spend_usd through
+#                       --prior-spend
+#   refusal_outcome     none (no refusal fallback in the row's run) | excluded (exclude) | kept (keep) | rerun_not_run
+#                       (rerun-once, the relaunch was not possible: the attempt limit) | rerun_clean | rerun_refused |
+#                       rerun_failed (attempt 2: no fallback; a fallback again; transport_error, infrastructure_error or
+#                       interrupted) | sessions_excluded (a matched cell with a refused session: that session is invalid,
+#                       the cell is judged by its sessions_valid rule)
+#   refusal_denominator the refusal policy's verdict on the row (every other exclusion rule still applies): excluded
+#                       for excluded, rerun_not_run, rerun_refused and rerun_failed; included otherwise. The rules: exclude
+#                       — a row with a fallback is invalid (degraded, cycle-132 behaviour) and leaves the denominator; keep
+#                       — the row stays valid (its refusal fallback is not a degraded cause) and flagged, and counts;
+#                       rerun-once — the second attempt's row is the cell when it has no fallback, else the cell is invalid
+#                       with both attempts recorded (evals/harness/README.md § Refusal policy mirrors this)
+#   refusal_flagged     true on a kept row (keep with a fallback), else false
+#   metering_unmetered  true when pipeline.json says an attempt ran unmetered (reason `unmetered_attempt: <label>`, or a
+#                       phase with metering unmetered_attempt; such a run is infrastructure_error, already invalid), else
+#                       false — additive, not required by --validate (cycle-133 review r1 DISS-001; spend.sh counts it)
+# --refusal-rate F (a mode beside --validate): per arm, rows, refused (refusal_outcome other than none, else for a row
+# before 1.6 any phases[].refusal_fallbacks entry), refusal_rate = refused / rows (6 decimals) and flagged when the rate
+# is above 0.2: one JSON object {threshold: 0.2, arms: {<arm>: {rows, refused, refusal_rate, flagged}}} on stdout and one
+# "refusal_rate <arm> <rate> (<refused> of <rows>) FLAGGED" line per flagged arm on stderr; exit 0, 2 when unreadable.
+#
+# Row writer version: 1.6 (1.0 Sprint 258; 1.1 the Sprint 258 audit round 1 fields —
 # envelope_mismatch, bash_mount_refs, mount_changed; 1.2 defects_missed and
 # regressions_final_green, Sprint 262; 1.3 the defects_missed id rules, Sprint 262 audit;
-# 1.4 the cycle-131 fields above; 1.5 the cycle-132 fields above).
+# 1.4 the cycle-131 fields above; 1.5 the cycle-132 fields above; 1.6 the cycle-133 refusal fields above).
 #
 # Usage:
 #   ablation-row.sh --run-dir D --task-yaml F [--grade grade.json] [--manifest MANIFEST.json]
 #                   [--status S] [--attempts N] [--retry-reason R] [--prior-spend USD] [--out runs.jsonl]
+#                   [--refusal-policy P] [--refusal-attempt 1|2] [--refused-attempt DIR]
 #   ablation-row.sh --validate runs.jsonl [--allow-ungraded]
+#   ablation-row.sh --refusal-rate runs.jsonl
 #
 # Options:
 #   --run-dir D        the run directory (meta/, sandbox/, transcripts/, eval/)
@@ -158,6 +190,9 @@
 #   --retry-reason R   the retry's reason (default null)
 #   --prior-spend USD  the spend of the trial's earlier attempts (default 0; all_spend_usd = cost_usd + it)
 #   --out F            append the row to F (flock when available); default stdout
+#   --refusal-policy P exclude | keep | rerun-once (default: the manifest's refusal_policy[<arm>], else exclude)
+#   --refusal-attempt N 1 (default) or 2: the rerun-once relaunch (needs --refused-attempt)
+#   --refused-attempt DIR  the refused first attempt's run dir (its meta/pipeline.json; with --refusal-attempt 2 only)
 #   --validate F       check every row's fields, types and enums (the arm grammar, the
 #                      four zone_violations arrays); exit 1 on the first bad row naming
 #                      its line number
@@ -181,7 +216,7 @@ set -euo pipefail
 export LC_ALL=C
 
 RUN_DIR="" TASK_YAML="" GRADE="" MANIFEST="" STATUS_OVERRIDE="" ATTEMPTS=1 RETRY_REASON="" OUT="" PRIOR_SPEND=0
-VALIDATE="" ALLOW_UNGRADED=false
+VALIDATE="" ALLOW_UNGRADED=false REFUSAL_POLICY="" REFUSAL_ATTEMPT=1 REFUSED_ATTEMPT="" REFUSAL_RATE=""
 usage() { echo "ablation-row.sh: $*" >&2; exit 2; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -196,6 +231,10 @@ while [[ $# -gt 0 ]]; do
     --out)            OUT="${2:-}"; shift 2 ;;
     --validate)       VALIDATE="${2:-}"; shift 2 ;;
     --allow-ungraded) ALLOW_UNGRADED=true; shift ;;
+    --refusal-policy) REFUSAL_POLICY="${2:-}"; shift 2 ;;
+    --refusal-attempt) REFUSAL_ATTEMPT="${2:-}"; shift 2 ;;
+    --refused-attempt) REFUSED_ATTEMPT="${2:-}"; shift 2 ;;
+    --refusal-rate)   REFUSAL_RATE="${2:-}"; shift 2 ;;
     -h|--help)        sed -n '2,/^# ====/p' "$0"; exit 0 ;;
     *) usage "unknown argument: $1" ;;
   esac
@@ -217,6 +256,24 @@ MISSED_RULES='
       then "defects_seeded − ids == defects_caught"
     else empty end;
   def positions_rule($s): missed_rule($s; null);'
+
+# --- refusal rate (row writer 1.6, SDD C-8) -------------------------------------------------------------------------
+if [[ -n "$REFUSAL_RATE" ]]; then
+  [[ -f "$REFUSAL_RATE" && -r "$REFUSAL_RATE" ]] || usage "cannot read $REFUSAL_RATE"
+  rate_out="$(jq -s -c '
+    def refused: if has("refusal_outcome") then .refusal_outcome != "none"
+                 else any(.phases // [] | .[]; ((.refusal_fallbacks // []) | length) > 0) end;
+    {threshold: 0.2,
+     arms: (group_by(.arm) | map({key: .[0].arm,
+              value: (length as $n | (map(select(refused)) | length) as $r
+                      | ((($r / $n) * 1000000 | round) / 1000000) as $rate
+                      | {rows: $n, refused: $r, refusal_rate: $rate, flagged: ($rate > 0.2)})}) | from_entries)}' "$REFUSAL_RATE")" \
+    || usage "$REFUSAL_RATE is not a JSONL rows file"
+  jq -r '.arms | to_entries[] | select(.value.flagged)
+         | "ablation-row.sh: refusal_rate \(.key) \(.value.refusal_rate) (\(.value.refused) of \(.value.rows)) FLAGGED (above 0.2)"' <<<"$rate_out" >&2
+  printf '%s\n' "$rate_out"
+  exit 0
+fi
 
 # --- validate ----------------------------------------------------------------------
 if [[ -n "$VALIDATE" ]]; then
@@ -291,7 +348,7 @@ if [[ -n "$VALIDATE" ]]; then
       // (if has("gate_scripts_at_pr_version") and (.gate_scripts_at_pr_version | type) == "array"
              and any(.gate_scripts_at_pr_version[]; type != "string" or length == 0)
            then "gate_scripts_at_pr_version must be a list of non-empty strings" else empty end)
-      // (if (.row_writer_version // null) == "1.5" then
+      // (if ((["1.5", "1.6"] | index($row.row_writer_version // null)) != null) then
             [ need("bare_sessions"; numn), need("sessions_valid"; numn), need("sessions_attempted"; numn),
               need("session_costs"; ["array","null"]), need("all_spend_usd"; num), need("dollar_match"; booln),
               need("recall_session1"; numn), need("recall_pm3_session1"; numn), need("precision_session1"; numn),
@@ -304,18 +361,40 @@ if [[ -n "$VALIDATE" ]]; then
              ((.contaminated | has("repo_named")) and ((.contaminated.repo_named | type) as $ty | ["boolean","null"] | index($ty)) == null)
              or any(("host", "url") as $k | .contaminated | select(has($k)) | .[$k] | type; . != "string" and . != "null"))
            then "contaminated.repo_named must be boolean|null and contaminated.host/url string|null" else empty end)
-      // (if (.row_writer_version // null) == "1.5" and (.took_effect | type) == "object"
+      // (if ((["1.5", "1.6"] | index($row.row_writer_version // null)) != null) and (.took_effect | type) == "object"
              and any(.took_effect[]; type != "boolean")
            then "took_effect values must be booleans" else empty end)
-      // (if (.row_writer_version // null) == "1.5" and ((.attempts | type) != "number" or .attempts < 1 or .attempts > 3 or .attempts != (.attempts | floor))
+      // (if ((["1.5", "1.6"] | index($row.row_writer_version // null)) != null) and ((.attempts | type) != "number" or .attempts < 1 or .attempts > 3 or .attempts != (.attempts | floor))
            then "attempts \(.attempts | tojson) is not 1 … 3 (the attempt limit: 2 re-runs, D-7.3)" else empty end)
-      // (if (.row_writer_version // null) == "1.5" and (.bare_sessions != null) and
+      // (if ((["1.5", "1.6"] | index($row.row_writer_version // null)) != null) and (.bare_sessions != null) and
              ((.bare_sessions | type) != "number" or (.sessions_valid | type) != "number" or (.sessions_attempted | type) != "number"
               or (.session_costs | type) != "array" or .sessions_valid > .sessions_attempted or .sessions_attempted > .bare_sessions
               or (.session_costs | length) != .bare_sessions)
            then "matched cell fields inconsistent: bare_sessions \(.bare_sessions | tojson), sessions_valid \(.sessions_valid | tojson), sessions_attempted \(.sessions_attempted | tojson), session_costs \(.session_costs | if type == "array" then length else . end | tojson)" else empty end)
-      // (if (.row_writer_version // null) == "1.5" and (.registration_sha256 != null) and ((.registration_sha256 | test("^[0-9a-f]{64}$")) | not)
+      // (if ((["1.5", "1.6"] | index($row.row_writer_version // null)) != null) and (.registration_sha256 != null) and ((.registration_sha256 | test("^[0-9a-f]{64}$")) | not)
            then "registration_sha256 is not 64 lowercase hex" else empty end)
+      // (if (.row_writer_version // null) == "1.6" then
+            ([ need("refusal_policy_applied"; str), need("attempt"; num), need("refusal_attempts"; ["array"]),
+               need("refusal_outcome"; str), need("refusal_denominator"; str), need("refusal_flagged"; ["boolean"]) ][0])
+            // (if (["exclude","keep","rerun-once"] | index($row.refusal_policy_applied)) == null
+                 then "refusal_policy_applied \(.refusal_policy_applied | tojson) is not exclude|keep|rerun-once" else empty end)
+            // (if (["none","excluded","kept","rerun_not_run","rerun_clean","rerun_refused","rerun_failed","sessions_excluded"]
+                    | index($row.refusal_outcome)) == null
+                 then "refusal_outcome \(.refusal_outcome | tojson) is not none|excluded|kept|rerun_not_run|rerun_clean|rerun_refused|rerun_failed|sessions_excluded" else empty end)
+            // (if (["included","excluded"] | index($row.refusal_denominator)) == null
+                 then "refusal_denominator \(.refusal_denominator | tojson) is not included|excluded" else empty end)
+            // (if (.attempt != 1 and .attempt != 2) or ((.attempt == 2) != ((.refusal_attempts | length) == 1))
+                    or (.attempt == 2 and .refusal_policy_applied != "rerun-once") or (.refusal_attempts | length) > 1
+                 then "attempt \(.attempt | tojson) is inconsistent with refusal_attempts (\(.refusal_attempts | length)) under \(.refusal_policy_applied)" else empty end)
+            // (if ((.refusal_outcome | startswith("rerun_")) and .refusal_policy_applied != "rerun-once")
+                    or ((.refusal_outcome == "rerun_clean" or .refusal_outcome == "rerun_refused" or .refusal_outcome == "rerun_failed") != (.attempt == 2))
+                    or (.refusal_outcome == "excluded" and .refusal_policy_applied != "exclude")
+                    or (.refusal_outcome == "kept" and .refusal_policy_applied != "keep")
+                    or ((["excluded","rerun_not_run","rerun_refused","rerun_failed"] | index($row.refusal_outcome) != null)
+                        != (.refusal_denominator == "excluded"))
+                    or (.refusal_flagged != (.refusal_outcome == "kept"))
+                 then "refusal_outcome \(.refusal_outcome) is inconsistent with refusal_policy_applied \(.refusal_policy_applied), attempt \(.attempt), refusal_denominator \(.refusal_denominator) or refusal_flagged \(.refusal_flagged)" else empty end)
+          else empty end)
       // (if (.degraded == true) and (.degraded_reason == null) then "degraded without degraded_reason" else empty end)
       // (if .verdict != null and ((["APPROVED","CHANGES_REQUIRED"] | index($row.verdict)) == null)
            then "verdict \(.verdict) is not APPROVED|CHANGES_REQUIRED" else empty end)
@@ -362,6 +441,14 @@ if [[ "$CELL" != true ]]; then
 fi
 [[ "$ATTEMPTS" =~ ^[0-9]+$ ]] || usage "--attempts must be an integer"
 [[ "$PRIOR_SPEND" =~ ^[0-9]+(\.[0-9]+)?$ ]] || usage "--prior-spend must be an amount in USD"
+case "$REFUSAL_POLICY" in ""|exclude|keep|rerun-once) ;; *) usage "--refusal-policy must be exclude, keep or rerun-once" ;; esac
+case "$REFUSAL_ATTEMPT" in 1|2) ;; *) usage "--refusal-attempt must be 1 or 2" ;; esac
+if [[ "$REFUSAL_ATTEMPT" == 2 ]]; then
+  [[ -n "$REFUSED_ATTEMPT" && -f "$REFUSED_ATTEMPT/meta/pipeline.json" ]] || usage "--refusal-attempt 2 needs --refused-attempt DIR with meta/pipeline.json"
+  [[ "$CELL" != true ]] || usage "--refusal-attempt 2 is a trial's relaunch; a matched cell has none"
+else
+  [[ -z "$REFUSED_ATTEMPT" ]] || usage "--refused-attempt goes with --refusal-attempt 2"
+fi
 if [[ -n "$STATUS_OVERRIDE" ]] && ! jq -e --arg s "$STATUS_OVERRIDE" 'index($s) != null' <<<"$STATUSES" >/dev/null; then
   usage "--status must be one of $(jq -r 'join("|")' <<<"$STATUSES")"
 fi
@@ -556,6 +643,16 @@ fi
 if [[ "$CELL" == true ]]; then cp "$WORK/cell-evidence.txt" "$WORK/evidence.txt"
 elif [[ -f "$RUN_DIR/meta/arm-evidence.txt" ]]; then cp "$RUN_DIR/meta/arm-evidence.txt" "$WORK/evidence.txt"; fi
 
+# row writer 1.6: the refused first attempt of a rerun-once trial (--refused-attempt), null otherwise
+echo null > "$WORK/refused.json"
+if [[ "$REFUSAL_ATTEMPT" == 2 ]]; then
+  jq -c --arg rd "$(basename "$REFUSED_ATTEMPT")" '{attempt: 1, run_dir: $rd, status: (.status // null),
+      cost_usd: (.spent_usd // 0 | tonumber? // 0),
+      refusal_fallbacks: [.phases // [] | .[] | select((.refusal_fallbacks // []) | length > 0)
+                          | {label: (.label // .name // null), refusal_fallbacks}]}' "$REFUSED_ATTEMPT/meta/pipeline.json" > "$WORK/refused.json" \
+    || usage "--refused-attempt meta/pipeline.json does not parse"
+fi
+
 # Each --slurpfile binds an array of the file's values; [0] is the one value.
 ROW="$(jq -n -c \
   --slurpfile p_f "$WORK/pipe.json" --slurpfile task_f "$WORK/task.json" --slurpfile g_f "$WORK/grade.json" \
@@ -564,7 +661,8 @@ ROW="$(jq -n -c \
   --slurpfile bash_f "$WORK/bashref.json" --slurpfile mm_f "$WORK/mismatch.json" \
   --slurpfile cx_f "$WORK/cellx.json" --rawfile ev_raw "$WORK/evidence.txt" --arg prior "$PRIOR_SPEND" --slurpfile te_f "$WORK/took.json" \
   --arg arm "$ARM" --arg status_override "$STATUS_OVERRIDE" --argjson attempts "$ATTEMPTS" \
-  --arg retry_reason "$RETRY_REASON" "$MISSED_RULES"'
+  --arg retry_reason "$RETRY_REASON" --arg rpol_arg "$REFUSAL_POLICY" --argjson rattempt "$REFUSAL_ATTEMPT" \
+  --slurpfile refx_f "$WORK/refused.json" "$MISSED_RULES"'
   def norm_model: tostring | sub("^([a-z]+\\.)?anthropic\\."; "") | sub("-v[0-9]+(:[0-9]+)?$"; "");
   # an unparseable timestamp (empty, an offset other than Z, not a string) is null, never an abort
   def ms(ts): if ts == null or ts == "" then null
@@ -616,10 +714,19 @@ ROW="$(jq -n -c \
       + (if $cx != null and $cx.sessions_valid < $cx.half
            then ["sessions_valid < k/2 (\($cx.sessions_valid) of \($cx.bare_sessions))"] else [] end)
     ) as $why
+  | (if $rpol_arg != "" then $rpol_arg else (($m.refusal_policy // {}) | objects | .[$arm]) // "exclude" end) as $rpol
+  | (if $rpol == "keep" and $cx == null then ($why | map(select(endswith(": refusal fallback") | not))) else $why end) as $why
   | ($p.status // "infrastructure_error" | if . == "running" then "interrupted" else . end) as $pst
   | (if $status_override != "" then $status_override
      elif ($g != null and ($g.contaminated // null) != null) then "contaminated"
      else $pst end) as $status
+  | ([$phases[] | select((.refusal_fallbacks // []) | length > 0)] | length > 0) as $fb   # a cell: any session
+  | (if $cx != null then (if $fb then "sessions_excluded" else "none" end)
+     elif $rattempt == 2 then (if $fb then "rerun_refused"
+                               elif (["transport_error","infrastructure_error","interrupted"] | index($status)) != null then "rerun_failed"
+                               else "rerun_clean" end)
+     elif ($fb | not) then "none"
+     elif $rpol == "exclude" then "excluded" elif $rpol == "keep" then "kept" else "rerun_not_run" end) as $rout
   | ($g.hidden_tests // null | if type == "object" then {passed: (.passed // 0), total: (.total // 0)} else null end) as $ht
   | ($g.recall // null) as $rc
   | (if $rc == null then null else ($rc.defects_seeded // $rc.seeded // $rc.total // null) end) as $seeded
@@ -693,7 +800,16 @@ ROW="$(jq -n -c \
                             and ([$ms | missed_rule($seeded; $caught)] | length) == 0 then $ms
                          else null end end),
       regressions_final_green: first(($g.regressions | objects | .final_green | boolish), null),
-      row_writer_version: "1.5",
+      row_writer_version: "1.6",
+      refusal_policy_applied: $rpol,
+      attempt: $rattempt,
+      refusal_attempts: (if $refx_f[0] == null then [] else [$refx_f[0]] end),
+      refusal_outcome: $rout,
+      refusal_denominator: (if (["excluded","rerun_not_run","rerun_refused","rerun_failed"] | index($rout)) != null
+                            then "excluded" else "included" end),
+      refusal_flagged: ($rout == "kept"),
+      metering_unmetered: (((($p.reason // "") | tostring) | startswith("unmetered_attempt"))
+                           or ([($p.phases // [])[]? | objects | .metering] | index("unmetered_attempt") != null)),
       defect_catch_rate_pm3: (if $rc == null then null else ($rc.recall_pm3 // null) end),
       defect_catch_rate_pm3_v1: (if $rc == null then null else ($rc.recall_pm3_v1 // null) end),
       defects_missed_pm3: (if $rc == null then null else poslist($rc.missed_pm3; $seeded) end),

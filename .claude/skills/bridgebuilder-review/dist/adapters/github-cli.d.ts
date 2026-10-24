@@ -1,11 +1,35 @@
-import type { IGitProvider, PullRequest, PullRequestFile, PRReview, PreflightResult, RepoPreflightResult, CommitCompareResult } from "../ports/git-provider.js";
+import type { IGitProvider, PullRequest, PullRequestFile, PullRequestRef, PRReview, PreflightResult, RepoPreflightResult, CommitCompareResult } from "../ports/git-provider.js";
 import type { IReviewPoster, PostReviewInput, PostCommentInput } from "../ports/review-poster.js";
+/**
+ * cycle-133 C-1 (`bridgebuilder.gh_max_buffer_bytes`): the per-call stdout buffer for `gh`. 64 MiB by default — the
+ * paged fetch bounds what one call receives to one page of 100 files, so this only has to hold the largest page.
+ * The pre-cycle-133 value was a fixed 10 MiB that a single `--paginate` call over a 2,000-file PR overflowed (KF-054).
+ */
+export declare const DEFAULT_GH_MAX_BUFFER_BYTES: number;
+/** The child-process seam (tests pass a mocked `gh`; production is `execFile`). */
+export type GhExec = (file: string, args: string[], options: {
+    timeout: number;
+    maxBuffer: number;
+}) => Promise<{
+    stdout: string;
+}>;
 export interface GitHubCLIAdapterConfig {
     reviewMarker: string;
+    /** cycle-133 C-1: per-call stdout buffer (`bridgebuilder.gh_max_buffer_bytes`); default DEFAULT_GH_MAX_BUFFER_BYTES. */
+    ghMaxBufferBytes?: number;
+    /** Test seam: the `gh` executor. Defaults to execFile. */
+    exec?: GhExec;
 }
 export declare class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
     private readonly marker;
+    private readonly exec;
+    private readonly maxBuffer;
     constructor(config: GitHubCLIAdapterConfig);
+    private gh;
+    /** cycle-133 C-1: the pair the review is pinned to (`pulls/N`). */
+    getPR(owner: string, repo: string, prNumber: number): Promise<PullRequestRef>;
+    /** cycle-133 C-1: one page of the files list (≤ 100 entries, patch text included — the endpoint has no other mode). */
+    getPRFilesPage(owner: string, repo: string, prNumber: number, page: number): Promise<PullRequestFile[]>;
     listOpenPRs(owner: string, repo: string): Promise<PullRequest[]>;
     getPRFiles(owner: string, repo: string, prNumber: number): Promise<PullRequestFile[]>;
     getPRReviews(owner: string, repo: string, prNumber: number): Promise<PRReview[]>;

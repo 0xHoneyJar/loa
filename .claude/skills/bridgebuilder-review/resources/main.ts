@@ -1,4 +1,5 @@
 import { readFile, readdir } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,7 +40,8 @@ import {
   createRatingEntry,
   readRatingWithTimeout,
 } from "./core/rating.js";
-import { truncateFiles, deriveCallConfig } from "./core/truncation.js";
+import { formatCoverageSection, truncationFor } from "./core/paged-fetch.js";
+import { summarizeReviewVerdict } from "./core/review-verdict.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -349,7 +351,7 @@ export async function loadPersona(
   }
 }
 
-function printSummary(summary: RunSummary): void {
+function printSummary(summary: RunSummary, exitOnDegraded: number): void {
   // Build skip reason distribution
   const skipReasons: Record<string, number> = {};
   for (const r of summary.results) {
@@ -357,6 +359,10 @@ function printSummary(summary: RunSummary): void {
       skipReasons[r.skipReason] = (skipReasons[r.skipReason] ?? 0) + 1;
     }
   }
+
+  // cycle-133 C-1/C-2: a named degradation exits bridgebuilder.exit_on_degraded (default 3) after the JSON
+  const degradedReasons = [...new Set(summary.results.flatMap((r) => r.degradedReasons ?? []))];
+  if (degradedReasons.length > 0 && summary.errors === 0) process.exitCode = decideExitCode(true, exitOnDegraded);
 
   // Build error code distribution
   const errorCodes: Record<string, number> = {};
@@ -382,7 +388,12 @@ function printSummary(summary: RunSummary): void {
           verdict: result.verdict ?? "UNKNOWN",
           highestSeverity: result.highestSeverity ?? null,
           mergeBlocked: result.mergeBlocked ?? true,
+          // cycle-133 C-1/C-2: the named degradation and the full coverage record
+          ...(result.mergeBlockedReason ? { mergeBlockedReason: result.mergeBlockedReason } : {}),
+          ...(result.degraded ? { degraded: true, degraded_reason: result.degradedReason, degradedReasons: result.degradedReasons } : {}),
+          ...(result.item.coverage ? { coverage: result.item.coverage } : {}),
         })),
+        ...(degradedReasons.length > 0 ? { degraded: true, degraded_reasons: degradedReasons, exitCode: decideExitCode(true, exitOnDegraded) } : {}),
         ...(Object.keys(skipReasons).length > 0 ? { skipReasons } : {}),
         ...(Object.keys(errorCodes).length > 0 ? { errorCodes } : {}),
       },
@@ -392,7 +403,7 @@ function printSummary(summary: RunSummary): void {
   );
 }
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   const argv = process.argv.slice(2);
 
   // --help flag
@@ -606,12 +617,30 @@ async function main(): Promise<void> {
     const verdicts = [];
     const outcomes: VoiceOutcome[] = [];
     for (const item of items) {
+      // cycle-133 C-1: a fetch that kept no file reviews nothing — the coverage notice is posted, the item is DEGRADED.
+      if (item.coverage?.degraded && item.files.length === 0) {
+        const decision = summarizeReviewVerdict("", [], { degradedReasons: item.coverage.degraded_reasons });
+        if (!config.dryRun && adapters.poster.postComment) {
+          await adapters.poster.postComment({
+            owner: item.owner, repo: item.repo, prNumber: item.pr.number,
+            body: `Bridgebuilder could not review this pull request: ${item.coverage.degraded_reasons.join(", ")}.\n\n${formatCoverageSection(item.coverage)}`,
+          });
+        }
+        verdicts.push({
+          repo: `${item.owner}/${item.repo}`, pr: item.pr.number, headSha: item.pr.headSha, ...decision,
+          degraded_reason: decision.degradedReason, coverage: item.coverage,
+          voices: { planned: 0, completed: 0, band: null, incomplete: [], degraded: false },
+        });
+        continue;
+      }
       // Use convergence prompt so models return findings JSON parseable by
       // extractFindingsFromContent() (bug-20260413-9f9b39).
       // #796 / vision-013 + BB-004: deriveCallConfig is the single chokepoint.
       // BB iter-1 on PR #797 caught a missing call site here; iter-2 caught
       // duplicate spread shape. Centralizing prevents both classes of regression.
-      const truncated = truncateFiles(item.files, deriveCallConfig(config, item.pr));
+      // cycle-133 C-1: the two-pass fetch's global selection is reused, never re-selected (truncationFor falls back to
+      // truncateFiles + deriveCallConfig for a provider without the paged contract).
+      const truncated = truncationFor(item, config);
       const systemPrompt = template.buildConvergenceSystemPrompt();
 
       // A4 (#464): per-item cross-repo wiring. Manual refs were fetched once
@@ -691,6 +720,9 @@ async function main(): Promise<void> {
       verdicts.push({
         repo: `${item.owner}/${item.repo}`, pr: item.pr.number, headSha: item.pr.headSha,
         ...mmResult.reviewVerdict,
+        // cycle-133 C-1/C-2: the named degradation and the full coverage record live in the summary JSON
+        ...(mmResult.reviewVerdict.degradedReason ? { degraded_reason: mmResult.reviewVerdict.degradedReason } : {}),
+        ...(item.coverage ? { coverage: item.coverage } : {}),
         voices: {
           planned: outcome.planned,
           completed: outcome.completed,
@@ -719,6 +751,9 @@ async function main(): Promise<void> {
 
     // cycle-129 D-7.7: completed/planned — the voices whose result completed, never the number configured
     const totals = totalVoices(outcomes);
+    // cycle-133 C-1/C-2: a named degradation (coverage, guard, writer, verdict conflict) is DEGRADED too (exit 3)
+    const degradedReasons = [...new Set(verdicts.flatMap((v) => v.degradedReasons ?? []))];
+    if (degradedReasons.length > 0) totals.degraded = true;
     progress.reportComplete(Date.now() - now.getTime(), totals.completed, totals.planned);
     progress.stop();
 
@@ -752,16 +787,18 @@ async function main(): Promise<void> {
     const exitCode = decideExitCode(totals.degraded, trusted.exitOnDegraded);
     console.log(JSON.stringify({
       runId, mode: "multi-model", items: items.length, verdicts,
-      degraded: totals.degraded, voicesCompleted: totals.completed, voicesPlanned: totals.planned, exitCode,
+      degraded: totals.degraded, ...(degradedReasons.length > 0 ? { degraded_reasons: degradedReasons } : {}),
+      voicesCompleted: totals.completed, voicesPlanned: totals.planned, exitCode,
     }, null, 2));
     if (totals.degraded) {
       console.error(degradedWarnLine(totals, outcomes.map((o) => o.band), exitCode));
+      if (degradedReasons.length > 0) console.error(`[bridgebuilder] WARN: DEGRADED — degraded_reason: ${degradedReasons.join(", ")}`);
     }
     process.exitCode = exitCode;
   } else {
     // Single-model path — existing behavior, unchanged
     const summary = await pipeline.run(runId);
-    printSummary(summary);
+    printSummary(summary, trusted.exitOnDegraded);
 
     if (summary.errors > 0) {
       process.exit(1);
@@ -769,9 +806,26 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err: unknown) => {
-  console.error(
-    `[bridgebuilder] Fatal: ${err instanceof Error ? err.message : String(err)}`,
-  );
-  process.exit(1);
-});
+/**
+ * cycle-133 follow-up a2: whether this module is the process entrypoint (`node dist/main.js`, `tsx main.ts`, or a
+ * symlink to either). Real paths are compared, so a symlinked launcher still runs; a missing or unresolvable argv[1]
+ * is never the entrypoint.
+ */
+export function isEntrypoint(moduleUrl: string, argv1: string | undefined): boolean {
+  if (!argv1) return false;
+  try {
+    return realpathSync(fileURLToPath(moduleUrl)) === realpathSync(argv1);
+  } catch {
+    return false;
+  }
+}
+
+// Importing this module (tests import its persona helpers) must never start a review: run only as the entrypoint.
+if (isEntrypoint(import.meta.url, process.argv[1])) {
+  main().catch((err: unknown) => {
+    console.error(
+      `[bridgebuilder] Fatal: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    process.exit(1);
+  });
+}

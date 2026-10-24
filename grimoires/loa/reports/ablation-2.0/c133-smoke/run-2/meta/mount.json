@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "mount_mode": "home-scope",
+  "setting_sources": "user",
+  "claude_code_version": "2.1.299",
+  "surface_derived_for": "2.1.299",
+  "source_commit": "7d211947791e440652a29387d6bac7eb36a83149",
+  "framework_root_var": "LOA_FRAMEWORK_ROOT",
+  "framework_root": "/home/evaluser",
+  "framework_manifest_sha256": "2e9e37de100756affb53c27d00c74fd6cd56f9715ea2502ae631b3ab8aafbc17",
+  "home_verify": "ok 1775 files, 393 redirected, reverse == pinned",
+  "home_hook_counts": "PermissionRequest:1,PostToolUse:4,PreCompact:1,PreToolUse:11,SessionStart:8,Setup:1,Stop:2,UserPromptSubmit:2",
+  "transform": {
+    "files": 1776,
+    "files_transformed": 393,
+    "rules": {
+      "R1": 82,
+      "R2": 223,
+      "R3": 1212,
+      "R4": 17,
+      "R5": 4,
+      "R6": 156,
+      "R7": 5,
+      "R8": 1
+    },
+    "residual": 0,
+    "shell_relative_refs": 521
+  }
+}

@@ -31,7 +31,9 @@ setup() {
 # provider == "anthropic" + resolved model == "claude-opus-4-7".
 _assert_resolves_to_opus_4_7() {
     local model="$1"
-    run env -u ANTHROPIC_API_KEY "$PYTHON_BIN" "$CHEVAL_PY" \
+    # cycle-133 FR-5 (bd-tgn04): a host Bedrock token flips the loader to bedrock_only
+    # forward-routing; the pin is about the direct anthropic alias map, so drop it.
+    run env -u ANTHROPIC_API_KEY -u AWS_BEARER_TOKEN_BEDROCK "$PYTHON_BIN" "$CHEVAL_PY" \
         --agent reviewing-code \
         --model "$model" \
         --prompt "regression-pin" \

@@ -456,7 +456,8 @@ validate_finding() {
     (.severity | IN($sevs[])) and
     (.category | IN($cats[])) and
     (.description | type) == "string" and (.description | test("\\S")) and
-    (.failure_mode | type) == "string" and (.failure_mode | test("\\S"))
+    (.failure_mode | type) == "string" and (.failure_mode | test("\\S")) and
+    (.failure_scenario == null or .failure_scenario == .failure_mode)
   ' > /dev/null 2>&1
 }
 
@@ -503,6 +504,9 @@ _validate_finding_reason() {
       "missing-or-empty-description"
     elif (.failure_mode // null) == null or (.failure_mode | type) != "string" or (.failure_mode | test("\\S") | not) then
       "missing-or-empty-failure_mode"
+    elif .failure_scenario != null and .failure_scenario != .failure_mode then
+      # cycle-133 C-11: the canonical field and its alias both present and different — neither is chosen silently
+      "alias-conflict-failure_scenario-failure_mode"
     else
       ""
     end
@@ -633,6 +637,11 @@ _normalize_finding_for_validation() {
     | (if has("category") and (.category | type) == "string"
        then .category |= (gsub("^\\s+|\\s+$"; "") | ascii_downcase)
        else . end)
+    # cycle-133 C-11 (FR-11): a voice that speaks the canonical failure_scenario supplies the failure_mode the pipeline
+    # reads; one that names both, differently, is left as given (validate_finding rejects it: alias-conflict)
+    | (if (.failure_scenario | type) == "string" and (.failure_scenario | test("\\S"))
+          and ((.failure_mode | type) != "string" or (.failure_mode | test("\\S") | not))
+       then .failure_mode = .failure_scenario else . end)
   ' 2>/dev/null | _derive_failure_mode "$index"
 }
 
@@ -1963,6 +1972,19 @@ while i < len(text):
       repair_hops_skipped: (if $rhs == "" then [] else ($rhs | split(" ") | unique) end)}')
   [[ -n "${_ADV_REPAIR_SKIP_FILE:-}" ]] && command rm -f -- "$_ADV_REPAIR_SKIP_FILE" 2>/dev/null; _ADV_REPAIR_SKIP_FILE=""
 
+  # cycle-133 C-11 (FR-11; sdd.md C-11): every accepted finding carries the canonical failure_scenario beside failure_mode
+  # (the alias, kept for one release); a finding that named only the alias — or whose failure_mode was derived from its
+  # description — gets failure_scenario = failure_mode, and the run says so once per alias
+  local _alias_counts _alias_fm _alias_de
+  if _alias_counts=$(jq -r '[(map(select((.failure_scenario | type) != "string" and .failure_mode_derived != true)) | length),
+                             (map(select((.failure_scenario | type) != "string" and .failure_mode_derived == true)) | length)] | @tsv' <<<"$validated_findings"); then
+    IFS=$'\t' read -r _alias_fm _alias_de <<<"$_alias_counts"
+    [[ "${_alias_fm:-0}" =~ ^[1-9][0-9]*$ ]] && log "WARN: \`failure_mode\` is an alias of \`failure_scenario\`; removed in 2.1.0 ($_alias_fm finding(s) named only failure_mode)"
+    [[ "${_alias_de:-0}" =~ ^[1-9][0-9]*$ ]] && log "WARN: \`description\` is an alias of \`failure_scenario\`; removed in 2.1.0 ($_alias_de finding(s) gave only a description)"
+    validated_findings=$(jq -c 'map(if (.failure_scenario | type) != "string" then .failure_scenario = .failure_mode else . end)' <<<"$validated_findings")
+  else
+    log "WARN: the failure_scenario normalisation could not read the accepted findings (jq) — the envelope carries failure_mode only"
+  fi
   _adv_jq_pair "$validated_findings" "$rejected_summary" '$a as $findings | $b as $rejsum
     | {findings: $findings, metadata: ({type: $type, model: $model, sprint_id: $sid,
       timestamp: $ts, tokens_input: $ti, tokens_output: $to, cost_usd: $cost,

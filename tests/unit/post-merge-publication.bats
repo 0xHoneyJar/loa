@@ -3,9 +3,16 @@
 setup() {
     ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
     CASE_DIR="$(mktemp -d)"
+    # KF-034 / bd-fpt3: a host whose global config forces annotated or signed
+    # tags (or sets hooksPath / followTags) must not change this suite.
+    : > "$CASE_DIR/gitconfig"
+    export GIT_CONFIG_GLOBAL="$CASE_DIR/gitconfig" GIT_CONFIG_NOSYSTEM=1
     export PROJECT_ROOT="$CASE_DIR/repo"
-    mkdir -p "$PROJECT_ROOT/.claude/scripts" "$PROJECT_ROOT/.run" "$CASE_DIR/bin"
+    mkdir -p "$PROJECT_ROOT/.claude/scripts/lib" "$PROJECT_ROOT/lib" "$PROJECT_ROOT/grimoires/loa" "$PROJECT_ROOT/.run" "$CASE_DIR/bin"
     cp "$ROOT/.claude/scripts/"{bootstrap.sh,path-lib.sh,post-merge-orchestrator.sh,semver-bump.sh,release-notes-gen.sh} "$PROJECT_ROOT/.claude/scripts/"
+    # Candidate v2 is canonicalised through lib/jcs.sh (RFC 8785).
+    cp "$ROOT/.claude/scripts/lib/jcs-helper.py" "$PROJECT_ROOT/.claude/scripts/lib/"
+    cp "$ROOT/lib/jcs.sh" "$PROJECT_ROOT/lib/"
     git -C "$PROJECT_ROOT" init -q
     git -C "$PROJECT_ROOT" config user.name Test
     git -C "$PROJECT_ROOT" config user.email test@example.invalid
@@ -15,17 +22,34 @@ setup() {
     git -C "$PROJECT_ROOT" commit -qm "feat: initial"
     git -C "$PROJECT_ROOT" tag v1.0.0
     printf 'fixed\n' > "$PROJECT_ROOT/app.txt"
-    git -C "$PROJECT_ROOT" add app.txt
+    # cycle-133 C-3: the merge carries its release content (the CHANGELOG
+    # heading) and the active cycle the post-merge ledger step archives.
+    printf '# Changelog\n\n## [Unreleased]\n\n## [1.0.1]\n\n- repair application\n\n## [1.0.0]\n\n- old change\n' > "$PROJECT_ROOT/CHANGELOG.md"
+    printf '{\n  "schema_version": 1,\n  "active_cycle": "cycle-001",\n  "cycles": [\n    {\n      "id": "cycle-001",\n      "status": "active",\n      "sprints": [\n        {"id": 1, "status": "completed"}\n      ]\n    }\n  ]\n}\n' > "$PROJECT_ROOT/grimoires/loa/ledger.json"
+    printf 'grimoires/loa/ledger.json.lock\n' >> "$PROJECT_ROOT/.gitignore"
+    git -C "$PROJECT_ROOT" add app.txt CHANGELOG.md grimoires/loa/ledger.json .gitignore
     git -C "$PROJECT_ROOT" commit -qm "fix: repair application"
     git init --bare -q "$CASE_DIR/remote"
+    git --git-dir="$CASE_DIR/remote" config core.logAllRefUpdates always
     git -C "$PROJECT_ROOT" remote add origin https://github.com/test/repo.git
     git -C "$PROJECT_ROOT" remote set-url --push origin "$CASE_DIR/remote"
     SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+    # The merge is the remote main; setup pushes no tag.
+    git -C "$PROJECT_ROOT" push -q "$CASE_DIR/remote" "$SHA:refs/heads/main"
     SCRIPT="$PROJECT_ROOT/.claude/scripts/post-merge-orchestrator.sh"
     export GH_LOG="$CASE_DIR/gh.log"
     cat > "$CASE_DIR/bin/gh" <<'SH'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >> "$GH_LOG"
+# Simulated crashes: fail exactly one call, once per case.
+if [[ -n "${GH_FAIL_ONCE:-}" && ! -f "${GH_LOG}.failed-once" ]]; then
+    case "$GH_FAIL_ONCE:$*" in
+        release-readback:*releases/81*|notify:*"--method POST"*"/comments "*)
+            touch "${GH_LOG}.failed-once"
+            echo "simulated crash ($GH_FAIL_ONCE)" >&2
+            exit 1 ;;
+    esac
+fi
 if [[ "${GH_MODE:-}" == host-bound && "$*" != *"--hostname github.com"* ]]; then
     echo "unbound GitHub API host" >&2
     exit 1
@@ -149,8 +173,16 @@ assert_workflow_candidate() {
 }
 
 @test "publication: empty Unreleased section is filled from classified commits" {
+    # The phase still fills the heading. Candidate v2 tags the merge, so the
+    # generated CHANGELOG commit is sealed as unpublished and named.
+    printf '# Changelog\n\n## [Unreleased]\n\n## [1.0.0]\n\n- old change\n' > "$PROJECT_ROOT/CHANGELOG.md"
+    git -C "$PROJECT_ROOT" commit -qam "fix: repair application"
+    SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
     run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
     [ "$status" -eq 0 ]
+    [[ "$output" == *"not published"*"CHANGELOG.md"* ]]
+    jq -e --arg sha "$SHA" '.target_commit == $sha and .unpublished_paths == ["CHANGELOG.md"]
+        and (.ref_updates | length) == 1' "$PROJECT_ROOT/.run/post-merge-candidate.json"
     awk '/^## \[1.0.1\]/{found=1;next} found && /^## /{exit} found{print}' "$PROJECT_ROOT/CHANGELOG.md" | grep -q 'repair application'
 }
 
@@ -180,6 +212,8 @@ generate() {
     grep -q 'releases/81' "$GH_LOG"
     grep -q 'issues/comments/73' "$GH_LOG"
     [ "$(git --git-dir="$CASE_DIR/remote" rev-parse 'v1.0.1^{commit}')" = "$(jq -r '.target_commit' "$CANDIDATE")" ]
+    # G-3 (rc.6/rc.7): the published tag is reachable from the remote main.
+    git --git-dir="$CASE_DIR/remote" merge-base --is-ancestor v1.0.1 refs/heads/main
 }
 
 @test "publication: changed candidate digest refuses before any remote write" {
@@ -281,6 +315,7 @@ rc_fixture() {
     git -C "$PROJECT_ROOT" add CHANGELOG.md feature.txt
     git -C "$PROJECT_ROOT" commit -qm "feat: cut the release candidate"
     SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+    git -C "$PROJECT_ROOT" push -q "$CASE_DIR/remote" "$SHA:refs/heads/main"
 }
 
 @test "publication: an untagged rc heading prepares a prerelease candidate and publishes it flagged pre-release" {
@@ -314,4 +349,403 @@ rc_fixture() {
     [ "$status" -ne 0 ]
     jq -e '.state == "FAILED" and .phases.release.status == "failed"' "$PROJECT_ROOT/.run/post-merge-state.json"
     ! grep -q 'issues/comments/73' "$GH_LOG"
+}
+
+# =============================================================================
+# cycle-133 C-3 (FR-3, bd-kwloh): candidate schema_version 2. The tag targets
+# the merge (reachable from main by construction), the ledger archive is one
+# deterministic commit named in the sealed candidate and pushed with a lease
+# against the observed remote main; a moved main defers it to --ledger-only.
+# =============================================================================
+
+remote_git() { git --git-dir="$CASE_DIR/remote" "$@"; }
+
+publish() {
+    bash "$SCRIPT" --publish "$CANDIDATE" --approve-sha256 "$DIGEST" "$@"
+}
+
+ledger_new() { jq -r '.ref_updates[0].new' "$CANDIDATE"; }
+
+# Re-serialise a candidate after a mutation (RFC 8785, as --generate does).
+recanon() {
+    python3 "$ROOT/.claude/scripts/lib/jcs-helper.py" < "$1" > "$1.canon"
+    mv "$1.canon" "$1"
+}
+
+reapprove() { DIGEST="$(sha256sum "$CANDIDATE" | cut -d' ' -f1)"; }
+
+# A later merge on top of the candidate's merge, available on the remote.
+later_merge() {
+    LATER="$(git -C "$PROJECT_ROOT" commit-tree "$SHA^{tree}" -p "$SHA" -m "fix: later merge")"
+    git -C "$PROJECT_ROOT" push -q "$CASE_DIR/remote" "$LATER:refs/heads/later"
+}
+
+# A commit that does not contain the merge, available on the remote.
+unrelated_commit() {
+    UNRELATED="$(git -C "$PROJECT_ROOT" commit-tree "$SHA^{tree}" -m "rewritten history")"
+    git -C "$PROJECT_ROOT" push -q "$CASE_DIR/remote" "$UNRELATED:refs/heads/unrelated"
+}
+
+# Move the remote main to $2 once, while a push of a ref matching $1 is in
+# flight (after the publisher's last check, before the remote applies it).
+move_main_during_push() {
+    cat > "$PROJECT_ROOT/.git/hooks/pre-push" <<HOOK
+#!/usr/bin/env bash
+while read -r _lref _lsha rref _rsha; do
+    if [[ "\$rref" == $1 && ! -f "$CASE_DIR/moved" ]]; then
+        touch "$CASE_DIR/moved"
+        git --git-dir="$CASE_DIR/remote" update-ref refs/heads/main "$2"
+    fi
+done
+exit 0
+HOOK
+    chmod +x "$PROJECT_ROOT/.git/hooks/pre-push"
+}
+
+assert_nothing_published() {
+    [ -z "$(remote_git tag)" ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "${1:-$SHA}" ]
+    if [[ -f "$GH_LOG" ]]; then
+        ! grep -q -- '--method POST' "$GH_LOG"
+    fi
+}
+
+@test "c133 v2: the sealed candidate targets the merge and names the ledger ref update" {
+    generate
+    jq -e --arg sha "$SHA" '.schema_version == 2 and .merge_sha == $sha and .target_commit == $sha
+        and .target_on_main == true and .release_title == .tag
+        and .ref_updates == [{ref:"refs/heads/main", expected_old:$sha, new:.ref_updates[0].new}]
+        and (.ref_updates[0].new | test("^[0-9a-f]{40}$"))
+        and .ledger_cycle == "cycle-001" and .ledger_patch_file == "post-merge-ledger.patch"
+        and (.ledger_commit.author.name == "Test") and (.ledger_commit.committer.date | test("^[0-9]+ [+]0000$"))' "$CANDIDATE"
+    [ "$(jq -r '.target_tree' "$CANDIDATE")" = "$(git -C "$PROJECT_ROOT" rev-parse "$SHA^{tree}")" ]
+    [ "$(jq -j '.release_body' "$CANDIDATE" | sha256sum | cut -d' ' -f1)" = "$(jq -r '.release_notes_sha256' "$CANDIDATE")" ]
+    [ "$(sha256sum "$PROJECT_ROOT/.run/post-merge-ledger.patch" | cut -d' ' -f1)" = "$(jq -r '.ledger_patch_sha256' "$CANDIDATE")" ]
+    [ "$(grep -c '^diff --git ' "$PROJECT_ROOT/.run/post-merge-ledger.patch")" = 1 ]
+    grep -q '^diff --git a/grimoires/loa/ledger.json b/grimoires/loa/ledger.json$' "$PROJECT_ROOT/.run/post-merge-ledger.patch"
+    # The file is its own RFC 8785 form, so its byte digest is the approval digest.
+    python3 "$ROOT/.claude/scripts/lib/jcs-helper.py" < "$CANDIDATE" | cmp - "$CANDIDATE"
+    # The named ledger commit has the generated tree and the merge as parent.
+    [ "$(git -C "$PROJECT_ROOT" rev-parse "$(ledger_new)^{tree}")" = "$(git -C "$PROJECT_ROOT" rev-parse 'HEAD^{tree}')" ]
+    [ "$(git -C "$PROJECT_ROOT" rev-parse "$(ledger_new)^")" = "$SHA" ]
+    [ -z "$(remote_git tag)" ]
+}
+
+@test "c133 v2: ancestor success publishes a tag reachable from main and fast-forwards the ledger" {
+    generate
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 0 ]
+    [ "$(remote_git rev-parse 'v1.0.1^{commit}')" = "$SHA" ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$(ledger_new)" ]
+    remote_git branch --contains v1.0.1 | grep -qx '[* ]*main'
+    remote_git show main:grimoires/loa/ledger.json | jq -e '.cycles[0].status == "archived" and .active_cycle == null'
+    jq -e '.state == "DONE" and .phases.ledger.status == "completed" and .phases.ledger.result.state == "published"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    jq -e --arg d "$DIGEST" '.candidate_digest == $d and .ledger.state == "published"' "$PROJECT_ROOT/.run/post-merge-progress.json"
+    [ ! -f "$PROJECT_ROOT/.run/post-merge-ledger-deferred.json" ]
+}
+
+@test "c133 v2: a later merge on main still publishes the tag and defers the ledger step" {
+    generate
+    later_merge
+    remote_git update-ref refs/heads/main "$LATER"
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 3 ]
+    [[ "$output" == *"--ledger-only"* ]]
+    [ "$(remote_git rev-parse 'v1.0.1^{commit}')" = "$SHA" ]
+    remote_git merge-base --is-ancestor v1.0.1 main
+    [ "$(remote_git rev-parse refs/heads/main)" = "$LATER" ]
+    jq -e --arg later "$LATER" '.reason == "main_moved" and .observed_main == $later and .ledger_cycle == "cycle-001"' "$PROJECT_ROOT/.run/post-merge-ledger-deferred.json"
+    jq -e '.state == "DONE" and .degraded_reason == "ledger_deferred" and .phases.ledger.result.state == "deferred" and .phases.notify.result.verified' "$PROJECT_ROOT/.run/post-merge-state.json"
+}
+
+@test "c133 v2: main advanced between the ancestry check and the tag push: ancestry still holds, ledger defers" {
+    generate
+    later_merge
+    move_main_during_push 'refs/tags/*' "$LATER"
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 3 ]
+    [ -f "$CASE_DIR/moved" ]
+    [ "$(remote_git rev-parse 'v1.0.1^{commit}')" = "$SHA" ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$LATER" ]
+    remote_git merge-base --is-ancestor v1.0.1 main
+    jq -e '.phases.release.result.verified and .phases.ledger.result.state == "deferred"' "$PROJECT_ROOT/.run/post-merge-state.json"
+}
+
+@test "c133 v2: main moved at the ledger push (lease failure) defers without overwriting main" {
+    generate
+    later_merge
+    move_main_during_push 'refs/heads/main' "$LATER"
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 3 ]
+    [ -f "$CASE_DIR/moved" ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$LATER" ]
+    jq -e '.reason == "lease_failed"' "$PROJECT_ROOT/.run/post-merge-ledger-deferred.json"
+    jq -e '.ledger.state == "deferred"' "$PROJECT_ROOT/.run/post-merge-progress.json"
+}
+
+@test "c133 v2: --ledger-only after a deferral applies the patch onto the then-current main" {
+    generate
+    later_merge
+    remote_git update-ref refs/heads/main "$LATER"
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 3 ]
+    run publish --ledger-only
+    [ "$status" -eq 0 ]
+    [ "$(remote_git rev-parse 'refs/heads/main^')" = "$LATER" ]
+    remote_git show main:grimoires/loa/ledger.json | jq -e '.cycles[0].status == "archived" and .active_cycle == null'
+    [ "$(remote_git log -1 --format='%an <%ae>|%s' main)" = "Test <test@example.invalid>|chore(ledger): archive cycle-001 after merge" ]
+    remote_git merge-base --is-ancestor v1.0.1 main
+    [ ! -f "$PROJECT_ROOT/.run/post-merge-ledger-deferred.json" ]
+    jq -e '.ledger.state == "published"' "$PROJECT_ROOT/.run/post-merge-progress.json"
+    # Idempotent: a second --ledger-only sees the archived cycle and pushes nothing.
+    before="$(remote_git rev-parse refs/heads/main)"
+    run publish --ledger-only
+    [ "$status" -eq 0 ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$before" ]
+}
+
+@test "c133 v2: --ledger-only before any publish refuses" {
+    generate
+    run publish --ledger-only
+    [ "$status" -eq 2 ]
+    assert_nothing_published
+}
+
+@test "c133 v2: a remote main that does not contain the merge refuses before any write" {
+    generate
+    unrelated_commit
+    remote_git update-ref refs/heads/main "$UNRELATED"
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"not an ancestor"* ]]
+    assert_nothing_published "$UNRELATED"
+}
+
+@test "c133 v2: ancestry is re-verified before each visible step (main rewritten after the tag)" {
+    generate
+    unrelated_commit
+    move_main_during_push 'refs/tags/*' "$UNRELATED"
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 1 ]
+    [ "$(remote_git rev-parse 'v1.0.1^{commit}')" = "$SHA" ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$UNRELATED" ]
+    ! grep -q -- '--method POST' "$GH_LOG"
+    jq -e '.state == "FAILED" and .phases.release.status == "failed"' "$PROJECT_ROOT/.run/post-merge-state.json"
+}
+
+@test "c133 v2: an existing tag with the identical target and release identity is accepted" {
+    generate
+    git -C "$PROJECT_ROOT" tag -a v1.0.1 "$SHA" -m "Release v1.0.1"
+    tag_object="$(git -C "$PROJECT_ROOT" rev-parse refs/tags/v1.0.1)"
+    git -C "$PROJECT_ROOT" push -q "$CASE_DIR/remote" refs/tags/v1.0.1
+    git -C "$PROJECT_ROOT" tag -d v1.0.1 >/dev/null
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 0 ]
+    [ "$(remote_git rev-parse refs/tags/v1.0.1)" = "$tag_object" ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$(ledger_new)" ]
+}
+
+@test "c133 v2: an existing tag on another commit refuses" {
+    generate
+    git -C "$PROJECT_ROOT" tag -a v1.0.1 v1.0.0 -m "Release v1.0.1"
+    tag_object="$(git -C "$PROJECT_ROOT" rev-parse refs/tags/v1.0.1)"
+    git -C "$PROJECT_ROOT" push -q "$CASE_DIR/remote" refs/tags/v1.0.1
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    [ "$(remote_git rev-parse refs/tags/v1.0.1)" = "$tag_object" ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$SHA" ]
+    ! grep -q -- '--method POST' "$GH_LOG"
+}
+
+@test "c133 v2: an existing tag on the merge with another release identity refuses" {
+    generate
+    git -C "$PROJECT_ROOT" tag -a v1.0.1 "$SHA" -m "Something else"
+    git -C "$PROJECT_ROOT" push -q "$CASE_DIR/remote" refs/tags/v1.0.1
+    git -C "$PROJECT_ROOT" tag -d v1.0.1 >/dev/null
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$SHA" ]
+    ! grep -q -- '--method POST' "$GH_LOG"
+}
+
+@test "c133 v2: crash after the tag: the re-run completes without a second tag" {
+    generate
+    export GH_MODE=fail
+    run publish
+    [ "$status" -eq 1 ]
+    tag_object="$(remote_git rev-parse refs/tags/v1.0.1)"
+    [ "$(remote_git rev-parse refs/heads/main)" = "$SHA" ]
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 0 ]
+    [ "$(remote_git rev-parse refs/tags/v1.0.1)" = "$tag_object" ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$(ledger_new)" ]
+}
+
+@test "c133 v2: crash after the release is created: the re-run reuses it" {
+    generate
+    export GH_MODE=ok GH_FAIL_ONCE=release-readback
+    run publish
+    [ "$status" -eq 1 ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$SHA" ]
+    run publish
+    [ "$status" -eq 0 ]
+    [ "$(grep -c -- '--method POST repos/test/repo/releases ' "$GH_LOG")" = 1 ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$(ledger_new)" ]
+}
+
+@test "c133 v2: crash after the ledger push: the re-run completes without a second push" {
+    generate
+    export GH_MODE=ok GH_FAIL_ONCE=notify
+    run publish
+    [ "$status" -eq 1 ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$(ledger_new)" ]
+    run publish
+    [ "$status" -eq 0 ]
+    [ "$(remote_git reflog show refs/heads/main | wc -l | tr -d ' ')" = 2 ]
+    jq -e '.state == "DONE" and .phases.ledger.result.state == "published" and .phases.notify.result.verified' "$PROJECT_ROOT/.run/post-merge-state.json"
+}
+
+@test "c133 v2: mutated notes under the approved digest refuse" {
+    generate
+    jq '.release_body = "tampered"' "$CANDIDATE" > "$CASE_DIR/c" && mv "$CASE_DIR/c" "$CANDIDATE"
+    recanon "$CANDIDATE"
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    assert_nothing_published
+}
+
+@test "c133 v2: mutated notes re-approved without their digest refuse" {
+    generate
+    jq '.release_body = "tampered"' "$CANDIDATE" > "$CASE_DIR/c" && mv "$CASE_DIR/c" "$CANDIDATE"
+    recanon "$CANDIDATE"
+    reapprove
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"release_notes_sha256"* ]]
+    assert_nothing_published
+}
+
+@test "c133 v2: a mutated intended ref update refuses even when re-approved" {
+    generate
+    jq --arg sha "$SHA" '.ref_updates[0].new = $sha' "$CANDIDATE" > "$CASE_DIR/c" && mv "$CASE_DIR/c" "$CANDIDATE"
+    recanon "$CANDIDATE"
+    reapprove
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    assert_nothing_published
+}
+
+@test "c133 v2: a mutated ledger patch refuses" {
+    generate
+    sed -i 's/archived/retired/' "$PROJECT_ROOT/.run/post-merge-ledger.patch"
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    assert_nothing_published
+}
+
+@test "c133 v2: a re-approved candidate that is not in canonical form refuses" {
+    generate
+    printf '\n' >> "$CANDIDATE"
+    reapprove
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    assert_nothing_published
+}
+
+@test "c133 v2: a ledger patch touching another path refuses" {
+    generate
+    patch="$PROJECT_ROOT/.run/post-merge-ledger.patch"
+    printf 'diff --git a/app.txt b/app.txt\n--- a/app.txt\n+++ b/app.txt\n@@ -1 +1 @@\n-fixed\n+tampered\n' >> "$patch"
+    jq --arg d "$(sha256sum "$patch" | cut -d' ' -f1)" '.ledger_patch_sha256 = $d' "$CANDIDATE" > "$CASE_DIR/c" && mv "$CASE_DIR/c" "$CANDIDATE"
+    recanon "$CANDIDATE"
+    reapprove
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"grimoires/loa/ledger.json"* ]]
+    assert_nothing_published
+}
+
+@test "c133 v2: a ledger patch that is not the active to archived transition refuses" {
+    generate
+    ledger="$PROJECT_ROOT/grimoires/loa/ledger.json"
+    cp "$ledger" "$CASE_DIR/ledger.keep"
+    jq '.cycles[0].status = "archived" | .active_cycle = null | .cycles[0].sprints = []' "$CASE_DIR/ledger.keep" > "$ledger"
+    patch="$PROJECT_ROOT/.run/post-merge-ledger.patch"
+    git -C "$PROJECT_ROOT" diff "$SHA" -- grimoires/loa/ledger.json > "$patch"
+    cp "$CASE_DIR/ledger.keep" "$ledger"
+    jq --arg d "$(sha256sum "$patch" | cut -d' ' -f1)" '.ledger_patch_sha256 = $d' "$CANDIDATE" > "$CASE_DIR/c" && mv "$CASE_DIR/c" "$CANDIDATE"
+    recanon "$CANDIDATE"
+    reapprove
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"active"*"archived"* ]]
+    assert_nothing_published
+}
+
+v1_candidate() {
+    bash "$SCRIPT" --generate --pr 7 --type other --sha "$SHA" --downstream --skip-gt --skip-rtfm
+    CANDIDATE="$PROJECT_ROOT/.run/post-merge-candidate.json"
+    jq '{schema_version:1, pr_number, pr_type, merge_sha, target_commit, target_tree,
+        remote_origin, remote_push_url, tag, prerelease, release_body,
+        notification_body, prepared_state}' "$CANDIDATE" > "$CASE_DIR/v1"
+    mv "$CASE_DIR/v1" "$CANDIDATE"
+    reapprove
+}
+
+@test "c133 v2: a schema_version 1 candidate refuses with a regeneration instruction" {
+    v1_candidate
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"--generate"* && "$output" == *"--allow-v1"* ]]
+    assert_nothing_published
+}
+
+@test "c133 v2: --allow-v1 publishes a schema_version 1 candidate and logs the reason" {
+    v1_candidate
+    export GH_MODE=ok
+    run publish --allow-v1 "operator accepts the legacy candidate for the test"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"operator accepts the legacy candidate for the test"* ]]
+    jq -e '.allow_v1.reason == "operator accepts the legacy candidate for the test" and .state == "DONE"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    [ "$(remote_git rev-parse 'v1.0.1^{commit}')" = "$SHA" ]
+}
+
+@test "c133 v2: --allow-v1 requires a reason" {
+    v1_candidate
+    run publish --allow-v1 ""
+    [ "$status" -eq 2 ]
+    assert_nothing_published
+}
+
+@test "c133 v2: the stdlib canonical form equals lib/jcs.sh (rfc8785) on a generated candidate" {
+    python3 -c 'import rfc8785' 2>/dev/null || skip "rfc8785 not installed"
+    generate
+    sed '$d' "$SCRIPT" > "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh"
+    jq '. + {probe: {"\u00e9": "x", "\ud83d\ude00": "astral", "\uff61": "bmp-high", "e": "tab\tquote\"\u0001", n: -3}}' "$CANDIDATE" > "$CASE_DIR/probe.json"
+    bash -c 'source "$1"; jcs_stdlib_file "$2"' _ "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh" "$CASE_DIR/probe.json" > "$CASE_DIR/stdlib"
+    python3 "$ROOT/.claude/scripts/lib/jcs-helper.py" < "$CASE_DIR/probe.json" > "$CASE_DIR/rfc8785"
+    cmp "$CASE_DIR/stdlib" "$CASE_DIR/rfc8785"
+    # A value outside the exact domain is refused, never approximated.
+    printf '{"x": 1.5}' > "$CASE_DIR/float.json"
+    run bash -c 'source "$1"; jcs_stdlib_file "$2"' _ "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh" "$CASE_DIR/float.json"
+    [ "$status" -ne 0 ]
 }

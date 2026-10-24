@@ -118,6 +118,18 @@ grimoires/loa/archive/2026-01-17-mvp-complete/
 
 **Note**: Original files are NOT deleted. This allows referencing previous work while starting a new cycle. Delete them manually if you want a clean slate.
 
+## Record Branch (`.claude/scripts/record-branch.sh`)
+
+The gitignored records (a2a sprint directories, audits, Flatline and prompt records, NOTES and its archive, the cycle's results batches and lite tree) are published on `record/<cycle id>`, built after the cycle PR merges and before this archive step:
+
+```bash
+.claude/scripts/record-branch.sh --cycle N --head <merge sha> --prev <previous record> --stage "stage 1" --dry-run   # size table
+.claude/scripts/record-branch.sh --cycle N --head <merge sha> --prev <previous record> --stage "stage 1"
+.claude/scripts/run-mode-ice.sh push origin record/<cycle id>
+```
+
+It builds in a temporary index (the working tree and real index are untouched), refuses symlinks and paths leaving the repository, scans the added paths (credential-shaped hits are never bypassable; other hits need `--accept-scan <scan_tree>`), commits with the parents `--prev` and `--head` (both must already be on origin) and moves the ref by compare-and-swap. `--manifest FILE` and `--add PATH` change what is recorded; `--help` lists every option and exit code.
+
 ## Script Contract (`.claude/scripts/archive-cycle.sh`)
 
 The script that performs the archive (`archive-cycle.sh [--cycle N] [--retention N] [--force] [--dry-run]`) follows these rules (bug 20261021-ba367a, issue #1263):

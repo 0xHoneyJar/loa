@@ -1,0 +1,7 @@
+{"at":"2026-10-24T11:56:10.972601892Z","host":"sdmntprsouthcentralus.oaiusercontent.com","method":"CONNECT","port":443,"reason":"filtered","request":"CONNECT sdmntprsouthcentralus.oaiusercontent.com:443","src":"192.168.144.3"}
+{"at":"2026-10-24T11:56:10.973258436Z","host":"sdmntprsouthcentralus.oaiusercontent.com","method":"CONNECT","port":443,"reason":"filtered","request":"CONNECT sdmntprsouthcentralus.oaiusercontent.com:443","src":"192.168.144.3"}
+{"at":"2026-10-24T11:56:10.973729436Z","host":"sdmntprcentralus.oaiusercontent.com","method":"CONNECT","port":443,"reason":"filtered","request":"CONNECT sdmntprcentralus.oaiusercontent.com:443","src":"192.168.144.3"}
+{"at":"2026-10-24T11:56:10.974285108Z","host":"sdmntprsouthcentralus.oaiusercontent.com","method":"CONNECT","port":443,"reason":"filtered","request":"CONNECT sdmntprsouthcentralus.oaiusercontent.com:443","src":"192.168.144.3"}
+{"at":"2026-10-24T11:56:10.974800834Z","host":"sdmntprsouthcentralus.oaiusercontent.com","method":"CONNECT","port":443,"reason":"filtered","request":"CONNECT sdmntprsouthcentralus.oaiusercontent.com:443","src":"192.168.144.3"}
+{"at":"2026-10-24T11:56:51.643418550Z","host":"ab.chatgpt.com","method":"CONNECT","port":443,"reason":"filtered","request":"CONNECT ab.chatgpt.com:443","src":"192.168.144.3"}
+{"at":"2026-10-24T12:02:43.558932210Z","host":"github.com","method":"CONNECT","port":443,"reason":"filtered","request":"CONNECT github.com:443","src":"192.168.144.3"}

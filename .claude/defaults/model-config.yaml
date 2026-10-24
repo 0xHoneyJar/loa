@@ -18,6 +18,11 @@ providers:
     type: openai
     endpoint: "https://api.openai.com/v1"
     auth: "{env:OPENAI_API_KEY}"
+    # cycle-133 FR-9 (SDD C-9): the hosts an ablation sandbox may reach through the egress proxy for this
+    # provider — the model endpoint plus auth and token-refresh hosts (the codex CLI's ChatGPT route is
+    # chatgpt.com). evals/harness/lib/egress-proxy.sh allowlist reads every provider's list; `{region}`
+    # expands to region_default and the batch's AWS region. Exact lower-case hostnames only.
+    egress_hosts: [api.openai.com, auth.openai.com, chatgpt.com]
     models:
       gpt-5.2:
         # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
@@ -243,6 +248,7 @@ providers:
     type: google
     endpoint: "https://generativelanguage.googleapis.com/v1beta"
     auth: "{env:GOOGLE_API_KEY}"
+    egress_hosts: [generativelanguage.googleapis.com, oauth2.googleapis.com]   # cycle-133 FR-9 (see openai)
     models:
       gemini-2.0-flash:
         # cycle-110 sprint-2a T2.3 (SDD §3.2): auth_type + dispatch_group migration.
@@ -382,6 +388,7 @@ providers:
     type: anthropic
     endpoint: "https://api.anthropic.com/v1"
     auth: "{env:ANTHROPIC_API_KEY}"
+    egress_hosts: [api.anthropic.com]   # cycle-133 FR-9 (see openai)
     models:
       claude-fable-5-1:
         # cycle-124 FR-3 (SDD §2.1): Fable 5.1 — the current top intelligence
@@ -998,6 +1005,8 @@ providers:
     endpoint: "https://bedrock-runtime.{region}.amazonaws.com"
     region_default: us-east-1                        # Override via .loa.config.yaml or AWS_BEDROCK_REGION
     auth: "{env:AWS_BEARER_TOKEN_BEDROCK}"           # v1: Bearer-token API key
+    # cycle-133 FR-9 (see openai): runtime and control plane per region, and STS for credential exchange
+    egress_hosts: ["bedrock-runtime.{region}.amazonaws.com", "bedrock.{region}.amazonaws.com", sts.amazonaws.com, "sts.{region}.amazonaws.com"]
     auth_modes:
       - api_key                                      # v1 implemented (Task 1.4)
       - sigv4                                        # v2 designed only — loader rejects with documented error

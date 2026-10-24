@@ -1,0 +1,19 @@
+{
+  "description": "failure_scenario and a different failure_mode",
+  "expect": {
+    "errors": [
+      "alias_conflict"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 1,
+    "failure_mode": "something else entirely",
+    "failure_scenario": "the second request reads the cached token after it expired and the API accepts it for an hour",
+    "file": "x.py",
+    "severity": "HIGH"
+  },
+  "markdown": null
+}

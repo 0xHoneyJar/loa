@@ -1,0 +1,112 @@
+== dry-run rc=0
+-- stdout
+pr-90 sprint-901: 3 file(s), diff 719 B, 1 label(s) (2 anchor row(s)), 2 fix row(s), 3 dropped
+  KEEP L01-the-input-check-accepts-an-empty-value-a [high/review] scripts/a.sh:4 (fix hunk inside check_input()) — the input check accepts an empty value and reports it as accepted.
+  DROP record/cycle-901-a2a:grimoires/loa/a2a/sprint-901/engineer-feedback-r1.md#L6 [medium] fix commit does not touch scripts/b.sh: the read loop never ends on a closed pipe.
+  DROP record/cycle-901-a2a:grimoires/loa/a2a/sprint-901/engineer-feedback-r1.md#L7 [low] secret pattern in the finding text: dropped without its title
+  DROP record/cycle-901-a2a:grimoires/loa/a2a/sprint-901/engineer-feedback-r1.md#L8 [low] no code locus (the finding opens with prose, not `path:ref`): process — the dissent run skipped `scripts/a.sh` once.
+-- stderr
+== seed rc=0
+-- stdout
+pr-90 sprint-901: 3 file(s), diff 719 B, 1 label(s) (2 anchor row(s)), 2 fix row(s), 3 dropped; SHA256SUMS 15 files
+-- stderr
+== seed-again rc=0
+-- stdout
+pr-90 sprint-901: 3 file(s), diff 719 B, 1 label(s) (2 anchor row(s)), 2 fix row(s), 3 dropped; SHA256SUMS 15 files
+-- stderr
+== paths rc=0
+-- stdout
+pr-91 sprint-901: 1 file(s), diff 298 B, 1 label(s) (2 anchor row(s)), 1 fix row(s), 3 dropped; SHA256SUMS 25 files
+-- stderr
+== no-labels rc=0
+-- stdout
+pr-92 sprint-901: 3 file(s), diff 719 B, 0 label(s) (0 anchor row(s)), 2 fix row(s), 1 dropped — NOT BUILT (gap recorded in corpus.tsv)
+-- stderr
+== allow-no-labels rc=0
+-- stdout
+pr-93 sprint-901: 3 file(s), diff 719 B, 0 label(s) (0 anchor row(s)), 2 fix row(s), 1 dropped; SHA256SUMS 38 files
+-- stderr
+== build-manifest rc=0
+-- stdout
+pr-90: 1 label(s), 2 fix region(s); approved=False; SHA256SUMS 38 files
+-- stderr
+== stamp-exposure rc=0
+-- stdout
+pr-90: exposure unchanged (fable_5_1 post-cutoff); run --freeze to refresh SHA256SUMS
+-- stderr
+== sync-labels rc=0
+-- stdout
+pr-90: added 0 row(s) (0 text, 0 @L<n>); approved-by unchanged
+-- stderr
+== approve rc=0
+-- stdout
+pr-90: approved by tester 2026-10-24; 1 label(s)
+-- stderr
+== freeze rc=0
+-- stdout
+froze 38 files in SHA256SUMS
+-- stderr
+== check rc=0
+-- stdout
+corpus OK: 38 files match SHA256SUMS
+-- stderr
+== usage-bad-fixture rc=2
+-- stdout
+-- stderr
+seed-corpus: fixture id must be pr-NN
+== usage-no-sprint rc=2
+-- stdout
+-- stderr
+seed-corpus: usage: seed-corpus-from-record.sh <global-sprint> <record-ref> [...] (see --help)
+== missing-commit rc=1
+-- stdout
+-- stderr
+seed-corpus: missing commit: nope
+== tracked-build done
+== tracked-check rc=0 sums-identical=yes
+== files
+f7b07e124152fc206915bf1ee24e360e720cfee127a6823636be4f70ee004886 corpus/SHA256SUMS
+8ff7d7531d8a4483fd341d88fbd367714419365778cf8085151c1e340c567199 corpus/corpus.tsv
+ff3a76c1f9550908a2a3ee0a07ac453d92019c8ee33f611cc7f58a969708c07d corpus/labels/pr-90.dropped.txt
+2027f164a0657ad22b3056f6e0dae35a520f54f0a588de4efc903eec2d3dc3a3 corpus/labels/pr-90.tsv
+384280eb39915ce352702dac1cf5ccc438fdbb8f89bdde890a4901a9427ab5a8 corpus/labels/pr-91.dropped.txt
+dde146b473b23eb418c783ca66a3e2191673f4a6156e86fb6540255aaba3921e corpus/labels/pr-91.tsv
+a7f1a9859058b22acf06b61c8d8d43d38a8c65538e40eed41a3863361c17f2e3 corpus/labels/pr-92.dropped.txt
+b684e5f429177e6c03ee4dad3089b7a85ea8567e60630c8e48bba0553a500d04 corpus/labels/pr-93.dropped.txt
+dfd657ba4ada5bfecec813ffd12a981858069718290545f33efcf6a33633f033 corpus/labels/pr-93.tsv
+ac602b20c2f60c476c6c1db031db49723adbee1d05f3f49fab5307492c951cfe corpus/manifests/pr-90.json
+4a9f4e7114fd72e93d97301da50a454a2d6725edf7895f0fdecba4ffbfaa74b4 corpus/manifests/pr-91.json
+4454ce24c985547eaf4b3fadbf0ad23ccf75e8032a53a8c62ded25bcb8b20fac corpus/manifests/pr-93.json
+d42bda4fb3060afe929947eb4c41105bdb0d6006f95e4c68fd085e7c6f8b119d corpus/pr-01/AUDIT-INSTRUCTIONS.md
+570807a242142888a78d1a2a61de24317c4930e1d94cb03f927b4fcbc56a664c corpus/pr-01/REVIEW-INSTRUCTIONS.md
+d42bda4fb3060afe929947eb4c41105bdb0d6006f95e4c68fd085e7c6f8b119d corpus/pr-90/AUDIT-INSTRUCTIONS.md
+4f46bf85f4e740f96948f9fe6652c8fcfa8246cccb084525134368bef5729635 corpus/pr-90/PR.md
+570807a242142888a78d1a2a61de24317c4930e1d94cb03f927b4fcbc56a664c corpus/pr-90/REVIEW-INSTRUCTIONS.md
+29f71219d06f93a3ed3c7d34ff24d7afa263c5a02994c999765985f5f69f7c19 corpus/pr-90/base/scripts/a.sh
+13961bc3fc94ad049696dba99f931e530b27b089cf1719f1fbfa052d7f8b4b8b corpus/pr-90/fixture.yaml
+d9eaa907e06773f35f07d3ded1de7aa6ba38ac6006c0db8761aab55b2aaff5b7 corpus/pr-90/head.diff
+d11af1240e96b522ed63a4febaa7c41f75451e3b046fb26a9801e508a16d8222 corpus/pr-90/head/scripts/a.sh
+8293f07cda562425c30a4cf89858c0520daa25fe609217f644ca33f93b73ce9c corpus/pr-90/head/scripts/b.sh
+3b01081807d791b33ad287b1667780ac394287442550a6e0c2b3520a99a33d61 corpus/pr-90/head/scripts/c.sh
+d42bda4fb3060afe929947eb4c41105bdb0d6006f95e4c68fd085e7c6f8b119d corpus/pr-91/AUDIT-INSTRUCTIONS.md
+5134ff123c9b49753aad39d4ec59efa4b1ff134d202adb24931674132b2b7258 corpus/pr-91/PR.md
+570807a242142888a78d1a2a61de24317c4930e1d94cb03f927b4fcbc56a664c corpus/pr-91/REVIEW-INSTRUCTIONS.md
+29f71219d06f93a3ed3c7d34ff24d7afa263c5a02994c999765985f5f69f7c19 corpus/pr-91/base/scripts/a.sh
+5d8175283b985d202a55d3a6b9e87e4b98ecf032414f3ef35f76120d6f397634 corpus/pr-91/fixture.yaml
+0dc3d9f66f23433de26c16f136f16fb4d6210eec461755bb2ba5564de16238d7 corpus/pr-91/head.diff
+d11af1240e96b522ed63a4febaa7c41f75451e3b046fb26a9801e508a16d8222 corpus/pr-91/head/scripts/a.sh
+d42bda4fb3060afe929947eb4c41105bdb0d6006f95e4c68fd085e7c6f8b119d corpus/pr-93/AUDIT-INSTRUCTIONS.md
+4f46bf85f4e740f96948f9fe6652c8fcfa8246cccb084525134368bef5729635 corpus/pr-93/PR.md
+570807a242142888a78d1a2a61de24317c4930e1d94cb03f927b4fcbc56a664c corpus/pr-93/REVIEW-INSTRUCTIONS.md
+29f71219d06f93a3ed3c7d34ff24d7afa263c5a02994c999765985f5f69f7c19 corpus/pr-93/base/scripts/a.sh
+c155d0d4ff6ac0032db21b0281f3d3d9dc9530c9ab977e56057fc5270f3b0678 corpus/pr-93/fixture.yaml
+d9eaa907e06773f35f07d3ded1de7aa6ba38ac6006c0db8761aab55b2aaff5b7 corpus/pr-93/head.diff
+d11af1240e96b522ed63a4febaa7c41f75451e3b046fb26a9801e508a16d8222 corpus/pr-93/head/scripts/a.sh
+8293f07cda562425c30a4cf89858c0520daa25fe609217f644ca33f93b73ce9c corpus/pr-93/head/scripts/b.sh
+3b01081807d791b33ad287b1667780ac394287442550a6e0c2b3520a99a33d61 corpus/pr-93/head/scripts/c.sh
+355e64dfd9caf5f25f1a98d1e7acbe425633630e68314e16ed928515b1e6720e tasks/audit-recall/audit-pr-90.yaml
+1b07d87d0dde12e004288ccedcc26204abf60f15ed270b3014da0020dfce92d0 tasks/audit-recall/audit-pr-91.yaml
+1e9e5abc4b7ca91f4d40267e1acad9d0b4d3517b69c5ebcd3888ed9a5bd97f68 tasks/audit-recall/audit-pr-93.yaml
+b6d68a3a03cdd679195ab27daa1cd1f928879d5987b3756f8f82310c9797eee3 tasks/review-recall/review-pr-90.yaml
+feadc6ee8f2a52a8ef5c9b7b5cc6d330511133b213d567c38df1d33bdff9f06b tasks/review-recall/review-pr-91.yaml
+844c0efaf13bd435cb134a89735089e32dd66711a71f0bfb7e440fd26f5d44d4 tasks/review-recall/review-pr-93.yaml

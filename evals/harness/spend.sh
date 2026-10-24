@@ -23,11 +23,15 @@
 #                  batch run with --results-root evals/results/ablation-2.0; cycle-132
 #                  addendum 3) and every evals/results/ablation-2.0/*/rows.jsonl that
 #                  exists. A batch rowed under another results root is metered only
-#                  through --runs. Each run_id
+#                  through --runs. Each (run_id, batch) pair
 #                  counts once across files: a run rowed twice counts its larger cost
-#                  (a smoke row, then the graded row). A row with an empty or missing
-#                  run_id cannot be deduplicated and counts on its own (one stderr
-#                  warning per file naming it).
+#                  (a smoke row, then the graded row); the same run_id under two
+#                  batches is two runs. A row with an empty or missing run_id is
+#                  identified by its content (canonical JSON): the same row in two
+#                  files (the tracked copy and the live runs.jsonl) counts once, two
+#                  such rows in one file each count (one stderr warning per file
+#                  naming the count). cycle-133 bd-um8ol (DISS-C-006); tested by
+#                  evals/analysis/c132/tests/test_spend.py.
 #   --ledger FILE  cost ledger (JSONL, `ts`, `cost_micro_usd`; default .run/cost-ledger.jsonl)
 #   --cap USD      cycle cap (default: evals.ablation.cycle_cap_usd in .loa.config.yaml,
 #                  else caps.cycle_usd in evals/suites/ablation-2.0.yaml, else 1500)
@@ -35,7 +39,7 @@
 #   --json         one JSON object: total_usd, runs_usd, ledger_usd, since, cap_usd,
 #                  headroom_usd, reserve_usd, runs_files, ledger_file, runs_rows,
 #                  runs_rows_deduped, runs_rows_no_run_id, runs_rows_before_since,
-#                  runs_rows_undated, ledger_rows, skipped_lines,
+#                  runs_rows_undated, runs_rows_unmetered, ledger_rows, skipped_lines,
 #                  complete (false when any line was skipped)
 #
 # Output: cycle spend USD T (runs R + ledger L since S); cap C; headroom H; reserve V
@@ -43,6 +47,10 @@
 #   count as zero. A malformed line is skipped and counted (stderr note), and the
 #   total is then a lower bound: the line gains " INCOMPLETE (N skipped)", --json
 #   says "complete": false, and the exit is 1.
+#
+# Unmetered rows (cycle-133 review r1 DISS-001): a row with metering "unmetered_attempt" or metering_unmetered true is an
+#   attempt whose spend is unknown; its cost_usd is the writer's cap charge and stays in the total (a zero-cost one with a
+#   numeric cap_usd is charged cap_usd); runs_rows_unmetered counts them and one stderr line names their run ids.
 #
 # Exit: 0 printed and complete; 1 a named file (or an existing default) is unreadable,
 #   or the total is INCOMPLETE (a skipped line); 2 usage.
@@ -140,7 +148,9 @@ since = ts(since_s)
 skipped = 0
 dedup, anon_rows, anon_usd = 0, 0, 0.0
 before_since, undated = 0, 0
-best = {}  # run_id -> the largest cost_usd seen for it (a re-rowed run counts its larger cost)
+unmetered = []  # run ids (or "<no run_id>") of counted rows whose spend is unknown (charged at their cap)
+best = {}  # (run_id, batch) -> the largest cost_usd seen for it (a re-rowed run counts its larger cost)
+anon_seen = {}  # canonical JSON of a row without a run_id -> the file that first held it (dedup across files only)
 def row_ts(r):   # started, else finished; None when neither parses
     for k in ("started", "finished"):
         v = r.get(k)
@@ -172,18 +182,30 @@ for f in runs_files:
             before_since += 1
             continue
         rid = r.get("run_id")
+        if r.get("metering") == "unmetered_attempt" or r.get("metering_unmetered") is True:
+            cu = r.get("cap_usd")
+            if isinstance(cu, (int, float)) and not isinstance(cu, bool):
+                c = max(c, float(cu))
+            unmetered.append(rid if isinstance(rid, str) and rid else "<no run_id>")
         if not (isinstance(rid, str) and rid):
+            ident = json.dumps(r, sort_keys=True, separators=(",", ":"))
+            if anon_seen.get(ident, f) != f:
+                dedup += 1      # the same anonymous row already counted from another file
+                continue
+            anon_seen[ident] = f
             anon_rows += 1
             anon_here += 1
             anon_usd += c
             continue
-        if rid in best:
+        b = r.get("batch")
+        key = (rid, b if isinstance(b, str) else None)
+        if key in best:
             dedup += 1
-            best[rid] = max(best[rid], c)
+            best[key] = max(best[key], c)
         else:
-            best[rid] = c
+            best[key] = c
     if anon_here:
-        print(f"spend: {f}: {anon_here} row(s) without a run_id counted individually (no dedup possible)", file=sys.stderr)
+        print(f"spend: {f}: {anon_here} row(s) without a run_id counted individually (deduplicated across files by content only)", file=sys.stderr)
     if undated_here:
         print(f"spend: {f}: {undated_here} row(s) with no started/finished timestamp counted (no date to compare with --since)", file=sys.stderr)
 runs_usd = sum(best.values()) + anon_usd
@@ -207,6 +229,9 @@ total = runs_usd + ledger_usd
 headroom = cap - total
 if skipped:
     print(f"spend: skipped {skipped} malformed line(s)", file=sys.stderr)
+unmetered = sorted(set(unmetered))
+if unmetered:
+    print(f"spend: {len(unmetered)} unmetered row(s) ({', '.join(unmetered)}) counted at their cap charge (spend unknown)", file=sys.stderr)
 def n(x):
     x = round(x, 4)
     return int(x) if x == int(x) else x
@@ -216,7 +241,7 @@ if as_json:
         "since": since_s, "cap_usd": n(cap), "headroom_usd": n(headroom), "reserve_usd": n(reserve),
         "runs_files": runs_files, "ledger_file": ledger or None, "runs_rows": runs_rows,
         "runs_rows_deduped": dedup, "runs_rows_no_run_id": anon_rows, "runs_rows_before_since": before_since,
-        "runs_rows_undated": undated, "ledger_rows": ledger_rows,
+        "runs_rows_undated": undated, "runs_rows_unmetered": len(unmetered), "ledger_rows": ledger_rows,
         "skipped_lines": skipped, "complete": skipped == 0}, sort_keys=True))
 else:
     def money(x): return f"{x:,.2f}"

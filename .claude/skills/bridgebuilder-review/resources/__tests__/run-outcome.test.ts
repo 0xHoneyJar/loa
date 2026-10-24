@@ -106,3 +106,22 @@ describe("main.ts wiring (D-7.7)", () => {
     assert.match(src, /decideExitCode\(totals\.degraded, trusted\.exitOnDegraded\)/);
   });
 });
+
+describe("main.ts wiring (cycle-133 C-1/C-2: a named degradation exits exit_on_degraded)", () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const src = readFileSync(join(here, "..", "main.ts"), "utf8");
+
+  it("multi-model: named degradations make the run DEGRADED before the exit code is decided", () => {
+    const merge = src.indexOf("if (degradedReasons.length > 0) totals.degraded = true;");
+    const decide = src.indexOf("decideExitCode(totals.degraded, trusted.exitOnDegraded)");
+    assert.ok(merge > 0 && decide > merge, "the merge precedes the decision");
+    assert.match(src, /degraded_reason: mmResult\.reviewVerdict\.degradedReason/);
+    assert.match(src, /coverage: item\.coverage/);
+  });
+
+  it("single-model: printSummary sets exit_on_degraded for a named degradation and prints the reasons", () => {
+    assert.match(src, /printSummary\(summary, trusted\.exitOnDegraded\)/);
+    assert.match(src, /if \(degradedReasons\.length > 0 && summary\.errors === 0\) process\.exitCode = decideExitCode\(true, exitOnDegraded\);/);
+    assert.match(src, /degraded_reasons: degradedReasons/);
+  });
+});

@@ -54,4 +54,11 @@ export declare function loadPersona(config: BridgebuilderConfig, logger?: {
     source: string;
     model?: string;
 }>;
+export declare function main(): Promise<void>;
+/**
+ * cycle-133 follow-up a2: whether this module is the process entrypoint (`node dist/main.js`, `tsx main.ts`, or a
+ * symlink to either). Real paths are compared, so a symlinked launcher still runs; a missing or unresolvable argv[1]
+ * is never the entrypoint.
+ */
+export declare function isEntrypoint(moduleUrl: string, argv1: string | undefined): boolean;
 //# sourceMappingURL=main.d.ts.map

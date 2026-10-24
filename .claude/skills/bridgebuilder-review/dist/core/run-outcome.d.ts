@@ -5,6 +5,7 @@
  * Pure functions so the exit paths are testable without running main.ts (which executes on import).
  */
 import { type MultiModelReviewResult } from "./multi-model-pipeline.js";
+export { DEGRADED_REASONS, DegradedReason, FETCH_DEGRADED_REASONS, isDegradedReason, primaryDegradedReason, } from "./degraded-reason.js";
 export interface VoiceOutcome {
     /** Voices this review was expected to run. */
     planned: number;
@@ -35,5 +36,4 @@ export declare function degradedWarnLine(totals: {
     planned: number;
     incomplete: string[];
 }, bands: Array<VoiceOutcome["band"]>, exitCode: number): string;
-export {};
 //# sourceMappingURL=run-outcome.d.ts.map
