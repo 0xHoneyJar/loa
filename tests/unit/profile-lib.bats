@@ -292,3 +292,31 @@ knob() { bash "$LIB" knob "$@"; }
     run bash "$R/tools/check-knob-readers.sh" --root "$T/fx"
     [ "$status" -eq 0 ]
 }
+
+@test "PL-18 the fixture exclusion is anchored to a skill's __tests__/fixtures root (Sprint 272, DISS-C-008)" {
+    mkdir -p "$T/fx/.claude/data" "$T/fx/.claude/hooks/tests/fixtures" "$T/fx/.claude/skills/demo/resources/__tests__/fixtures" "$T/fx/tools"
+    cp "$PROFILES" "$T/fx/.claude/data/profiles.yaml"
+    # a recorded payload under a skill's fixture root may quote a direct read: excluded
+    printf '%s\n' "the thread read \$(yq '.soul_identity_doc.enabled // false' c.yaml) here" > "$T/fx/.claude/skills/demo/resources/__tests__/fixtures/thread.md"
+    run bash "$R/tools/check-knob-readers.sh" --root "$T/fx"
+    [ "$status" -eq 0 ]
+    # a reader smuggled under a tests/fixtures/ directory anywhere else is still caught
+    printf '%s\n' "x=\$(yq '.guardrails.danger_level.enforce // true' c.yaml)" > "$T/fx/.claude/hooks/tests/fixtures/pre-tool.sh"
+    run bash "$R/tools/check-knob-readers.sh" --root "$T/fx"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"hooks/tests/fixtures/pre-tool.sh:1"* ]]
+    [[ "$output" != *"thread.md"* ]]
+    rm -rf -- "$T/fx/tools"
+}
+
+@test "PL-19 the fixture exclusion covers data files only: a .sh reader under a skill fixtures dir is caught (Sprint 272 audit, DISS-C-003)" {
+    mkdir -p "$T/fx/.claude/data" "$T/fx/.claude/skills/demo/resources/__tests__/fixtures" "$T/fx/tools"
+    cp "$PROFILES" "$T/fx/.claude/data/profiles.yaml"
+    printf '%s\n' "the thread read \$(yq '.soul_identity_doc.enabled // false' c.yaml) here" > "$T/fx/.claude/skills/demo/resources/__tests__/fixtures/thread.md"
+    printf '%s\n' "x=\$(yq '.guardrails.danger_level.enforce // true' c.yaml)" > "$T/fx/.claude/skills/demo/resources/__tests__/fixtures/helper.sh"
+    run bash "$R/tools/check-knob-readers.sh" --root "$T/fx"
+    [ "$status" -eq 1 ]
+    [[ "$output" == *"fixtures/helper.sh:1"* ]]
+    [[ "$output" != *"thread.md"* ]]
+    rm -rf -- "$T/fx/tools"
+}

@@ -1,2 +1,0 @@
-{"timestamp":"2026-06-21T06:48:34Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/tmp/cmt_1096.md","reason":"path not declared in zones.yaml; no opinion"}
-{"timestamp":"2026-06-21T06:50:48Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/home/merlin/.claude/projects/-home-merlin-Documents-thj-code-loa/memory/MEMORY.md","reason":"path not declared in zones.yaml; no opinion"}

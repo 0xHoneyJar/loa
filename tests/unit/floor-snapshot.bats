@@ -22,15 +22,55 @@ setup() {
 
 base_show() { git -C "$ROOT" show "$BASE:$1"; }
 
-@test "FS-1 every floor_files entry is byte-identical to origin/main" {
-  n=0
+# floor_files_ok <floor.yaml>: every floor_files entry is byte-identical to origin/main, or (cycle-133
+# floor amendment, DEC-named in the row) differs ONLY at the exact sha256 an amendment row pins AND
+# additively (git numstat deletions 0 against origin/main). Prints the count of entries checked.
+floor_files_ok() {
+  local floor="$1" n=0 f want have dels
+  source "$ROOT/.claude/scripts/compat-lib.sh"
   while IFS= read -r f; do
     [ -n "$f" ] || continue
     n=$((n + 1))
-    git -C "$ROOT" cat-file -e "$BASE:$f" || { echo "$f is not on origin/main" >&2; false; }
-    base_show "$f" | cmp -s - "$ROOT/$f" || { echo "floor file $f differs from origin/main" >&2; false; }
-  done < <(yq -r '.floor_files[]' "$FLOOR")
+    git -C "$ROOT" cat-file -e "$BASE:$f" || { echo "$f is not on origin/main" >&2; return 1; }
+    if base_show "$f" | cmp -s - "$ROOT/$f"; then continue; fi
+    want="$(yq -o=json -I0 '.' "$floor" | jq -r --arg f "$f" '(.floor_amendments // []) | map(select(.file == $f)) | .[0].sha256 // ""')"
+    [ -n "$want" ] || { echo "floor file $f differs from origin/main and no floor_amendments row pins it" >&2; return 1; }
+    [ -n "$(yq -o=json -I0 '.' "$floor" | jq -r --arg f "$f" '(.floor_amendments // []) | map(select(.file == $f)) | .[0].authority // ""')" ] \
+      || { echo "floor amendment for $f names no authority (DEC)" >&2; return 1; }
+    have="$(sha256_portable "$ROOT/$f" | cut -d' ' -f1)"
+    [ "$have" = "$want" ] || { echo "floor file $f is $have, the amendment pins $want" >&2; return 1; }
+    dels="$(git -C "$ROOT" diff --numstat "$BASE" -- "$f" | awk '{print $2}')"
+    [ "${dels:-0}" = "0" ] || { echo "floor amendment for $f is not additive: $dels line(s) deleted against origin/main" >&2; return 1; }
+  done < <(yq -r '.floor_files[]' "$floor")
+  echo "$n"
+}
+
+@test "FS-1 every floor_files entry is byte-identical to origin/main, or pinned by an additive floor_amendments row" {
+  n="$(floor_files_ok "$FLOOR")"
   [ "$n" -ge 4 ]
+}
+
+@test "FS-1b a floor_amendments row is load-bearing: without it a differing floor file fails" {
+  # the live floor must currently carry at least one amended file for this to prove anything; otherwise skip
+  amended="$(yq -r '.floor_amendments // [] | .[].file' "$FLOOR" | head -1)"
+  [ -n "$amended" ] || skip "no floor_amendments row in the live floor"
+  base_show "$amended" | cmp -s - "$ROOT/$amended" && skip "$amended is identical to origin/main; the row is moot"
+  tmp="$BATS_TEST_TMPDIR/floor-no-row.yaml"
+  yq 'del(.floor_amendments)' "$FLOOR" > "$tmp"
+  run floor_files_ok "$tmp"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"no floor_amendments row pins it"* ]]
+}
+
+@test "FS-1c a floor_amendments row with a stale sha256 fails (the pin is exact)" {
+  amended="$(yq -r '.floor_amendments // [] | .[].file' "$FLOOR" | head -1)"
+  [ -n "$amended" ] || skip "no floor_amendments row in the live floor"
+  base_show "$amended" | cmp -s - "$ROOT/$amended" && skip "$amended is identical to origin/main; the row is moot"
+  tmp="$BATS_TEST_TMPDIR/floor-stale.yaml"
+  yq '(.floor_amendments[0].sha256) = "0000000000000000000000000000000000000000000000000000000000000000"' "$FLOOR" > "$tmp"
+  run floor_files_ok "$tmp"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"the amendment pins 0000"* ]]
 }
 
 @test "FS-2 the fence-corpus rows named in floor_corpus (FR-1.2b, FR-SZ*) are identical to origin/main" {

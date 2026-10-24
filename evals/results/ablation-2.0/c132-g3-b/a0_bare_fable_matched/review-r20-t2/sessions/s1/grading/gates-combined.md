@@ -1,9 +1,0 @@
-head/.claude/hooks/safety/block-destructive-bash.sh:576
-head/.claude/hooks/safety/block-destructive-bash.sh:608
-head/.claude/scripts/run-checkpoint.sh:378
-head/.claude/scripts/run-checkpoint.sh:226
-head/.claude/scripts/lib/profile-lib.sh:77
-head/.claude/scripts/lib/profile-lib.sh:67
-implement-gate.sh:340
-head/.claude/hooks/safety/block-destructive-bash.sh:187
-head/.claude/hooks/quality/karpathy-surgical-diff-check.sh:131

@@ -81,14 +81,14 @@ actually tried, not just what someone *said* was tried.
 | [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content--ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
 | [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
 | [KF-033](#kf-033-unit-suites-reach-cheval-and-write-the-production-ledgers-or-make-live-cli-calls-despite-the-ds-1-isolation-scan) | open — two suites fixed 2026-09-22, scan tightened; structural class remains | test isolation / FR-6 ledger hygiene | 1 |
-| [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 3 |
+| [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 4 |
 | [KF-035](#kf-035-modelinv-audit-emit-fails-soft-when-the-cryptography-module-is-missing--model-invokejsonl-is-silently-not-written) | OPEN | loa_cheval/audit/modelinv.py emit_model_invoke_complete (audit fail-soft default) | 1 |
-| [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 4 |
-| [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable--exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 10 |
+| [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 5 |
+| [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable--exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 12 |
 | [KF-038](#kf-038-the-companion-voices-claude--p-hits-the-operators-plan-rate-limit-window-mid-run-rate_limited-the-anthropicheadless-breaker-opens-every-later-chunk-runs-single-voice) | open — structural (the account window, not a code defect); the run mode is to re-run the single-voice chunks after the window resets | adversarial-review.sh companion voice (claude-headless via cheval headless adapter) | 2 |
 | [KF-039](#kf-039-claude-headless-companion-fails-at-execve-with-e2big-on-a-prompt-over-128-kib) | RESOLVED (398859ad) | cheval claude-headless adapter / adversarial-review companion voice | 2 |
 | [KF-040](#kf-040-subscription-claude--p-hop-refused-with-a-geo-400-unsupported-countries-regions-or-territories-claude-fallback-does-not-fall-back) | OPEN — environmental (host network egress); Bedrock route unaffected | cheval claude-headless adapter / ~/.local/bin/claude-fallback | 1 |
-| [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 8 |
+| [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 11 |
 | [KF-042](#kf-042-claude-code-auto-mode-permission-classifier-denies-loa-cycle-operations-as-self-modification) | open | run mode / planning kickoff (harness permission mode) | 1 |
 | [KF-043](#kf-043-invoking-a-skill-with-disallowed-tools-in-the-main-session-removes-writeeditnotebookedit-for-the-whole-session-including-subagents) | active | skill frontmatter disallowed-tools (cycle-114 FR-4; cycle-129 FR-4(b) probe) | 1 |
 | [KF-044](#kf-044-codex-on-a-chatgpt-plan-refuses-every-gpt-5x-model-the-codex-headless-hop-cli_model-gpt-55-fails-and-the-dissent-falls-to-one-voice) | active | codex-headless hop (cheval codex adapter; flatline secondary; dissent primary on hounfour.headless.mode cli-only) | 1 |
@@ -101,6 +101,14 @@ actually tried, not just what someone *said* was tried.
 | [KF-051](#kf-051-fable-51-review-gate-session-refused-category-cyber-and-the-pipeline-fell-back-to-opus-55-mid-phase-a-fable-reviewer-row-that-mostly-ran-on-opus) | OPEN — observed once; rows read degraded, excluded from model contrasts | evals/harness/pipeline-run.sh refusal fallback (REVIEW/AUDIT phases on global.anthropic.claude-fable-5-1) → ablation-row.sh degraded_reason 'REVIEW: refusal fallback' | 4 |
 | [KF-052](#kf-052-host-reboot-kills-a-detached-ablation-batch-runner-setsid-nohup-run-ablationsh-mid-batch-in-flight-sessions-and-trials-end-without-a-record-or-row) | OPEN — infrastructure event, not a harness defect; the runner's --resume contract is the whole recovery | evals/harness/run-ablation.sh batch driver launched detached (setsid nohup) from a Claude session; cycle-132 driver ~/.cache/loa/cycle-132/scripts/batch-c132.sh | 3 |
 | [KF-053](#kf-053-took-effect-no_audit_rows-fails-on-a-bare-session-because-the-agent-ran-the-prs-own-hook-or-audit-script-which-wrote-sandboxrunauditjsonl-the-runner-pauses-the-arm-and-exits-with-cells-unrun) | OPEN — registered rule applied as written in cycle-132; guard-vs-PR-content family (addenda 1, 4, 7, 8); fix belongs to the next harness cycle | evals/harness/took-effect.sh rule no_audit_rows (bare arms); run-ablation.sh arm pause on took-effect FAIL (DEC-0418) | 1 |
+| [KF-054](#kf-054-bridgebuilder-aborts-on-a-large-pr-gh-api-pullsnfiles-exceeds-the-adapters-fixed-10-mib-maxbuffer-err_child_process_stdio_maxbuffer-before-any-exclude-or-truncation-applies) | OPEN — upstream fix filed as bead bd-ra4im; cycle-132 ran a patched copy from the cache (no .claude/ edit) | .claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts gh() maxBuffer: 10 * 1024 * 1024; getPRFiles() /pulls/N/files?per_page=100 (patch field included) | 1 |
+| [KF-055](#kf-055-bridgebuilder-consensus-enrichment-posts-a-tool-call-transcript-instead-of-the-review-the-body-derived-verdict-reads-unknown-and-mergeblocked-true-even-when-the-consensus-json-says-comment) | OPEN — upstream fix filed as bead bd-cpvc6; cycle-132 read the per-voice JSON blocks and the round-1 consensus JSON directly | .claude/skills/bridgebuilder-review (multi-model enrichment writer anthropic/claude-headless; body-derived verdict in the summary JSON) | 1 |
+| [KF-056](#kf-056-dec-rows-written-during-planning-carry-the-previous-cycles-id) | Open (fix candidate on bead bd-d7dwt; Sprint 4 sweep) | dec-write-lib.sh default_cycle / decisions.yaml cycle field | 1 |
+| [KF-057](#kf-057-bats-tests-that-spawn-a-nested-bats-via-npx-pass-locally-and-fail-in-ci) | Fixed for tests/unit/quarantine-expiry.bats (a0624b285); pattern to follow in any test that runs a nested bats | tests/unit/*.bats nested bats runs; .github/workflows/bats-tests.yml (bats-core v1.13.0 installed on PATH) | 1 |
+| [KF-058](#kf-058-an---internal-docker-network-still-reaches-the-hosts-bridge-gateway-address) | Fixed (874fc64a9) | evals/harness/lib/egress-proxy.sh egress block; evals/tests/egress-proxy.bats EGR-8/EGR-12; evals/harness/Dockerfile.proxy | 1 |
+| [KF-059](#kf-059-a-test-that-resolves-historical-commits-fails-on-cis-depth-1-checkout) | Fixed for evals/analysis/c132/tests/test_registration_v2.py (Cycle132ChainTest skips when the registered pin commits are absent); pattern to follow in any test that runs git rev-parse / cat-file on a recorded commit | .github/workflows/bats-tests.yml Shell Tests (actions/checkout depth 1); evals/analysis/c132/registration.py verify (analysis_tree REV:PATH via git rev-parse) | 1 |
+| [KF-060](#kf-060-home-scope-a-pr-that-changes-review-time-framework-files-exposes-their-later-version-through-the-sandbox-home-clause-f-pinned_bytes_read) | Open — design limit of C-10 home-scope; detected by took-effect clause (f), not prevented; fixture choice is the only mitigation until external fixtures (C-12) exist | evals/harness/lib/sandbox-mount.sh mount_home_scope; evals/harness/took-effect.sh oracle_closed clause (f); the Task 3.5 smoke | 2 |
+| [KF-061](#kf-061-home-scope-the-dissent-fails-inside-the-sandbox-project-root-resolved-under-home-headless-clis-refuse-to-prepare-a-run) | Fixed in 7d2119477 (s3-a3: LOA_PROJECT_ROOT wrapping R6-R8, R5 slash-only, persona.md surface); live confirmation = the Task 3.5 verification rerun | evals/harness/lib/sandbox-mount.sh mount_home_scope transform; evals/harness/pipeline-run.sh home-scope launch; adversarial-review.sh / cheval inside the sandbox | 1 |
 
 ---
 
@@ -522,7 +530,7 @@ markdown fallback is sufficient.
 **Feature**: `tools/migrate-model-config.{sh,py}` smoke test step in workflow `T1.13 log-redactor + T1.14 migrate-model-config CLI`
 **Symptom**: The smoke step "Smoke test — migrate the production cycle-095 yaml" exits 78 with `MIGRATION-PRODUCED-INVALID-V2` errors for ~7 fields: `Additional properties are not allowed ('max_output_tokens' was unexpected)` on every model entry under `providers.{openai,anthropic,google}.models.*`. The migrator successfully translates v1 → v2 but the v2 schema validation step rejects the output because the schema doesn't list `max_output_tokens` as a known property.
 **First observed**: 2026-05-09 (cycle-102 sprint-1A merge of `dd54fe9c` — that commit added `max_output_tokens: 32000` per-model fields per T1.9, while the cycle-099 sprint-1E.a v2 schema did not extend to allow that field)
-**Recurrence count**: ≥7 (documented Attempts rows; true count higher — every PR since `dd54fe9c` that touches `model-config.yaml` or related paths; workflow only triggers on PRs, not main pushes — so main is "passing" by virtue of not running; normalized cycle-121)
+**Recurrence count**: ≥8 (documented Attempts rows; true count higher — every PR since `dd54fe9c` that touches `model-config.yaml` or related paths; workflow only triggers on PRs, not main pushes — so main is "passing" by virtue of not running; normalized cycle-121)
 **Current workaround**: Per operator standing authorization, treat the T1.14 step as pre-existing-main-failure when merging cycle-102 PRs. The cross-runtime parity step in the same job (T1.13) is the load-bearing assertion; T1.14 smoke is informational about a pre-existing schema gap.
 **Upstream issue**: not filed yet — the fix is to extend `.claude/data/model-config.schema.json` (or whatever the v2 schema artifact is) to permit `max_output_tokens` on per-model objects. Sprint 1A's T1.9 should have included this schema bump.
 **Related visions / lore**: not vision-class; pure schema-evolution oversight
@@ -539,6 +547,7 @@ markdown fallback is sufficient.
 | 2026-09-17 | cycle-124 T1.3: production model-config.yaml now carries v3 fields (effective_input_ceiling, ceiling_calibration, typed params) that the closed v2 schema cannot hold — fourth occurrence of the class; production smoke (cycle099-sprint-1e-tests.yml) and migrate-model-config.bats M19.3 flipped to --to-v3 + v3 schema; v2 remains for synthetic fixtures | RESOLVED-STRUCTURAL for the production path — the v2 smoke against a v3-shaped catalog is retired rather than re-patched; v2 schema no longer gates production | commit f5ea53f4 (feature/cycle-124-model-generation-floor) |
 | 2026-10-05 | cycle-126 sprint-250 prep: model-config-v3-schema test 28 run on base 41b783a1 | MIGRATION-PRODUCED-INVALID-V3 again: the v3 schema does not admit probed_ceiling, account_limits or headless_timeout_seconds (cycle-126 catalog keys). Not fixed in the sprint-250 patch; schema extension is the structural fix | 41b783a1 (tests/unit/model-config-v3-schema.bats #28) |
 | 2026-10-05 | Correction to the row above: re-ran model-config-v3-schema.bats on main 2079e719 (28/28 pass) vs the branch 41b783a1 (#28 fails) | NOT a KF-006 recurrence: a cycle-126 regression — Sprint 1/2 catalog keys (probed_ceiling, account_limits, headless_timeout_seconds, params.beta_headers) are absent from model-config-v3.schema.json; the +1 recurrence above was recorded in error (ledger is append-only, so corrected here); fixed in cycle-126 sprint-250 | 2079e719 vs 41b783a1 (tests/unit/model-config-v3-schema.bats #28) |
+| 2026-10-24 | cycle-133 Sprint 273 Task 2.4a added providers.<p>.egress_hosts[] to model-config.yaml; the closed v3 providerEntry (additionalProperties false) rejected the migrated output → M19.3 and the production smoke exit 78 (eighth occurrence of the class). Structural fix applied: model-config-v3.schema.json providerEntry.properties.egress_hosts (array of lower-case hostnames, {region} allowed) + regression M19.6; lockfile model-config.yaml.checksum refreshed | M19.3 green locally; CI confirmation on the next push | feature/cycle-133-follow-through commit after ed36a5633; CI run 40072137376 (the failure) |
 
 ### Reading guide
 
@@ -1504,7 +1513,7 @@ DS-1 finds spawners by TEXT SHAPE: it missed (a) env-prefixed command lines (KEY
 **Feature**: release pipeline tests
 **Symptom**: Every case of tests/unit/post-merge-publication.bats fails in setup() with `git tag v1.0.0 … fatal: no tag message?` (19 reds on v1.202.1, 22 with sprint-bug-240); the suite is green under an isolated config. Easily mis-filed as a pre-existing red (it was, 2026-09-22).
 **First observed**: 2026-09-23 (cycle-124 rc prep)
-**Recurrence count**: 3
+**Recurrence count**: 4
 **Current workaround**: GIT_CONFIG_GLOBAL=/dev/null npx --no-install bats tests/unit/post-merge-publication.bats
 **Upstream issue**: bead bd-fpt3 (hermetic git config in setup())
 **Related visions / lore**: KF-014 (worktree commits), KF-033 (suite side effects)
@@ -1515,6 +1524,7 @@ DS-1 finds spawners by TEXT SHAPE: it missed (a) env-prefixed command lines (KEY
 |------|---------------|---------|----------|
 | 2026-09-23 | Re-ran the suite with GIT_CONFIG_GLOBAL=/dev/null while landing sprint-bug-240 | 22/22 green; host config confirmed as the cause | commit 2018c320 (PR #1266); grimoires/loa/a2a/bug-20260923-27d899/auditor-sprint-feedback.md obs 3 |
 | 2026-10-06 | cycle-126 sprint-250 Task 4.7 full tests/unit run at bf988a43: the same setup() red (creating the v1.0.0 lightweight tag fails: 'fatal: no tag message?') also hits tests/unit/semver-evidence.bats (3 cases), alongside post-merge-publication (22); classified pre-existing, not re-attempted | recurred — the class spans every suite that creates lightweight tags in a scratch repo under the operator's global tag config; no fix attempted this cycle | commit bf988a43 (run 2026-10-06T05:40Z–06:18Z, 6214 tests, 42 failures) |
+| 2026-10-23 | Sprint 272 Task 1.3 (implementer B): tests/unit/post-merge-publication.bats setup made hermetic (GIT_CONFIG_GLOBAL empty file, GIT_CONFIG_NOSYSTEM=1, the v1.0.0 tag pattern kept); 22 reds at baseline on this host, 48/48 after under the host's own git config, no workaround needed | fixed for post-merge-publication.bats; the other post-merge suites still need GIT_CONFIG_GLOBAL=/dev/null on a host whose global git config sets tag.gpgSign / tag.forceSignAnnotated (follow-up: the same two lines in their setup) | patch ~/.cache/loa/cycle-133/patches/s1-b.patch landed on feature/cycle-133-follow-through (Sprint 272 Task 1.3 commit); post-merge-*.bats 154/154 on this host |
 
 ### Reading guide
 
@@ -1547,7 +1557,7 @@ If a modelinv-dependent test fails on modelinv.exists() or a session shows fewer
 **Feature**: .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition)
 **Symptom**: npm test in .claude/skills/bridgebuilder-review reports 1 failing file: not ok - __tests__/persona.test.ts with location persona.test.ts:1:1 and the log line Fatal: ANTHROPIC_API_KEY required. Set it in your environment ... (or set BRIDGEBUILDER_MODEL=<provider>-headless ...). Every subtest inside the file passes; the file-level failure is the process exit.
 **First observed**: 2026-09-25 (cycle-126 sprint-247; identical on main in a throwaway worktree at HEAD)
-**Recurrence count**: 4
+**Recurrence count**: 5
 **Current workaround**: Run the BB suite in a shell where the key is present (never a fake value in tracked state), or set BRIDGEBUILDER_MODEL=claude-headless for the test run; treat the failure as environmental when the other 754 tests pass.
 **Upstream issue**: cycle-126 residue: the test should be hermetic — the precondition belongs behind the config resolution the test does not exercise, or the test should stub the API-key check
 **Related visions / lore**: none
@@ -1560,6 +1570,7 @@ If a modelinv-dependent test fails on modelinv.exists() or a session shows fewer
 | 2026-10-05 | npm test in bridgebuilder-review after the round-1an build on a keyless host | 759/760 pass; persona.test.ts fails at :1:1 with the Fatal ANTHROPIC_API_KEY line (presence-only check: no key set) — this entry, not a regression | round 1an on 332f254c, /tmp/bb-test.log |
 | 2026-10-07 | cycle-127 PR #1275: persona.test.ts stayed the single failing Bridgebuilder vitest file on every run (785 → 837 passing around it); the cycle did not touch it | unchanged; recorded as the known pre-existing failure in every round's suite summary | PR #1275, commits 059e26be…304a2480 |
 | 2026-10-14 | npm test in bridgebuilder-review on the sprint-257 tree after implementer I's patch (865 pass) | the one failure is persona.test.ts again (API-key precondition in a shell without ANTHROPIC_API_KEY); every other file passes, so the Sprint 3 Bridgebuilder changes are not the cause | cycle-129 sprint-257 lead smoke run, worktree ../loa-wt-s3c patch s3-i.patch applied at a7682ba4 |
+| 2026-10-23 | Sprint 272 implementer A identified the root cause: importing main.ts executes a review (with a fake key it reached read-only gh calls against 0xHoneyJar/loa before stopping at the missing cheval.py); fix requested as follow-up patch s1-a2 (entrypoint guard on main.ts; hermetic persona test) | pending — patch s1-a2 to land in the Sprint 272 close | ~/.cache/loa/cycle-133/reports/s1-a.md § Judgment calls / Rule breach; worktree wt/cycle-133-s1a; cycle branch feature/cycle-133-follow-through |
 
 ### Reading guide
 
@@ -1571,7 +1582,7 @@ A single BB test-file failure at :1:1 with a Fatal credential line is this entry
 **Feature**: .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout
 **Symptom**: adversarial-review.json: companion_voice.status failed with last_error 'claude -p timed out after 610s' (failure_class timeout since sprint-248 round 1f; model_unavailable on older envelopes); the MODELINV row's models_failed[].message_redacted reads RETRIES_EXHAUSTED … PROVIDER_UNAVAILABLE … timed out. The same hop answers in ~384 s when the CLI is otherwise idle (sprint-247/248 round 0).
 **First observed**: 2026-09-25 (cycle-126 sprint-248 review re-run while the Sprint 3 baseline eval ran claude -p at concurrency 2)
-**Recurrence count**: 10
+**Recurrence count**: 12
 **Current workaround**: Run dissents and other claude CLI workloads (eval harness, Bridgebuilder claude-headless) serially — pause the eval before a review/audit; or raise flatline_protocol.<block>.timeout_seconds (the companion wait cap follows it: timeout × hops + 30 s). The dissent still completes on the primary (voices_planned 2, voices_succeeded 1).
 **Upstream issue**: cycle-126 residue: cheval could report a CLI-hop timeout as TIMEOUT (exit 3) rather than PROVIDER_UNAVAILABLE (exit 1); a host-level claude CLI concurrency budget would make the contention visible before the call
 **Related visions / lore**: KF-010 (google CLI hops under a concurrent BB sweep), KF-035
@@ -1593,6 +1604,8 @@ A single BB test-file failure at :1:1 with a Fatal credential line is this entry
 | 2026-10-04 | thirty-eighth two-voice run (round 1al 9bb1fe4c): a3-script-3's first companion attempt and a4-script-4's first three timed out at 910 s (claude -p) with ~12 other Claude sessions live, host load ~1.5 | a3 attempt 2 and a4 attempt 4 two-voice via run-dissent-two-voice.sh; every chunk two-voice; run 39 splits a4 (57 KB) into a4a/a4b to shorten the companion's hop | commit 9bb1fe4c; run38.log (cycle-126 dissent cache) |
 | 2026-10-05 | Thirty-ninth two-voice run (24 chunks, companion on claude-bedrock) with about twelve other Claude sessions live: retried each timed-out chunk until two-voice (a1, a2, b1 once; a3 twice; a4b six times at 910 s) | All 24 chunks two-voice; retry-until-two-voice holds but costs about an hour per run under host contention; dissent capped at 3 runs per sprint from here | run39.log on 332f254c (round 1am), sprint-248 feedback §43 |
 | 2026-10-15 | cycle-130 Sprint 259 review dissent run 1 on 6be23186: code-only diff of 166 files / 10,298 lines incl. 16 task fixtures; codex-headless gpt-5.5-pro primary succeeded (3 findings), claude-headless companion timed out after 910s (PROVIDER_UNAVAILABLE) → DEGRADED 1/2 | degraded envelope accepted for review round 1 (the primary delivered); run 2 excludes tasks/*/fixture and tasks/*/hidden from the dissent diff so the companion sees the ~3.5k-line harness diff only | grimoires/loa/a2a/sprint-259/adversarial-review.json; ~/.cache/loa/cycle-130/logs/dissent-s2-review.log |
+| 2026-10-24 | cycle-133 Sprint 273 review dissent run 1: companion claude-headless failed with 'RETRIES_EXHAUSTED PROVIDER_UNAVAILABLE timed out after 910s' on a 320 KB code diff; primary gpt-5.5-pro completed (2 findings) | run counted as dissent run 1 of 3 with one voice; no retry (the primary's findings drive the round) | grimoires/loa/a2a/sprint-273/adversarial-review.json companion_voice.last_error; ~/.cache/loa/cycle-133/dissent/s2-review-run1.log |
+| 2026-10-24 | cycle-133 Sprint 273 audit dissent run 2: companion claude-headless failed again (failure_class model_unavailable, api_failure) while the primary gpt-5.5-pro completed with 0 findings; same session as the review run's 910 s timeout | run counted as dissent run 2 of 3 with one voice; the lead's own audit pass stands in for the companion | grimoires/loa/a2a/sprint-273/adversarial-audit.json metadata.companion_voice |
 
 ### Reading guide
 
@@ -1673,7 +1686,7 @@ Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry
 **Feature**: flatline-orchestrator.sh Phase 2 / scoring-engine
 **Symptom**: A two-voice Flatline run (codex-headless + claude-headless, voices 2/2, Phase 1 reviews fine: 21 + 12 items) ends 'Cross-scoring degraded; qualified review denominator retained', '[scoring-engine] Consensus: HIGH=0 DISPUTED=0 LOW=0 BLOCKERS=4 (0% agreement)', every item carries gpt_score null / scorers_available 1 / source opus_scored, status DEGRADED, confidence degraded, exit 6, and no HIGH_CONSENSUS set is produced; Phase 2 reports 'Total cost: 0 cents' and the final JSON's execution block carries no per-call scorer status, so the cause (empty content, schema rejection, timeout) is not recorded
 **First observed**: 2026-10-07 cycle-127 planning reviews (prd run flatline-28236-11307, sdd run flatline-19206-31034, sprint run — all three identical shape)
-**Recurrence count**: 8
+**Recurrence count**: 11
 **Current workaround**: Treat the run's raw per-voice improvements as unscored input and integrate by lead judgment (cycle-127 did; SDD §1.5). Re-run with --keep-temp to capture the Phase 2 scorer outputs before triaging.
 **Upstream issue**: https://github.com/0xHoneyJar/loa/issues/1281 (filed 2026-10-14, cycle-129 Task 1.10) — candidate: record each Phase 2 scorer call's failure_class in the final JSON execution block (the vq-aggregate envelope already names voices; scorers are invisible)
 **Related visions / lore**: KF-002 (reasoning-class empty content), KF-004 (schema-rejected payloads), KF-015 (gate reports success on degraded runs)
@@ -1688,6 +1701,9 @@ Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry
 | 2026-10-19 | cycle-131 Flatline PRD run (flatline-orchestrator.sh --phase prd --autonomous, 1200 c budget): both Phase 1 voices answered (codex-headless + claude-headless, 13 blockers, 55 items), Phase 2 cross-scoring produced model_agreement 0 %, high_consensus 0, confidence degraded, exit 6 | read raw blockers and items by judgment per the reading guide; 9 blocker themes integrated into prd.md/sdd.md (oracle A/B within one pin, fix-commit paths in the overlay, pre-run evidence, read-exposure detector, three-way re-grade, interval-based mutually exclusive pricing rules, manifest regen after overlay, per-PR overlay mode disclosure); no re-run | ~/.cache/loa/cycle-131/flatline/prd.json (consensus_summary), prd.log; grimoires/loa/prd.md Appendix F |
 | 2026-10-19 | cycle-131 Flatline SDD run (--phase sdd --autonomous): two voices, 15 blockers, 51 items, cross-scoring agreement 0 %, exit 6 | read by judgment; integrated into sdd.md 1.1 (head-mode overlay to keep head coordinates, framework-dir scope so config toggles never break oracle_closed, verifier against the immutable fixture, pristine pinned worktree as the copy source, robust diff-header parsing, pre-launch closed-mount check, dissent_absent_reason, grader_rule/grader_version per row, no pooling across grader rules, eval-config variant label); no re-run | ~/.cache/loa/cycle-131/flatline/sdd.json; sdd.log; grimoires/loa/sdd.md §11.E |
 | 2026-10-19 | cycle-131 Flatline sprint run (--phase sprint --autonomous): two voices, 16 blockers, 45 items, agreement 0 %, exit 6 — third degraded run of the planning day | read by judgment; integrated into sprint.md Appendix D (DEC-0624); the three planning runs together cost 0 c on the ledger (CLI hops) and ~27 min; no re-run | ~/.cache/loa/cycle-131/flatline/sprint.json; sprint.log |
+| 2026-10-23 | cycle-133 Flatline PRD review (flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --budget 300): claude-headless + gpt-5.5 | same shape: Phase 1 both voices answered; cross-scoring degraded; HIGH=0 DISPUTED=0 LOW=0 BLOCKERS=19 (0 % agreement), 477 s, 0 cents | ~/.cache/loa/cycle-133/logs/flatline-prd.{out,err}; a2a/flatline/cycle-133-prd-review.json |
+| 2026-10-23 | cycle-133 Flatline SDD review (--phase sdd --budget 300): claude-headless + gpt-5.5 | same shape: both voices answered (41 + 31 items); cross-scoring degraded; HIGH=0 DISPUTED=0 BLOCKERS=16 (two CRITICAL), 569 s, 0 cents | ~/.cache/loa/cycle-133/logs/flatline-sdd.{out,err}; a2a/flatline/cycle-133-sdd-review.json |
+| 2026-10-23 | cycle-133 Flatline sprint review (--phase sprint --budget 300): claude-headless + gpt-5.5 | same shape: both voices answered; cross-scoring degraded; BLOCKERS=18, 538 s, 0 cents | ~/.cache/loa/cycle-133/logs/flatline-sprint.{out,err}; a2a/flatline/cycle-133-sprint-review.json |
 
 ### Reading guide
 
@@ -1962,3 +1978,175 @@ Confirm the cause with 'last -x reboot shutdown' before anything else. Never rel
 ### Reading guide
 
 Do not treat the pause as framework leakage until the audit.jsonl rows are read: a PR that ships hook or audit code will produce rows when the bare agent exercises it. Do not change the rule mid-phase; clear the arm and resume. If the same PR trips several sessions, expect its matched cell to degrade (< ceil(k/2) valid) and the pair to leave the primary; the per-class rows report it.
+
+## KF-054: Bridgebuilder aborts on a large PR: gh api pulls/N/files exceeds the adapter's fixed 10 MiB maxBuffer (ERR_CHILD_PROCESS_STDIO_MAXBUFFER) before any exclude or truncation applies
+
+**Status**: OPEN — upstream fix filed as bead bd-ra4im; cycle-132 ran a patched copy from the cache (no .claude/ edit)
+**Feature**: .claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts gh() maxBuffer: 10 * 1024 * 1024; getPRFiles() /pulls/N/files?per_page=100 (patch field included)
+**Symptom**: [bridgebuilder:review] Phase: review … [15s] Still working… then '[bridgebuilder] Fatal: gh command failed (code=ERR_CHILD_PROCESS_STDIO_MAXBUFFER)'; no comment posted, no verdict JSON, bb-<pr>.out ends at the lore-loaded line
+**First observed**: 2026-10-23T16:01Z cycle-132 PR #1289 (2,186 files, 617 K additions; the files API returns ~1 MB of patch per 100 files, ~22 MB in total)
+**Recurrence count**: 1
+**Current workaround**: Copy the skill to a cache tree that mirrors .claude/skills/<name>/ (symlink .claude/scripts and node_modules), raise maxBuffer in dist/adapters/github-cli.js, run its entry.sh from the repo with --exclude for the artefact trees (evals/fixtures/**, evals/results/**, grimoires/loa/reports/**); recipe ~/.cache/loa/cycle-132/scripts/bb-large-pr.sh. Never edit .claude/.
+**Upstream issue**: bead bd-ra4im: fetch the file list without patches (--jq map(del(.patch))), apply exclude_patterns/max_files_per_pr, then fetch patches only for the selected files; expose max_buffer_bytes; degraded verdict instead of Fatal
+**Related visions / lore**: KF-036 (BB npm test on a keyless host); feedback_bb_filters_merged_prs; cycle-132 Task 3.6 (bd-tdbn6)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-23 | BRIDGEBUILDER_MODEL=codex-headless entry.sh --pr 1289 (stock skill) | Fatal MAXBUFFER at 15 s into Phase: review; nothing posted | ~/.cache/loa/cycle-132/logs/bb-1289.err; PR #1289 head 8e867b13 |
+
+### Reading guide
+
+The overflow is in the fetch, before exclude_patterns, max_files_per_pr or max_diff_bytes act — shrinking those does nothing. Confirm with gh api repos/O/R/pulls/N/files?per_page=100 --jq '[.[]|(.patch//""|length)]|add' per page (×pages > 10 MiB), then use the patched-copy recipe and attach the run to the bead. Do not substitute bridge-orchestrator.sh (no real findings) and do not skip the round.
+
+## KF-055: Bridgebuilder consensus enrichment posts a tool-call transcript instead of the review; the body-derived verdict reads UNKNOWN and mergeBlocked true even when the consensus JSON says COMMENT
+
+**Status**: OPEN — upstream fix filed as bead bd-cpvc6; cycle-132 read the per-voice JSON blocks and the round-1 consensus JSON directly
+**Feature**: .claude/skills/bridgebuilder-review (multi-model enrichment writer anthropic/claude-headless; body-derived verdict in the summary JSON)
+**Symptom**: bb-<pr>.out: '[multi-model] Enrichment complete' with a small enrichedBytes; the posted [3/3] consensus comment contains 'I will check whether the repository is available locally…' and <invoke name="Bash"> blocks instead of ## Summary / ## Findings; summary JSON verdict UNKNOWN, highestSeverity set, mergeBlocked true, voices band APPROVED
+**First observed**: 2026-10-23T16:42Z cycle-132 PR #1289 Bridgebuilder round 2 (comment 6369941557); round 1 on the same PR enriched correctly (34 KB) but still parsed UNKNOWN
+**Recurrence count**: 1
+**Current workaround**: Read the findings from the per-voice <!-- bridge-findings --> JSON blocks and, when present, the consensus block's verdict field; treat the posted markup as the writer's failure, not a review; triage and record the verdict in the PR comment yourself; file the run id.
+**Upstream issue**: bead bd-cpvc6: enrichment writer with tools disabled and an output guard (reject invoke markup / missing findings block, fall back to the un-enriched consensus); verdict from the consensus JSON; exit 3 DEGRADED on enrichment failure
+**Related visions / lore**: KF-054 (large-PR maxBuffer, bd-ra4im); KF-037/KF-038 (claude -p headless companion failures); feedback_post_pr_shortcut
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-23 | bb-large-pr.sh 1289 r2 (patched copy; voices gpt-5.5-pro + claude-headless) | voices fine (13 unique, 0 blocker); enrichment posted tool-call markup; verdict UNKNOWN | ~/.cache/loa/cycle-132/logs/bb-1289-r2.out; PR #1289 comment 6369941557 |
+
+### Reading guide
+
+Do not read UNKNOWN as a verdict: open the per-voice JSON blocks (schema_version 1 findings with severity) and the consensus block when it exists; if the [3/3] comment shows invoke markup the writer failed and the round's findings are the per-voice ones. Do not re-run hoping for a different writer output before the upstream guard lands; two rounds cost nothing but time.
+
+## KF-056: DEC rows written during planning carry the previous cycle's id
+
+**Status**: Open (fix candidate on bead bd-d7dwt; Sprint 4 sweep)
+**Feature**: dec-write-lib.sh default_cycle / decisions.yaml cycle field
+**Symptom**: decisions.yaml rows recorded by /plan-and-analyze, /architect, /sprint-plan for a NEW cycle show cycle: <previous cycle id> (cycle-133: 41 rows DEC-0819…DEC-0859 carry cycle-132-conclusive-review-catch) although ledger.json active_cycle already names the new cycle
+**First observed**: 2026-10-23 cycle-133 planning (commit 8ef474af)
+**Recurrence count**: 1
+**Current workaround**: pass --cycle <id> explicitly to dec-write-lib.sh new; operator confirms the mislabelled rows by --id list, never by --cycle
+**Upstream issue**: none yet — fix candidate: default_cycle() must skip a JACKED_OUT/COMPLETE run state and fall through to ledger.json active_cycle; planning skills pass --cycle
+**Related visions / lore**: bd-d7dwt
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-23 | lead passes --cycle cycle-133-follow-through in dec-batch.sh for every implementation-phase row | pending (first rows land at the Sprint 272 close) | commit 76941bd7 (cycle branch); bead bd-d7dwt comment 2026-10-23T23:05Z |
+
+### Reading guide
+
+Cause: default_cycle() reads .run/sprint-plan-state.json then .run/state.json cycle_id BEFORE ledger.json active_cycle; between /archive-cycle and the next /run the run state still holds the archived cycle (state JACKED_OUT), so every planning-phase row inherits it. Do not retry by editing rows (append-only ledger); do not supersede 41 rows. Fix the precedence in the lib (Sprint 4 sweep) and pass --cycle until then.
+
+## KF-057: bats tests that spawn a nested bats via npx pass locally and fail in CI
+
+**Status**: Fixed for tests/unit/quarantine-expiry.bats (a0624b285); pattern to follow in any test that runs a nested bats
+**Feature**: tests/unit/*.bats nested bats runs; .github/workflows/bats-tests.yml (bats-core v1.13.0 installed on PATH)
+**Symptom**: CI 'Shell Tests' step: not ok QX-12 … QX-15 with 'npm error npx canceled due to missing packages and no YES option: ["bats@1.13.0"]' while the same tests pass locally under npx --no-install bats
+**First observed**: 2026-10-24 cycle-133 Sprint 272, CI run 40049499175 on 5e157326c
+**Recurrence count**: 1
+**Current workaround**: resolve the nested bats as $BATS_ROOT/bin/bats (exists in both the bats-core and the npm layouts), then command -v bats, then npx; see tests/unit/red-test-check.bats RTC-5 for the precedent
+**Upstream issue**: none — a test-environment coupling; the CI runner has no npm bats package
+**Related visions / lore**: tests/unit/quarantine-expiry.bats _bats(); tests/unit/red-test-check.bats
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-24 | quarantine-expiry.bats _bats() resolver ($BATS_ROOT/bin/bats → PATH bats → npx); verified with an npx stub + PATH bats (27/27) and the npx bats (27/27) | fixed; CI confirmation on a0624b285 pending at the time of writing | commit a0624b285 on feature/cycle-133-follow-through; CI run 40049499175 (the failure) |
+
+### Reading guide
+
+Not a bats or test defect: the test's choice of launcher. Locally bats comes from npx (no system bats on this host), in CI from a bats-core install on PATH. Any test that runs a nested bats must resolve the running installation ($BATS_ROOT/bin/bats) and only fall back to npx. Prove the fix with an npx stub that exits 1 placed first on PATH and a PATH bats symlink.
+
+## KF-058: An --internal docker network still reaches the host's bridge gateway address
+
+**Status**: Fixed in the harness (874fc64a9, cycle-133 Sprint 274 s3-e: a guard namespace per blocked sandbox); rebuild `loa-egress-proxy:259` on every host before the next batch
+**Feature**: evals/harness/lib/egress-proxy.sh egress block; evals/tests/egress-proxy.bats EGR-8/EGR-12; evals/harness/Dockerfile.proxy
+**Symptom**: CI 'Run eval harness tests': not ok EGR-8 … 'deny host gateway 22 without proxy: FAIL succeeded: tcp_open 172.19.0.1 22' and EGR-12 self-check FAIL on the GitHub runner; locally the same probe reaches the host (ConnectionRefused on closed ports, a firewall timeout on open ones)
+**First observed**: 2026-10-24 cycle-133 Sprint 273 head c3b059cf3 (run 40074686664)
+**Recurrence count**: 1
+**Current workaround**: none at the harness level — the host firewall is the only barrier today; do not run a measurement batch on a host that listens on 0.0.0.0 until the shared-namespace fix lands
+**Upstream issue**: docker: --internal removes the default route but the bridge's host address stays reachable (gateway_mode_ipv4=isolated exists only in newer engines)
+**Related visions / lore**: DEC-0902 DEC-0903 (the egress design); brief s3-e
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-24 | implementer D4 (s3-e) dispatched with the shared-namespace + owner-matched netfilter design; EGR-8 to gain a deterministic gateway listener probe | pending | CI run 40074686664; brief ~/.cache/loa/cycle-133/briefs/s3-e.md |
+| 2026-10-24 | implementer D4 (s3-e) landed: a guard namespace per blocked sandbox (proxy-image container with in-namespace netfilter; sandbox joins with --network container:<guard>); EGR-8 rewritten with a deterministic gateway-listener probe, EGR-13/EP-9 new; must_unreach accepts only in-namespace rejections | fixed — gate 22/22 with real containers on two hosts, launcher regression 189/189, pin self-check 62 PASS 0 FAIL, spike user arm SPIKE-OK 0 denials; CI confirmation pending on the next push | commit 874fc64a9; proxy image sha256:95c4c379; ~/.cache/loa/cycle-133/tests/s3e-lead-gate-094721.log |
+| 2026-10-24 | pushed the fix (db668858d head) and let CI run the eval harness suite on the GitHub runner, the host where the gap first showed | confirmed fixed in CI: Eval Sandbox green (EGR-8 gateway probes and EGR-12 self-check pass on the runner) | CI run 40085119807 on db668858d; fix commit 874fc64a9 |
+
+### Reading guide
+
+Not a tinyproxy or allowlist defect: the sandbox never goes through the proxy to reach the gateway; it is plain IP reachability of the host on the internal bridge. Fix candidates: the sandbox shares the sidecar's network namespace with owner-matched netfilter (tinyproxy uid → 443 public; sandbox uid → 127.0.0.1:8888 only), or a host-side DOCKER-USER rule (needs root). Reproduce without CI: docker network create --internal N; docker run --network N … python socket.create_connection((gateway, port)) — ConnectionRefused means the host was reached.
+
+## KF-059: A test that resolves historical commits fails on CI's depth-1 checkout
+
+**Status**: Fixed for evals/analysis/c132/tests/test_registration_v2.py (Cycle132ChainTest skips when the registered pin commits are absent); pattern to follow in any test that runs git rev-parse / cat-file on a recorded commit
+**Feature**: .github/workflows/bats-tests.yml Shell Tests (actions/checkout depth 1); evals/analysis/c132/registration.py verify (analysis_tree REV:PATH via git rev-parse)
+**Symptom**: CI 'Shell Tests': FAILED test_registration_v2.py::Cycle132ChainTest::test_every_tracked_cycle_132_registration_verifies_unchanged — 'drift: analysis_tree_sha256: registered a7bd2456…, now <git rev-parse 664c4516…:evals/analysis/c132 failed>'; the same 18 registrations verify 18/18 on every full clone
+**First observed**: 2026-10-24 cycle-133 Sprint 274 head db668858d (run 40085119661)
+**Recurrence count**: 1
+**Current workaround**: guard the test: git cat-file -e <rev>^{commit} for every recorded revision, skipTest (never fail) when one is missing; or deepen the checkout for that job (fetch-depth 0 costs the full history on every run)
+**Upstream issue**: bats-tests.yml line 97 already documents the depth-1 consequence for origin/main; same class as KF-057 (an environment the implementer's host has and the runner lacks)
+**Related visions / lore**: KF-057; DEC-0917 (registration v2); cycle-133 Sprint 274 Task 3.3
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-24 | Cycle132ChainTest gains a pre-check: every REGISTRATION's analysis_tree revision must exist (git cat-file -e); otherwise skipTest naming the missing revisions; verified on a local depth-1 clone (skipped) and on the full clone (passes 18/18) | fixed; CI confirmation on the next push | test_registration_v2.py (commit follows db668858d); CI run 40085119661 |
+| 2026-10-24 | pushed 9af4d44e8 (the skip guard) and let CI run the Shell Tests job | confirmed: the pytest step passed (3741 passed, Cycle132ChainTest skipped on the depth-1 checkout); the job then failed on an unrelated floor test (FS-1, DEC-0946) | CI run 40085874207 |
+
+### Reading guide
+
+Not a chain defect: the registration bytes are unchanged and verify everywhere the pin commits exist. Before adding a test that calls git on a recorded sha, decide what the test means on a shallow clone — skip with the reason, or make the CI job fetch the history. Check the next occurrence's revision list in the skip message before deepening a checkout.
+
+## KF-060: home-scope: a PR that changes review-time framework files exposes their later version through the sandbox HOME (clause (f) pinned_bytes_read)
+
+**Status**: Open — design limit of C-10 home-scope; detected by took-effect clause (f), not prevented; fixture choice is the only mitigation until external fixtures (C-12) exist
+**Feature**: evals/harness/lib/sandbox-mount.sh mount_home_scope; evals/harness/took-effect.sh oracle_closed clause (f); the Task 3.5 smoke
+**Symptom**: run-ablation PAUSED arm a1_full: took-effect exit 1: oracle_closed FAIL (f) .claude/skills/reviewing-code/SKILL.md: pinned_bytes_read: a later-only line of the pinned version in Bash (events-REVIEW.jsonl) (+34 more); the reviewer cat-ed /home/evaluser/.claude/skills/reviewing-code/SKILL.md, .claude/loa/CLAUDE.loa.md and .claude/scripts/lib/profile-lib.sh — pinned files that the PR under review (pr-20) also changes
+**First observed**: 2026-10-24 cycle-133 Sprint 274 Task 3.5 smoke run 1 (batch smoke-c133-s274, pin 32a8d79cf, USD 11.54)
+**Recurrence count**: 2
+**Current workaround**: pick fixtures whose .claude/ changes are disjoint from what the pinned framework reads or executes during a review (skills/reviewing-code, auditing-security, CLAUDE.loa.md, scripts/lib/*, hooks, settings, rules, protocols/karpathy, data/floor|profiles|constraints, adapters); of the record fixtures only pr-03 (ledger-lib.sh, mount-submodule.sh, classify-pr-type.sh) qualifies — or seed external fixtures (C-12), which are disjoint by construction
+**Upstream issue**: inherent: the reviewer IS the later framework; Claude Code loads the active skill, CLAUDE.loa.md and hooks from HOME whether or not the reviewer cats them, so a PR touching those files cannot be isolated by any mount; the detector (f) sees the explicit reads only
+**Related visions / lore**: DEC-0936 (clause (f)); DEC-0943 (pr-20 choice); KF-049 (the pinned-root oracle); cycle-133 Sprint 274 Task 3.5
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-24 | Task 3.5 smoke run 1: a1_full × pr-20 under home-scope at pin 32a8d79cf; mount verified (1775 files, 306 redirected, residual 0), no egress denials from the trial, review.md 14 findings; (f) FAIL on three pinned files the PR changes | failed as designed (detected); G-4 incomplete after run 1; verification rerun planned on pr-03 after the home-scope dissent defect is fixed | evals/results/ablation-2.0/smoke-c133-s274/a1_full/smoke-review-c133-t1/meta/{took-effect.json,arm-evidence.txt}; rows.jsonl status infrastructure_error cost_usd 11.540791 |
+| 2026-10-24 | verification rerun at pin 7d2119477 on pr-03, whose three changed scripts are OFF the review-time surface (ledger-lib.sh, mount-submodule.sh, classify-pr-type.sh); dissent fixed (s3-a3: gpt-5.5-pro reviewed, claude-headless companion succeeded) | failed (f) again: the reviewer and the auditor deliberately consulted the installed framework copy in HOME as the reference for the PR — cmp of HOME ledger-lib.sh against pr/base, head of HOME mount-submodule.sh, and EXECUTION of the installed classify-pr-type.sh — so later-only lines were read in REVIEW and AUDIT (+11 more). The exposure is not about review-time files: a Loa reviewer compares a Loa PR with its own installed, later Loa. G-4 incomplete; FR-10 deferred (DEC); no third launch | evals/results/ablation-2.0/smoke-c133-s274-r2/ rows.jsonl (infrastructure_error, cost_usd 9.302274), a1_full/smoke-review-c133b-t1/meta/took-effect.json; copies under grimoires/loa/reports/ablation-2.0/c133-smoke/run-2/ |
+
+### Reading guide
+
+Before a home-scope run, intersect the fixture's changed .claude/ paths with the review-time surface (the list in Workaround; grep the fixture's head.diff). Non-empty → the run will fail (f) or, worse, pass (f) while the exposure happened through Claude Code's own loading. Do not weaken (f) to pass a smoke. Prefer external fixtures.
+
+## KF-061: home-scope: the dissent fails inside the sandbox (project root resolved under HOME; headless CLIs refuse to prepare a run)
+
+**Status**: Fixed in 7d2119477 (s3-a3: LOA_PROJECT_ROOT wrapping R6-R8, R5 slash-only, persona.md surface); live confirmation = the Task 3.5 verification rerun
+**Feature**: evals/harness/lib/sandbox-mount.sh mount_home_scope transform; evals/harness/pipeline-run.sh home-scope launch; adversarial-review.sh / cheval inside the sandbox
+**Symptom**: sandbox/.run/adversarial-review-stderr.log: gpt-5.5-pro, gpt-5.5, gemini → 'model-invoke failed with exit code 2'; claude-headless → 'PROVIDER_UNAVAILABLE: claude -p could not prepare its run: [Errno 13…' (reported as EPERM/Errno 1 at first glance); took-effect dissent_present false; the reviewer re-ran adversarial-review.sh with CONFIG_FILE=/workspace/.loa.config.yaml after 'Config file not found, using defaults'
+**First observed**: 2026-10-24 cycle-133 Sprint 274 Task 3.5 smoke run 1 (batch smoke-c133-s274, pin 32a8d79cf)
+**Recurrence count**: 1
+**Current workaround**: none needed after the fix; before it, home-scope dissent could not run — do not run a home-scope measurement at a pin before 7d2119477
+**Upstream issue**: the redirected framework copy kept SCRIPT_DIR/../.. and Path(__file__).parents[N] climbs that land on HOME, and rule R5 rewrote a bare directory-name marker as a path
+**Related visions / lore**: DEC-0947 DEC-0948 DEC-0939 (the transform); KF-060 (the (f) exposure found in the same run); KF-050 (cheval in the sandbox)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-24 | s3-a3 (implementer A): depth-based root-climb wrapping to LOA_PROJECT_ROOT, R5 slash-only, persona surface, LOA_PROJECT_ROOT=/workspace in the session env; HS-14 red→green with the smoke's own error | fixed offline (stubs, 208/208 lead-side); live confirmation pending in the verification rerun | commit 7d2119477; a2a/sprint-274/reviewer-a.md § s3-a3; smoke-c133-s274 sandbox/.run/adversarial-review-stderr.log |
+
+### Reading guide
+
+Under home-scope two roots exist: LOA_FRAMEWORK_ROOT (HOME) for framework files and LOA_PROJECT_ROOT (/workspace) for config, grimoires and .run. A script that climbs to its own root gets the framework root unless wrapped. Check meta/mount-transform.json rule counts (R6-R8 > 0) and HS-14 before blaming credentials; a zero-denial trial with api_failure voices means the failure was before the network.

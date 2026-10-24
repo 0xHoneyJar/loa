@@ -1,9 +1,0 @@
-head/.claude/scripts/run-checkpoint.sh:378
-head/.claude/scripts/run-checkpoint.sh:226
-head/.claude/scripts/run-checkpoint.sh:154
-head/.claude/hooks/safety/block-destructive-bash.sh:732
-head/.loa.config.yaml.example:1243
-head/.claude/scripts/lib/heredoc-classifier.sh:6
-head/tests/unit/guard-yield.bats:34
-head/.claude/scripts/lib/profile-lib.sh:97
-head/.claude/scripts/test-lint-invariants.sh:257

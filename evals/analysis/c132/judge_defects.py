@@ -3,9 +3,9 @@
 
 Usage:
   python3 -I evals/analysis/c132/judge_defects.py sample --key KEY --rows F --results-root DIR [--results-root DIR …]
-      --descriptions FILE --out DIR [--seed 20261021] [--per-arm 40] [--suite-root DIR …] [--repo-root DIR]
-  python3 -I evals/analysis/c132/judge_defects.py aggregate --key OUT/key.json --labels DIR|FILE --rows F --out DIR
-      [--seed N] [--boot 2000]
+      --descriptions FILE --out DIR [--seed 20261021] [--per-arm 40] [--suite-root DIR …] [--repo-root DIR] [--force]
+  python3 -I evals/analysis/c132/judge_defects.py aggregate --key OUT/key.json --labels DIR|FILE --rows F
+      --results-root DIR [--results-root DIR …] --out DIR [--seed N] [--boot 2000]
 
 sample: per arm, a seeded uniform draw of --per-arm grader-credited (cell, defect) pairs over the
 valid cells of the Task 2.6 judge universe (KEY = judge-sample.sh's key.json; its `credited` units;
@@ -18,11 +18,20 @@ provenance field or token (arm ids exempt only when the PR's own text carries th
 whole run, nothing written. OUT/key.json (outside the packets) holds the per-arm universe counts,
 the sampled pairs with their item ids and inclusion probabilities, the items, the valid cells and
 the seed. A cell is valid when the source key holds it and common.py's validity filter passes on
-its row and grade.json. OUT/packets must not already hold files.
+its row and grade.json. OUT/packets must not already hold files and OUT/key.json must not exist (--force replaces
+both: the packets dir's D*.md files and key.json; any other file there still refuses).
+
+Sample binding (cycle-133 bd-xr3uq; Sprint 271 review DISS-C-007, audit SEC-002): key.json carries
+sample_id = the first 12 hex of sha256(key.json serialised without the field, exactly as written); every packet
+header names it (line 3: "Sample: `<id>`"); a labels.json (merged, or each session's) must carry the same top-level
+"sample_id" (run-judge-defects.sh stamps it from the chunk's packets). aggregate refuses a key whose sample_id does
+not match its content, and labels whose sample_id is missing or differs: labels from an earlier sample can never be
+attributed to the pairs of a new one.
 
 aggregate: --labels is a merged labels.json {D0001: {verdict, note}} or a directory of judge
 sessions (every <DIR>/<session>/labels.json, sessions named *.failed-* skipped; an item labelled
-twice is refused). Per arm: the share of sampled pairs with >= 1 citation judged `describes`
+twice is refused; every labels.json carries the key's sample_id). The validity filter is the
+sampler's: each key cell's row and its grade.json under --results-root (required). Per arm: the share of sampled pairs with >= 1 citation judged `describes`
 (strict) and `describes` or `partially` (lenient) — a pair enters only when every one of its items
 is labelled — with PR-cluster bootstrap 95 % percentile intervals; grader recall (credited pairs /
 defects over the arm's valid cells) and defect-level corrected recall = grader recall x share, its
@@ -52,6 +61,29 @@ WIN, CTX = 3, 5
 DIFF = ("a1_full", "a0_bare_matched")
 LABEL = "EXPLORATORY / post hoc (DEC-0800, DEC-0810)"
 REPO_DEFAULT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+SAMPLE_ID_RE = re.compile(r"^[0-9a-f]{12}$")
+
+
+def key_text(doc):
+    """key.json's bytes as written (sorted keys, indent 1, trailing newline)"""
+    return json.dumps(doc, sort_keys=True, indent=1) + "\n"
+
+
+def sample_id_of(doc):
+    """sha256 of the key serialised without its sample_id, first 12 hex"""
+    return hashlib.sha256(key_text({k: v for k, v in doc.items() if k != "sample_id"}).encode("utf-8")).hexdigest()[:12]
+
+
+def with_sample_id(doc):
+    out = {k: v for k, v in doc.items() if k != "sample_id"}
+    out["sample_id"] = sample_id_of(out)
+    return out
+
+
+def stamp_packet(body, sid):
+    """insert the sample id as the packet's third line, after the title and its blank line"""
+    title, sep, rest = body.partition("\n\n")
+    return "%s\n\nSample: `%s`\n\n%s" % (title, sid, rest) if sep else body
 
 
 # ------------------------------------------------- packet building: mirrors evals/harness/judge-sample.sh
@@ -474,17 +506,33 @@ def sample(src_key, rows, roots, suites, repo, descriptions, seed, per_arm):
     return packets, doc
 
 
-def write_sample(out, packets, doc, src_key_sha):
+def write_sample(out, packets, doc, src_key_sha, force=False):
     pdir = os.path.join(out, "packets")
-    if os.path.isdir(pdir) and os.listdir(pdir):
-        raise InputError("%s already holds files; use a fresh --out" % pdir)
+    kpath = os.path.join(out, "key.json")
+    old = sorted(os.listdir(pdir)) if os.path.isdir(pdir) else []
+    if not force:
+        if os.path.lexists(kpath):
+            raise InputError("%s exists (a sample was drawn there); use a fresh --out, or --force to replace it" % kpath)
+        if old:
+            raise InputError("%s already holds files; use a fresh --out, or --force to replace them" % pdir)
+    else:
+        stray = [n for n in old if not re.match(r"^D[0-9]{4}\.md$", n)]
+        if stray or os.path.islink(pdir) or os.path.islink(kpath):
+            raise InputError("--force replaces D*.md packets and key.json only; %s holds %s" % (
+                pdir, ", ".join(stray[:5]) or "a symlink"))
+        for n in old:
+            os.unlink(os.path.join(pdir, n))
+        if os.path.lexists(kpath):
+            os.unlink(kpath)
     doc["source_key"]["sha256"] = src_key_sha
+    doc.pop("sample_id", None)
+    sid = doc["sample_id"] = sample_id_of(doc)
     os.makedirs(pdir, exist_ok=True)
     for iid, body in sorted(packets.items()):
         with open(os.path.join(pdir, iid + ".md"), "w", encoding="utf-8") as f:
-            f.write(body)
-    with open(os.path.join(out, "key.json"), "w", encoding="utf-8") as f:
-        f.write(json.dumps(doc, sort_keys=True, indent=1) + "\n")
+            f.write(stamp_packet(body, sid))
+    with open(kpath, "w", encoding="utf-8") as f:
+        f.write(key_text(doc))
 
 
 def print_sample(doc, out=sys.stdout):
@@ -493,8 +541,9 @@ def print_sample(doc, out=sys.stdout):
         out.write("%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%s\n" % (arm, u["cells"], u["prs"], u["defects"], u["credited_pairs"],
                                                              u["credited_units"], u["sampled_pairs"], u["sampled_units"],
                                                              f4(u["pi"])))
-    out.write("packets %d; pairs %d; provenance exemptions %d (pr_native); invalid cells skipped %d\n" % (
-        len(doc["items"]), len(doc["pairs"]), len(doc["provenance_exempt"]), len(doc["invalid_cells_skipped"])))
+    out.write("packets %d; pairs %d; provenance exemptions %d (pr_native); invalid cells skipped %d; sample_id %s\n" % (
+        len(doc["items"]), len(doc["pairs"]), len(doc["provenance_exempt"]), len(doc["invalid_cells_skipped"]),
+        doc.get("sample_id")))
     res = ("exact", "defect_suffix", "unique_suffix", "pr_file", "unresolved")
     out.write("cited paths: " + " ".join("%s=%d" % (k, sum(1 for it in doc["items"].values()
                                                            if it["cited_path_resolution"] == k)) for k in res) + "\n")
@@ -505,11 +554,18 @@ def print_sample(doc, out=sys.stdout):
 
 # ---------------------------------------------------------------------------------- aggregate
 def load_labels(path):
+    """the merged labels {item: …} plus "sample_id" — every labels.json (the file, or each session's) must carry one,
+    and a directory's sessions must agree"""
     if os.path.isfile(path):
-        return common.load_json(path, "labels.json")
+        doc = common.load_json(path, "labels.json")
+        if not isinstance(doc, dict):
+            raise InputError("labels is not an object")
+        if not isinstance(doc.get("sample_id"), str):
+            raise InputError("%s carries no sample_id (labels are bound to the sample they were drawn from)" % path)
+        return doc
     if not os.path.isdir(path):
         raise InputError("labels path not found: %s" % path)
-    merged = {}
+    merged, sids = {}, {}
     for s in sorted(os.listdir(path)):
         p = os.path.join(path, s, "labels.json")
         if ".failed-" in s or not os.path.isfile(p):
@@ -517,11 +573,53 @@ def load_labels(path):
         doc = common.load_json(p, "labels.json")
         if not isinstance(doc, dict):
             raise InputError("labels.json is not an object: session %s" % s)
+        sid = doc.get("sample_id")
+        if not isinstance(sid, str):
+            raise InputError("session %s: labels.json carries no sample_id" % s)
+        sids.setdefault(sid, []).append(s)
         for k, v in doc.items():
+            if k == "sample_id":
+                continue
             if k in merged:
                 raise InputError("item %s labelled in two sessions" % k)
             merged[k] = v
+    if len(sids) > 1:
+        raise InputError("sessions carry different sample_ids: %s" % "; ".join(
+            "%s: %s" % (k, ", ".join(v)) for k, v in sorted(sids.items())))
+    if sids:
+        merged["sample_id"] = next(iter(sids))
     return merged
+
+
+def bind(key, labels):
+    """→ the labels without their sample_id, after checking key and labels name the same sample"""
+    sid = key.get("sample_id")
+    if not (isinstance(sid, str) and SAMPLE_ID_RE.match(sid)):
+        raise InputError("key.json carries no sample_id (drawn before cycle-133?); re-sample with this version")
+    if sample_id_of(key) != sid:
+        raise InputError("key.json sample_id %s does not match its content (%s): the key was edited after sampling"
+                         % (sid, sample_id_of(key)))
+    if not isinstance(labels, dict):
+        raise InputError("labels is not an object")
+    got = labels.get("sample_id")
+    if got != sid:
+        raise InputError("labels sample_id %r differs from the key's %s: labels from another sample" % (got, sid))
+    return {k: v for k, v in labels.items() if k != "sample_id"}
+
+
+def load_grades(key, rows, roots):
+    """{cell key: grade.json or None} for every key cell, read from its run directory exactly as the sampler does"""
+    out = {}
+    by_key = {common.cell_key(r): r for r in rows}
+    for ck in sorted(key["cells"]):
+        r = by_key.get(ck)
+        if r is None:
+            continue    # run() names it
+        rd = common.run_dir_for(r, roots)
+        if not rd:
+            raise InputError("no run directory for %s under the results roots" % ck)
+        out[ck] = common.load_grade(rd)[0]
+    return out
 
 
 def validate(key, labels):
@@ -583,12 +681,16 @@ def figures(cells, outs, prs):
 FIGS = ("strict", "lenient", "corr_strict", "corr_lenient")
 
 
-def run(key, labels, rows, seed, boot):
+def run(key, labels, rows, seed, boot, grades):
+    """grades: {cell key: grade.json} (load_grades) — the validity filter reads each key cell's row and grade, as the
+    sampler did, so the two cannot diverge"""
+    labels = bind(key, labels)
     validate(key, labels)
-    valid = {c["key"] for c in (common.build_cell(r, None) for r in rows) if c["valid"]}
+    by_key = {common.cell_key(r): r for r in rows}
+    valid = {ck for ck in key["cells"] if ck in by_key and common.build_cell(by_key[ck], grades.get(ck))["valid"]}
     missing = sorted(ck for ck in key["cells"] if ck not in valid)
     if missing:
-        raise InputError("cells of the key not valid on the rows: %s" % ", ".join(missing))
+        raise InputError("cells of the key not valid on the rows and grades: %s" % ", ".join(missing))
     outs, incomplete = pair_outcomes(key, labels)
     arms = sorted(key["universe"])
     cells_of = {a: [c for _ck, c in sorted(key["cells"].items()) if c["arm"] == a] for a in arms}
@@ -701,10 +803,12 @@ def main(argv=None):
     s.add_argument("--per-arm", type=int, default=40)
     s.add_argument("--suite-root", action="append", default=[])
     s.add_argument("--repo-root", default=REPO_DEFAULT)
+    s.add_argument("--force", action="store_true")
     g = sub.add_parser("aggregate")
     g.add_argument("--key", required=True)
     g.add_argument("--labels", required=True)
     g.add_argument("--rows", required=True)
+    g.add_argument("--results-root", action="append", required=True)
     g.add_argument("--out", required=True)
     g.add_argument("--seed", type=int)
     g.add_argument("--boot", type=int, default=2000)
@@ -729,13 +833,14 @@ def main(argv=None):
             rows = common.load_rows(a.rows)
             packets, doc = sample(src, rows, a.results_root, suites, a.repo_root, load_descriptions(a.descriptions),
                                   a.seed, a.per_arm)
-            write_sample(a.out, packets, doc, common.sha256_file(a.key))
+            write_sample(a.out, packets, doc, common.sha256_file(a.key), force=a.force)
             print_sample(doc)
             return 0
         key = common.load_json(a.key, "key.json")
         labels = load_labels(a.labels)
         rows = common.load_rows(a.rows)
-        doc = run(key, labels, rows, a.seed if a.seed is not None else int(key.get("seed", 0)), a.boot)
+        doc = run(key, labels, rows, a.seed if a.seed is not None else int(key.get("seed", 0)), a.boot,
+                  load_grades(key, rows, a.results_root))
     except Leak as e:
         sys.stderr.write("judge_defects: %s; nothing written\n" % e)
         return 1

@@ -472,6 +472,7 @@ export function parseProviderDecls(raw, label, warnings) {
 }
 /** The subtree Bridgebuilder reads from a Loa config, as one yq program (the same yq the agy gate uses). */
 const TRUSTED_VIEW_YQ = '{"providers": (.hounfour.providers // null), "locality": (.hounfour.locality // null), "exit": (.bridgebuilder.exit_on_degraded // null), ' +
+    '"writer": (.bridgebuilder.writer_role_allowlist // null), ' +
     '"aliases": (.hounfour.aliases // null), "allowlist": (.hounfour.secret_env_allowlist // null), "rootAllowlist": (.secret_env_allowlist // null)}';
 /** Parse Loa config text (YAML or JSON) into the trusted view with yq; throws with yq's first stderr line on failure. */
 export function yqTrustedView(text) {
@@ -482,6 +483,7 @@ export function yqTrustedView(text) {
         const parsed = JSON.parse(out);
         return {
             providers: parsed?.providers ?? null, locality: parsed?.locality ?? null, exit: parsed?.exit ?? null,
+            ...(parsed?.writer !== undefined && parsed?.writer !== null ? { writer: parsed.writer } : {}),
             aliases: parsed?.aliases ?? null, allowlist: parsed?.allowlist ?? null, rootAllowlist: parsed?.rootAllowlist ?? null,
         };
     }
@@ -671,8 +673,17 @@ export function loadTrustedConfig(opts, deps = defaultTrustedConfigDeps) {
             warnings.push(`[bridgebuilder] bridgebuilder.exit_on_degraded: invalid value ${JSON.stringify(view.exit)} (expected an integer 0..125) — using ${DEFAULT_EXIT_ON_DEGRADED}`);
         }
     }
+    // cycle-133 C-2: bridgebuilder.writer_role_allowlist (a list of route names; anything else → the default, warned)
+    let writerRoleAllowlist;
+    if (view.writer !== null && view.writer !== undefined) {
+        if (Array.isArray(view.writer) && view.writer.every((w) => typeof w === "string"))
+            writerRoleAllowlist = [...view.writer];
+        else
+            warnings.push(`[bridgebuilder] bridgebuilder.writer_role_allowlist: invalid value ${JSON.stringify(view.writer)} (expected a list of route names) — using the default`);
+    }
     return {
         mode, source, ...(ref ? { ref } : {}), providers, headOnlyRefused, locality, exitOnDegraded, warnings,
+        ...(writerRoleAllowlist ? { writerRoleAllowlist } : {}),
         aliases: stringAliases(view.aliases), headDrift,
     };
 }
@@ -1003,6 +1014,19 @@ export function agyGateStartupLines(gate, keyStatus) {
     }
     return lines;
 }
+/**
+ * cycle-133 C-1 (FR-1): exclude patterns every review applies before any patch is retained (prepended to
+ * `bridgebuilder.exclude_patterns` and `--exclude`). Frozen review-PR fixtures and ablation grade trees are data, not
+ * code under review; they made PR #1289's payload unreadable (KF-054). They apply under self-review too.
+ */
+export const DEFAULT_EXCLUDE_PATTERNS = Object.freeze([
+    "evals/fixtures/review-prs/**",
+    "grimoires/loa/reports/ablation-2.0/*-grades/**",
+]);
+/** cycle-133 C-1: bounds for `bridgebuilder.gh_max_buffer_bytes` (default 64 MiB; 1 MiB … 512 MiB). */
+export const GH_MAX_BUFFER_BYTES_DEFAULT = 64 * 1024 * 1024;
+const GH_MAX_BUFFER_BYTES_MIN = 1024 * 1024;
+const GH_MAX_BUFFER_BYTES_MAX = 512 * 1024 * 1024;
 /** Built-in defaults per PRD FR-4 (lowest priority). */
 const DEFAULTS = {
     repos: [],
@@ -1197,6 +1221,9 @@ export async function loadYamlConfig() {
                 case "max_diff_bytes":
                     config.max_diff_bytes = Number(value);
                     break;
+                case "gh_max_buffer_bytes":
+                    config.gh_max_buffer_bytes = Number(value);
+                    break;
                 case "max_input_tokens":
                     config.max_input_tokens = Number(value);
                     break;
@@ -1376,9 +1403,11 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
             (env.BRIDGEBUILDER_DRY_RUN === "true" ? true : undefined) ??
             DEFAULTS.dryRun,
         excludePatterns: [
+            ...DEFAULT_EXCLUDE_PATTERNS,
             ...(yaml.exclude_patterns ?? []),
             ...(cliArgs.exclude ?? []),
         ],
+        ghMaxBufferBytes: resolveGhMaxBufferBytes(yaml.gh_max_buffer_bytes),
         sanitizerMode: yaml.sanitizer_mode ?? DEFAULTS.sanitizerMode,
         maxRuntimeMinutes: yaml.max_runtime_minutes ?? DEFAULTS.maxRuntimeMinutes,
         ...(cliArgs.pr != null ? { targetPr: cliArgs.pr } : {}),
@@ -1421,6 +1450,19 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
         reviewMode: reviewModeSource,
     };
     return { config, provenance };
+}
+/**
+ * cycle-133 C-1: `bridgebuilder.gh_max_buffer_bytes` — an integer in 1 MiB … 512 MiB, else the default with a warning
+ * (a configured buffer bounds memory per call; it is never unbounded).
+ */
+export function resolveGhMaxBufferBytes(raw) {
+    if (raw === undefined)
+        return GH_MAX_BUFFER_BYTES_DEFAULT;
+    if (Number.isInteger(raw) && raw >= GH_MAX_BUFFER_BYTES_MIN && raw <= GH_MAX_BUFFER_BYTES_MAX)
+        return raw;
+    process.stderr.write(`[bridgebuilder] WARN: bridgebuilder.gh_max_buffer_bytes: invalid value ${JSON.stringify(raw)} ` +
+        `(expected an integer ${GH_MAX_BUFFER_BYTES_MIN}..${GH_MAX_BUFFER_BYTES_MAX}) — using ${GH_MAX_BUFFER_BYTES_DEFAULT}\n`);
+    return GH_MAX_BUFFER_BYTES_DEFAULT;
 }
 /**
  * Validate --pr flag: requires exactly one repo (IMP-008).

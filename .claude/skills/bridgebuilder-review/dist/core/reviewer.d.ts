@@ -44,6 +44,8 @@ export declare class ReviewPipeline {
     run(runId: string): Promise<RunSummary>;
     private processItem;
     private classifyError;
+    /** cycle-133 C-1: nothing could be fetched for review; post the coverage notice and report the degradation. */
+    private degradedFetchResult;
     private skipResult;
     private errorResult;
     /**

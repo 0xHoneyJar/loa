@@ -1,6 +1,0 @@
-# NOTES
-
-## Session Continuity
-
-- 2026-10-21 /review-sprint sprint-1 (review-r15): CHANGES_REQUIRED, 1 HIGH. Feedback at grimoires/loa/a2a/sprint-1/engineer-feedback.md. Key: head/.claude/adapters/cheval.py:2544-2553 hard-aborts on ConfigError; AgyOptInRequiredError (types.py:503) is a ConfigError; no gated-hop skip in cheval. Dissent envelope: a2a/sprint-1/adversarial-review.json (sole voice claude-headless, 5 findings, 0 rejected).
-- 2026-10-21 /audit-sprint sprint-1 (review-r15): CHANGES_REQUIRED, 0 critical / 1 high / 3 medium / 15 low, excluded_confirmed 0. Feedback at grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md; findings at grimoires/loa/a2a/audits/2026-10-21/findings.jsonl. HIGH confirmed independently (cheval.py:2544-2553 hard-abort on the ConfigError subclass). Audit-originated LOWs: tools/ceiling-probe-live.py:467 raw host_route/cli_model in a catalog YAML comment; :217 probe passes full env (adapter strips). Dissent envelope a2a/sprint-1/adversarial-audit.json: sole voice claude-headless, 2 findings (DISS-C-002 refuted), 0 rejected → DEGRADED_SECURITY_REVIEW noted. Prerequisite deviation: review was not 'All good'; audit ran per task brief. No COMPLETED marker. Tests could not run against head (workspace tree is neither base nor head). br not installed.

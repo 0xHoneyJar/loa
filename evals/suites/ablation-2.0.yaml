@@ -43,6 +43,16 @@
 # mount_cheval_ok (cycle-132 bd-56nn6): on every mounted arm whose gates run a dissent;
 #   pipeline-run.sh probes the sandbox's loa_cheval import before the first phase and refuses a
 #   broken mount on such an arm (KF-050).
+# refusal_policy (cycle-133 SDD C-8, PRD FR-8, bd-r9abp): exclude | keep | rerun-once per arm; absent = exclude
+#   (no arm sets it: every arm runs exclude, cycle-132's behaviour). What a row whose session fell back to another
+#   model on a safeguard refusal (KF-051) counts as: exclude — the row is invalid and leaves the denominator; keep —
+#   the row is valid, flagged and counted; rerun-once — the trial is relaunched once at the same plan index (both
+#   attempts kept and charged) and the second attempt's row is the cell when it has no fallback, else the cell is
+#   invalid. run-ablation.sh refuses another value, and any policy but exclude on a bare_sessions: matched arm, at
+#   pre-flight (exit 2) and records the policy per arm in MANIFEST.json refusal_policy before execution; ablation-row.sh
+#   (row writer 1.6) writes refusal_policy_applied, attempt, refusal_attempts, refusal_outcome, refusal_denominator
+#   and refusal_flagged, and --refusal-rate flags an arm whose refusal_rate is above 0.2. evals/harness/README.md
+#   § Refusal policy.
 # =============================================================================
 name: ablation-2.0
 version: 1
@@ -124,7 +134,29 @@ arms:
   - {id: a8_no_ceremonies, label: A8, absent: true,
      evidence: "no /meeting command, skill or sosyete config key at 4d69c3c4 (grep -rli sosyete .claude/ docs/; ls .claude/commands .claude/skills)"}
 
+# cycle-133 FR-9 (SDD C-9; D-2.5 DEC-0854): the network of each arm's sandbox. blocked = the batch's egress block
+# (lib/egress-proxy.sh: internal network, DNS sinkholed, the tinyproxy sidecar with the egress_hosts[] allowlist
+# of .claude/defaults/model-config.yaml); bridge = the docker bridge, allowed only as a factor the batch records.
+# Resolution: arms[].egress, else egress.arms.<id>, else egress.default, else blocked. Recorded in MANIFEST.json
+# `egress` and each run's meta/egress.jsonl. The open-mount control keeps blocked.
+egress:
+  default: blocked
+  arms: {a0_bare: blocked, a1_full: blocked, a2_no_sprint_plan: blocked, a3_one_voice: blocked, a4_no_gates: blocked,
+         a5_no_flatline: blocked, a6_one_window: blocked, a7_effort_medium: blocked, a0_bare_fable: blocked,
+         a1_review_only: blocked, a1_no_dissent: blocked, a1_full_openmount: blocked, a0_bare_matched: blocked,
+         a0_bare_fable_matched: blocked, a8_no_ceremonies: blocked}
+
+# mount_mode (cycle-133 C-10, PRD FR-10; additive, the default unchanged): how a mounted review-catch arm's sandbox holds
+# the framework. pinned-root = the cycle-132 mount (the pinned framework at the workspace root; PREREGISTRATION §12
+# addendum 9). home-scope = the pinned framework under the session's HOME (user scope), the PR's changed framework paths
+# at the root as data, the executable and prompt surface only under pr/head/; took-effect oracle_closed then adds
+# clauses (e)-(g). Resolution: arms[].mount_mode, else mount_mode.default, else pinned-root. pipeline-run.sh refuses
+# home-scope until its launch path lands (after the Sprint 274 scope spike, D-3.6).
+mount_mode:
+  default: pinned-root
+
 rules:   # D-A5: pre-registered, mirrored in NOTES
+
   threshold_points: 0.03
   cost_lower_pct: 15
   bootstrap: {resamples: 10000, level: 0.90, paired: true, units: {hidden_test_pass_rate: tasks, defect_catch_rate: defects}, also_report: {defect_catch_rate: tasks}}   # DEC-0399

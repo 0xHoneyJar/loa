@@ -1,0 +1,27 @@
+{
+  "description": "a HIGH with a scenario of at least 12 tokens",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "anchor_line": 41,
+      "blocking": false,
+      "confidence": "medium",
+      "failure_scenario": "the second request reads the cached token after it expired and the API accepts it for an hour",
+      "file": "src/auth/token.py",
+      "id": "F-e5a42a",
+      "severity": "HIGH",
+      "title": "expired token accepted"
+    },
+    "valid": true,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 41,
+    "confidence": "medium",
+    "failure_scenario": "the second request reads the cached token after it expired and the API accepts it for an hour",
+    "file": "src/auth/token.py",
+    "severity": "HIGH",
+    "title": "expired token accepted"
+  },
+  "markdown": "- **HIGH** (confidence: medium) `src/auth/token.py:41` — expired token accepted. Failure: the second request reads the cached token after it expired and the API accepts it for an hour."
+}

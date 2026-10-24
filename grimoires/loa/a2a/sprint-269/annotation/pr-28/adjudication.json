@@ -1,6 +1,0 @@
-{
-  "H02": {"verdict": "defect", "group": "D2", "file": "evals/harness/ablation-report.py", "anchor_lines": [1927, 1928, 1929, 1930, 1931, 1932],
-          "description": "The report silently drops eval-only arms from the component count without disclosing which arms were excluded or how many rows they carried.",
-          "severity": "low", "category": "contract",
-          "reason": "anchors: union (insertion after 1927; B's 1930–1932 are the lines that drop the arms without disclosure, inside the context 1916–1939); verdict, group, severity, category agreed"}
-}

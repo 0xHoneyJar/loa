@@ -1,0 +1,8 @@
+diff --git a/.claude/protocols/nc-guard.md b/.claude/protocols/nc-guard.md
+--- a/.claude/protocols/nc-guard.md
++++ b/.claude/protocols/nc-guard.md
+@@ -7,3 +7,3 @@
+ 1. Read the request.
+-2. Check the spend against the budget.
++2. When the budget flag is unset the guard silently skips the spend check entirely.
+ 3. Record the outcome.

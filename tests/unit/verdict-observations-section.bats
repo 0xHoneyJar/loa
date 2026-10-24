@@ -37,7 +37,7 @@ trailer() {  # trailer <gate> <verdict> <c> <h> <m> <l> [extra-json-fields]
 }
 
 @test "VO-1 All good + three medium/low items under ## Observations + APPROVED 0/0 ⇒ consistent" {
-    { printf 'All good\n\n## Overall Assessment\n\nFine.\n\n## Observations\n\n- **MEDIUM** `src/a.py:10` — retry loop has no jitter (confidence: high)\n- **LOW** `src/b.py:4` — naming (confidence: medium)\n- **MEDIUM** `src/c.py:9` — log level (confidence: low)\n\n'; trailer review APPROVED 0 0 2 1; } > "$T/r.md"
+    { printf 'All good\n\n## Overall Assessment\n\nFine.\n\n## Observations\n\n- **MEDIUM** (confidence: high) `src/a.py:10` — retry loop has no jitter. Failure: when two workers flush the same queue then one batch is written twice.\n- **LOW** (confidence: medium) `src/b.py:4` — naming. Failure: when two workers flush the same queue then one batch is written twice.\n- **MEDIUM** (confidence: low) `src/c.py:9` — log level. Failure: when two workers flush the same queue then one batch is written twice.\n\n'; trailer review APPROVED 0 0 2 1; } > "$T/r.md"
     run "$SCRIPT" --file "$T/r.md" --gate review --json
     [ "$status" -eq 0 ]
     [ "$(echo "$output" | jq -r '.consistent')" = "true" ]
@@ -45,53 +45,53 @@ trailer() {  # trailer <gate> <verdict> <c> <h> <m> <l> [extra-json-fields]
 }
 
 @test "VO-2 the same items under ## Findings on an APPROVED file ⇒ violation" {
-    { printf 'All good\n\n## Findings\n\n- **MEDIUM** `src/a.py:10` — retry loop has no jitter\n\n'; trailer review APPROVED 0 0 1 0; } > "$T/r.md"
+    { printf 'All good\n\n## Findings\n\n- **MEDIUM** (confidence: medium) `src/a.py:10` — retry loop has no jitter. Failure: when two workers flush the same queue then one batch is written twice.\n\n'; trailer review APPROVED 0 0 1 0; } > "$T/r.md"
     run "$SCRIPT" --file "$T/r.md" --gate review
     [ "$status" -eq 1 ]
     [[ "$output" == *"## Findings"* ]]
 }
 
 @test "VO-3 a CRITICAL with confidence: low and no speculative marker still forces CHANGES_REQUIRED" {
-    { printf '## Changes Required\n\n- **CRITICAL** `src/auth.py:33` — token check bypass (confidence: low)\n\n'; trailer review CHANGES_REQUIRED 1 0 0 0; } > "$T/r.md"
+    { printf '## Changes Required\n\n- **CRITICAL** (confidence: low) `src/auth.py:33` — token check bypass. Failure: when two workers flush the same queue then one batch is written twice.\n\n'; trailer review CHANGES_REQUIRED 1 0 0 0; } > "$T/r.md"
     run "$SCRIPT" --file "$T/r.md" --gate review --json
     [ "$status" -eq 0 ]
-    { printf 'All good\n\n## Changes Required\n\n- **CRITICAL** `src/auth.py:33` — token check bypass (confidence: low)\n\n'; trailer review APPROVED 0 0 0 0; } > "$T/r.md"
+    { printf 'All good\n\n## Changes Required\n\n- **CRITICAL** (confidence: low) `src/auth.py:33` — token check bypass. Failure: when two workers flush the same queue then one batch is written twice.\n\n'; trailer review APPROVED 0 0 0 0; } > "$T/r.md"
     run "$SCRIPT" --file "$T/r.md" --gate review
     [ "$status" -eq 1 ]
 }
 
 @test "VO-4 a speculative, confidence: low HIGH under ## Observations is excluded and the trailer says excluded: 1" {
-    { printf 'All good\n\n## Observations\n\n- **HIGH** (speculative, confidence: low) `src/q.py:80` — might race under load\n\n'; trailer review APPROVED 0 0 0 0 ',"excluded":1'; } > "$T/r.md"
+    { printf 'All good\n\n## Observations\n\n- **HIGH** (speculative, confidence: low) `src/q.py:80` — might race under load. Failure: when two workers flush the same queue then one batch is written twice.\n\n'; trailer review APPROVED 0 0 0 0 ',"excluded":1'; } > "$T/r.md"
     run "$SCRIPT" --file "$T/r.md" --gate review --json
     [ "$status" -eq 0 ]
     # the warning line precedes the JSON object in the merged output
     [ "$(echo "$output" | sed -n '/^{/,$p' | jq -r '.excluded')" = "1" ]
     [ "$(echo "$output" | sed -n '/^{/,$p' | jq -r '.consistent')" = "true" ]
     # the same file without the trailer field: the demotion is invisible ⇒ violation
-    { printf 'All good\n\n## Observations\n\n- **HIGH** (speculative, confidence: low) `src/q.py:80` — might race under load\n\n'; trailer review APPROVED 0 0 0 0; } > "$T/r.md"
+    { printf 'All good\n\n## Observations\n\n- **HIGH** (speculative, confidence: low) `src/q.py:80` — might race under load. Failure: when two workers flush the same queue then one batch is written twice.\n\n'; trailer review APPROVED 0 0 0 0; } > "$T/r.md"
     run "$SCRIPT" --file "$T/r.md" --gate review
     [ "$status" -eq 1 ]
     [[ "$output" == *"excluded"* ]]
 }
 
 @test "VO-5 a speculative CRITICAL under ## Observations is a violation (critical is never excludable)" {
-    { printf 'All good\n\n## Observations\n\n- **CRITICAL** (speculative, confidence: low) `src/q.py:80` — key material in logs\n\n'; trailer review APPROVED 0 0 0 0 ',"excluded":1'; } > "$T/r.md"
+    { printf 'All good\n\n## Observations\n\n- **CRITICAL** (speculative, confidence: low) `src/q.py:80` — key material in logs. Failure: when two workers flush the same queue then one batch is written twice.\n\n'; trailer review APPROVED 0 0 0 0 ',"excluded":1'; } > "$T/r.md"
     run "$SCRIPT" --file "$T/r.md" --gate review
     [ "$status" -eq 1 ]
     [[ "$output" == *"critical"* ]]
 }
 
 @test "VO-6 a HIGH under ## Observations without BOTH markers is a violation (confidence never demotes)" {
-    { printf 'All good\n\n## Observations\n\n- **HIGH** (confidence: low) `src/q.py:80` — might race\n\n'; trailer review APPROVED 0 0 0 0 ',"excluded":1'; } > "$T/r.md"
+    { printf 'All good\n\n## Observations\n\n- **HIGH** (confidence: low) `src/q.py:80` — might race. Failure: when two workers flush the same queue then one batch is written twice.\n\n'; trailer review APPROVED 0 0 0 0 ',"excluded":1'; } > "$T/r.md"
     run "$SCRIPT" --file "$T/r.md" --gate review
     [ "$status" -eq 1 ]
-    { printf 'All good\n\n## Observations\n\n- **HIGH** (speculative, confidence: medium) `src/q.py:80` — might race\n\n'; trailer review APPROVED 0 0 0 0 ',"excluded":1'; } > "$T/r.md"
+    { printf 'All good\n\n## Observations\n\n- **HIGH** (speculative, confidence: medium) `src/q.py:80` — might race. Failure: when two workers flush the same queue then one batch is written twice.\n\n'; trailer review APPROVED 0 0 0 0 ',"excluded":1'; } > "$T/r.md"
     run "$SCRIPT" --file "$T/r.md" --gate review
     [ "$status" -eq 1 ]
 }
 
 @test "VO-7 APPROVED with excluded > 0 is consistent but warns" {
-    { printf 'All good\n\n## Observations\n\n- **HIGH** (speculative, confidence: low) `src/q.py:80` — might race\n\n'; trailer review APPROVED 0 0 0 0 ',"excluded":1'; } > "$T/r.md"
+    { printf 'All good\n\n## Observations\n\n- **HIGH** (speculative, confidence: low) `src/q.py:80` — might race. Failure: when two workers flush the same queue then one batch is written twice.\n\n'; trailer review APPROVED 0 0 0 0 ',"excluded":1'; } > "$T/r.md"
     run "$SCRIPT" --file "$T/r.md" --gate review --json
     [ "$status" -eq 0 ]
     [ "$(echo "$output" | sed -n '/^{/,$p' | jq -r '.warnings | length')" -ge 1 ]
@@ -99,7 +99,7 @@ trailer() {  # trailer <gate> <verdict> <c> <h> <m> <l> [extra-json-fields]
 }
 
 @test "VO-8 audit cross-check: excluded_confirmed must equal the review's excluded" {
-    { printf 'All good\n\n## Observations\n\n- **HIGH** (speculative, confidence: low) `src/q.py:80` — might race\n\n'; trailer review APPROVED 0 0 0 0 ',"excluded":1'; } > "$T/r.md"
+    { printf 'All good\n\n## Observations\n\n- **HIGH** (speculative, confidence: low) `src/q.py:80` — might race. Failure: when two workers flush the same queue then one batch is written twice.\n\n'; trailer review APPROVED 0 0 0 0 ',"excluded":1'; } > "$T/r.md"
     { printf '# Audit\n\nAPPROVED - LET'"'"'S FUCKING GO\n\n'; trailer audit APPROVED 0 0 0 0 ',"excluded_confirmed":1'; } > "$T/a.md"
     run "$SCRIPT" --file "$T/a.md" --gate audit --review-file "$T/r.md" --json
     [ "$status" -eq 0 ]
@@ -132,7 +132,7 @@ trailer() {  # trailer <gate> <verdict> <c> <h> <m> <l> [extra-json-fields]
 }
 
 @test "VO-10 a HIGH with confidence: medium under ## Changes Required is simply counted (no demotion path)" {
-    { printf '## Changes Required\n\n- **HIGH** (confidence: medium) `src/q.py:80` — unbounded retry\n\n## Observations\n\n- **LOW** `src/z.py:1` — nit\n\n'; trailer review CHANGES_REQUIRED 0 1 0 1; } > "$T/r.md"
+    { printf '## Changes Required\n\n- **HIGH** (confidence: medium) `src/q.py:80` — unbounded retry. Failure: when two workers flush the same queue then one batch is written twice.\n\n## Observations\n\n- **LOW** (confidence: medium) `src/z.py:1` — nit. Failure: when two workers flush the same queue then one batch is written twice.\n\n'; trailer review CHANGES_REQUIRED 0 1 0 1; } > "$T/r.md"
     run "$SCRIPT" --file "$T/r.md" --gate review --json
     [ "$status" -eq 0 ]
     [ "$(echo "$output" | jq -r '.excluded')" = "0" ]

@@ -1,9 +1,0 @@
-head/.claude/scripts/check-permissions.sh:164
-head/docs/migration/v2.0-model-generation-floor.md:258
-check-permissions.sh:164
-head/evals/graders/recall-vs-defects.sh:73
-c.sh:100
-c.sh:7
-head/.claude/scripts/model-adapter.sh:656
-head/.claude/hooks/compliance/implement-gate.sh:45
-head/.claude/defaults/model-config.yaml:511

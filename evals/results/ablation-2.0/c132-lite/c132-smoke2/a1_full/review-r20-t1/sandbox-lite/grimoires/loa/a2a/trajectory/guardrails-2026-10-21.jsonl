@@ -1,1 +1,0 @@
-{"type":"input_guardrail","timestamp":"2026-10-21T11:16:19Z","session_id":"","skill":"auditing-security","action":"BLOCK","latency_ms":192,"checks":[{"name":"danger_level","status":"FAIL","level":"null","mode":"interactive","reason":"error"}],"input_size_bytes":0,"redacted_input":null}

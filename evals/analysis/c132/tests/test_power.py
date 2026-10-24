@@ -10,9 +10,25 @@ import tempfile
 import unittest
 
 import _path
+import synth
 from c132 import power
 
-MINI = os.path.join(_path.FIXTURES, "power-mini")
+# the frozen mini inputs (rows, suite, candidates) are committed; the head.diff fixtures are generated per run by
+# synth.power_mini_diffs (bd-qxwrm; seed recorded, byte-identity with the removed blobs pinned in
+# test_synth_power_mini.py) into a temporary copy of the mini tree
+_MINI_SRC = os.path.join(_path.FIXTURES, "power-mini")
+MINI = None
+
+
+def setUpModule():
+    global MINI
+    MINI = os.path.join(tempfile.mkdtemp(prefix="c132-power-mini-"), "power-mini")
+    shutil.copytree(_MINI_SRC, MINI)
+    synth.power_mini_diffs(os.path.join(MINI, "fixtures"), seed=synth.POWER_MINI_SEED)
+
+
+def tearDownModule():
+    shutil.rmtree(os.path.dirname(MINI), ignore_errors=True)
 
 
 def mini_args(out, *extra, seed="20261021"):

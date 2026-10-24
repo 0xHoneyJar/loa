@@ -24,6 +24,14 @@ setup() {
   unset AWS_REGION AWS_DEFAULT_REGION AWS_PROFILE AWS_BEARER_TOKEN_BEDROCK ANTHROPIC_BEDROCK_REGION_PREFIX \
         ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL OPENAI_API_KEY GH_TOKEN
   se STUB_WRITE_1 '{"hunks": {}, "incidents": {}}' labels.json
+  # the default transcript: claude-stub.sh's canned one with the usage every real assistant event carries (metering
+  # fails closed on a completed turn without usage, lib/session-exec.sh C-6); zero tokens keep the estimate at zero
+  printf '%s\n' \
+    '{"type":"assistant","message":{"id":"d1","usage":{"input_tokens":0,"output_tokens":0},"content":[{"type":"tool_use","name":"Write","input":{"file_path":"tests/test_x.py","content":"def test_x(): assert False"}}]}}' \
+    '{"type":"assistant","message":{"id":"d2","usage":{"input_tokens":0,"output_tokens":0},"content":[{"type":"tool_use","name":"Write","input":{"file_path":"src/x.py","content":"X = 1"}}]}}' \
+    '{"type":"result","subtype":"success","is_error":false,"duration_ms":1234,"num_turns":3,"result":"done","total_cost_usd":0.0123,"usage":{"input_tokens":100,"output_tokens":42}}' \
+    > "$T/default-events.jsonl"
+  se STUB_EVENTS_FILE "$T/default-events.jsonl"
   # the wrapper: record the sandbox the CLI sees and its environment, then run the stub. The session's env
   # shim keeps only the allowlist, so the stub's controls reach it through $T/stub.env, read here.
   cat > "$T/claude" <<EOF
@@ -54,7 +62,10 @@ events() {
     printf '{"type":"result","subtype":"success","is_error":false,"num_turns":3,"total_cost_usd":0.0123}\n'; } > "$f"
   unse STUB_EVENTS_FILE; se STUB_EVENTS_FILE "$f"
 }
-tu() { jq -cn --arg t "$1" --argjson i "$2" '{type: "assistant", message: {content: [{type: "tool_use", id: "x", name: $t, input: $i}]}}'; }
+# tu <tool> <input-json>: one assistant tool_use turn (message id from the content; zero-token usage)
+tu() { jq -cn --arg t "$1" --argjson i "$2" --arg id "tu-$(printf '%s %s' "$1" "$2" | cksum | cut -d' ' -f1)" \
+         '{type: "assistant", message: {id: $id, usage: {input_tokens: 0, output_tokens: 0}, content: [{type: "tool_use", id: "x", name: $t, input: $i}]}}'; }
+default_events() { unse STUB_EVENTS_FILE; se STUB_EVENTS_FILE "$T/default-events.jsonl"; }
 
 @test "BS-1 host: the sandbox holds exactly the packets; the session argv, environment and HOME; labels, transcript, cost and taint written; the session dir is removed" {
   se STUB_ARGV_FILE "$T/log/argv.txt"
@@ -129,8 +140,8 @@ tu() { jq -cn --arg t "$1" --argjson i "$2" '{type: "assistant", message: {conte
   cat > "$T/obey" <<EOF
 #!/usr/bin/env bash
 if grep -q 'read /workspace/../labels' hunks.md; then
-  jq -cn --arg p "\$PWD/../labels/pr-17.tsv" '{type: "assistant", message: {content: [{type: "tool_use", id: "a1", name: "Read", input: {file_path: \$p}}]}}' > "$T/adv.jsonl"
-  jq -cn '{type: "assistant", message: {content: [{type: "tool_use", id: "a2", name: "Bash", input: {command: "cat ~/.aws/credentials"}}]}}' >> "$T/adv.jsonl"
+  jq -cn --arg p "\$PWD/../labels/pr-17.tsv" '{type: "assistant", message: {id: "m1", usage: {input_tokens: 0, output_tokens: 0}, content: [{type: "tool_use", id: "a1", name: "Read", input: {file_path: \$p}}]}}' > "$T/adv.jsonl"
+  jq -cn '{type: "assistant", message: {id: "m2", usage: {input_tokens: 0, output_tokens: 0}, content: [{type: "tool_use", id: "a2", name: "Bash", input: {command: "cat ~/.aws/credentials"}}]}}' >> "$T/adv.jsonl"
   printf '{"type":"result","subtype":"success","is_error":false,"num_turns":2,"total_cost_usd":0.01}\n' >> "$T/adv.jsonl"
   printf 'export STUB_EVENTS_FILE=%s\n' "$T/adv.jsonl" >> "$T/stub.env"
 fi
@@ -219,9 +230,9 @@ EOF
   [ "$(jq -r '.status' "$T/out/session.json")" = cap_failure ]
 }
 
-@test "BS-8 lib/session-exec.sh carries pipeline-run.sh's shim, pass-through and secret keys and pricing functions verbatim" {
-  run python3 -I - "$REPO_ROOT/evals/harness/pipeline-run.sh" "$REPO_ROOT/evals/harness/lib/session-exec.sh" <<'PY'
-import sys
+@test "BS-8 one copy of the session mechanics: pipeline-run.sh and blind-session.sh source lib/session-exec.sh by its literal path; an inline copy (a revert) must equal the lib verbatim (drift guard, kept until Task 3.6)" {
+  run python3 -I - "$REPO_ROOT/evals/harness/lib/session-exec.sh" "$REPO_ROOT/evals/harness/pipeline-run.sh" "$REPO_ROOT/evals/harness/blind-session.sh" <<'PY'
+import re, sys
 def blocks(path):
     lines = open(path, encoding="utf-8").read().splitlines(keepends=True)
     out = {}
@@ -239,9 +250,17 @@ def blocks(path):
     grab("price_for", lambda l: l.startswith("price_for() {"), lambda l: l == "}\n")
     grab("price_events", lambda l: l.startswith("price_events() {"), lambda l: l == "}\n")
     return out
-a, b = blocks(sys.argv[1]), blocks(sys.argv[2])
-bad = [k for k in ("ENV_SHIM", "PASS_KEYS", "SECRET_KEYS", "price_for", "price_events") if k not in a or a.get(k) != b.get(k)]
-print("drift: " + ",".join(bad) if bad else "parity ok")
+NAMES = ("ENV_SHIM", "PASS_KEYS", "SECRET_KEYS", "price_for", "price_events")
+lib = blocks(sys.argv[1])
+bad = [k for k in NAMES if k not in lib]
+for caller in sys.argv[2:]:
+    text = open(caller, encoding="utf-8").read()
+    if not re.search(r"^source \./lib/session-exec\.sh\b", text, re.M):
+        bad.append(caller + ": no literal `source ./lib/session-exec.sh`")
+    copy = blocks(caller)
+    bad += [caller + ": drift " + k for k in NAMES if k in copy and copy[k] != lib[k]]
+    bad += [caller + ": inline copy " + k for k in NAMES if k in copy]
+print("\n".join(bad) if bad else "one copy ok")
 sys.exit(1 if bad else 0)
 PY
   echo "$output"
@@ -288,7 +307,7 @@ rid() { printf '%s%s' "$1" "$2" | python3 -I -c 'import hashlib, sys; print("bli
   [ "$(jq -sr 'map("\(.out | sub(".*/"; "")):\(.status):\(.cost_usd)") | join(" ")' "$R")" = "out:completed:0.0123 out-f:failed:0.0123 out-t:tainted:0.0123" ]
   [ "$(jq -sr 'map(.run_id) | unique | length' "$R")" = 3 ]
   # no flag: the outputs are the usual set and nothing else is written
-  unse STUB_EVENTS_FILE
+  default_events
   OUTD="$T/out-n" host
   [ "$status" -eq 0 ]
   [ "$(ls "$T/out-n" | tr '\n' ,)" = "cost.json,labels.json,prompt.md,sandbox.sha256,session.json,stderr.log,taint.json,transcript.jsonl," ]
@@ -302,7 +321,7 @@ rid() { printf '%s%s' "$1" "$2" | python3 -I -c 'import hashlib, sys; print("bli
   ( cd "$T" && LOA_EVAL_ALLOW_HOST_SESSION=1 "$BS" --packets pk --prompt prompt.md --model m-test --out out-c \
       --executor host --claude-bin "$T/slow" --spend-row rel/rows.jsonl ) || true
   [ "$(jq -r '"\(.status) \(.cap_hit) \(.cost_usd)"' "$T/rel/rows.jsonl")" = "cap_hit true 20" ]
-  unse STUB_EVENTS_FILE
+  default_events
   local R="$T/par.jsonl"
   LOA_EVAL_ALLOW_HOST_SESSION=1 "$BS" --packets "$T/pk" --prompt "$T/prompt.md" --model m-test --out "$T/p1" --executor host --claude-bin "$T/claude" --spend-row "$R" >/dev/null &
   LOA_EVAL_ALLOW_HOST_SESSION=1 "$BS" --packets "$T/pk" --prompt "$T/prompt.md" --model m-test --out "$T/p2" --executor host --claude-bin "$T/claude" --spend-row "$R" >/dev/null &
@@ -312,4 +331,79 @@ rid() { printf '%s%s' "$1" "$2" | python3 -I -c 'import hashlib, sys; print("bli
   OUTD="$T/bad" host --model 'bad model' --spend-row "$T/none.jsonl"
   [ "$status" -eq 2 ]
   [ ! -e "$T/none.jsonl" ]
+}
+
+# --- cycle-133 Task 2.1 (SDD C-6): metering fails closed ------------------------------------------------------------
+
+@test "BS-12 no valid price for --model refuses the launch (exit 2) before any write and without a model call: unknown id, malformed table, negative or null price; a zero price launches" {
+  local R="$T/rows.jsonl" tbl
+  for tbl in '{"other": {"input_per_mtok": 1, "output_per_mtok": 1}}' '{"m-test": {"input_per_mtok": 1,' \
+             '{"m-test": {"input_per_mtok": -1, "output_per_mtok": 1}}' '{"m-test": {"input_per_mtok": null, "output_per_mtok": 1}}'; do
+    LOA_EVAL_PRICING_JSON="$tbl" OUTD="$T/r" host --spend-row "$R"
+    echo "$tbl → $status $output"
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"metering_incomplete: no valid price for model m-test"* ]]
+    [ ! -e "$T/log/sandbox.txt" ]          # the CLI never ran
+    [ ! -e "$T/r" ]                        # nothing written
+    [ ! -e "$R" ]
+    [ -z "$(ls -A "$T/tmp")" ]
+  done
+  LOA_EVAL_PRICING_JSON='{"m-test": {"input_per_mtok": 0, "output_per_mtok": 0}}' host
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '"\(.metering) \(.watchdog)"' "$T/out/cost.json")" = "metered true" ]
+}
+
+@test "BS-13 a completed turn without usage stops the live session (metering_incomplete, exit 1): the watchdog kills it before the CLI finishes; cost.json and the spend row say metering incomplete" {
+  printf '%s\n' '{"type":"system","subtype":"init","session_id":"s1"}' \
+    '{"type":"assistant","message":{"id":"a","content":[{"type":"text","text":"x"}]}}' \
+    '{"type":"assistant","message":{"id":"b","usage":{"input_tokens":0,"output_tokens":0},"content":[]}}' > "$T/nu.jsonl"
+  se STUB_EVENTS_FILE "$T/nu.jsonl"
+  printf '#!/usr/bin/env bash\n"%s" "$@"\nsleep 20\necho never >> "%s/log/after.txt"\n' "$T/claude" "$T" > "$T/slow"; chmod +x "$T/slow"
+  local t0; t0="$(date +%s)"
+  host --claude-bin "$T/slow" --spend-row "$T/rows.jsonl"
+  echo "$output"
+  [ "$status" -eq 1 ]
+  [ $(( $(date +%s) - t0 )) -lt 15 ]
+  [ ! -e "$T/log/after.txt" ]
+  [[ "$output" == *"metering_incomplete"* ]]
+  [ "$(jq -r '.status' "$T/out/session.json")" = metering_incomplete ]
+  [ "$(jq -r '.metering' "$T/out/cost.json")" = incomplete ]
+  [ "$(jq -r '"\(.status) \(.metering)"' "$T/rows.jsonl")" = "failed incomplete" ]
+}
+
+@test "BS-14 an attempt that started but produced no usage event and no result cost is an unmetered_attempt (cost.json, spend row), never zero spend" {
+  printf '%s\n' '{"type":"system","subtype":"init","session_id":"s1"}' > "$T/init.jsonl"
+  se STUB_EVENTS_FILE "$T/init.jsonl"; se STUB_EXIT 1
+  host --spend-row "$T/rows.jsonl"
+  [ "$status" -eq 1 ]
+  [ "$(jq -r '"\(.metering) \(.cost_source) \(.total_cost_usd) \(.result_cost_usd)"' "$T/out/cost.json")" = "unmetered_attempt cap_unmetered 6 null" ]
+  [ "$(jq -r '"\(.status) \(.metering) \(.cost_usd)"' "$T/rows.jsonl")" = "unmetered_attempt unmetered_attempt 6" ]
+  # a metered session is not
+  unse STUB_EXIT; default_events
+  OUTD="$T/o2" host --spend-row "$T/rows.jsonl"
+  [ "$status" -eq 0 ]
+  [ "$(jq -sr '.[1].metering' "$T/rows.jsonl")" = metered ]
+}
+
+@test "BS-15 a secret-shaped pass-through key outside SECRET_KEYS refuses the launch (exit 2, startup assertion), no model call" {
+  mkdir -p "$T/h/lib"
+  cp "$BS" "$T/h/"
+  sed 's/^PASS_KEYS="AWS_REGION /PASS_KEYS="OPENAI_API_KEY AWS_REGION /' "$REPO_ROOT/evals/harness/lib/session-exec.sh" > "$T/h/lib/session-exec.sh"
+  grep -q '^PASS_KEYS="OPENAI_API_KEY ' "$T/h/lib/session-exec.sh"
+  LOA_EVAL_ALLOW_HOST_SESSION=1 run "$T/h/blind-session.sh" --packets "$T/pk" --prompt "$T/prompt.md" --model m-test --out "$T/out" --executor host --claude-bin "$T/claude"
+  echo "$output"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"OPENAI_API_KEY"* ]]
+  [ ! -e "$T/log/sandbox.txt" ]
+}
+
+@test "BS-16 (review r1 DISS-001) an unmetered attempt is an accounting failure even when the CLI exits 0 with labels written: status unmetered_attempt, exit 1, charged at the cap (cost_source cap_unmetered), never zero" {
+  printf '%s\n' '{"type":"system","subtype":"init","session_id":"s1"}' > "$T/init.jsonl"
+  se STUB_EVENTS_FILE "$T/init.jsonl"
+  host --spend-row "$T/rows.jsonl" --max-usd 4
+  echo "$output"
+  [ "$status" -eq 1 ]
+  [ "$(jq -r '"\(.status) \(.exit)"' "$T/out/session.json")" = "unmetered_attempt 1" ]
+  [ "$(jq -r '"\(.cost_source) \(.total_cost_usd) \(.result_cost_usd) \(.cap_usd) \(.metering)"' "$T/out/cost.json")" = "cap_unmetered 4 null 4 unmetered_attempt" ]
+  [ "$(jq -r '"\(.status) \(.cost_usd) \(.cost_source) \(.metering)"' "$T/rows.jsonl")" = "unmetered_attempt 4 cap_unmetered unmetered_attempt" ]
 }

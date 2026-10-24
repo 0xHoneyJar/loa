@@ -11,6 +11,9 @@ The `release-candidate-<merge SHA>` Actions artifact contains:
 - `post-merge-candidate.json`: version classification evidence, origin, target,
   release body, notification body, and preparation state.
 - `post-merge-candidate.patch`: changes made after the merge commit.
+- `post-merge-ledger.patch`: (cycle merges, candidate schema 2) the ONE text
+  diff of `grimoires/loa/ledger.json` that archives the merged cycle; the
+  candidate seals its sha256 and the deterministic ledger commit id.
 - `post-merge-candidate.bundle`: Git objects needed to inspect the target.
 - `post-merge-candidate.sha256`: digest of the exact candidate JSON.
 - `post-merge-state.json`: phase results.
@@ -27,13 +30,44 @@ out the candidate's exact `target_commit`. Restore the candidate JSON beneath
 and its single effective push URL must match `remote_push_url`.
 Neither fetching the bundle nor creating a local branch publishes a release.
 
-After approving the inspected bytes, run from that exact checkout:
+After approving the inspected bytes, run from that exact checkout — a FULL
+(non-shallow) clone whose HEAD is the merge commit, the candidate's
+`generated_head` or the sealed ledger commit `new`, with
+`post-merge-ledger.patch` restored beside the candidate under `.run/`:
 
 ```bash
 .claude/scripts/post-merge-orchestrator.sh \
   --publish .run/post-merge-candidate.json \
   --approve-sha256 <approved-candidate-sha256>
+# exit 0 published; 1 failed mid-run (read the state receipt); 2 refused at
+# preflight (digest, mutation, ancestry, conflicting tag, v1 candidate);
+# 3 published tag + release, ledger fast-forward DEFERRED (main moved):
+.claude/scripts/post-merge-orchestrator.sh \
+  --publish .run/post-merge-candidate.json \
+  --approve-sha256 <approved-candidate-sha256> --ledger-only
 ```
+
+Candidate schema 2 (cycle-133 Sprint 272, sdd.md C-3) seals
+`target_commit = merge_sha`, the target tree, `main_ref`, the release title and
+notes digest, the ledger patch digest and `ref_updates[{ref, expected_old:
+merge, new}]`; the candidate file is its own RFC 8785 form and the digest is
+the SHA-256 of its bytes. The tag is created ON THE MERGE COMMIT and the
+publisher verifies, on a fresh fetch of the push URL's `main`, that the merge
+is an ancestor — at preflight (exit 2) and again before the tag, release,
+ledger and notify steps (exit 1) — so a published tag is always reachable
+from `main` (the rc.6/rc.7 defect: tags on a generated commit nobody merged).
+An existing tag is accepted only if it is annotated on the merge with the
+subject `Release <tag>`; any other tag of that name refuses (exit 2). The
+ledger fast-forward pushes the sealed commit with
+`--force-with-lease=refs/heads/main:<observed>` only when `main` still equals
+the merge; otherwise the deferral writes `.run/post-merge-ledger-deferred.{json,patch}`
+and exits 3, and `--ledger-only` re-applies the same patch onto the
+then-current `main` under the same lease. A schema-1 candidate refuses with a
+regeneration message; `--allow-v1 "<reason>"` runs the legacy path (no
+ancestry gate) and records the reason. Generated non-ledger changes (a
+CHANGELOG fill, markers, ground truth) stay local and are sealed as
+`unpublished_paths`; they are warned about at generate and publish and ride
+the next pull request.
 
 The publisher checks the digest, checkout commit/tree, origin and push
 destination before publication. It binds every GitHub API request to the host

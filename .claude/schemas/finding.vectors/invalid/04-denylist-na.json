@@ -1,0 +1,20 @@
+{
+  "description": "a scenario of n/a",
+  "expect": {
+    "errors": [
+      "failure_scenario"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 2,
+    "confidence": "low",
+    "failure_scenario": "N/A",
+    "file": "src/a.py",
+    "severity": "LOW",
+    "title": "nit"
+  },
+  "markdown": "- **LOW** (confidence: low) `src/a.py:2` — nit. Failure: N/A."
+}

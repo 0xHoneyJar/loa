@@ -1,3 +1,0 @@
-{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"unknown","sprint_id":"sprint-260","ts":"2026-10-16T09:18:43Z","model_exit_code":0}
-{"gate":"adversarial-review:review","verdict_band":"DEGRADED","degradation_reason":"unknown","sprint_id":"sprint-260","ts":"2026-10-16T22:50:04Z","model_exit_code":0}
-{"gate":"adversarial-review:audit","verdict_band":"DEGRADED","degradation_reason":"unknown","sprint_id":"sprint-260","ts":"2026-10-16T23:05:55Z","model_exit_code":0}

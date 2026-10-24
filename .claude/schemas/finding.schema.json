@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://loa.dev/schemas/finding.schema.json",
+  "title": "Loa canonical finding (v1)",
+  "description": "cycle-133 C-11 (FR-11; D-3.2 DEC-0849, D-3.5 DEC-0857): the one finding contract of every gate output (review, audit, Bridgebuilder, dissent). This file states the shape; the rules JSON Schema cannot state (the failure_scenario content rule, alias normalisation, id derivation, confidence normalisation) are stated in x-loa-rules and implemented identically by the four validators, which must agree on every vector under .claude/schemas/finding.vectors/{valid,invalid}/: the zod schema (.claude/skills/bridgebuilder-review/resources/core/finding-schema.ts), the jq validator (.claude/scripts/lib/finding-validate.sh), the python validator (.claude/scripts/lib/finding_validate.py) and the markdown bullet grammar of .claude/scripts/verdict-derive.sh (vectors carrying a markdown rendering). Properties not named here pass through unvalidated (category, anchor, evidence, enrichment fields); the normalised view keeps only the named fields.",
+  "x-loa-version": 1,
+  "type": "object",
+  "required": ["severity"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "\\S",
+      "description": "Given, else derived: F-<first 6 hex of sha256 of the UTF-8 text '<file>:<anchor_line>:<title>'> (an absent part is the empty string)."
+    },
+    "file": {
+      "type": "string",
+      "description": "Repository-relative POSIX path: non-empty, no leading '/', no backslash, no control character, no empty, '.' or '..' segment. Required for the defect severities."
+    },
+    "anchor_line": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000000,
+      "description": "1-based head-file line. Required for the defect severities. An integral JSON number (12 or 12.0) is accepted and emitted as an integer."
+    },
+    "anchor_line_end": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000000,
+      "description": "Optional last line of a range; only beside anchor_line and >= it."
+    },
+    "failure_scenario": {
+      "type": "string",
+      "description": "The concrete failure: for CRITICAL, HIGH, MEDIUM and LOW at least 12 whitespace-separated tokens or a 'when <...> then <...>' shape, and none of the denylisted phrases. PRAISE, INFO, REFRAME and SPECULATION are exempt (a value, when present, must be a string)."
+    },
+    "failure_mode": {
+      "type": "string",
+      "description": "DEPRECATED alias of failure_scenario (removed in 2.1.0). Used when failure_scenario is absent, with the warning; present beside a different failure_scenario the finding is rejected."
+    },
+    "description": {
+      "type": "string",
+      "description": "Lowest-precedence alias source of failure_scenario (used when failure_scenario and failure_mode are both absent, with a warning). Never in conflict: a dissent or Bridgebuilder finding carries its human-readable description beside the scenario."
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["CRITICAL", "HIGH", "MEDIUM", "LOW", "PRAISE", "SPECULATION", "REFRAME", "INFO"],
+      "description": "Exact upper case. CRITICAL, HIGH, MEDIUM and LOW are the defect severities."
+    },
+    "blocking": {
+      "type": "boolean",
+      "default": false,
+      "description": "A voice's blocking mark maps here. A blocking finding is tallied as blocking whatever its severity."
+    },
+    "confidence": {
+      "description": "high | medium | low, or a number 0-1 normalised to the enum (>= 0.75 high, >= 0.45 medium, else low). Validators emit the enum.",
+      "oneOf": [
+        {"type": "string", "enum": ["high", "medium", "low"]},
+        {"type": "number", "minimum": 0, "maximum": 1}
+      ]
+    },
+    "title": {"type": "string"},
+    "suggestion": {"type": "string"}
+  },
+  "additionalProperties": true,
+  "x-loa-rules": {
+    "defect_severities": ["CRITICAL", "HIGH", "MEDIUM", "LOW"],
+    "exempt_severities": ["PRAISE", "INFO", "REFRAME", "SPECULATION"],
+    "whitespace": "ASCII space, tab, LF, CR, FF, VT — the token separator of the content rule in every validator",
+    "content_rule": {
+      "min_tokens": 12,
+      "when_then": "a token 'when' followed later by a token 'then' with at least one token between them and one after; tokens compared in ASCII lower case after stripping leading and trailing characters outside [A-Za-z0-9]",
+      "denylist": ["TODO", "n/a", "see above", "as described", "placeholder"],
+      "denylist_match": "case-insensitive, as a whole word or phrase (no ASCII letter or digit immediately before or after)"
+    },
+    "alias_precedence": ["failure_scenario", "failure_mode", "description"],
+    "alias_conflict": "failure_scenario and failure_mode both present (non-null) and not equal → rejected (alias_conflict)",
+    "alias_warning": "`<alias>` is an alias of `failure_scenario`; removed in 2.1.0",
+    "error_codes": ["not_object", "id", "file", "anchor_line", "anchor_line_end", "severity", "blocking", "confidence", "failure_scenario", "alias_conflict", "title", "suggestion"],
+    "markdown_grammar": "- **SEV** (<items>) `file:line[-end]` <dash> <title>. Failure: <scenario>.  — the items, comma-separated in any order, are exactly one 'confidence: <high|medium|low>' and optionally 'speculative' and 'blocking'; the dash is one of — – - --; the clause starts at the last 'Failure:' outside backticks; one trailing '.' of the title and of the scenario is dropped"
+  }
+}

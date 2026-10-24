@@ -1,3 +1,0 @@
-{"timestamp":"2026-05-11T04:47:30Z","type":"review","model":"claude-opus-4-7","sprint_id":"sprint-4A","status":"reviewed","finding_count":5,"cost_usd":0.1364}
-{"timestamp":"2026-05-11T05:07:11Z","type":"review","model":"claude-opus-4-7","sprint_id":"sprint-4A-cycle2","status":"reviewed","finding_count":3,"cost_usd":0.1401}
-{"timestamp":"2026-05-11T12:29:57Z","type":"review","model":"claude-opus-4-7","sprint_id":"sprint-3","status":"reviewed","finding_count":4,"cost_usd":0.1481}

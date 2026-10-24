@@ -760,6 +760,35 @@ EOF
     [[ "$output" != *"MIGRATION-PRODUCED-INVALID"* ]]
 }
 
+@test "M19.8 KF-006 (cycle-133): a provider's egress_hosts[] survives --to-v3 and a non-hostname entry is rejected" {
+    # cycle-133 FR-9 added providers.<p>.egress_hosts to the production catalog; the closed v3 providerEntry
+    # rejected it (eighth occurrence of the KF-006 class). The schema now admits an array of lower-case
+    # hostnames ({region} allowed); anything else still fails validation.
+    local v1="$WORK_DIR/v1-egress.yaml"
+    cat > "$v1" <<'YAML'
+providers:
+  openai:
+    type: openai
+    endpoint: "https://api.openai.com/v1"
+    egress_hosts: [api.openai.com, auth.openai.com, "bedrock-runtime.{region}.amazonaws.com"]
+    models:
+      gpt-5.5-pro:
+        capabilities: [chat]
+        context_window: 400000
+        endpoint_family: responses
+YAML
+    run "$PYTHON_BIN" "$CLI" "$v1" -o "$WORK_DIR/v3-egress.yaml" --to-v3
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *"MIGRATION-PRODUCED-INVALID"* ]]
+    grep -q 'egress_hosts' "$WORK_DIR/v3-egress.yaml"
+    grep -q 'bedrock-runtime.{region}.amazonaws.com' "$WORK_DIR/v3-egress.yaml"
+    local bad="$WORK_DIR/v1-egress-bad.yaml"
+    sed 's/auth.openai.com/GITHUB.COM/' "$v1" > "$bad"
+    run "$PYTHON_BIN" "$CLI" "$bad" -o "$WORK_DIR/v3-egress-bad.yaml" --to-v3
+    [[ "$status" -ne 0 ]]
+    [[ "$output" == *"MIGRATION-PRODUCED-INVALID"* ]]
+}
+
 @test "M19.4 KF-006-symmetric: auth_type passes v2 validation (cycle-110 sprint-2a field)" {
     # Third occurrence of the KF-006 pattern: cycle-110 sprint-2a (PR #904)
     # added auth_type to live model-config.yaml without bumping v2 schema.

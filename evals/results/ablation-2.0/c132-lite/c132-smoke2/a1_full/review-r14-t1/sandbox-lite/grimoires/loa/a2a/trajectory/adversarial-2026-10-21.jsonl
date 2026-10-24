@@ -1,2 +1,0 @@
-{"timestamp":"2026-10-21T12:48:16Z","type":"review","model":"claude-headless","sprint_id":"sprint-1","status":"api_failure","finding_count":0,"cost_usd":null}
-{"timestamp":"2026-10-21T12:56:22Z","type":"audit","model":"claude-headless","sprint_id":"sprint-1","status":"api_failure","finding_count":0,"cost_usd":null}

@@ -6,6 +6,12 @@
  */
 import { computeVerdictBand, type MultiModelReviewResult } from "./multi-model-pipeline.js";
 
+// cycle-133 C-1/C-2: the degraded_reason enumeration lives in a dependency-free module (review-verdict.ts and the
+// pipeline import it without an import cycle through this file) and is exported from here as the SDD names it.
+export {
+  DEGRADED_REASONS, DegradedReason, FETCH_DEGRADED_REASONS, isDegradedReason, primaryDegradedReason,
+} from "./degraded-reason.js";
+
 export interface VoiceOutcome {
   /** Voices this review was expected to run. */
   planned: number;

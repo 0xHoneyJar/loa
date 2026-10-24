@@ -1,9 +1,0 @@
-head/evals/graders/recall-vs-defects.sh:74
-a.sh:40
-a.sh:3
-head/.claude/defaults/model-config.yaml:477
-test_anthropic_catalog_floor.py:326
-test_anthropic_catalog_floor.py:343
-head/.claude/defaults/model-config.yaml:491
-head/tools/check-prompt-budget.sh:53
-head/.loa.config.yaml.example:791

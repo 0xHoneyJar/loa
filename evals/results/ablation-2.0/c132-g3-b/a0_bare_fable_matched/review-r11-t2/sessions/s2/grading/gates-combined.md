@@ -1,9 +1,0 @@
-head/.claude/adapters/cheval.py:2119
-head/.claude/adapters/loa_cheval/providers/retry.py:494
-head/.claude/scripts/flatline-orchestrator.sh:129
-head/.claude/scripts/loa-status.sh:813
-head/.claude/scripts/lib-multipass.sh:95
-head/.claude/scripts/flatline-orchestrator.sh:2134
-head/.claude/skills/bridgebuilder-review/resources/config.ts:176
-head/.claude/adapters/loa_cheval/providers/anthropic_adapter.py:672
-head/.claude/adapters/tests/test_ceiling_probe_write_catalog.py:67

@@ -19,9 +19,14 @@ import type {
   ReviewResult,
   ReviewError,
 } from "./types.js";
-import { summarizeReviewVerdict, type ReviewVerdict } from "./review-verdict.js";
+import { type ReviewVerdict } from "./review-verdict.js";
+import { FindingsBlockSchema } from "./schemas.js";
+import { buildConsensusBlock, composeConsensusReview, type ComposeWriter } from "./consensus-findings.js";
+import { effectiveWriterAllowlist, checkWriterEligibility } from "./writer-role.js";
+import { toolStanceFor } from "../adapters/tool-stance.js";
+import type { DegradedReason } from "./degraded-reason.js";
 import { scoreFindings } from "./scoring.js";
-import type { ModelFindings, ScoredFinding, ScoringResult } from "./scoring.js";
+import type { ModelFindings, ScoringResult } from "./scoring.js";
 import { createAdapter } from "../adapters/adapter-factory.js";
 import { isHeadlessModelId, loaConfigPathFor, providerKeyEnv, readAgyGate, validateApiKeys } from "../config.js";
 import { GENERATED_MODEL_REGISTRY, GENERATED_REASONING } from "../config.generated.js";
@@ -297,6 +302,8 @@ export async function executeMultiModelReview(
   // Process results
   const modelResults: MultiModelReviewResult["modelResults"] = [];
   const findingsPerModel: ModelFindings[] = [];
+  // cycle-133 C-2: a completed voice without one valid findings block is a malformed source (verdict_conflict)
+  const unparsedVoices: string[] = [];
 
   for (let i = 0; i < modelAdapters.length; i++) {
     const ma = modelAdapters[i];
@@ -311,6 +318,7 @@ export async function executeMultiModelReview(
 
       // Extract findings from content
       const findings = extractFindingsFromContent(cleanContent);
+      if (!hasValidFindingsBlock(cleanContent)) unparsedVoices.push(`${ma.provider}/${ma.modelId}`);
 
       findingsPerModel.push({
         provider: ma.provider,
@@ -409,33 +417,51 @@ export async function executeMultiModelReview(
     modelResults.map((r) => ({ verdictQuality: r.response?.verdictQuality })),
     { repoRoot: config.repoRoot },
   );
-  let consensusBody = verdictHeader + formatConsensusSummary(consensus, modelAdapters);
-
+  // cycle-133 C-2 (KF-055): the posted findings are rendered from the consensus; the writer only adds commentary, and only
+  // when it is an eligible writer (an enforced no-tool dispatch, verified before and after the call) whose output the
+  // guard accepts. Otherwise the un-enriched consensus is posted with the degradation named (exit 3).
+  let writer: ComposeWriter | undefined;
   if (enrichment && findingsPerModel.length > 0 && modelAdapters.length > 0) {
-    try {
-      logger.info("[multi-model] Generating enriched consensus review...");
-      const enrichedContent = await generateEnrichedConsensusReview(
-        item,
-        consensus,
-        modelAdapters,
-        config,
-        enrichment,
-        adapters.sanitizer,
-        adapters.logger,
-      );
-      if (enrichedContent) {
-        // Prepend stats to enriched prose for quick-scan visibility
-        consensusBody = verdictHeader + formatEnrichedConsensusSummary(consensus, modelAdapters, enrichedContent);
-        logger.info("[multi-model] Enrichment complete", {
-          enrichedBytes: enrichedContent.length,
+    const chosen = pickWriter(multiConfig, modelAdapters);
+    const label = `${chosen.provider}/${chosen.modelId}`;
+    const allowlist = effectiveWriterAllowlist(config.trusted?.writerRoleAllowlist);
+    let pre = checkWriterEligibility(toolStanceFor(chosen.modelId), allowlist);
+    if (pre.eligible && chosen.provider === "google" && agyGate.optIn) {
+      pre = { eligible: false, reason: "under hounfour.headless.agy_opt_in a google writer may dispatch to the agy CLI agent, whose tool stance is not proven" };
+    }
+    if (!pre.eligible) {
+      logger.warn(`[multi-model] writer ${label} not eligible: ${pre.reason} (writer_not_eligible; un-enriched consensus posted)`);
+      writer = { notEligible: pre.reason, label };
+    } else {
+      try {
+        logger.info("[multi-model] Generating enriched consensus review...");
+        const enriched = await generateEnrichedConsensusReview(item, consensus, chosen, config, enrichment, adapters.sanitizer, adapters.logger);
+        writer = { output: enriched.content, stance: enriched.toolStance, allowlist, label,
+          ...(enriched.toolCallsAttempted !== undefined ? { toolCallsAttempted: enriched.toolCallsAttempted } : {}) };
+        logger.info("[multi-model] Enrichment complete", { enrichedBytes: enriched.content.length });
+      } catch (err) {
+        logger.warn("[multi-model] Enrichment failed, using stats-only summary", {
+          error: (err as Error).message,
         });
       }
-    } catch (err) {
-      logger.warn("[multi-model] Enrichment failed, using stats-only summary", {
-        error: (err as Error).message,
-      });
     }
   }
+  const preReasons: DegradedReason[] = [...(item.coverage?.degraded_reasons ?? [])];
+  if (unparsedVoices.length > 0) {
+    logger.warn(`[multi-model] voice(s) without a valid findings block: ${unparsedVoices.join(", ")} (verdict_conflict)`);
+    preReasons.push("verdict_conflict");
+  }
+  const composed = composeConsensusReview({
+    header: verdictHeader + formatConsensusHeader(consensus, modelAdapters),
+    consensus,
+    ...(writer ? { writer } : {}),
+    ...(item.coverage ? { coverage: item.coverage } : {}),
+    degradedReasons: preReasons,
+  });
+  if (composed.guard && !composed.guard.accepted) {
+    logger.warn(`[multi-model] enrichment guard rejected the writer output: ${composed.guard.reason} (${composed.guard.detail}); un-enriched consensus posted`);
+  }
+  const consensusBody = composed.body;
 
   // Post consensus summary comment
   let overallPosted = false;
@@ -462,12 +488,9 @@ export async function executeMultiModelReview(
     .filter((r) => r.response)
     .map((r) => r.response!.content)
     .join("\n\n---\n\n");
-  const findings = findingsPerModel.flatMap((result) => result.findings);
-  let reviewVerdict = summarizeReviewVerdict(combinedContent, findings);
-  // Enrichment may surface a blocker; it cannot approve unparsed reviews.
-  if (summarizeReviewVerdict(consensusBody).verdict === "REQUEST_CHANGES") {
-    reviewVerdict = summarizeReviewVerdict(combinedContent + "\n" + consensusBody, findings);
-  }
+  // cycle-133 C-2: the verdict is the decision table over the posted consensus (one rendered block), never over the
+  // voices' concatenated output (whose several blocks read as UNKNOWN — KF-055).
+  const reviewVerdict = composed.verdict;
   // Incomplete or degraded participation can never clear a merge. A voice the opt-in decision removed is not expected; a
   // voice a READ ERROR removed still is (r251-4 S1, audit n22: a host fault never shrinks the quorum).
   if (agyGate.readError !== undefined && keyStatus.notPlanned.length > 0) {
@@ -478,6 +501,8 @@ export async function executeMultiModelReview(
       modelResults.some((result) => result.error || !result.response) ||
       computeVerdictBand(modelResults.map((result) => ({ verdictQuality: result.response?.verdictQuality }))) !== "APPROVED") {
     reviewVerdict.mergeBlocked = true;
+    // (cycle-133 FR-2: a blocked merge always carries a reason)
+    reviewVerdict.mergeBlockedReason ??= "voice participation incomplete or verdict quality not APPROVED";
   }
 
   return {
@@ -812,21 +837,23 @@ function formatModelComment(
 }
 
 /**
- * Format the consensus summary comment.
+ * cycle-133 C-2: the consensus comment's header — title, models and the statistics (collapsible). The findings follow
+ * as the block rendered from the consensus (consensus-findings.ts), then the admitted commentary.
  */
-function formatConsensusSummary(
+function formatConsensusHeader(
   result: ScoringResult,
   models: Array<{ provider: string; modelId: string }>,
 ): string {
   const lines: string[] = [];
   const total = models.length + 1; // models + this summary
 
-  lines.push(`**[${total}/${total}] Multi-Model Consensus Summary**`);
+  lines.push(`**[${total}/${total}] Multi-Model Consensus Review**`);
   lines.push("");
   lines.push(`Models: ${models.map((m) => `${m.provider}/${m.modelId}`).join(", ")}`);
   lines.push("");
-
-  // Stats table
+  lines.push("<details>");
+  lines.push("<summary>Consensus Statistics</summary>");
+  lines.push("");
   lines.push("| Classification | Count |");
   lines.push("|---|---|");
   lines.push(`| HIGH_CONSENSUS | ${result.stats.high_consensus} |`);
@@ -835,39 +862,33 @@ function formatConsensusSummary(
   lines.push(`| LOW_VALUE | ${result.stats.low_value} |`);
   lines.push(`| Unique perspectives | ${result.stats.unique} |`);
   lines.push("");
-
-  // BLOCKER findings
-  const blockers = result.convergence.filter((f) => f.classification === "BLOCKER");
-  if (blockers.length > 0) {
-    lines.push("### Blockers");
-    for (const b of blockers) {
-      lines.push(`- **${b.finding.title}** (${b.finding.file ?? "general"}) — agreed by ${b.agreeing_models.join(", ")}`);
-    }
-    lines.push("");
-  }
-
-  // HIGH_CONSENSUS findings
-  const highConsensus = result.convergence.filter((f) => f.classification === "HIGH_CONSENSUS");
-  if (highConsensus.length > 0) {
-    lines.push("### High Consensus");
-    for (const h of highConsensus) {
-      const models = h.agreeing_models.length > 1 ? ` (${h.agreeing_models.join(", ")})` : "";
-      lines.push(`- **${h.finding.severity}**: ${h.finding.title}${models}`);
-    }
-    lines.push("");
-  }
-
-  // DISPUTED findings
-  const disputed = result.convergence.filter((f) => f.classification === "DISPUTED");
-  if (disputed.length > 0) {
-    lines.push("### Disputed");
-    for (const d of disputed) {
-      lines.push(`- **${d.finding.title}** — score delta: ${d.score_delta} (${d.agreeing_models.join(" vs ")})`);
-    }
-    lines.push("");
-  }
-
+  lines.push("</details>");
   return lines.join("\n");
+}
+
+/** cycle-133 C-2: a voice output with exactly one findings block that parses and validates. */
+function hasValidFindingsBlock(content: string): boolean {
+  const start = "<!-- bridge-findings-start -->";
+  if (content.split(start).length !== 2) return false;
+  const match = content.match(/<!--\s*bridge-findings-start\s*-->\s*```json\s*([\s\S]*?)```\s*<!--\s*bridge-findings-end\s*-->/);
+  if (!match) return false;
+  try {
+    return FindingsBlockSchema.safeParse(JSON.parse(match[1])).success;
+  } catch {
+    return false;
+  }
+}
+
+/** The writer: the first `role: primary` model that has an adapter, else the first adapter. */
+function pickWriter(
+  multiConfig: MultiModelConfig,
+  modelAdapters: Array<{ provider: string; modelId: string; adapter: ILLMProvider }>,
+): { provider: string; modelId: string; adapter: ILLMProvider } {
+  const primaryEntry = multiConfig.models.find((m) => m.role === "primary");
+  const writerTarget = primaryEntry ?? multiConfig.models[0];
+  return modelAdapters.find(
+    (m) => m.provider === writerTarget.provider && m.modelId === writerTarget.model_id,
+  ) ?? modelAdapters[0];
 }
 
 /**
@@ -882,39 +903,16 @@ function formatConsensusSummary(
 async function generateEnrichedConsensusReview(
   item: ReviewItem,
   consensus: ScoringResult,
-  modelAdapters: Array<{ provider: string; modelId: string; adapter: ILLMProvider }>,
+  writer: { provider: string; modelId: string; adapter: ILLMProvider },
   config: BridgebuilderConfig,
   enrichment: EnrichmentContext,
   sanitizer: IOutputSanitizer,
   logger: ILogger,
-): Promise<string | null> {
-  // Pick writer: first model with role=primary in config, else first available
+): Promise<{ content: string; toolStance?: ReviewResponse["toolStance"]; toolCallsAttempted?: number }> {
   const multiConfig = config.multiModel!;
-  const primaryEntry = multiConfig.models.find((m) => m.role === "primary");
-  const writerTarget = primaryEntry ?? multiConfig.models[0];
-  const writer = modelAdapters.find(
-    (m) => m.provider === writerTarget.provider && m.modelId === writerTarget.model_id,
-  ) ?? modelAdapters[0];
-
-  if (!writer) {
-    logger.warn("[multi-model] No writer model available for enrichment");
-    return null;
-  }
-
-  // Build findings JSON from consensus (convergence track)
-  // Preserve only the canonical finding from each group
-  const findingsForEnrichment = consensus.convergence.map((scored: ScoredFinding) => ({
-    ...scored.finding,
-    // Add consensus metadata as non-enriched fields
-    agreeing_models: scored.agreeing_models,
-    consensus_classification: scored.classification,
-  }));
-
-  const findingsJSON = JSON.stringify(
-    { schema_version: 1, findings: findingsForEnrichment },
-    null,
-    2,
-  );
+  // cycle-133 C-2: the writer reads exactly the block that is posted (ids made unique, verdict derived), so a faithful
+  // echo compares equal in the guard.
+  const findingsJSON = JSON.stringify(buildConsensusBlock(consensus), null, 2);
 
   const { systemPrompt, userPrompt } = enrichment.template.buildEnrichmentPrompt({
     findingsJSON,
@@ -935,42 +933,9 @@ async function generateEnrichedConsensusReview(
 
   // Sanitize writer output
   const sanitized = sanitizer.sanitize(response.content);
-  return sanitized.safe ? response.content : sanitized.sanitizedContent;
-}
-
-/**
- * Format enriched consensus summary: stats banner + writer-generated prose.
- */
-function formatEnrichedConsensusSummary(
-  result: ScoringResult,
-  models: Array<{ provider: string; modelId: string }>,
-  enrichedContent: string,
-): string {
-  const lines: string[] = [];
-  const total = models.length + 1;
-
-  lines.push(`**[${total}/${total}] Multi-Model Consensus Review**`);
-  lines.push("");
-  lines.push(`Models: ${models.map((m) => `${m.provider}/${m.modelId}`).join(", ")}`);
-  lines.push("");
-
-  // Quick-scan stats (collapsible)
-  lines.push("<details>");
-  lines.push("<summary>Consensus Statistics</summary>");
-  lines.push("");
-  lines.push("| Classification | Count |");
-  lines.push("|---|---|");
-  lines.push(`| HIGH_CONSENSUS | ${result.stats.high_consensus} |`);
-  lines.push(`| DISPUTED | ${result.stats.disputed} |`);
-  lines.push(`| BLOCKER | ${result.stats.blocker} |`);
-  lines.push(`| LOW_VALUE | ${result.stats.low_value} |`);
-  lines.push(`| Unique perspectives | ${result.stats.unique} |`);
-  lines.push("");
-  lines.push("</details>");
-  lines.push("");
-  lines.push("---");
-  lines.push("");
-  lines.push(enrichedContent);
-
-  return lines.join("\n");
+  return {
+    content: sanitized.safe ? response.content : sanitized.sanitizedContent,
+    ...(response.toolStance ? { toolStance: response.toolStance } : {}),
+    ...(response.toolCallsAttempted !== undefined ? { toolCallsAttempted: response.toolCallsAttempted } : {}),
+  };
 }

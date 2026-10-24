@@ -1,6 +1,0 @@
-{"timestamp":"2026-07-07T00:00:00Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-c14-traj-19570","status":"reviewed","finding_count":0,"cost_usd":null}
-{"timestamp":"2026-07-07T00:00:00Z","type":"review","model":"gpt-5.3-codex","sprint_id":"sprint-c14-traj-off-19705","status":"reviewed","finding_count":0,"cost_usd":null}
-{"timestamp":"2026-07-06T00:00:00Z","type":"review","model":"gpt-5.5-pro","sprint_id":"av10-test-20133","status":"api_failure","finding_count":0,"cost_usd":null}
-{"timestamp":"2026-07-06T00:00:00Z","type":"audit","model":"gpt-5.5-pro","sprint_id":"av11-test-20209","status":"api_failure","finding_count":0,"cost_usd":null}
-{"timestamp":"2026-07-06T00:00:00Z","type":"audit","model":"opus","sprint_id":"av12-test-20278","status":"success","finding_count":0,"cost_usd":null}
-{"timestamp":"2026-07-06T00:00:00Z","type":"review","model":"gpt-5.5-pro","sprint_id":"av13-test-20383","status":"success","finding_count":0,"cost_usd":null}

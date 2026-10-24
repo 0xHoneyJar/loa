@@ -1,8 +1,0 @@
-{
-  "apps": {
-    "pages": {
-      "id": "connector_openai_pages",
-      "required": true
-    }
-  }
-}

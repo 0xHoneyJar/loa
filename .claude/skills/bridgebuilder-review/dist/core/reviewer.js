@@ -5,8 +5,10 @@ import { LLMProviderError } from "../ports/llm-provider.js";
 import { FindingsBlockSchema } from "./schemas.js";
 import { Pass1Cache, computeCacheKey } from "./cache.js";
 import { summarizeReviewVerdict } from "./review-verdict.js";
+import { formatCoverageSection, truncationFor } from "./paged-fetch.js";
+import { findToolGrammar } from "./enrichment-guard.js";
 import { extractEcosystemPatterns, updateEcosystemContext } from "./ecosystem.js";
-import { truncateFiles, progressiveTruncate, getTokenBudget, effectiveInputBudget, deriveCallConfig, } from "./truncation.js";
+import { progressiveTruncate, getTokenBudget, effectiveInputBudget, } from "./truncation.js";
 const REFUSAL_PATTERN = /\b(I cannot|I'm unable|I can't|as an AI|I apologize)\b/i;
 /** Patterns that indicate an LLM token rejection (Task 1.8). */
 const TOKEN_REJECTION_PATTERNS = [
@@ -216,6 +218,11 @@ export class ReviewPipeline {
             const claimed = await this.context.claimReview(item);
             if (!claimed) {
                 return this.skipResult(item, "claim_failed");
+            }
+            // cycle-133 C-1: a fetch that kept no file (the head kept moving, or every page failed) reviews nothing — the
+            // coverage section is posted as a notice and the result carries the degradation (exit 3), never a Fatal.
+            if (item.coverage?.degraded && item.files.length === 0) {
+                return this.degradedFetchResult(item);
             }
             // Step 3.5: Incremental review detection (V3-1)
             let incrementalBanner;
@@ -454,6 +461,25 @@ export class ReviewPipeline {
         }
         return makeError("E_UNKNOWN", "Unknown failure", "pipeline", "unknown", false);
     }
+    /** cycle-133 C-1: nothing could be fetched for review; post the coverage notice and report the degradation. */
+    async degradedFetchResult(item) {
+        const { owner, repo, pr } = item;
+        const coverage = item.coverage;
+        const decision = summarizeReviewVerdict("", [], { degradedReasons: coverage.degraded_reasons });
+        this.logger.warn("Review degraded: no file could be fetched for review", {
+            owner, repo, pr: pr.number, degraded_reasons: coverage.degraded_reasons,
+        });
+        if (!this.config.dryRun) {
+            const already = await this.poster.hasExistingReview(owner, repo, pr.number, pr.headSha, "skip");
+            if (!already) {
+                await this.poster.postReview({
+                    owner, repo, prNumber: pr.number, headSha: pr.headSha, event: "COMMENT", markerKind: "skip",
+                    body: `Bridgebuilder could not review this pull request: ${coverage.degraded_reasons.join(", ")}.\n\n${formatCoverageSection(coverage)}`,
+                });
+            }
+        }
+        return { ...this.skipResult(item, coverage.degraded_reasons[0] ?? "incomplete_coverage"), ...decision };
+    }
     skipResult(item, skipReason) {
         return { item, posted: false, skipped: true, skipReason };
     }
@@ -467,7 +493,7 @@ export class ReviewPipeline {
      * resultFields may include pass1Output, pass1Tokens, and pass2Tokens — these are
      * populated by two-pass callers only. Single-pass callers pass inputTokens/outputTokens only.
      */
-    async postAndFinalize(item, body, resultFields) {
+    async postAndFinalize(item, body, resultFields, degradedReasons = []) {
         const { owner, repo, pr } = item;
         const sanitized = this.sanitizer.sanitize(body);
         if (!sanitized.safe && this.config.sanitizerMode === "strict") {
@@ -479,8 +505,13 @@ export class ReviewPipeline {
                 redactions: sanitized.redactedPatterns?.length ?? 0,
             });
         }
-        const sanitizedBody = sanitized.sanitizedContent;
-        const decision = summarizeReviewVerdict(body);
+        // cycle-133 C-1: the coverage record (counts, first 20 paths, marker with both SHAs) rides every posted review.
+        const sanitizedBody = item.coverage
+            ? `${sanitized.sanitizedContent}\n\n${formatCoverageSection(item.coverage)}`
+            : sanitized.sanitizedContent;
+        const decision = summarizeReviewVerdict(body, [], {
+            degradedReasons: [...(item.coverage?.degraded_reasons ?? []), ...degradedReasons],
+        });
         const event = decision.verdict === "REQUEST_CHANGES" ? "REQUEST_CHANGES" : "COMMENT";
         // Re-check guard (race condition mitigation) with retry
         let recheck = false;
@@ -599,7 +630,7 @@ export class ReviewPipeline {
      * Fallback: wrap Pass 1 findings in minimal valid review format (SDD 3.7, FR-2.7).
      * Used when Pass 2 fails or modifies findings.
      */
-    async finishWithUnenrichedOutput(item, pass1InputTokens, pass1OutputTokens, pass1Duration, findingsJSON, pass1Content, pass1CacheHit) {
+    async finishWithUnenrichedOutput(item, pass1InputTokens, pass1OutputTokens, pass1Duration, findingsJSON, pass1Content, pass1CacheHit, degradedReasons = []) {
         const { owner, repo, pr } = item;
         const body = [
             "## Summary",
@@ -624,7 +655,7 @@ export class ReviewPipeline {
             pass1Output: pass1Content,
             pass1Tokens: { input: pass1InputTokens, output: pass1OutputTokens, duration: pass1Duration },
             ...(pass1CacheHit != null ? { pass1CacheHit } : {}),
-        });
+        }, degradedReasons);
     }
     /**
      * Two-pass review flow: convergence (analytical) then enrichment (persona) (SDD 3.4).
@@ -639,7 +670,8 @@ export class ReviewPipeline {
         const pass1Start = this.now();
         const convergenceSystem = this.template.buildConvergenceSystemPrompt();
         // #796 / vision-013 + BB-004: deriveCallConfig is the single chokepoint.
-        const truncated = truncateFiles(effectiveItem.files, deriveCallConfig(this.config, pr));
+        // cycle-133 C-1: the fetch's global selection is reused (never re-selected over the selected subset).
+        const truncated = truncationFor(effectiveItem, this.config);
         // Handle all-files-excluded by Loa filtering
         if (truncated.allExcluded) {
             this.logger.info("All files excluded by Loa filtering", {
@@ -850,6 +882,15 @@ export class ReviewPipeline {
             return this.finishWithUnenrichedOutput(item, pass1InputTokens, pass1OutputTokens, pass1Duration, findingsJSON, pass1Content, pass1CacheHit);
         }
         const pass2Duration = this.now() - pass2Start;
+        // cycle-133 C-2 (KF-055): writer output carrying provider tool-call grammar is never posted — the Pass 1 findings
+        // go out un-enriched and the review is DEGRADED (enrichment_guard_rejected, exit 3).
+        const grammar = findToolGrammar(pass2Response.content);
+        if (grammar !== null) {
+            this.logger.warn("Pass 2 output carries tool-call grammar, using Pass 1 output (enrichment_guard_rejected)", {
+                owner, repo, pr: pr.number, match: grammar,
+            });
+            return this.finishWithUnenrichedOutput(item, pass1InputTokens, pass1OutputTokens, pass1Duration, findingsJSON, pass1Content, pass1CacheHit, ["enrichment_guard_rejected"]);
+        }
         // FR-2.4: Validate finding preservation
         const pass2Extracted = this.extractFindingsJSON(pass2Response.content);
         if (pass2Extracted) {

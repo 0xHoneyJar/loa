@@ -1,0 +1,6 @@
+sprint: sprint-272
+sprint-272 (cycle-133 sprint-1 — the framework's own defects: Bridgebuilder paged SHA-pinned fetch + coverage record (C-1, KF-054) and consensus integrity with the writer-role allowlist and verdict table (C-2, KF-055; main.ts entrypoint guard, KF-036); release publication schema 2 — ancestry gate, tag on the merge, leased ledger fast-forward (C-3, KF-034); record-branch.sh as a framework script (C-4); NOTES rotation, hook liveness, dec-write message, audit scope options, ledger validator (C-5 ergonomics); CI: analysis pytest glob, quarantine ledger + validator with expiry, frozen-fixture lint prune, .gitattributes, ten unit failures repaired / none quarantined (C-5 CI). Review round 1 CHANGES_REQUIRED → round 2 APPROVED 0/0/2/6 (dissent run 1); audit APPROVED 0/0/1/9 (dissent run 2); CI "Shell Tests" green on eb029df47 after two CI-only fixes (nested bats via the running installation, KF-057; the stale analysis test-count pin). DEC-0860 … DEC-0887. Follow-up beads bd-tg7zk bd-t2gqd bd-mrfph bd-qh1w2 bd-gy0ha bd-j1z13 bd-fs04y bd-3kyjw.)
+
+Completion timestamp: 2026-10-24T05:00:00Z
+Branch: feature/cycle-133-follow-through
+Head: eb029df47

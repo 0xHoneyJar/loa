@@ -468,7 +468,9 @@ build_row(){
   summary="$(san1 "$(o summary)")"; phase="$(san1 "$(o phase)")"; category="$(san1 "$(o category)")"; source="$(san1 "$(o source)")"
   [[ -n "$summary" ]] || usage "--summary is required"
   # characters, not bytes (LC_ALL=C makes ${#x} a byte count): the validator's limit is 160 code points
-  [[ "$(jq -rn --arg s "$summary" '$s | length')" -le 160 ]] || die "--summary is over 160 characters; one plain line"
+  local slen; slen="$(jq -rn --arg s "$summary" '$s | length')" || die "cannot measure --summary (jq failed)"
+  [[ "$slen" -le 160 ]] \
+    || die "--summary is over 160 characters: $slen code points (limit 160): $(jq -rn --arg s "$summary" '$s[0:160]')…; shorten it to one plain line"
   [[ "$phase" =~ ^(discovery|architecture|sprint-planning|implementation|review|charting|spike|operations)$ ]] || usage "--phase must be discovery|architecture|sprint-planning|implementation|review|charting|spike|operations"
   [[ "$category" =~ ^[a-z][a-z0-9-]*$ ]] || usage "--category must match [a-z][a-z0-9-]* (e.g. scope, technology, architecture)"
   [[ -n "$source" ]] || usage "--source is required (bead id, PR, NOTES anchor, spike path, with a line or anchor)"

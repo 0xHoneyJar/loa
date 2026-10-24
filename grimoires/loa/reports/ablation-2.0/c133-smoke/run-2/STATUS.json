@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "suite": "ablation-2.0",
+  "batch": "smoke-c133-s274-r2",
+  "smoke": true,
+  "state": "failed",
+  "per_arm": {
+    "a1_full": {
+      "trials_planned": 1,
+      "launched": 1,
+      "completed": 0,
+      "failed": 0,
+      "excluded": 1,
+      "cap_failures": 0,
+      "degraded": 1,
+      "skipped_paused": 0
+    }
+  },
+  "retries": [],
+  "cuts": [],
+  "paused_arms": {
+    "a1_full": "smoke-c133-s274-r2-a1_full-smoke-review-c133b-t1: took-effect exit 1: arm a1_full: oracle_closed FAIL FAIL (f) .claude/scripts/classify-pr-type.sh: pinned_bytes_read: a later-only line of the pinned version in Bash (events-AUDIT.jsonl) (+11 more);arm a1_full: FAIL (1 of 5 rules);"
+  },
+  "spend": {
+    "rows_usd": 9.30227425,
+    "ledger_usd": 0,
+    "spent_usd": 9.30227425,
+    "max_usd": 20,
+    "assumed_cap_trials": 0
+  },
+  "trials_planned": 1,
+  "resume_cursor": 1,
+  "drift": null,
+  "drift_cleared": [],
+  "rerowed": [],
+  "rerun": [],
+  "rerun_pending": [],
+  "outage": null,
+  "outage_history": [],
+  "codex_preflight": {
+    "auth_file_present": true,
+    "auth_mode": null,
+    "checked": false,
+    "codex_arms": [
+      "a1_full"
+    ],
+    "horizon_source": null,
+    "required_until": null,
+    "token_exp": null,
+    "trials_counted": null
+  },
+  "extra_models": {},
+  "extra_models_by_run": {},
+  "rows_invalid": null,
+  "signalled": false,
+  "source_commit": "7d211947791e440652a29387d6bac7eb36a83149",
+  "rows_file": "/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/smoke-c133-s274-r2/rows.jsonl",
+  "started": "2026-10-24T11:50:37Z",
+  "finished": "2026-10-24T12:14:55Z"
+}

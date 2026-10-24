@@ -1,8 +1,0 @@
-head/.claude/loa/CLAUDE.loa.md:124 — the generated `agent_teams_constraints` block still carries the trimmed C-TEAM-001..005 rationales while constraints.json (line 1235 onward) restores the long text; generate-constraints.sh --validate-only reports the section STALE, and regenerating it grows CLAUDE.loa.md to 10,715 B, over the 10,240 B budget this PR sets — Task 4.8's twelve-row revert is only rendered for the seven C-PROC rows (IDR-4, tests/unit/instruction-diet-revert.bats:62, checks only those)
-head/.claude/data/constraints.json:1235 — C-TEAM `why` texts restored here but not in the rendered CLAUDE.loa.md table they generate; registry and rendered block disagree
-head/tools/check-prompt-budget.sh:53 — LOA_LIMIT 10,240 B is 15 B above the committed CLAUDE.loa.md (10,225 B) and below what the reverted rationales render to (10,715 B); the PB-8 sentinel fixtures under tests/fixtures/prompt-budget/ are not updated in the diff
-head/.claude/hooks/compliance/implement-gate.sh:128 — with the undocumented `implement_gate.mode: authoritative` opt-in, a model-authored `tool_input.active_skill` of implement/bug/run/simstim allows an App-Zone write silently with no RUNNING state and no audit row
-head/.claude/scripts/check-permissions.sh:237 — base-wildcard derivation assumes a wildcard requirement key; an exact-form requirement yields the unmatched key `*=…`, contradicting the header grammar (no live requirement is exact today)
-head/.claude/scripts/model-adapter.sh:656 — `mktemp` under `set -e` with no fallback aborts the shim before model-invoke runs and without the usual error line when TMPDIR is unwritable
-head/README.md:24 — no CHANGELOG.md entry in the 88-file diff although the final commit message references the CHANGELOG
-Verdict: CHANGES_REQUIRED

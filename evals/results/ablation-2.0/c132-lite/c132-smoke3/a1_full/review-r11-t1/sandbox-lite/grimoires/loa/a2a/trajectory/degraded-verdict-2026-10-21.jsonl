@@ -1,2 +1,0 @@
-{"gate":"adversarial-review:review","verdict_band":"FAILED","degradation_reason":"ChainExhausted","sprint_id":"sprint-1","ts":"2026-10-21T13:49:35Z","model_exit_code":1,"degraded_legs":["codex-headless","codex-headless","gemini-3.1-pro-preview"]}
-{"gate":"adversarial-review:audit","verdict_band":"FAILED","degradation_reason":"ChainExhausted","sprint_id":"sprint-1","ts":"2026-10-21T13:59:47Z","model_exit_code":1,"degraded_legs":["codex-headless","codex-headless","gemini-3.1-pro-preview"]}

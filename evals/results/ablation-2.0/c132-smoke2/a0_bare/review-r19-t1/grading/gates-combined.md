@@ -1,9 +1,0 @@
-head/tests/unit/floor-snapshot.bats:39
-head/evals/harness/arms-report.py:302
-head/evals/harness/execute-agent.sh:266
-head/evals/harness/run-arms.sh:408
-head/.claude/scripts/guard-yield.sh:501
-head/.claude/scripts/guard-yield.sh:503
-head/.claude/rules/stash-safety.md:3
-head/evals/harness/run-arms.sh:287
-head/evals/harness/execute-agent.sh:244

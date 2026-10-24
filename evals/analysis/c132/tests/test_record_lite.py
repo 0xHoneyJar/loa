@@ -148,3 +148,109 @@ def test_a_unit_without_a_recorded_grade_is_skipped_not_counted_as_a_difference(
     assert ok is True, "the ungraded unit does not fail the reproduction"
     assert "## Not graded in the record" in text and "b/a/t-t1/sessions/s1" in text
     assert "## Differences\n\nNone." in text
+
+
+# ---------------------------------------------------------------- cycle-133 bd-ombvn (Sprint 271 audit SEC-003/SEC-005/CQ-001)
+REL = "c132-g1-a1/a1_full/review-r91-t1"
+
+
+def _build(world, out):
+    record_lite.build(str(world["results"]), ["c132-g1-a1"], str(world["fx"]), str(world["suite"]), str(out),
+                      repo_root=str(world["root"]), log=lambda *a: None)
+
+
+def _rewrite_same_size_same_mtime(p, text):
+    """an in-place rewrite that keeps the inode, the size and the mtime (cp -p / rsync -t onto the same inode)"""
+    st = os.stat(p)
+    assert len(text.encode()) == st.st_size
+    with open(p, "r+", encoding="utf-8") as f:
+        f.write(text)
+    os.utime(p, ns=(st.st_atime_ns, st.st_mtime_ns))
+    st2 = os.stat(p)
+    assert (st2.st_ino, st2.st_size, st2.st_mtime_ns) == (st.st_ino, st.st_size, st.st_mtime_ns)
+
+
+def test_sha256_file_verify_bypasses_the_cache(tmp_path):
+    p = tmp_path / "f.txt"
+    p.write_text("aaaa\n")
+    first = record_lite.sha256_file(str(p))
+    _rewrite_same_size_same_mtime(str(p), "bbbb\n")
+    assert record_lite.sha256_file(str(p), verify=True) == sha(p) != first
+
+
+def test_the_cache_key_follows_a_symlink_to_its_target(tmp_path):
+    """the old key was an lstat of the path: a symlink and its target hashed through open() but keyed on the link"""
+    a, b = tmp_path / "a.txt", tmp_path / "b.txt"
+    a.write_text("one\n")
+    b.write_text("two\n")
+    link = tmp_path / "link"
+    os.symlink(str(a), str(link))
+    assert record_lite.sha256_file(str(link)) == sha(a)
+    os.unlink(str(link))
+    os.symlink(str(b), str(link))
+    assert record_lite.sha256_file(str(link)) == sha(b)
+
+
+def test_reconstruct_detects_a_same_size_same_mtime_rewrite_of_a_lite_file(world, tmp_path):
+    out = tmp_path / "lite"
+    _build(world, out)
+    lite_review = out / REL / "sandbox-lite" / "review.md"
+    record_lite.sha256_file(str(lite_review))          # the digest is now cached for this inode/size/mtime
+    old = lite_review.read_text()
+    _rewrite_same_size_same_mtime(str(lite_review), old.replace("wrong", "WRONG"))
+    with pytest.raises(record_lite.Mismatch, match="lite file sha differs: review.md"):
+        record_lite.reconstruct_run_dir(str(world["results"]), str(out), str(world["fx"]), REL, str(tmp_path / "d"))
+
+
+def test_reconstruct_detects_a_same_size_same_mtime_rewrite_of_a_fixture_file(world, tmp_path):
+    out = tmp_path / "lite"
+    _build(world, out)                                  # fixture_map() hashed and cached every fixture file
+    fx_readme = world["fx"] / "pr-91" / "head" / "README.md"
+    _rewrite_same_size_same_mtime(str(fx_readme), "HEAD readme\n")
+    with pytest.raises(record_lite.Mismatch, match="pr file not reconstructable from the fixture: pr/head/README.md"):
+        record_lite.reconstruct_run_dir(str(world["results"]), str(out), str(world["fx"]), REL, str(tmp_path / "d"))
+
+
+def test_compare_unit_hashes_fresh(tmp_path):
+    rec, new = tmp_path / "rec", tmp_path / "new"
+    for root in (rec, new):
+        write(str(root / "u" / "grade.json"), '{"a": 1}\n')
+        write(str(root / "u" / "grading" / "gates-combined.md"), "# g\n")
+    assert record_lite.compare_unit(str(rec), str(new), "u")["grade_equal"] is True
+    _rewrite_same_size_same_mtime(str(new / "u" / "grade.json"), '{"a": 2}\n')
+    assert record_lite.compare_unit(str(rec), str(new), "u")["grade_equal"] is False
+
+
+@pytest.mark.parametrize("target", ["/etc/passwd", "../../../../outside", "head/../../x", ""])
+def test_an_unsafe_pr_symlink_target_is_refused(world, tmp_path, target):
+    out = tmp_path / "lite"
+    _build(world, out)
+    mp = out / REL / "sandbox-manifest.json"
+    m = json.load(open(mp))
+    m["files"].append({"path": "pr/head/evil", "target": target, "type": "symlink"})
+    m["files"].sort(key=lambda e: e["path"])
+    mp.write_text(record_lite.dump_json(m))
+    dest = tmp_path / "d"
+    with pytest.raises(record_lite.Mismatch, match="unsafe symlink target"):
+        record_lite.reconstruct_run_dir(str(world["results"]), str(out), str(world["fx"]), REL, str(dest))
+    assert not os.path.lexists(str(dest / REL / "sandbox" / "pr" / "head" / "evil"))
+
+
+def test_a_safe_pr_symlink_target_is_recreated(world, tmp_path):
+    os.symlink("README.md", str(world["cell"] / "sandbox" / "pr" / "head" / "readme-link"))
+    out = tmp_path / "lite"
+    _build(world, out)
+    dest = tmp_path / "d"
+    record_lite.reconstruct_run_dir(str(world["results"]), str(out), str(world["fx"]), REL, str(dest))
+    assert os.readlink(str(dest / REL / "sandbox" / "pr" / "head" / "readme-link")) == "README.md"
+
+
+def test_build_only_writes_index_only_and_reproduce_md_names_both_index_files(world, tmp_path):
+    out = tmp_path / "lite"
+    record_lite.build(str(world["results"]), ["c132-g1-a1"], str(world["fx"]), str(world["suite"]), str(out),
+                      only=["review-r91"], repo_root=str(world["root"]), log=lambda *a: None)
+    assert (out / "INDEX-only.json").is_file() and not (out / "INDEX.json").exists()
+    repro = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(HERE)))),
+                         "grimoires", "loa", "reports", "review-catch-c132", "REPRODUCE.md")
+    text = open(repro, encoding="utf-8").read()
+    assert "INDEX-only.json" in text and "INDEX.json" in text

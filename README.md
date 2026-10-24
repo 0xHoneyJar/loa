@@ -6,20 +6,22 @@ Power user interface: 51 slash commands (truenames).
 Architecture: Three-zone model (System: .claude/, State: grimoires/ + .beads/, App: src/).
 Configuration: .loa.config.yaml (user-owned, never modified by framework).
 Health check: /loa doctor
-Version: 2.0.0-rc.7
+Version: 2.0.0-rc.8
 -->
 
-[![Version](https://img.shields.io/badge/version-2.0.0--rc.7-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.0--rc.8-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-v2.0.0--rc.2%20Friction%20floor-purple.svg)](https://github.com/0xHoneyJar/loa/releases/tag/v2.0.0-rc.2)
+[![Release](https://img.shields.io/badge/release-v2.0.0--rc.8%20The%20follow--through-purple.svg)](https://github.com/0xHoneyJar/loa/releases/tag/v2.0.0-rc.8)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
-## What's new in v2.0.0-rc.2 (release candidate)
+## What's new in v2.0.0-rc.8 (release candidate)
 
 The 2.0 line ships as a **pre-release**: it soaks with real users, fixes land as `-rc.N`, and `2.0.0` is promoted once the exit criteria in the [rc.1 release notes](grimoires/loa/reports/release-notes-2.0.0-rc.1.md) are met. Stable users can stay on `v1.202.1` until then.
 
-**Unreleased — earned guards and open voices** (cycle-129, [CHANGELOG](CHANGELOG.md)):
+**rc.8 — the follow-through** (cycle-133, [notes](grimoires/loa/reports/release-notes-2.0.0-rc.8.md)): the Bridgebuilder reads every pull request pinned to one head and its enriched consensus is the consensus; release publication tags the merge commit and proves it reachable before it announces; the public record branch is a framework script with a credential scan; the eval harness gained one fail-closed session library, a per-sandbox egress guard (the host is unreachable even from a `--internal` network), a restartable batch supervisor, grader 1.5 with judge verdicts, one finding contract run by four agreeing validators (every review and audit bullet carries a `Failure:` scenario), external corpus seeding and registration v2; the beads sweep closed 174 beads with evidence and kept 147 under `backlog-2026-10`. The `home-scope` mount (Loa reviewing Loa from the sandbox HOME) landed but is not claimed — see the notes.
+
+**rc.5 — earned guards and open voices** (cycle-129, [CHANGELOG](CHANGELOG.md)):
 
 - **Every guard carries its origin and its yield**: `grimoires/loa/guards.md` lists every hook, fence pattern, validator rule and gate with where it came from and whether it is active, dormant or telemetry; `.run/guard-yield.json` counts its real blocks and likely false positives over 30 days; `/loa` prints a Guards line. `guard-yield.sh --check` fails CI when a guard has no origin.
 - **Control arms**: the recall evals can run with a kernel block, the companion voice or the rule files switched off (`run-arms.sh`), against a record corpus of eight real sprints, so a rule's claim on review recall is measured before its text is cut. The kernel kept every pinned rationale this cycle (the arm run was still running at the gate) and shrank by the Agent Teams table; its byte cap fell to 9,445 B.
@@ -73,7 +75,7 @@ In William Gibson's Sprawl trilogy (*Neuromancer*, *Count Zero*), Loa are AI ent
 curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash
 
 # Or pin to a specific version (the release candidate; v1.202.1 is the latest stable tag)
-curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --tag v2.0.0-rc.7
+curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --tag v2.0.0-rc.8
 
 # Start Claude Code
 claude

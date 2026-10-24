@@ -1,0 +1,392 @@
+/**
+ * cycle-133 C-1 (sdd.md § 1.4, FR-1, D-1.1 DEC-0839; KF-054): the two-pass, SHA-pinned PR file fetch.
+ *
+ * Pass 1 pages `pulls/N/files?per_page=100&page=K` (never `--paginate`) and keeps filename, status, additions,
+ * deletions and the patch's byte length only, deduplicating by filename and re-reading `pulls/N` before every page.
+ * `truncateFiles` then runs ONCE over the complete metadata list (Loa tier, exclude_patterns, max_files_per_pr, tier
+ * ordering) — the global selection. The byte budget (`max_diff_bytes`) is planned on the recorded sizes in selection
+ * order: a file that fits is retained whole, the first that does not is retained cut (`patch_truncated`), the rest are
+ * omitted (`byte_budget`). Pass 2 re-pages only the pages holding planned files and keeps their patch text. After pass
+ * 2 both SHAs are revalidated; any base/head change discards the attempt, restarts once, then degrades as
+ * `pr_head_moved`. GitHub omissions are recorded, never silent (coverage record).
+ */
+import { GitProviderError } from "../ports/git-provider.js";
+import { createHash } from "node:crypto";
+import { deriveCallConfig, truncateFiles } from "./truncation.js";
+import { FETCH_DEGRADED_REASONS, orderDegradedReasons } from "./degraded-reason.js";
+/** GitHub's `pulls/N/files` lists at most this many files (30 pages of 100). */
+export const FILES_ENDPOINT_CAP = 3000;
+const PAGE_SIZE = 100;
+/** Omission reasons that count against coverage when the file is a reviewable code file. */
+export const REVIEWABLE_OMISSION_REASONS = new Set([
+    "file_cap", "byte_budget", "no_patch", "patch_truncated", "page_incomplete", "excluded_fail_closed",
+]);
+/** The review set: code, scripts, config and docs (sdd.md C-1 "reviewable code file"). */
+const REVIEWABLE_EXTENSIONS = new Set([
+    // code
+    "ts", "tsx", "mts", "cts", "js", "jsx", "mjs", "cjs", "py", "pyi", "rb", "go", "rs", "java", "kt", "kts", "scala",
+    "c", "h", "cc", "cpp", "cxx", "hpp", "hh", "cs", "fs", "swift", "m", "mm", "php", "pl", "pm", "lua", "ex", "exs",
+    "erl", "hs", "clj", "dart", "r", "jl", "sol", "vy", "zig", "nim", "sql", "graphql", "gql", "proto", "vue", "svelte",
+    "astro", "html", "htm", "css", "scss", "sass", "less", "wasm.wat", "wat",
+    // scripts
+    "sh", "bash", "zsh", "fish", "ps1", "psm1", "bat", "cmd", "bats", "awk", "sed", "jq",
+    // config
+    "json", "jsonc", "json5", "yaml", "yml", "toml", "ini", "cfg", "conf", "env", "xml", "tf", "tfvars", "hcl", "nix",
+    "gradle", "properties", "plist", "service", "rules", "tpl", "j2", "mk", "cmake", "lock.json",
+    // docs
+    "md", "mdx", "markdown", "rst", "txt", "adoc", "org", "tex",
+]);
+/** Extensionless names in the review set (build files, CI and ownership config). */
+const REVIEWABLE_BASENAMES = new Set([
+    "Dockerfile", "Containerfile", "Makefile", "GNUmakefile", "Justfile", "justfile", "Rakefile", "Gemfile", "Procfile",
+    "Vagrantfile", "Jenkinsfile", "CODEOWNERS", "LICENSE", "NOTICE", "README", "BUILD", "WORKSPACE",
+]);
+/** A file in the review set by name (dotfiles such as `.gitattributes` are config). */
+export function isReviewableCodeFile(filename) {
+    const base = filename.split("/").pop() ?? filename;
+    if (REVIEWABLE_BASENAMES.has(base))
+        return true;
+    if (base.startsWith(".") && !base.slice(1).includes("."))
+        return true;
+    const dot = base.lastIndexOf(".");
+    if (dot <= 0)
+        return false;
+    return REVIEWABLE_EXTENSIONS.has(base.slice(dot + 1).toLowerCase());
+}
+/** A base or head change between the pin and a later read. */
+export class PrHeadMoved extends Error {
+    latest;
+    constructor(latest) {
+        super("PR base or head moved during the fetch");
+        this.latest = latest;
+        this.name = "PrHeadMoved";
+    }
+}
+function utf8Bytes(text) {
+    return Buffer.byteLength(text, "utf8");
+}
+/** Cut a patch to at most `maxBytes` UTF-8 bytes, at the last line boundary when one exists (always a prefix). */
+export function cutPatch(patch, maxBytes) {
+    if (utf8Bytes(patch) <= maxBytes)
+        return patch;
+    let bytes = 0;
+    let lastNl = -1;
+    let i = 0;
+    while (i < patch.length) {
+        const cp = patch.codePointAt(i);
+        const len = cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
+        if (bytes + len > maxBytes)
+            break;
+        bytes += len;
+        if (patch[i] === "\n")
+            lastNl = i;
+        i += cp > 0xffff ? 2 : 1;
+    }
+    return lastNl > 0 ? patch.slice(0, lastNl) : patch.slice(0, i);
+}
+function countHunks(patch) {
+    let n = 0;
+    for (const line of patch.split("\n"))
+        if (line.startsWith("@@"))
+            n++;
+    return n;
+}
+/** The degraded reason a failed page request maps to, or undefined (rethrow: auth, not found). */
+function pageFailureReason(err) {
+    if (!(err instanceof GitProviderError))
+        return undefined;
+    if (err.code === "PAYLOAD_OVERSIZE")
+        return "files_payload_oversize";
+    if (err.code === "RATE_LIMITED")
+        return "patch_fetch_rate_limited";
+    if (err.code === "NETWORK")
+        return "page_incomplete";
+    return undefined;
+}
+/** Map one `truncateFiles` exclusion (its stats suffix) to the coverage reason. */
+function exclusionReason(stats, file) {
+    if (/fail-closed/.test(stats))
+        return "excluded_fail_closed";
+    if (/\(Loa framework/.test(stats))
+        return "excluded_loa";
+    if (/\.reviewignore user pattern|\(excluded by pattern\)/.test(stats))
+        return "excluded_pattern";
+    if (/\(diff unavailable\)/.test(stats)) {
+        return file && file.status === "renamed" && file.additions === 0 && file.deletions === 0 ? "renamed" : "no_patch";
+    }
+    return "file_cap";
+}
+/**
+ * Degradation from the coverage: a fetch-side reason is reported as itself; otherwise any omitted reviewable file or
+ * any unknown (unlisted) file is `incomplete_coverage`. Either way the merge is blocked as incomplete_coverage.
+ */
+export function evaluateCoverage(input) {
+    const fetch = input.fetchReasons.filter((r) => FETCH_DEGRADED_REASONS.has(r));
+    const incomplete = input.unknown_omitted > 0 || input.omitted.some((o) => o.reviewable);
+    const reasons = fetch.length > 0 ? orderDegradedReasons(fetch) : incomplete ? ["incomplete_coverage"] : [];
+    if (reasons.length === 0)
+        return { degraded: false, degraded_reasons: [] };
+    return { degraded: true, degraded_reasons: reasons, mergeBlockedReason: "incomplete_coverage" };
+}
+function omission(file, reason) {
+    return { file, reason, reviewable: REVIEWABLE_OMISSION_REASONS.has(reason) && isReviewableCodeFile(file) };
+}
+async function recheck(git, owner, repo, prNumber, pin) {
+    const now = await git.getPR(owner, repo, prNumber);
+    if (now.base_sha !== pin.base_sha || now.head_sha !== pin.head_sha)
+        throw new PrHeadMoved(now);
+}
+async function attempt(git, owner, repo, prNumber, config, restarts) {
+    const pin = await git.getPR(owner, repo, prNumber);
+    const listedTotal = Math.min(pin.changed_files, FILES_ENDPOINT_CAP);
+    const pages = Math.ceil(listedTotal / PAGE_SIZE);
+    const fetchReasons = [];
+    if (pin.changed_files > FILES_ENDPOINT_CAP)
+        fetchReasons.push("files_list_truncated");
+    // ── Pass 1: metadata pages ───────────────────────────────────────────────
+    const meta = new Map();
+    for (let k = 1; k <= pages; k++) {
+        await recheck(git, owner, repo, prNumber, pin);
+        const expected = Math.min(PAGE_SIZE, listedTotal - (k - 1) * PAGE_SIZE);
+        let entries;
+        try {
+            entries = await git.getPRFilesPage(owner, repo, prNumber, k);
+        }
+        catch (err) {
+            const reason = pageFailureReason(err);
+            if (reason === undefined)
+                throw err;
+            fetchReasons.push(reason);
+            continue;
+        }
+        if (entries.length < expected)
+            fetchReasons.push("page_incomplete");
+        for (const e of entries.slice(0, PAGE_SIZE)) {
+            if (typeof e.filename !== "string" || meta.has(e.filename))
+                continue;
+            meta.set(e.filename, {
+                page: k,
+                file: {
+                    filename: e.filename,
+                    status: e.status,
+                    additions: e.additions,
+                    deletions: e.deletions,
+                    ...(e.patch != null ? { patchBytes: utf8Bytes(e.patch) } : {}),
+                },
+            });
+        }
+    }
+    const listed = [...meta.values()].map((m) => m.file);
+    // ── Global selection over the complete metadata list ─────────────────────
+    // (the byte budget is applied below with cut semantics, so truncateFiles selects on filters, tiers and the file cap)
+    const sel = truncateFiles(listed, { ...config, maxDiffBytes: Number.MAX_SAFE_INTEGER });
+    const byName = new Map(listed.map((f) => [f.filename, f]));
+    const omitted = [];
+    for (const ex of sel.excluded)
+        omitted.push(omission(ex.filename, exclusionReason(ex.stats, byName.get(ex.filename))));
+    // Byte budget planned on the recorded sizes, in selection order.
+    const plan = [];
+    const budgetExcluded = [];
+    let remaining = config.maxDiffBytes;
+    for (const f of sel.included) {
+        const size = f.patchBytes ?? 0;
+        if (size <= remaining) {
+            plan.push({ file: f, bytes: size, cut: false });
+            remaining -= size;
+        }
+        else if (remaining > 0) {
+            plan.push({ file: f, bytes: remaining, cut: true });
+            remaining = 0;
+        }
+        else {
+            omitted.push(omission(f.filename, "byte_budget"));
+            budgetExcluded.push({ filename: f.filename, stats: `+${f.additions} -${f.deletions} (over max_diff_bytes)` });
+        }
+    }
+    // ── Pass 2: patches for planned files only ───────────────────────────────
+    const planned = new Map(plan.map((p) => [p.file.filename, p]));
+    const neededPages = [...new Set(plan.map((p) => meta.get(p.file.filename).page))].sort((a, b) => a - b);
+    const retained = new Map();
+    const failedPages = new Set();
+    for (const k of neededPages) {
+        await recheck(git, owner, repo, prNumber, pin);
+        let entries = [];
+        try {
+            entries = await git.getPRFilesPage(owner, repo, prNumber, k);
+        }
+        catch (err) {
+            const reason = pageFailureReason(err);
+            if (reason === undefined)
+                throw err;
+            fetchReasons.push(reason);
+            failedPages.add(k);
+        }
+        for (const e of entries) {
+            const p = planned.get(e.filename);
+            if (!p || retained.has(e.filename) || e.patch == null)
+                continue;
+            // (cutting a whole-file plan to its recorded size is a no-op under the pin; it keeps max_diff_bytes binding)
+            retained.set(e.filename, { ...p.file, patch: cutPatch(e.patch, p.bytes) });
+        }
+    }
+    await recheck(git, owner, repo, prNumber, pin);
+    const files = [];
+    const reviewed = [];
+    const pageExcluded = [];
+    for (const p of plan) {
+        const f = retained.get(p.file.filename);
+        if (!f) {
+            // (a failed page already named its reason; a page that arrived without the file is page_incomplete)
+            if (!failedPages.has(meta.get(p.file.filename).page))
+                fetchReasons.push("page_incomplete");
+            omitted.push(omission(p.file.filename, "page_incomplete"));
+            pageExcluded.push({ filename: p.file.filename, stats: `+${p.file.additions} -${p.file.deletions} (patch not received)` });
+            continue;
+        }
+        const bytes = utf8Bytes(f.patch);
+        const truncated = p.cut || bytes < (p.file.patchBytes ?? 0);
+        if (truncated)
+            omitted.push(omission(f.filename, "patch_truncated"));
+        files.push(f);
+        reviewed.push({ file: f.filename, bytes, hunks: countHunks(f.patch) });
+    }
+    omitted.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : a.reason < b.reason ? -1 : a.reason > b.reason ? 1 : 0));
+    const unknown = Math.max(0, pin.changed_files - meta.size);
+    const verdict = evaluateCoverage({ omitted, unknown_omitted: unknown, fetchReasons });
+    const totalBytes = reviewed.reduce((n, r) => n + r.bytes, 0);
+    return {
+        files,
+        selection: { ...sel, included: files, excluded: [...sel.excluded, ...budgetExcluded, ...pageExcluded], totalBytes },
+        coverage: {
+            base_sha: pin.base_sha,
+            head_sha: pin.head_sha,
+            changed_files: pin.changed_files,
+            listed: meta.size,
+            reviewed,
+            omitted,
+            unknown_omitted: unknown,
+            ...verdict,
+            restarts,
+        },
+    };
+}
+/** The two-pass fetch with one restart on a base/head move (sdd.md C-1). */
+export async function fetchPRFilesTwoPass(git, owner, repo, prNumber, config) {
+    let restarts = 0;
+    for (;;) {
+        try {
+            return await attempt(git, owner, repo, prNumber, config, restarts);
+        }
+        catch (err) {
+            if (!(err instanceof PrHeadMoved))
+                throw err;
+            if (restarts === 0) {
+                restarts = 1;
+                continue;
+            }
+            return {
+                files: [],
+                selection: { included: [], excluded: [], totalBytes: 0, allExcluded: false, selfReviewActive: false, selfReviewState: "inactive" },
+                coverage: {
+                    base_sha: err.latest.base_sha,
+                    head_sha: err.latest.head_sha,
+                    changed_files: err.latest.changed_files,
+                    listed: 0,
+                    reviewed: [],
+                    omitted: [],
+                    unknown_omitted: err.latest.changed_files,
+                    degraded: true,
+                    degraded_reasons: ["pr_head_moved"],
+                    mergeBlockedReason: "incomplete_coverage",
+                    restarts,
+                },
+            };
+        }
+    }
+}
+/** Whether a provider implements the paged contract. */
+export function hasPagedContract(git) {
+    return typeof git.getPR === "function" && typeof git.getPRFilesPage === "function";
+}
+/**
+ * The truncation for a (possibly incremental) item: the fetch's global selection when the item still carries the
+ * fetched file list, else `truncateFiles` over the given files (deriveCallConfig stays the single chokepoint).
+ */
+export function truncationFor(item, config) {
+    if (item.selection && item.files === item.selection.included)
+        return item.selection;
+    return truncateFiles(item.files, deriveCallConfig(config, item.pr));
+}
+const MARKER_FULL_LIMIT = 20_000;
+/**
+ * A PR-supplied path made safe for one line of the posted markdown: no backtick or newline (code-span breakout) and
+ * no `<`/`>` (a path can never spell an HTML comment such as a review marker). The summary JSON keeps the real name.
+ */
+function safePath(p) {
+    return p.replace(/[`\r\n]/g, "'").replace(/</g, "%3C").replace(/>/g, "%3E");
+}
+/**
+ * The coverage marker: the full record when it fits the comment budget, else a compact form carrying both SHAs,
+ * the counts and the sha256 of the full record (which is in the summary JSON in full).
+ */
+export function coverageMarker(coverage) {
+    const full = JSON.stringify(coverage);
+    let payload = full;
+    if (full.length > MARKER_FULL_LIMIT) {
+        payload = JSON.stringify({
+            base_sha: coverage.base_sha,
+            head_sha: coverage.head_sha,
+            changed_files: coverage.changed_files,
+            listed: coverage.listed,
+            reviewed_count: coverage.reviewed.length,
+            omitted_counts: omissionCounts(coverage),
+            unknown_omitted: coverage.unknown_omitted,
+            degraded: coverage.degraded,
+            degraded_reasons: coverage.degraded_reasons,
+            ...(coverage.mergeBlockedReason ? { mergeBlockedReason: coverage.mergeBlockedReason } : {}),
+            restarts: coverage.restarts,
+            record_sha256: createHash("sha256").update(full).digest("hex"),
+            record: "summary-json",
+        });
+    }
+    // "--" never occurs outside JSON strings; escaping it inside strings keeps "-->" from closing the comment
+    return `<!-- bridgebuilder-coverage: ${payload.replace(/--/g, "-\\u002d")} -->`;
+}
+function omissionCounts(coverage) {
+    const counts = {};
+    for (const o of coverage.omitted)
+        counts[o.reason] = (counts[o.reason] ?? 0) + 1;
+    return Object.fromEntries(Object.entries(counts).sort(([a], [b]) => (a < b ? -1 : 1)));
+}
+/** The posted coverage section: pinned pair, counts per reason, the first 20 omitted paths, and the marker. */
+export function formatCoverageSection(coverage) {
+    const lines = [];
+    lines.push("### Review coverage");
+    lines.push("");
+    lines.push(`Pinned: base ${coverage.base_sha.slice(0, 12)} · head ${coverage.head_sha.slice(0, 12)}` +
+        (coverage.restarts > 0 ? ` (fetch restarted ${coverage.restarts}× after a head move)` : ""));
+    const bytes = coverage.reviewed.reduce((n, r) => n + r.bytes, 0);
+    lines.push(`Reviewed ${coverage.reviewed.length} of ${coverage.changed_files} changed files (${bytes} patch bytes); ` +
+        `${coverage.omitted.length} omitted by name; ${coverage.unknown_omitted} not listed by GitHub.`);
+    const counts = omissionCounts(coverage);
+    if (Object.keys(counts).length > 0) {
+        lines.push("");
+        for (const [reason, n] of Object.entries(counts))
+            lines.push(`- ${reason}: ${n}`);
+    }
+    if (coverage.omitted.length > 0) {
+        const ordered = [...coverage.omitted].sort((a, b) => Number(b.reviewable) - Number(a.reviewable));
+        lines.push("");
+        lines.push(`First ${Math.min(20, ordered.length)} omitted paths:`);
+        for (const o of ordered.slice(0, 20))
+            lines.push(`- \`${safePath(o.file)}\` — ${o.reason}${o.reviewable ? " (reviewable)" : ""}`);
+    }
+    if (coverage.degraded) {
+        lines.push("");
+        lines.push(`**Degraded**: ${coverage.degraded_reasons.join(", ")} — merge blocked: ${coverage.mergeBlockedReason ?? "incomplete_coverage"}.`);
+    }
+    lines.push("");
+    lines.push(coverageMarker(coverage));
+    return lines.join("\n");
+}
+//# sourceMappingURL=paged-fetch.js.map

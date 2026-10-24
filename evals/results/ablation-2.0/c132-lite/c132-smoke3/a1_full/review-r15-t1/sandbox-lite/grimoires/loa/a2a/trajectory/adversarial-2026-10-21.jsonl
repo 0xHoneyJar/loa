@@ -1,2 +1,0 @@
-{"timestamp":"2026-10-21T13:43:25Z","type":"review","model":"gemini-3.1-pro","sprint_id":"sprint-1","status":"reviewed","finding_count":5,"cost_usd":0}
-{"timestamp":"2026-10-21T13:58:31Z","type":"audit","model":"gemini-3.1-pro","sprint_id":"sprint-1","status":"reviewed","finding_count":2,"cost_usd":0}

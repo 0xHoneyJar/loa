@@ -88,6 +88,72 @@ Fix blockers and obtain a current-head review before reconsidering a merge.
 An explicit `APPROVE` with `mergeBlocked: false` still requires the repository's
 normal merge authorization and checks.
 
+### Large pull requests: the paged, SHA-pinned fetch (cycle-133 C-1, KF-054)
+
+The file list is read in two passes, never with `--paginate`. Pass 1 pages `pulls/N/files?per_page=100&page=K`
+and keeps names, stats and patch sizes only. The selection (Loa tier, `exclude_patterns`, `max_files_per_pr`, tier
+order) runs once over the complete list, and `max_diff_bytes` is planned on the recorded sizes. A file that fits is
+kept whole. The first that does not is kept cut and recorded `patch_truncated`; the rest are `byte_budget`. Pass 2
+re-reads only the pages that hold selected files. `pulls/N` is re-read before every page and after pass 2: a base or
+head move restarts the fetch once, and a second move degrades as `pr_head_moved`. One `gh` call receives one page,
+bounded by `gh_max_buffer_bytes`.
+
+Every review carries a **coverage record**: `{base_sha, head_sha, changed_files, listed, reviewed: [{file, bytes,
+hunks}], omitted: [{file, reason, reviewable}], unknown_omitted, degraded, degraded_reasons, mergeBlockedReason,
+restarts}`. It is in full in the summary JSON (`verdicts[].coverage`). The posted review shows counts per reason, the
+first 20 omitted paths and a `<!-- bridgebuilder-coverage: {…} -->` marker with both SHAs. The marker holds the full
+record when it fits 20,000 characters, else the counts and the record's sha256.
+
+| Omission reason | Blocks the merge |
+|---|---|
+| `excluded_loa`, `excluded_pattern`, `renamed` (no content change) | never |
+| `file_cap`, `byte_budget`, `no_patch`, `patch_truncated`, `page_incomplete`, `excluded_fail_closed` | when the file is a reviewable code file (code, scripts, config, docs) |
+| files GitHub counts but does not list (`unknown_omitted`, above the 3,000-file cap or on an unread page) | always |
+
+A blocking omission sets `degraded: true` and `mergeBlockedReason: incomplete_coverage`, and the verdict is `UNKNOWN`
+unless a finding already requires `REQUEST_CHANGES`.
+
+### Verdict and the guarded consensus writer (cycle-133 C-2, KF-055)
+
+The consensus comment's findings block is rendered from the consensus, never written by the writer model. Every
+canonical field (`id`, `file`, `anchor_line`, `anchor_line_end`, `severity`, `confidence`, `failure_scenario`,
+`suggestion`, `blocking`) is carried byte for byte, with ids made unique. The writer's output is posted as a separate
+**Commentary** section. It is admitted only when two checks pass:
+
+- **Writer eligibility.** The writer route must enforce a no-tool dispatch, reported by the adapter in the dispatch
+  result and verified before and after the call. `bridgebuilder.writer_role_allowlist` defaults to `claude-headless`
+  (`--tools ""`, plan mode), `anthropic-api`, `openai-api`, `google-api` and `bedrock-api`. It is read from trusted
+  configuration only and can narrow the list, never widen it. `codex-headless` is refused until a test proves its
+  native tools cannot execute. A google writer is refused while `hounfour.headless.agy_opt_in` is on. A reply that
+  carries a tool call is refused. Failing this check is `writer_not_eligible`.
+- **The enrichment guard** (`core/enrichment-guard.ts`). It rejects provider tool-call grammar (a line-start
+  `<invoke`/`<function_calls` tag, or a `tool_use`/`tool_calls`/`function_call`/`toolUse`/`functionCall` JSON key)
+  outside fenced code and outside JSON string values. It also rejects a findings block of the writer's own, a
+  duplicated id, or an echoed finding with an altered or missing canonical field or verdict. A faithful echo is
+  accepted and stripped. Failing this check is `enrichment_guard_rejected`.
+
+On either failure the un-enriched consensus is posted, the reason is named in the comment, and the run exits 3.
+The single-model two-pass path applies the tool-grammar check to its Pass 2 output as well.
+
+The verdict (`core/review-verdict.ts`) applies these rules in order:
+
+1. Any finding with `blocking: true` or severity CRITICAL, BLOCKER or HIGH gives `REQUEST_CHANGES`.
+2. A guard rejection, incomplete coverage or a fetch-side degradation gives `UNKNOWN` with `mergeBlocked: true` and
+   the reason.
+3. Two blocks, a malformed block, a voice without a valid block, or a block verdict contradicting rule 1 give
+   `verdict_conflict`: `UNKNOWN` and `mergeBlocked: true`. Under rule 1 the verdict stays `REQUEST_CHANGES` and the
+   conflict is still recorded.
+4. Exactly one valid consensus block gives its `verdict`. `COMMENT` and `APPROVE` give `mergeBlocked: false`.
+5. With no block, the prose rule applies.
+
+INFO, PRAISE, SPECULATION and REFRAME never block. `writer_not_eligible` degrades the run without changing the
+verdict, because the un-enriched consensus is authoritative.
+
+`degraded_reason` is one of `files_payload_oversize`, `files_list_truncated`, `page_incomplete`,
+`patch_fetch_rate_limited`, `pr_head_moved`, `incomplete_coverage`, `enrichment_guard_rejected`,
+`writer_not_eligible` or `verdict_conflict` (`core/run-outcome.ts`). The summary JSON carries `degraded`,
+`degraded_reason` and `mergeBlockedReason` per verdict, and `degraded_reasons` for the run.
+
 ## Configuration
 
 Set in `.loa.config.yaml` under `bridgebuilder:` section, or via environment variables:
@@ -99,7 +165,10 @@ Set in `.loa.config.yaml` under `bridgebuilder:` section, or via environment var
 | dry_run | `BRIDGEBUILDER_DRY_RUN` | `false` |
 | max_prs | — | `10` |
 | max_files_per_pr | — | `50` |
-| max_diff_bytes | — | `100000` |
+| max_diff_bytes | — | `512000` (bounds retained and submitted patch bytes; cycle-133 C-1) |
+| gh_max_buffer_bytes | — | `67108864` (64 MiB per `gh` call, which receives one page of the files list; 1 MiB … 512 MiB, else the default with a warning; cycle-133 C-1) |
+| exclude_patterns | — | always prefixed with `evals/fixtures/review-prs/**` and `grimoires/loa/reports/ablation-2.0/*-grades/**`, applied before any patch is retained, under self-review too (cycle-133 C-1) |
+| writer_role_allowlist | — | `[claude-headless, anthropic-api, openai-api, google-api, bedrock-api]`; trusted configuration only; narrows, never widens (cycle-133 C-2) |
 | max_input_tokens | — | `8000` |
 | max_output_tokens | — | `4000` |
 | persona_path | — | `grimoires/bridgebuilder/BEAUVOIR.md` |
@@ -158,7 +227,7 @@ This skill runs `entry.sh` which invokes the compiled Node.js application:
 |------|---------|
 | 0 | All reviews completed successfully |
 | 1 | One or more reviews encountered errors |
-| 3 | Multi-model review completed, consensus DEGRADED: fewer voices completed than planned, or a degraded verdict-quality band. The JSON (`degraded`, `verdicts[].voices.incomplete`) and the comments are written first; callers print a WARN naming the voices and carry on. `bridgebuilder.exit_on_degraded: 0` restores exit 0 (cycle-129, DEC-0150) |
+| 3 | Review completed DEGRADED with a named `degraded_reason` (coverage, guard, writer, verdict conflict; both modes; cycle-133 C-1/C-2), or a multi-model consensus DEGRADED: fewer voices completed than planned, or a degraded verdict-quality band. The JSON (`degraded`, `verdicts[].voices.incomplete`) and the comments are written first; callers print a WARN naming the voices and carry on. `bridgebuilder.exit_on_degraded: 0` restores exit 0 (cycle-129, DEC-0150) |
 | 4 | `entry.sh` preflight: `node_modules/zod` missing (`npm ci`); was 3 before cycle-129 |
 
 The completion banner prints `Done in Ns — completed/planned model(s) completed`.

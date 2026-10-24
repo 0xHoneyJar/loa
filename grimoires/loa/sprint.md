@@ -1,22 +1,21 @@
-# Sprint Plan: The conclusive review-catch answer (cycle-132)
+# Sprint Plan: The follow-through (cycle-133)
 
-**Version:** 1.0
-**Date:** 2026-10-21
+**Version:** 1.1
+**Date:** 2026-10-23
 **Author:** Sprint Planner Agent (Claude Fable 5.1, unattended)
-**PRD Reference:** grimoires/loa/prd.md (cycle-132, FR-1 … FR-11; Appendix E D1–D18)
-**SDD Reference:** grimoires/loa/sdd.md (1.1; §1.4 components, §3.2 schema, §5.2 contracts, §5.3 pre-registered design, §11.D D-1.1 … D-7.10)
-**Ledger:** cycle `cycle-132-conclusive-review-catch`, sprints global 269 / 270 / 271 (local sprint-1 … sprint-3; `next_sprint_number` set past the sprint-bug-266 … 268 micro-sprints, SDD D-6.1)
-**Execution:** `/run sprint-plan`, push AUTO; Opus 5.5 implementers in linked worktrees returning `git diff --cached --binary` patches; the lead applies, reviews and audits on Fable 5.1; at most three dissent runs per sprint; no dissent while a batch runs (KF-037); blind labelling roles run as containerized sessions (SDD D-7.1), never as Agent-tool subagents
-**Task kinds:** every task carries `kind: mechanical | judgment | operator` (DEC-0144); no `operator` task exists — the operator's instruction authorised the cycle end to end and every operator-level choice is an `[ASSUMPTION decision]` DEC row (prd.md Appendix E)
-**Spend:** planning envelope USD 2,500 (DEC-0669); the binding cap is set by Task 1.9 and written into the hashed registration before any Phase 1 row; Phase 0 arm spend is zero (blind sessions and planning dissents are the only model calls); halt only on spend above the cap by the runner's reservation rule
-**System Zone authorization:** none (the cycle edits `evals/`, `grimoires/`, `CHANGELOG.md` only; prd.md § Technical Considerations)
-**Flatline integration:** PRD run → DEC-0685 (prd.md Appendix F); SDD run → DEC-0692 (sdd.md §11.E); sprint run → § Appendix D
+**PRD Reference:** grimoires/loa/prd.md (cycle-133, 1.1, FR-1 … FR-14; Appendix A D-1 … D-12)
+**SDD Reference:** grimoires/loa/sdd.md (1.2; §1.4 components C-1 … C-14, §3.2 schemas, §5.2 interfaces, §8 phases, §11.D D-1.1 … D-4.2)
+**Ledger:** cycle `cycle-133-follow-through`, sprints global 272 / 273 / 274 / 275 (local sprint-1 … sprint-4)
+**Execution:** `/run sprint-plan`, push AUTO; Opus 5.5 implementers in linked worktrees returning `git diff --cached --binary` patches with a mandatory "Judgment calls" section (each alternative rejected) that the sprint-close task turns into DEC rows; the lead is the integration owner — patches land in the order each sprint names and later implementers rebase on the landed ones; the lead applies, reviews and audits on Fable 5.1; at most three dissent runs per sprint — when they are spent and review or audit is still not APPROVED the lead records a DEC row with the unresolved findings, marks the sprint BLOCKED and HALTS the run for the operator; a draft PR is opened from the cycle branch at the end of Sprint 1 so CI runs for the whole cycle and Sprint 4 marks it ready; sprint dates are targets, not gates — a slip lengthens the cycle and skips nothing
+**Task kinds:** every task carries `kind: mechanical | judgment` (DEC-0144); no `operator` task exists — the operator's instruction authorised the cycle end to end (PRD § Authorization basis, D-11); the operator can halt at any time
+**Spend:** USD 100 cap excluding subagents, allocated smoke 40 (the ≤ USD 2 scope spike and one reserved verification rerun inside it) / Bridgebuilder 20 (plateau rule: stop after a round adding no new HIGH or MEDIUM, at most three rounds) / dissent 40; the cycle meter is read before every paid step and every sprint report carries a running spend line per share; funds exhausted before a gate → HALT for the operator; no paid measurement; the cycle-132 pin, record and reads untouched (PRD § Constraints, D-S.1 DEC-0859)
+**System Zone authorization:** granted for this cycle (PRD § Technical Considerations, D-4): every `.claude/` write under a bounded zone marker, checksums and REPO-MAP regenerated in the same commit
 
 ---
 
 ## Executive Summary
 
-Three sprints answer one question with evidence a stranger can re-derive. Sprint 1 (global 269) spends no arm money: it seeds the unseen corpus with provenance, compiles incidents, re-derives the ground truth with two blind containerized annotators (kappa, adjudication, label source, review-driven tag), builds the compute-matched arms and the harness follow-ups, writes the stdlib analysis module and proves it on placebo data from the 63 existing runs, sizes the study by a simulation of the complete decision procedure, and hashes a registration that binds every input — after a dissent review of the plan. Sprint 2 (global 270) runs the pre-registered batches at one pin in PR groups with interim looks under the YES / NO / SMALL / FUTILE / CONTINUE rule, the open-mount positive control on the first group, and the blind judge on a stratified sample. Sprint 3 (global 271) takes the pre-registered reads and the sensitivities, writes the standalone report, has a reproducer rebuild every grade, row and read from a fresh clone, runs the placebo and positive-control checks on the new rows, and ships through review, audit, Bridgebuilder, merge, record branch and archive, cutting the held rc.7 only after the proof.
+Four sprints close every cycle-132 follow-up and the three product changes that need no model spend to build. Sprint 1 (global 272) fixes the framework's own tooling: the Bridgebuilder fetch and consensus writer, the release publish path, the record-branch script and four ergonomic defects, CI and the ten failing unit tests. Sprint 2 (273) hardens the harness and the reproduction tooling and pins the next pipeline version. Sprint 3 (274) builds the product: Loa reviewing Loa under a pinned framework (spike first), one finding contract with a judge-able grader hook, and the external corpus seeder. Sprint 4 (275) sweeps the tracker with evidence and ships 2.0.0-rc.8 through the fixed path. Each sprint ends with review and audit; the cycle ends with the Bridgebuilder built on the cycle branch reviewing its own PR.
 
 > Sources: prd.md § Executive Summary, § Timeline & Milestones; sdd.md §8
 
@@ -26,231 +25,235 @@ Three sprints answer one question with evidence a stranger can re-derive. Sprint
 
 | Sprint | Global | Theme | Key Deliverables | Dependencies |
 |--------|--------|-------|------------------|--------------|
-| 1 | 269 | Phase 0 — ground truth, harness, analysis, power, registration | corpus + provenance; incidents; packets + blind sessions + annotation merge → v2 manifests (frozen sets migrated); matched cells + registration + follow-up beads; analysis module + unit tests; placebo on the 63 existing rows committed; power → N, cap, k, groups, calibrated constant; PREREGISTRATION.md + REGISTRATION.json hashed after the Flatline spec review; rc.7 hold line | sprint-bug-266 … 268 merged (labels grammar, archive script) |
-| 2 | 270 | Phase 1 — batches | pin; suite root frozen + self-check; smoke (oracle_closed, realized k ratios); G1 (+ open mount) → look 1; G2 → look 2; G3 → look 3 or stop; judge sample + blind judge + agreement; spend posts; contamination hand-reads | Sprint 1 |
-| 3 | 271 | Phases 2–3 — reads, report, proof, ship | `--final` reads + DEC rows; report; REPRODUCE.md + reproducer run from a fresh clone; placebo + positive control on the new rows; CHANGELOG rc.7; PR; review; audit; Bridgebuilder; merge; record branch; archive | Sprint 2 |
+| 1 | 272 | The framework's own defects | paged SHA-pinned Bridgebuilder fetch + guarded writer + block verdict (C-1, C-2); publish tags the merge, ledger patch ff (C-3); `record-branch.sh`, notes-guard, hook, dec-write, scope, ledger validator (C-4); CI pytest glob, quarantine, ten tests, gitattributes + tripwire (C-5) | none |
+| 2 | 273 | Harness and reproduction hardening | session lib fail-closed + sourced (C-6); reproduction/analysis hardening (C-7); grader 1.4 + refusal policy (C-8); supervisor + egress + image 259 (C-9); pipeline version pinned | Sprint 1 CI |
+| 3 | 274 | The product | spike (HALT on failure); HOME-scope mount + clauses (e)–(g) (C-10); finding schema + Failure clause + grader 1.5 + judge read (C-11); shared seeding lib + external seeder + registration v2 + guidance (C-12); the measurement pin and the smoke | Sprint 2 intermediate version; egress suite green |
+| 4 | 275 | Hygiene and ship | sweep inventory → manifests → closures + sample (C-13); rc.8 docs, PR, Bridgebuilder, merge, record, publish, archive (C-14) | Sprints 1–3 |
 
 > Sources: prd.md § Timeline & Milestones; sdd.md §8
 
 ---
 
-## Sprint 1: Phase 0 — ground truth, harness, analysis, power, registration (global 269)
+## Sprint 1: The framework's own defects (global 272)
 
-**Duration:** 2 days
-**Dates:** 2026-10-21 – 2026-10-23
+**Duration:** 1 day
+**Dates:** 2026-10-24
 
 ### Sprint Goal
-Every input of the measurement exists, is hashed and is proven before a single arm dollar is spent: re-derived labels with a reported kappa, a matched-bare arm the harness can run and check, an analysis module that reads zero on shuffled data, a simulation-derived N and cap, and a registration whose dissent review precedes the first row.
+Make the framework's own tooling trustworthy again: a Bridgebuilder that reads any PR and reports a verdict it can defend, a publish path whose tag `main` can reach, one command for the record branch, four ergonomic defects gone, and green suites in CI.
 
 ### Deliverables
-- [ ] `evals/fixtures/review-prs/record-pairs.tsv` rows for sprints 255 … 265; the new fixtures seeded (`pr-19 …`); `fixture.yaml` `exposure` + `contamination_note` on every fixture; `SHA256SUMS` refrozen → **[G-1, G-2]**
-- [ ] `evals/harness/incident-scan.sh` + `incidents/pr-NN.tsv`, `evidence/`, `.meta.json` for every candidate fixture → **[G-1]**
-- [ ] `evals/harness/annotation-packets.sh` (+ codebook, `hunks.meta.json` with `review_driven`, leak check), `evals/harness/schemas/annotation.schema.json` → **[G-1]**
-- [ ] `evals/harness/blind-session.sh` (container executor; packet-only sandbox; taint check) → **[G-1, G-4]**
-- [ ] `evals/analysis/c132/annotation_merge.py`; labels TSV v2 header; `evals/harness/schemas/review-manifest.schema.json`; `--build-manifest` v2 fields; frozen sets moved to `manifests/c131/` and `labels/review/` with the c131 suite-root task paths updated; grader `label_set`/`labels_meta`; a c131 re-grade equality test → **[G-1]**
-- [ ] The annotation run: two blind sessions per selected fixture, `kappa.json`, `adjudication.{md,json}`, `result.md`, v2 manifests built and byte-identical from labels → **[G-1]**
-- [ ] Matched cells: runner session units with the 2-re-run limit, `ablation-grade.sh --union`, took-effect `bare_sessions_matched` + `mount_cheval_ok`, row writer 1.5, report 1.4, arms `a0_bare_matched` + `a0_bare_fable_matched`, `--registration` + MANIFEST fields + resume refusal, `--batch-context`, toggle vocabulary parity, `dissent_absent_reason` from evidence, `false_positive_rule`, egress class 9, distinct-defect tests → **[G-3, G-4]**
-- [ ] `evals/analysis/c132/{stats,reads,power,judge_agree}.py` + `tests/` (textbook-value unit tests) + `evals/tests/analysis-c132.bats` wrapper; `reads-c132.py`, `power.py` CLIs → **[G-2, G-3, G-5]**
-- [ ] `a2a/sprint-1/placebo-existing.{md,json}` — the 200-shuffle placebo on the 63 existing rows, committed → **[G-3]**
-- [ ] `a2a/sprint-1/power/power.{md,json}` — N, cap, k table, groups and looks, calibrated boundary constant, candidate table with seeded order, sensitivities → **[G-2]**
-- [ ] `grimoires/loa/evals/ablation-2.0-c132/{PREREGISTRATION.md, REGISTRATION.json, tasks/, MANIFEST.sha256, README.md}` frozen; Flatline `--phase spec` record `a2a/sprint-1/flatline-prereg.json` + integration note; the registration hash in NOTES → **[G-3]**
-- [ ] Beads bd-9zmfn, bd-eriso, bd-56nn6, bd-jszcp, bd-st02i, bd-gdl5s closed with evidence; CHANGELOG `[Unreleased]` entries; `evals/tests/` + `tests/unit/` green → **[G-7]**
+- [ ] C-1 paged, SHA-pinned Bridgebuilder fetch with coverage record and `degraded_reason` enum; default excludes; `gh_max_buffer_bytes` → **[G-2]**
+- [ ] C-2 enrichment guard (schema + semantic equality + no tool grammar), writer-role allowlist, block-derived verdict with precedence; PR #1289 round replays → **[G-2]**
+- [ ] C-3 candidate v2 (target = merge, ledger patch, digests, ref updates), publish with remote-main check, `--force-with-lease` ff, idempotent sequence → **[G-3]**
+- [ ] C-4 `record-branch.sh`; `notes-guard.sh rotate` keeps every template section; hook liveness; dec-write length message; `security-audit-scope.sh --help/--files`; `validate_ledger` schema_version → **[G-1]**
+- [ ] C-5 CI pytest glob `evals/analysis/*/tests`; `tests/QUARANTINE.tsv` + helper + expiry gate + counts; the ten `tests/unit` failures repaired or quarantined; `.gitattributes` + lint-walk tripwire → **[G-6]**
 
 ### Acceptance Criteria
-- [ ] PRD FR-1 AC 1–4 (record-pairs rows validated; new fixtures complete; `exposure` fields parse on every fixture; `--check` passes; `evals/tests/` green)
-- [ ] PRD FR-2 AC 1–4 (packets deterministic and leak-free; annotation records with kappa, localization and grouping agreement, adjudication; v2 manifests validate and rebuild byte-identically; grader reads v2 with `label_set`; frozen sets byte-identical to `main`)
-- [ ] PRD FR-3 AC 1–4 (dry run shows k sessions; stub run k = 3 with per-session transcripts and summed cost; union credits once; `recall_session1`; took-effect pass/fail; row validate; report partitions; suite validate) plus SDD D-7.3 (session-level validity, attempt limit, intention-to-run fields)
-- [ ] PRD FR-5 AC 1–3 (unit tests incl. REML, permutation, calibrated boundaries, RCI, placebo distribution, validity filter, degenerate statuses; placebo on existing rows committed and inside the band; `--look`/`--final` byte-identical across two runs)
-- [ ] PRD FR-6 AC 1–3 (power deterministic by seed; candidate table; the chosen N reproduces from frozen inputs; the complete-procedure simulation with calibration and the correlated-sessions sensitivity)
-- [ ] PRD FR-7 AC 1–3 (`--registration` recorded and resume-bound; the NOTES heading with the hash precedes any Phase 1 row; the Flatline spec review precedes the hash; addenda rule stated)
-- [ ] PRD FR-11 AC 1–2 (the follow-up beads closed with bats evidence; the rc.7 hold line present)
-- [ ] `evals/tests/` (535 + new) and `tests/unit/` green; `bash -n` on every changed script; `validate-suite.sh` on the c132 and c131 roots
+- [ ] PRD FR-1 AC 1–7 (mechanism named; immutable pair; 2,000- and 3,001-file fixtures; coverage record; degraded enum; default excludes; knob documented, dist fresh)
+- [ ] PRD FR-2 AC 1–4 (per-adapter no-tools tests; guard rejections; verdict precedence cases; round-1 → COMMENT, round-2 → fallback exit 3)
+- [ ] PRD FR-3 AC 1–3 (design-neutral bats incl. moved main, existing tag, crash recovery, mutated candidate; manifest digests)
+- [ ] PRD FR-4 AC 1–2 (bats per script incl. the credential-shaped hit that stops the record build; docs; cache scripts retired)
+- [ ] PRD FR-5 AC 1–4 (CI runs the analysis pytest; `tests/unit` green; tripwire; expired quarantine fails CI)
+- [ ] Review APPROVED, audit APPROVED (`All good`, LOA-VERDICT trailers), ≤ 3 dissent runs
 
 ### Technical Tasks
 
-- [ ] Task 1.1: Seed the corpus — `record-pairs.tsv` rows for sprints 255 … 265 (base = parent of the first implementation commit, head = the round-1 tree, fix = the closing commit; the cycle-131 sprints' feedback under `a2a/sprint-1 … 3/` via the new `--feedback` paths); `seed-corpus-from-record.sh --feedback <paths>` and the `exposure`/`contamination_note` fields with the model-availability constant table; seed every new fixture; stamp `exposure` on pr-11 … pr-18; `--freeze`; bats for the fields and the paths; **the corpus ceiling**: the report's candidate table counts the eligible fixtures (seeded, ≥ 2 defects expected, `exposure` recorded) — at most 15 — so Task 1.9 can bound N by it (Flatline SKP-001) → **[G-1, G-2]** · kind: mechanical
-- [ ] Task 1.2: `incident-scan.sh` — merge-date window to the scan date across the four sources (SDD D-7.8), `gh api --paginate` with completeness recorded, evidence files, `.meta.json`; run over every candidate fixture (read-only `gh`); bats on a synthetic repo with `--no-gh` → **[G-1]** · kind: mechanical
-- [ ] Task 1.3: `annotation-packets.sh` + `codebook.md` + `annotation.schema.json` — hunks with 12 lines of head context, incidents, `hunks.meta.json` with `review_driven` from the feedback citations (outside the packet), the leak check (fails closed on any label/feedback line); bats on a synthetic fixture → **[G-1]** · kind: mechanical
-- [ ] Task 1.4: `blind-session.sh` — container executor reuse, packet-only sandbox, tools Read/Grep/Glob/Write, prompt → fixed label path, transcript + cost + `taint.json`; bats with the stub CLI, including an adversarial-packet case (a packet line shaped as an instruction to read `/workspace/../labels` or to call Bash: the stub records the attempt and the taint check marks the role `tainted`) (Flatline SKP-010) → **[G-1, G-4]** · kind: mechanical
-- [ ] Task 1.5: `annotation_merge.py` (kappa ×3, localization and grouping agreement, complete adjudication records, cross-source dedupe, v2 rows) + labels v2 header in `seed-corpus-from-record.sh` + `review-manifest.schema.json` + `--build-manifest` v2 fields + the frozen-set migration (`git mv` to `manifests/c131/`, `labels/review/`; c131 root `task.yaml` paths; byte-identity and one c131 re-grade equality test) + grader `label_set`/`labels_meta` → **[G-1]** · kind: mechanical
-- [ ] Task 1.6: The annotation run (lead) — packets for the candidate set (N + 2 spares from Task 1.9's order), two blind sessions each through `blind-session.sh` (Opus 5.5), `annotation_merge.py --kappa`, the lead's `adjudication.json` with reasons, v2 rows → `--build-manifest` → byte-identical rebuild → `--freeze`; `a2a/sprint-1/annotation/result.md` (kappa per fixture and pooled, adjudication share, review-driven share) → **[G-1]** · kind: judgment
-- [ ] Task 1.7a: Matched cells in the runner — session work units for `bare_sessions: matched` arms, `meta/cell.json`, the 2-re-run attempt limit for every unit, `--resume` re-running only missing/failed sessions, the cell rowed once all k land (SDD D-3.1, D-3.2, D-7.3); arms `a0_bare_matched`, `a0_bare_fable_matched` + toggle vocabulary (`print_toggle_vocabulary`, parity bats — bd-gdl5s); `--batch-context` argv (bd-st02i); `mount_cheval` evidence + `mount_cheval_ok` (bd-56nn6); RAB cases → **[G-4]** · kind: mechanical
-- [ ] Task 1.7b: `ablation-grade.sh --union` + 1.3.2 (`label_set`, `labels_meta`, `false_positive_rule` — bd-9zmfn, `multi_credit_citations` + distinct-defect tests, egress class 9 incl. WebFetch/WebSearch inputs — bd-eriso), took-effect `bare_sessions_matched`, row writer 1.5 (`sessions_valid`, `session_costs`, `all_spend_usd`, `dollar_match`, `recall_session1`, `dissent_absent_reason` from harness evidence — bd-jszcp, `registration_sha256`), report 1.4 partitions; bats → **[G-3, G-4]** · kind: mechanical
-- [ ] Task 1.7c: `run-ablation.sh --registration` — `REGISTRATION.json` (JCS via `lib/jcs.sh`), MANIFEST fields, resume refusal on a changed hash, `overshoot_bound_usd`; `evals/analysis/c132/registration.py` to build and hash the manifest; **the spend gate stated and tested**: each batch's `--max-usd` is derived at launch from the registered cap minus `spend.sh --since <kickoff>` (the cycle meter), and the runner's existing reservation rule (spent + in-flight reservations + the next unit's estimate under the batch cap; durable in STATUS.json across `--resume`, settled on actual costs) is pinned by RAB cases for concurrent launches, retries and resume (Flatline SKP-003b); bats → **[G-3]** · kind: mechanical
-- [ ] Task 1.8: `evals/analysis/c132/` — `stats.py` (cluster bootstrap, REML LMM with boundary flag, PR-level and pair-level permutation, Lan–DeMets OBF recursion with a calibration constant, RCI, conditional power, 200-shuffle placebo, defects per USD), `reads.py` (`reads-c132.py`: input manifest validation, validity filter incl. matched-cell rule, the partition, `--look/--final/--placebo`, degenerate statuses, byte-identical output), `power.py` (SDD §5.3 model: Beta-Binomial shrinkage + blind-spot mixture, logit design effect with clipping diagnostics, correlated-sessions sensitivity, the complete procedure under data-dependent completion — session/cell exclusion rate `r`, a cap-driven partial last group drawn at random, the ≥ 6-PR rule — calibration, cap and affordable-N, and the corpus ceiling as an input (Flatline SKP-005, SKP-001)), `judge_agree.py` (Horvitz–Thompson corrected figures; the universe includes missed ground-truth defects as far-miss units with their own inclusion probability — Flatline SKP-007), missingness reporting in `reads.py` (excluded cells and sessions by arm and k; the two bounding sensitivities "every excluded matched session missed everything" / "caught everything" beside the primary — Flatline SKP-012), `tests/` (textbook two-group REML within 1e-6; OBF 3.710/2.511/1.993 within 0.02; permutation on a constructed case; kappa 2×2; placebo calibration on synthetic data; validity filter; degenerate cases) + `evals/tests/analysis-c132.bats` wrapper → **[G-2, G-3, G-5]** · kind: mechanical
-- [ ] Task 1.9: The power run (lead) — `power.py` over the 63 existing runs (the 36 tracked c130 run dirs + the 27 c131 run dirs fetched from the record branch into a scratch results root), k table from the cost fits (PRD D18), N, cap, groups/looks, the calibrated constant, the candidate table in seeded order with `exposure`; the affordable-N rule applied and stated; **the cap's accounting scope stated** (Flatline SKP-004): the binding cap is the total cycle spend — every metered row on `.run/cost-ledger.jsonl` since the kickoff timestamp 2026-10-21T00:23Z (planning dissents, Flatline runs, blind sessions, the judge, the reproduction rerun, retries) plus every arm row — with the arm allowance a sub-cap and explicit reserve lines for annotation, judging, controls, retries and reproduction set aside before the affordable-N comparison; `spend.sh --since 2026-10-21T00:23:00Z` is the meter; **the corpus ceiling**: if the simulated N exceeds the eligible count from Task 1.1, N is the ceiling and the registration states the achieved power (below 0.50 → exploratory, SDD §5.3) (Flatline SKP-001); DEC row → **[G-2]** · kind: judgment
-- [ ] Task 1.10: The placebo on existing rows (lead) — `reads-c132.py --placebo` over the same 63 rows (c131 label set) → `a2a/sprint-1/placebo-existing.{md,json}`, committed before any Phase 1 spend; DEC row with the band outcome → **[G-3]** · kind: mechanical
-- [ ] Task 1.11: Pre-registration (lead) — `PREREGISTRATION.md` (question, corpus and order, groups and looks, arms and k, primary and secondary estimands, intervals and tests, the partition and calibrated boundaries, validity and exclusion incl. D-7.3, dollar-matching tolerance, placebo band, positive-control rule, judge protocol, sensitivity list, cap and reservation rule, seeds, exchangeability statement, the smoke's role); suite root `ablation-2.0-c132/` (tasks per selected PR with bounds 50/40, `review_catch.manifest` v2, `bare_sessions_matched`; `freeze.sh --allow-partial`; image self-check); Flatline `--phase spec --autonomous` on PREREGISTRATION.md → integrate by judgment (DEC) → `registration.py` → `REGISTRATION.json` (binding also the container image digest and the pin, so runner and grader code are frozen with the analysis tree — Flatline SKP-011) + sha256 → NOTES heading; **the amendment policy, written in PREREGISTRATION.md**: a bug fix to the analysis or runner code after registration lands as `REGISTRATION-N.json` naming its predecessor, the original outputs are kept and both the original and the amended reads are reported with the diff explained → **[G-3]** · kind: judgment
-- [ ] Task 1.12: Sprint close — beads bd-9zmfn, bd-eriso, bd-56nn6, bd-jszcp, bd-st02i, bd-gdl5s closed with evidence; CHANGELOG `[Unreleased]` `### Added` entries under the rc.7 hold line; `evals/tests/` + `tests/unit/` green; DEC rows for every implementer DECISION; `reviewer.md` with `## AC Verification` → **[G-7]** · kind: mechanical
+- [ ] Task 1.1: Bridgebuilder paged fetch (A) — `adapters/github-cli.ts`: `getPR` (base/head sha, changed_files), the two-pass fetch of sdd.md C-1 (pass 1 metadata pages with per-page SHA re-check and dedup, global `truncateFiles` selection, pass 2 patches for selected files only, final base+head revalidation), `gh_max_buffer_bytes`; the two default excludes; callers `core/reviewer.ts:820`, `main.ts:614`; coverage record (`reviewed`, `omitted` with reasons incl. `no_patch`, `patch_truncated`, `files_list_truncated`, `page_incomplete`, `unknown_omitted`) in the marker and summary JSON, counts plus first 20 paths in the comment; verdict eligibility per `degraded_reason` (an omitted reviewable code file → `mergeBlocked: true`, `incomplete_coverage`); `degraded_reason` enum in `core/run-outcome.ts`; vitest: 2,000-file fixture with mocked `gh`, 3,001-file cap, oversize single patch, head moved → restart once then degrade, patch fetch count equals selected count, excluded security-relevant file never degrades, each degraded reason's verdict; `npm run build`, `dist/` committed, `check-bb-dist-fresh`; SKILL.md knobs; bead bd-ra4im → **[G-2]** · kind: mechanical
+- [ ] Task 1.2: Bridgebuilder consensus integrity (A, after 1.1 on the same files) — findings rendered deterministically from the consensus with every canonical field (id, file, anchor_line, anchor_line_end, severity, confidence, failure_scenario, suggestion, blocking), writer output as separate commentary; `core/enrichment-guard.ts` (own findings block, altered or omitted canonical field, duplicate ids, structural tool-grammar match outside fenced spans and string values → `enrichment_guard_rejected`, exit 3); `writer_role_allowlist` default claude-headless + API adapters (codex-headless only after a vitest proves its native tools cannot execute; adapters self-report the enforced no-tool stance in the dispatch result and the role check verifies it; unknown adapter versions refused; `writer_not_eligible`); `core/review-verdict.ts` decision table of sdd.md C-2 incl. `blocking`, `verdict_conflict`, `mergeBlockedReason`; fixtures: the PR #1289 round-1 and round-2 bodies (from `record/cycle-132-conclusive-review-catch:grimoires/loa/a2a/sprint-271/bridgebuilder/`) replay as COMMENT and as guard-rejected fallback; attempted-tool-call tests per eligible adapter; bead bd-cpvc6 → **[G-2]** · kind: mechanical
+- [ ] Task 1.3: Release publish (B) — `post-merge-orchestrator.sh --generate`: candidate schema_version 2 per sdd.md C-3 (sealed object canonicalised with `lib/jcs.sh`: `target_commit = merge_sha`, `post-merge-ledger.patch` + `ledger_patch_sha256`, deterministic `ledger_commit` identity and dates so `ref_updates[].new` is computable, `release_notes_sha256`, `target_on_main`; mutable `progress` file beside it); `--publish`: v1 candidates refused with a regeneration instruction (`--allow-v1` with a logged reason only), digest check, `merge_sha` ancestor of the freshly fetched remote `main`, ancestry re-verified before each externally visible step, tag the merge (existing tag accepted only on identical target and release identity), release, ledger patch validated (only `grimoires/loa/ledger.json`, active → archived) and pushed `--force-with-lease=refs/heads/main:<observed sha>` (lease failure → `ledger_commit: deferred` + `.run/post-merge-ledger-deferred.json`; `--publish --ledger-only` completes it), recovery state machine; branch protection read (`branches/main/protection`) recorded in the sprint report; `tests/unit/post-merge-publication.bats`: ancestor success, main advanced between check and tag, moved main at the ledger step → deferral, existing-tag identity match vs conflict, crash after tag / after release / after ledger push → idempotent re-run, mutated candidate or digest refusal, v1 refusal, tag reachable from main (KF-034 setup kept); bead bd-kwloh → **[G-3]** · kind: mechanical
+- [ ] Task 1.4: `record-branch.sh` (C) — `.claude/scripts/record-branch.sh` per sdd.md C-4 (manifest from the ledger cycle or `--manifest`, symlink and escape refusal over the complete final tree, temp index, scan of the paths that differ from `<head>` exported to a bounded temp dir for `audit-secret-redaction-scan.sh` — the parents `prev` and `head` are already public refs, which the script asserts before committing — credential-shaped classes non-bypassable (exit 2), `--accept-scan TREE` for other classes recorded in the commit message and manifest (`scan_tree`, `accepted_scan`), `commit-tree -p prev -p head`, `update-ref` compare-and-swap, `--dry-run` size table); bats on a fixture repo (paths present, sandbox absent, refusals, planted credential hit stops even with accept, CAS refusal on a moved record ref, dry-run no ref); the archive-cycle and ship skill text names it; NOTES records the retirement of the cycle-125 … 132 cache scripts; bead bd-mgun5 → **[G-1]** · kind: mechanical
+- [ ] Task 1.5: Framework ergonomics (C) — `notes-guard.sh cmd_rotate` section-by-section retention (Blockers and Active Sub-Goals whole, newest Session Continuity, three Decision Logs, capped Session Log) with a bats case that two open blockers and two sub-goals survive and `check-loa.sh` passes; `pre-compact-marker.sh` liveness by state allowlist + `LOA_HOOK_LIVE_WINDOW_DAYS` (COMPLETED file → silent; RUNNING → active; HALTED → awaiting resume); `dec-write-lib.sh:471` message with measured and maximum length; `security-audit-scope.sh --help`, `--files`, `--paths` + the auditing-security SKILL.md Phase -1 text; `ledger-lib.sh validate_ledger` schema_version (alias `version`) with a bats case on the live shape; beads bd-rz5ks, bd-nbs7w, bd-d7dwt, bd-crzm5, bd-4pjqm → **[G-1]** · kind: mechanical
+- [ ] Task 1.6: CI and test health (D) — `bats-tests.yml` pytest step globs `evals/analysis/*/tests`; `tests/QUARANTINE.tsv` (expiry = quarantine commit date + 30 days, ISO), `tests/unit/helpers/quarantine.bash`, `tools/check-quarantine-expiry.sh` (row validation per sdd.md C-5; fails on expiry; prints full-suite executed / skipped / quarantined totals) wired into CI; the ten `tests/unit` failures (cheval-alias-regression A1–A6, cost-report CR-7 `--reprice`, c114-FR1-2/-3, c124-1.3-5): a fix counts as local only when it touches test files or the function under test and changes no shipped behaviour — the implementer lists each decision for the lead's judgment in Task 1.7; at most four quarantined, each with owner, expiry, bead and reason; `.gitattributes` `linguist-generated -diff` for `evals/fixtures/review-prs/pr-*/**` and `grimoires/loa/reports/ablation-2.0/*-grades/**` (markdown at the fixture root stays reviewable; workflows rule untouched; `gitattributes-workflow-protection` green); `tools/check-no-swallowed-jq.sh` prunes the fixture trees; `tests/unit/lint-walk-excludes-fixtures.bats` plants a known violation under a temp copy of `pr-99/` and asserts every lint walk reports zero; beads bd-yroj0, bd-tgn04, bd-dt5r8 → **[G-6]** · kind: mechanical
+- [ ] Task 1.7: Sprint close (lead) — apply the four patches in the order A (1.1 then 1.2), B, C, D; checksums and REPO-MAP regenerated under the zone marker; CHANGELOG `[Unreleased]` entries per fix with the revert path; DEC rows from every implementer's "Judgment calls" section (incl. the ten repair-vs-quarantine decisions); beads closed with the commit and test named; `tests/unit`, bats, vitest green; the draft PR opened from the cycle branch (ICE) so CI runs; the running spend line; `/review-sprint`, `/audit-sprint` → **[G-1]** · kind: judgment
+- [ ] Task 1.E2E: End-to-End Goal Validation — G-2 (the 2,000-file fixture review and the verdict equality in vitest), G-3 (the reachable-tag bats case), G-6 (the draft PR's check-runs show the analysis pytest green and `tests/unit` green); evidence paths named in the sprint report · kind: mechanical
 
 ### Seams Under Test
 | Seam | Catches | Misses | Prior art |
 |------|---------|--------|-----------|
-| `seed-corpus-from-record.sh --feedback <paths>` and the `exposure` fields on a synthetic record | a feedback path outside `a2a/sprint-<N>/` refused or misread; a fixture without `exposure`; `--check` drift | the quality of the seeded labels (the annotation replaces them) | `evals/tests/seed-corpus.bats` SC-1 … SC-12 |
-| `incident-scan.sh --no-gh` on a synthetic repo | a fix commit outside the merge→scan window counted; evidence file missing; meta without counts | an issue `gh` never returned | new `evals/tests/incident-scan.bats` |
-| `annotation-packets.sh` leak check | a label or feedback line in a packet (exit 1); nondeterministic output; a hunk without `review_driven` | a paraphrase of a finding that no line matches | new `evals/tests/annotation-packets.bats` |
-| `blind-session.sh` with the stub CLI | a disallowed tool or an outside read in the transcript (tainted); a missing label file; wrong sandbox contents | a model that infers labels from the hunks themselves (that is the task) | `evals/tests/pipeline-run.bats` executor fixtures |
-| `annotation_merge.py` on crafted A/B files | wrong kappa on a textbook 2×2; unresolved disagreement accepted; dedupe across sources; a row that does not resolve on head | annotator quality | unit tests under `evals/analysis/c132/tests/` |
-| `--build-manifest` with the v2 header and the frozen-set migration | a v2 column dropped; `manifests/c131/` not byte-identical; a c131 run re-graded differently | — | `seed-corpus.bats`, `ablation-grade.bats` |
-| Runner session units (stub CLI, k = 3): plan, resume with one failed session, attempt limit, `cell.json`, one row | a session re-run beyond 2 attempts; a cell rowed before all sessions land; a refusal-fallback session re-run | real model variance | `evals/tests/run-ablation.bats` RAB cases |
-| `ablation-grade.sh --union` on synthetic sessions | a defect credited twice; FP dedupe across sessions; `recall_session1`; an invalid session included | semantic correctness of a credit (the judge's job) | `evals/tests/ablation-grade.bats` |
-| Egress class 9 and distinct-defect semantics on crafted transcripts and manifests | `git fetch github.com` missed; a WebFetch of the repo missed; a citation hitting two defects miscounted | an egress the transcript cannot show (named in the report) | `ablation-grade.bats` AG cases |
-| `run-ablation.sh --registration` dry run + resume with a changed file | hash not recorded; resume accepted after an edit; overshoot bound absent | — | `run-ablation.bats` |
-| `stats.py` / `reads.py` / `power.py` unit tests | REML off the textbook value; OBF boundaries off the published table; permutation unit wrong; placebo not calibrated on synthetic nulls; a degenerate input printing a number | the external validity of the normal approximation (the simulation's job) | new `evals/analysis/c132/tests/`, `evals/tests/analysis-c132.bats` |
-| `reads-c132.py --placebo` on the 63 existing rows | a biased primary read (band failed) | a bias the shuffle cannot see | `a2a/sprint-1/placebo-existing.md` |
+| The 2,000-file fixture through the real `truncateFiles` with a mocked `gh` | an unbounded fetch; a patch retained for an excluded file | GitHub-side truncation shapes the mock does not model | KF-054 |
+| PR #1289 round bodies replayed | a verdict parser that reads UNKNOWN on a valid block; a guard that accepts tool markup | writer outputs of a shape not yet seen | KF-055 |
+| A bare remote with `main` moved between generate and publish | a tag on an unreachable commit; a push over a moved `main` | GitHub branch-protection semantics (checked at the real rc.8 publish) | rc.6, rc.7 |
+| A fixture repo with a planted credential-shaped string in a record path | a record build that commits a secret | a secret in a shape the scanner does not know | record stages 1–2 |
 
 ### Dependencies
-- sprint-bug-266 … 268 merged into the cycle branch at `5b840b01` (PR #1288 to `main` pending CI): the `@L<n>` grammar and `--sync-labels` (Task 1.5 builds on them), the fixed archive script (used at the cycle's end)
-- Record branches fetched locally (`origin/record/cycle-129-a2a`, `cycle-130-a2a`, `cycle-130-analysis`, `cycle-131-honest-measurement`)
-- Docker image `loa-ablation:258` (blind sessions); Bedrock key; `gh` read-only
+- None external; the Bridgebuilder `node_modules` installed (`npm ci`); `npx --no-install bats`
 
 ### Security Considerations
-- Blind sessions run in the container executor with the existing credential copies only; no repository mount; packets pass `no-secrets.sh`
-- Third-party text (issue bodies, feedback files, transcripts) is quoted inside fences in packets and never interpreted; the leak check fails closed
-- No `.claude/` edit; `evals/`, `grimoires/`, `CHANGELOG.md` only
+- The writer role runs with tools disabled and its output is validated before posting; the record build's credential-shaped hits cannot be bypassed; every System Zone write carries the zone marker
 
 ### Risks & Mitigation
-| Risk | Mitigation |
-|------|------------|
-| Annotator kappa below 0.6 | the codebook is tried on one fixture first and revised before the blind run; the adjudication share is a headline caveat; the review-derived set stays a sensitivity |
-| The power simulation names an N the envelope cannot afford | the affordable-N rule (deterministic) with the achieved power stated; below 0.5 the registration declares the study exploratory |
-| The 27 c131 run directories must come from the record branch | `git archive origin/record/cycle-131-honest-measurement evals/results/ablation-2.0/c131-*` into a scratch results root; hashes recorded |
-| Session-unit runner changes break the existing batch path | the stub-CLI RAB cases run both `a1_full` and matched plans; the c131 root dry run stays byte-identical |
-| The Flatline spec review degrades (KF-041) | integrate by judgment, record the degradation, hash the final text |
+- Risk: `dist/` drift between source and the committed build → rebuild in the same commit; `check-bb-dist-fresh` is a gate
+- Risk: a `tests/unit` repair changes shipped behaviour → quarantine with expiry instead (D-9), bead filed
+- Risk: dissent voices time out on the Bridgebuilder diff → code-only diff per implementer; ≤ 3 runs
 
 ### Success Metrics
-- Kappa and adjudication share reported for every selected fixture; v2 manifests rebuild byte-identically
-- Placebo on existing rows inside the band and committed; power.md names N, cap, k, groups, constant
-- Registration hash in NOTES and MANIFEST-ready before any Phase 1 row; Flatline spec record dated before it
-- `evals/tests/` and `tests/unit/` green; six follow-up beads closed
-
-> Sources: prd.md FR-1 … FR-7, FR-11; sdd.md §1.4, §3.2, §5.2, §5.3, §7.1, §11.D
+- The four patches land; vitest, bats, `tests/unit` and the analysis pytest green locally and in CI; review and audit APPROVED; 12 beads closed with evidence (Appendix E)
 
 ---
 
-## Sprint 2: Phase 1 — batches (global 270)
-
-**Duration:** 2 days
-**Dates:** 2026-10-23 – 2026-10-25
-
-### Sprint Goal
-Run the registered design at one pin: smoke, the groups in order with a look after each, the positive control on the first group, the blind judge on the stratified sample — stopping where the rule says, posting spend after every batch, hand-reading every contaminated row.
-
-### Deliverables
-- [ ] Pin recorded (the Sprint 2 start commit); suite root frozen and self-checked; codex pre-flight green; `REGISTRATION.json` hash equal to the Sprint 1 record → **[G-3, G-4]**
-- [ ] Smoke rows (one `a1_full` + one BARE per selected PR; `oracle_closed` true on every PR; realized cost ratios beside the registered k) in NOTES → **[G-4]**
-- [ ] Batch rows for G1 (+ `a1_full_openmount`), G2, G3 as the rule allows, in `evals/results/ablation-2.0/c132-g*/` and the tracked `reports/review-catch-c132/rows.jsonl`; look reads and decisions in NOTES with timestamps → **[G-4, G-5]**
-- [ ] Judge sample packets, blind judge labels, `a2a/sprint-2/judge/result.{md,json}` → **[G-4]**
-- [ ] Spend posts per batch; contamination hand-reads; DEC rows per look → **[G-5]**
-
-### Acceptance Criteria
-- [ ] PRD FR-8 AC 1–4 (suite root per PR with bounds, k and v2 manifest paths; smoke decides nothing and its k ratios are recorded; rows at the pin with refusal fallbacks and contaminations reported; looks in NOTES; batches stop at a boundary or the cap)
-- [ ] PRD FR-4 AC 1–3 (judge sampler deterministic with strata and inclusion probabilities; agreement, kappa, confusion table, corrected figures; grader stays primary)
-- [ ] Every batch MANIFEST carries `registration_sha256` equal to the registered hash; no row from a batch with a different hash
-- [ ] The positive-control read (open − closed on G1, saturation-exempt) and its mechanism evidence recorded before any other read
-
-### Technical Tasks
-
-- [ ] Task 2.1: Pin and freeze (lead) — record the pin; `freeze.sh --root grimoires/loa/evals/ablation-2.0-c132 --allow-partial`; image self-check (`ablation-grade.sh --self-check base|reference|noisy` per task); codex pre-flight (KF-048); `REGISTRATION.json` hash check → **[G-3]** · kind: mechanical
-- [ ] Task 2.2: Smoke (lead) — `run-ablation.sh --smoke` one `a1_full` + one BARE per selected PR under the closed mount; `oracle_closed` per PR; realized `cost(full)/cost(bare)` beside the registered k; NOTES entry; a PR whose smoke fails the mount is handled as the registration says (excluded or recorded) → **[G-4]** · kind: judgment
-- [ ] Task 2.3: G1 batch (lead) — `run-ablation.sh --registration … --batch c132-g1` with the registered arms (`a1_full`, `a0_bare_matched`, `a0_bare_fable_matched`, `a1_review_only`, `a1_full_openmount`) × G1 × 2 trials, concurrency 3, `--run-cap 30`, `--allow-partial`; spend post; contamination hand-reads; `reads-c132.py --look 1`; the positive-control read; DEC row → **[G-4, G-5]** · kind: judgment
-- [ ] Task 2.4: G2 batch and look 2 (lead) — as 2.3 without the open mount; stop if the rule fired at look 1 → **[G-4, G-5]** · kind: judgment
-- [ ] Task 2.5: G3 batch and look 3 (lead) — as 2.4; or the recorded stop → **[G-4, G-5]** · kind: judgment
-- [ ] Task 2.6: Judge (lead) — `judge-sample.sh` over the batch rows and run dirs (seeded; strata, inclusion probabilities, universe recorded), blind judge sessions through `blind-session.sh` (Opus 5.5), `judge_agree.py` → agreement, kappa, confusion table, Horvitz–Thompson corrected recall and precision per arm → **[G-4]** · kind: judgment
-- [ ] Task 2.7: Sprint close — rows copied to `reports/review-catch-c132/rows.jsonl`; `a2a/sprint-2/batch-scans.md`; NOTES spend table; DEC rows; `reviewer.md` with `## AC Verification` → **[G-5]** · kind: mechanical
-
-### Seams Under Test
-| Seam | Catches | Misses | Prior art |
-|------|---------|--------|-----------|
-| Smoke rows + `oracle_closed` + realized k ratios | a PR the closed mount cannot run; a k far from its realized ratio (reported, never changed) | arm quality (smoke decides nothing) | cycle-131 smoke records |
-| Batch MANIFEST `registration_sha256` vs the Sprint 1 record | a batch started under an edited registration | — | `run-ablation.bats` |
-| `reads-c132.py --look n` on the batch rows | a decision at fewer than 6 valid PRs; the wrong boundary; a stale information fraction | the truth of the estimate | unit tests (Sprint 1) |
-| The positive-control read | no exposure in any open run (control not exercised); a negative estimate with exposure (void) | — | `c131-reads.md` R1 |
-| `judge-sample.sh` strata and packets | a packet carrying arm or decision; inclusion probabilities missing | the judge's own error | new `evals/tests/judge-sample.bats` (Sprint 1) |
-
-### Dependencies
-- Sprint 1 complete (registration hashed, placebo committed, harness green)
-- Codex credential valid through the batch horizon (expires 2026-10-28T04:44Z); Bedrock key; Docker
-
-### Security Considerations
-- The per-run credential copies as in cycle-130/131 (placeholder refresh token); the judge runs blind in a container
-- Contaminated rows are claims to verify by hand under the declared shapes; never silently re-included
-
-### Risks & Mitigation
-| Risk | Mitigation |
-|------|------------|
-| Matched cells degrade through refusal fallbacks or contaminations | session-level validity (D-7.3); the intention-to-run table |
-| The cap binds mid-group | the reservation rule stops launches; the partial group's valid pairs enter the look |
-| A boundary fires at look 1 with 6 PRs | pre-registered; the report says why; the remaining groups are not run |
-| Codex token expiry | pre-flight per batch; schedule to finish by 10-27 |
-
-### Success Metrics
-- Every planned cell has an outcome in the intention-to-run table; every look is in NOTES with its boundary table
-- Judge agreement and kappa reported with the confusion table
-- Spend within the cap; the overshoot bound respected
-
-> Sources: prd.md FR-4, FR-8; sdd.md §5.3; known-failures.md KF-046, KF-048, KF-051
-
----
-
-## Sprint 3 (Final): Phases 2–3 — reads, report, proof, ship (global 271)
+## Sprint 2: Harness and reproduction hardening (global 273)
 
 **Duration:** 1.5 days
-**Dates:** 2026-10-25 – 2026-10-27
+**Dates:** 2026-10-25 – 2026-10-26
 
 ### Sprint Goal
-Take only the registered reads, then the sensitivities; write the report a consortium member can check; have a stranger reproduce every grade, row and read from a fresh clone; ship through every gate; cut rc.7 only after the proof.
+A harness whose cap cannot read zero, whose batches survive a reboot, whose sandboxes cannot reach the upstream repository, whose grader knows two more benign shapes, and reproduction tooling that attests the tree it runs; pinned as the next pipeline version.
 
 ### Deliverables
-- [x] `reads-c132.py --final` → `reports/review-catch-c132/{reads.md, reads.json}`; DEC rows per read and for the stopping-rule outcome → **[G-5]**
-- [x] `reports/review-catch-c132/report.md` (ELI5; the answer; reads; stopping rule; sensitivities; placebo; positive control; ground truth; judge; spend; caveats; proof) + `analysis.md` §11 pointer → **[G-5, G-6]**
-- [x] `REPRODUCE.md` + `evals/analysis/c132/reproduce.sh`; the reproducer's `a2a/sprint-3/reproduction/report.md` with the hash table and the sampled rerun → **[G-6]**
-- [x] Placebo on the new rows and the positive-control result embedded → **[G-6]**
-- [ ] CHANGELOG: `[Unreleased]` → `## [2.0.0-rc.7]` after the proof; release notes; PR; review; audit; Bridgebuilder; merge; record branch; archive → **[G-7]**
+- [ ] C-6 `lib/session-exec.sh` fail-closed (`ERR` sentinel, metering completeness, `/proc/self/fd` closing, secrecy assertion), sourced by `pipeline-run.sh`, bats harness stages the lib → **[G-8]**
+- [ ] C-7 `reproduce.sh` worktree attestation + exit table + live gating; `record_lite.py`, `judge_defects.py`, drivers, synth fixtures, `spend.sh` → **[G-1]**
+- [ ] C-8 grader 1.4 shapes; `refusal_policy` suite key and row fields → **[G-8]**
+- [ ] C-9 `run-ablation.sh --supervised`, `lib/batch-supervisor.sh`, `lib/egress-proxy.sh`, proxy sidecar image, `egress` suite key, `loa-ablation:259` → **[G-8]**
+- [ ] The pipeline version pinned: the Sprint 2 head recorded in `evals/harness/README.md` with the image digest and the self-check log → **[G-8]**
 
 ### Acceptance Criteria
-- [x] PRD FR-9 AC 1–3 (report files tracked; `reads.md` byte-identical across runs; every figure in the report reproduced by the script; DEC rows per read)
-- [x] PRD FR-10 AC 1–2 (REPRODUCE.md exact; the reproducer's hashes equal; sampled rerun inside the recorded arm range or the discrepancy named; report § Proof links everything)
-- [x] PRD G-7 (allowlisted diff vs `main` of `.loa.config.yaml`, skill frontmatter and shipped suite arms empty; rc.7 cut only after FR-9 and FR-10)
-- [ ] Review APPROVED, audit APPROVED, Bridgebuilder round triaged, CI green, merged, record branch pushed, cycle archived through the fixed `archive-cycle.sh`
+- [ ] PRD FR-6 AC 1–3 (sentinel on every listed condition; descriptors above 65535 and above a lowered soft limit closed; secrecy assertion; one copy of the mechanics; swallowed-jq scan covers the lib)
+- [ ] PRD FR-7 AC 1–2 (pytest/bats per item; the cycle-132 record untouched; version note)
+- [ ] PRD FR-8 AC 1–2 (shapes re-graded benign, every other fixture identical; policy recorded before execution with the row fields)
+- [ ] PRD FR-9 AC 1–2 (supervisor bats incl. lock, orphan reconciliation, atomic rows; container bats or dated quarantine; denied connects logged; image 259 pinned)
+- [ ] Review APPROVED, audit APPROVED, ≤ 3 dissent runs
 
 ### Technical Tasks
 
-- [x] Task 3.1: Final reads (lead) — `reads-c132.py --final` with the registration and input manifests; the naive and repeated intervals; DEC rows: primary, each secondary (defects per USD, cost per extra defect valid-pair and all-spend, review-only, pipeline-independent, matched-Fable), the stopping-rule outcome, placebo and positive-control verdicts → **[G-5]** · kind: judgment
-- [x] Task 3.2: Report (lead) — `report.md` per sdd.md §4.3 with the ELI5 ≤ 300 words; `analysis.md` §11 pointer; `rows.jsonl`, `power.md`, `REGISTRATION.json` beside it; a bats case diffs the report's tables against `reads.md` → **[G-5]** · kind: judgment
-- [x] Task 3.3a: The evidence commit — build and push **stage 1 of the record branch** (`record/cycle-132-conclusive-review-catch`: the tree at the cycle branch head plus the batch records minus sandboxes, packets, blind-session transcripts, labels, judge files, rows, `REGISTRATION.json`; secret scan before push), pin its SHA in NOTES; this is the exact commit the reproducer clones (Flatline SKP-002, SKP-003) → **[G-6]** · kind: mechanical
-- [x] Task 3.3b: Reproduction — `REPRODUCE.md` (commands, expected hashes, the sampled cells, the stage-1 SHA) and `reproduce.sh`; an Opus 5.5 reproducer from a fresh clone of the stage-1 commit into an empty directory re-grades every run dir (`--allow-partial`, container executor, `--union` for matched cells), re-rows, re-reads (`--final`, `--placebo`), hashes, then reruns the three registered sample cells live (≈ USD 60) and reports; **re-trigger rule**: any later change to `evals/analysis/c132/`, the grader, the row writer, the rows or the manifests (a Bridgebuilder fix in Task 3.6 included) re-runs the reproduction against a new stage-1 commit before merge → **[G-6]** · kind: judgment
-- [x] Task 3.4: Controls (lead) — `reads-c132.py --placebo` on the new rows; the positive-control read restated; both embedded in the report → **[G-6]** · kind: mechanical
-- [x] Task 3.5: Release — CHANGELOG `[Unreleased]` becomes `## [2.0.0-rc.7] — <date>` (after 3.1–3.4), release notes with the answer and the caveats (`grimoires/loa/reports/release-notes-2.0.0-rc.7.md`), `.loa-version.json` and the README version pin — the release-metadata files the PRD authorizes for the ship step (prd.md § Technical Considerations, amended for Flatline SKP-001) → **[G-7]** · kind: mechanical
-- [ ] Task 3.6: Ship — PR from the cycle branch; `/review-sprint`, `/audit-sprint`; Bridgebuilder round triaged (a fix that touches the analysis, grader, rows or manifests re-runs Task 3.3b first); CI green; admin merge; **stage 2 of the record branch** (parents stage 1 and the merge commit; appends the reproduction report, the a2a review/audit records and NOTES); `archive-cycle.sh` (fixed) → **[G-7]** · kind: mechanical
-- [x] Task 3.E2E: End-to-End Goal Validation — for G-1 … G-7 the evidence path named in prd.md § Goals (manifests + kappa; power.md; registration hash + placebo + Flatline record; rows + judge result; report + DEC rows; reproduction report + controls; the allowlisted diff + the rc.7 heading); `a2a/sprint-3/e2e.md` → **[G-1, G-2, G-3, G-4, G-5, G-6, G-7]** · kind: mechanical
+- [ ] Task 2.1: Session library (A, lands first; C and D rebase on it) — `lib/session-exec.sh` per sdd.md C-6: `price_for`/`price_events` print `ERR` and return non-zero on parse failure, unknown model, null/negative/non-finite price, invalid token count, usage-less completed turn; zero prices pass; metering rules (streaming, cached, interrupted, retries; `unmetered_attempt` rows); `assert_secret_keys` with the documented `SECRET_KEY_PATTERN` and `NON_SECRET_ALLOWLIST`; `ENV_SHIM` enumerates `/proc/self/fd` with `LOA_KEEP_FDS`, fallbacks for `/proc` absent and an infinite hard limit; `blind-session.sh` refuses to launch on `ERR`; `pipeline-run.sh` sources the lib by literal relative path and stops a phase as `infrastructure_error metering_incomplete`; its bats harness stages `lib/`; the drift test stays until Task 3.6; `check-no-swallowed-jq.sh` covers `evals/harness/lib/`; bats for each sentinel condition, the fd cases (a descriptor above 65535 inherited by a subprocess) and the assertion; beads bd-wqaj4, bd-g2c5i → **[G-8]** · kind: mechanical
+- [ ] Task 2.2: Reproduction and analysis hardening (B) — `reproduce.sh` (`pinned_trees_identical_to_worktree` over harness, suites, fixtures, tasks, analysis; porcelain clean; `git describe --dirty`; exit table 0/1/2/3; `--live-sample` requires rc 0 and a match, `$REG` hash, valid-row range, environment verdicts in the live table; `--no-env-check` never asserts a match); `record_lite.py` (`sha256_file(verify=True)` bypasses the cache on verification paths; `safe_rel` on symlink targets; REPRODUCE.md names `INDEX.json`/`INDEX-only.json`); `judge_defects.py` (`sample_id` in packets and labels, `--force` for an existing key, `aggregate` rejects mismatch and loads grades; `run-judge-defects.sh` chunk dir by key sha); `final.sh`/`run-judge-defects.sh` whitelist parse of `registration.txt`, root from `BASH_SOURCE`; power-mini fixtures from `synth.py --seed 20261023` in a pytest fixture after a test asserts the generator reproduces the committed 4.5 K lines byte-identically in the CI Python, then the committed lines removed (the assertion stays); `spend.sh` anonymous-row dedup by `(run_id, batch)`; the new `REPRODUCE.md` states that cycle-132 reproduction runs from a worktree at `fbd36a0c`; pytest per item; the cycle-132 record untouched; beads bd-jat0z, bd-161zz, bd-ombvn, bd-xr3uq, bd-o3a5h, bd-qxwrm, bd-um8ol → **[G-1]** · kind: mechanical
+- [ ] Task 2.3: Grader 1.4 and refusal policy (C, lands after 2.1; D rebases its `run-ablation.sh` changes on this) — `ablation-grade.sh` 1.4: class-7 exemption for a heredoc-written report whose quoted token is PR-native; `outside_path` exemption for the container-mode bare `/home` probe; per-class fixtures; every other 1.3.8 fixture grades identically (regression run over the fixture set); suite key `refusal_policy: exclude | keep | rerun-once` (default `exclude`), `run-ablation.sh` writes `refusal_policy_applied` and `attempt`, implements `rerun-once` with immutable attempt records under the same cap and the final-row selection rule of sdd.md C-8, per-arm `refusal_rate`; tests: second refusal, infrastructure failure on retry, resume after the first attempt; `ablation-row.sh` denominator rule; `evals/harness/README.md` § Refusal policy; beads bd-kddde, bd-r9abp → **[G-8]** · kind: mechanical
+- [ ] Task 2.4: Supervisor and egress (D, lands last in Sprint 2, rebased on 2.1 and 2.3) — `run-ablation.sh --supervised [--max-retries N]` per sdd.md C-9 (linger precondition; systemd-run --user unit when available, else `lib/batch-supervisor.sh` setsid loop; `flock supervisor.lock` held across daemonisation; durable identity — boot id, start time, attempt id, provider request ids; hang detection at 30 min without a STATUS update; retryable vs non-retryable classes; owned process group terminated and `loa-abl-<run_id>-*` containers stopped before resume; run arguments persisted for reboot restoration; STATUS.json `supervisor` entries); `lib/egress-proxy.sh up|down|self-check` (internal network `loa-egress-<batch>`, `Dockerfile.proxy` tinyproxy 1.11 on the internal and an external network, allowlist generated from a new `egress_hosts[]` per provider in `model-config.yaml`, resolved-address validation denying private/loopback/link-local/metadata ranges and the host gateway, CONNECT restricted to 443, redirect re-validation, denial attribution by source address into `<run>/meta/egress-denied.jsonl`; `self-check` = a connectivity or auth-only probe per planned model without completion tokens plus the denial cases); `pipeline-run.sh`/`blind-session.sh` join a per-container guard namespace on the network (`egress-proxy.sh guard`; the guard, not the sandbox, carries `--dns 0.0.0.1` and the netfilter — amended by the s3-e KF-058 fix in Sprint 274) and export `HTTPS_PROXY/HTTP_PROXY`, `NO_PROXY=`, recording the container address in meta; suite key `egress: blocked | bridge` per arm (default blocked) in MANIFEST and meta; `Dockerfile.ablation` → `loa-ablation:259` with the Claude Code version pinned and recorded; bats: supervisor cases (resume once with retry id, second owner refused, orphan reconciled, crash during result write leaves no duplicate row, reboot with PID reuse, cancellation mid-request, retry cap); container egress bats (allowlisted endpoint succeeds; github.com, raw.githubusercontent.com, gitlab.com, a direct IP, IPv6, a redirect to a non-allowlisted host, CONNECT to a non-allowlisted host or port, external DNS, host-gateway access, DNS rebinding, a misconfigured proxy all fail) — a release gate: run in the Docker-enabled CI job, else by the lead on this host with the bats output and the denial log attached as Sprint 2 E2E evidence; never a quarantine row; beads bd-yvjew, bd-ijxuk → **[G-8]** · kind: mechanical
+- [ ] Task 2.5: Intermediate pipeline version (lead) — after 2.1–2.4 land: build `loa-ablation:259`, run the egress suite and the image self-check (tools and connectivity probes only, no completion tokens) to `grimoires/loa/reports/ablation-2.0/self-check-c133.txt`, record the commit after this task (its tree hash; later docs-only commits do not invalidate it), the image digest and the Claude Code version in `evals/harness/README.md` § Pipeline versions as the intermediate version; DEC row → **[G-8]** · kind: judgment
+- [ ] Task 2.6: Sprint close (lead) — patches applied; CHANGELOG entries with revert paths; DEC rows; beads closed with evidence; bats/pytest green; `/review-sprint`, `/audit-sprint` · kind: judgment
+- [ ] Task 2.E2E: End-to-End Goal Validation — G-8 parts (pricing sentinel bats, descriptor bats, egress denial bats or quarantine row, supervisor bats, grader 1.4 fixtures, policy row fields) and G-1 (bead closures) with evidence paths · kind: mechanical
 
 ### Seams Under Test
 | Seam | Catches | Misses | Prior art |
 |------|---------|--------|-----------|
-| `reads-c132.py --final` twice on the tracked rows | a non-deterministic read; a hand-typed number in the report (the table diff) | — | `c131-reads.md` recipe |
-| `reproduce.sh` in a fresh clone | a grade, row or read that does not reproduce; a run dir missing from the record branch | a bias shared by the code and the reproduction (the placebo's job) | cycle-131 record-branch recipe |
-| The allowlisted diff vs `main` | a shipped default changed | — | cycle-131 G-6 check |
+| A prices JSON lacking the session's model id | a free-reading cap | a provider that bills a unit the table does not know | DISS F-001 (PR #1289) |
+| A killed driver under the supervisor | a batch that stays dead; a duplicate row | a kernel crash mid-write on the host filesystem | KF-052 |
+| `git ls-remote github.com` from inside the sandbox | repository egress | a covert channel through the allowlisted endpoints | bd-ijxuk (nine bare sessions) |
+| `reproduce.sh` in a dirty worktree | a false "identical to the pin" | a dirty path outside the compared set | cycle-132 audit DO-001 |
 
 ### Dependencies
-- Sprint 2 complete; record branch built before the reproducer runs; the archive script from sprint-bug-266 on `main`
+- Sprint 1 landed on the cycle branch (CI gates and the quarantine mechanism run on the draft PR); Docker 26.1.5 on the host; `systemd-run --user` with linger available (fallback otherwise); landing order 2.1 → 2.2 → 2.3 → 2.4 (2.3 and 2.4 both touch `run-ablation.sh`; 2.1 and 2.4 both touch `pipeline-run.sh` and `blind-session.sh`)
 
 ### Security Considerations
-- The record branch secret scan before push; no sandbox directories on the record branch; the reproducer clones with read-only credentials
+- Egress default-deny with logged denials; metering fails closed; the secrecy assertion refuses a new key-shaped pass-through; no change to the cycle-132 record
 
 ### Risks & Mitigation
-| Risk | Mitigation |
-|------|------------|
-| The reproduction finds a mismatch | the discrepancy is named in the report; the read is marked unreproduced until fixed |
-| The positive control reads void | every other read is reported void; the cycle ships the apparatus finding, not a measurement |
-| Bridgebuilder round late in the cycle | one round budgeted; findings fixed before merge |
+- Risk: the proxy allowlist misses a fallback endpoint → generated from the registry; `self-check` requests each planned model before a batch
+- Risk: `systemd-run --user` unavailable on CI runners → the watchdog fallback is the tested path there
+- Risk: grader 1.4 changes a cycle-132 grade → the regression run over every 1.3.8 fixture must be identical except the two named shapes
 
 ### Success Metrics
-- The answer in one sentence with its interval; the stopping rule stated; every proof artefact linked
-- Byte-identical reproduction; sampled rerun inside range
-- rc.7 cut after the proof; cycle archived
+- bats and pytest green; the intermediate pipeline version recorded; 13 beads closed with evidence (Appendix E); review and audit APPROVED
 
-> Sources: prd.md FR-9, FR-10, § Success Criteria; sdd.md §1.4 Reproduction, §4.3
+---
+
+## Sprint 3: The product (global 274)
+
+**Duration:** 1.5 days
+**Dates:** 2026-10-27 – 2026-10-28
+
+### Sprint Goal
+Loa reviews Loa without reading its own installed files; every gate's findings carry a failure scenario a judge can grade; a corpus can be seeded from outside Loa's history.
+
+### Deliverables
+- [ ] Task 3.0 spike record: the Claude Code scope facts in the image with a canary per surface item; the design confirmed, or the run HALTED for the operator's decision on fallback (c) → **[G-4]**
+- [ ] C-10 mount mode `home-scope`, `check_mount_closed` clause (e), `took-effect.sh` clauses (f) `pr_bytes_read` and (g) no project execution, grader negative control, the measurement pin recorded, the smoke grade → **[G-4]**
+- [ ] C-11 `finding.schema.json` v1, the `Failure:` clause grammar in the review/audit templates and `verdict-derive.sh`, Bridgebuilder and dissent schema references with aliases, grader 1.5 `--judge-verdicts`, `reads-c132.py --judge-defects` under registration v2 → **[G-5]**
+- [ ] C-12 `lib/corpus-seed.sh`, `seed-corpus-from-external.sh` with three dry-runs, registration v2 `looks_seen`, measurement-cycle guidance → **[G-8]**
+- [ ] Harness README and evals index complete (not gated on the smoke); the session-library drift test removed only after a green smoke (else it stays and a bead is filed)
+
+### Acceptance Criteria
+- [ ] PRD FR-10 AC 1–4 (positive-evidence clause (f) and negative control with distinct PR and pinned bytes; the smoke at the measurement pin within the USD 40 share with the launch rule; design-neutral bats incl. executing SKILL.md, hook, script, deletion, rename, symlink, `.mcp.json`, root `CLAUDE.md`, rules, output styles, plugins, and clause (g) proving no planted item loaded or executed; docs). A failed smoke leaves G-4 incomplete and defers FR-10 with a DEC row.
+- [ ] PRD FR-11 AC 1–4 (four validators refuse missing/boilerplate/conflicting/outside-repo findings and normalise aliases with the warning; judged recall and unjudged count; stale verdicts rejected; grader 1.5; cycle-132 chain still verifies; templates and persona carry the field)
+- [ ] PRD FR-12 AC 1–2 (three dry-runs pass `--check`, no model call; refusals for symlink, submodule, oversize, licence, leakage; `looks_seen` verifier cases; v1 chain verifies)
+- [ ] Review APPROVED, audit APPROVED, ≤ 3 dissent runs
+
+### Technical Tasks
+
+- [ ] Task 3.0: Spike — Claude Code scope facts (lead, first) — in `loa-ablation:259` inside the egress block with `--max-usd 2`: a `claude -p` run with the HOME-scope layout (`$HOME/.claude/{CLAUDE.md,settings.json,skills/,hooks/,rules/}`, settings restricted to the user scope by the flag the docs name) and a planted canary for every surface item (hook, skill, command, agent, settings, `.mcp.json`, root `CLAUDE.md`, `CLAUDE.local.md`, `.claude/CLAUDE.md`, a `.claude/rules/` file, an `@` import, an output style, a plugin, a `.claude/scripts/` file at the root), each with a deterministic filesystem effect, under process-execution capture (hook log, one-second `ps` sampler); the record names the image digest, Claude Code version, scope flags, effective settings and framework content hashes, and every denied connect (the allowlist gaps for Claude Code's non-model endpoints surface here); evidence: the pinned skill loaded, no canary loaded or executed; outcome → confirm D-3.1 with a DEC row, or **HALT the run with the spike record for the operator's decision on fallback (c)** (D-3.6); the assertions are repeated if any recorded input changes before the smoke; record in `grimoires/loa/a2a/sprint-274/spike-scope.md` → **[G-4]** · kind: judgment
+- [ ] Task 3.1: Loa reviews Loa (A; the spike-invariant parts — clause (e), clause (f) parser and `pr_bytes_read`, clause (g), the negative-control fixture with distinct PR and pinned bytes, bats scaffolding — start while the spike runs; the mount mode lands after the spike confirms) — `lib/sandbox-mount.sh` mount mode `home-scope` per sdd.md C-10 (pinned framework materialised under the sandbox HOME with absolute-path imports, hook commands and framework `.claude/` references resolved through one root variable; the workspace root overlaid with the PR's changed paths except the executable and prompt surface derived from the pinned Claude Code version — skills, commands, agents, hooks, settings, `*.local.*`, rules, `.claude/CLAUDE.md`, root `CLAUDE.md`/`CLAUDE.local.md`, `.mcp.json`, output-styles, plugins, `@` imports — removed from the root and kept under `pr/head/`), `pipeline-run.sh` launch flags for the user scope, `check_mount_closed` clause (e), `took-effect.sh` clauses (f) (versioned transcript parser, gutter stripped, ≥ 60 % line coverage, Grep never counts, every cited changed `.claude/` file read) and (g); grader negative control (the cycle-132 mount still fires); design-neutral bats per PRD FR-10 AC 3; harness README § Mount modes → **[G-4]** · kind: mechanical
+- [ ] Task 3.2: One finding contract and grader 1.5 (B; depends on Task 3.3's `registration.py` v2 for the chain version) — `.claude/schemas/finding.schema.json` v1 per sdd.md C-11 (fields, `blocking`, confidence normalisation, id derivation, path and anchor rules, content rule and denylist, exemptions for PRAISE/INFO/REFRAME/SPECULATION) with conformance vectors under `.claude/schemas/finding.vectors/{valid,invalid}/` run by the zod, jq and python validators; `verdict-derive.sh`: the `Failure:` clause grammar (dash variants, last-token disambiguation), a defect bullet without a valid clause is a violation, **a CRITICAL/HIGH/blocking bullet without a valid clause still counts as blocking and the gate reports a non-approving outcome with a non-zero exit** (red tests: only invalid blockers; valid lows mixed with an invalid blocker; one malformed CRITICAL never yields APPROVE); `reviewing-code` and `auditing-security` templates emit the clause; Bridgebuilder persona asks for it, `FindingsBlockSchema` references the canonical schema, `npm run build`, `dist/` committed, `check-bb-dist-fresh`; `adversarial-finding.schema.json` + `adversarial-review.sh` normalise aliases with the named warning (removal 2.1.0), reject both-present-and-different; `ablation-grade.sh` 1.5 `--judge-verdicts` (JSONL schema with `judge_prompt_sha256` and `supersedes`, one-to-one binding by `(run_id, finding_id, defect_key)`, duplicate refused without `supersedes`, `blind: false` in a separate column, stale hash/version rejection, `recall_judged`, `judged_pairs`, `unjudged_pairs`, provenance in grade.json) with a regression run asserting every 1.4 fixture grades identically except the judge cases; `reads-c132.py --judge-defects` as a registered read under the v2 chain; tests: the cycle-132 chain and reads verify unchanged; bats + vitest + pytest → **[G-5]** · kind: mechanical
+- [ ] Task 3.3: External corpus seeding, registration v2 and guidance (C; lands before 3.2 consumes registration v2) — extract `lib/corpus-seed.sh` from `seed-corpus-from-record.sh` (byte-identical outputs on the existing fixtures, asserted); `seed-corpus-from-external.sh` per sdd.md C-12 (https-only sanitised URLs, PR base/head verified against the clone, `base/` = `fix^`, limits checked from tree metadata before any blob fetch, blobless clone, `git archive` materialisation, symlink/submodule/non-regular refusal, PR.md from title and body with the substantive-overlap leakage test, the C-4 secret scanner over the materialised trees, licence via the GitHub license API against the SPDX allowlist with LICENSE/NOTICE and an attribution row on `--commit-trees`, `--dry-run`, `--check`; exit codes per sdd.md §5.4); three public candidates dry-run (criteria: post-cutoff fix, documented defect, size bounds, harness language) with the results in `evals/fixtures/external-candidates.md` (outside the `-diff` path) and the cost ledger showing no model call; `registration.py` v2 optional `looks_seen` (ordering and integrity rules) validated against the committed looks inventory, v1 verifies; `evals/harness/README.md` § Shipping a measurement cycle and the planning-sprints reference pointer; bead bd-y1smc → **[G-8]** · kind: mechanical
+- [ ] Task 3.4: Harness documentation (D, not gated on the smoke) — `evals/harness/README.md` complete (mount modes, egress threat model and supervisor, refusal policy and denominators, pipeline version table, exit codes per sdd.md §5.4); `evals/README.md` index; CHANGELOG entries → **[G-8]** · kind: mechanical
+- [ ] Task 3.5: Measurement pin and the smoke (lead with A) — after 3.1–3.3 land: the integrated self-check (grader 1.5, registration v2, the four validators, the mount mode, the seeding lib) passes on the image; the egress suite passes on the actual image and network (the hard precondition); the commit after this step is recorded as the measurement pin (tree hash, image digest, Claude Code version) in the README and in a DEC row; then the smoke: one `a1_full` trial on pr-20 (pr-16 if pr-20's changed files exceed the overlay's tested range) at that pin, `--max-usd` within the USD 40 share, meta recording framework commit, harness tree, fixture SHA256SUMS, image digest, Claude Code version, scope flags and effective settings; pass criteria per sdd.md §7.3; a launch is a session that reached the model (spend > USD 0.50); a failed smoke leaves G-4 incomplete — one verification rerun after a fix within the share, else FR-10 is deferred with a DEC row → **[G-4]** · kind: judgment
+- [ ] Task 3.6: Drift-test removal (D, only after a green smoke) — delete the session-library drift test and its fixture in a versioned commit; if the smoke did not pass, the test stays and a bead is filed → **[G-8]** · kind: mechanical
+- [ ] Task 3.7: Sprint close (lead) — patches applied in the order C (3.3) → B (3.2) → A (3.1) → D (3.4, 3.6); the spend recorded against the USD 40 share with the running line; DEC rows (incl. the Task 3.0 outcome and the pin); beads closed; `/review-sprint`, `/audit-sprint` · kind: judgment
+- [ ] Task 3.E2E: End-to-End Goal Validation — G-4 (the smoke's `grade.json` and the negative control), G-5 (the four validators' refusal fixtures), G-8 parts (three dry-runs, `looks_seen` cases) with evidence paths · kind: mechanical
+
+### Seams Under Test
+| Seam | Catches | Misses | Prior art |
+|------|---------|--------|-----------|
+| A planted project-scope hook under the HOME-scope mount | PR code executing in the reviewing session | a Claude Code version that changes scope rules after the pin | PREREGISTRATION addendum 9 |
+| The negative-control fixture (cycle-132 mount) through clause (f) and the grader | a detector that went silent for the wrong reason | — | cycle-132 oracle exposures |
+| A finding with a one-word `Failure:` clause through all four validators | a gate that tallies a scenario-less finding | a plausible but wrong scenario (the judge's job) | cycle-132 judge read |
+| An external repository with a symlink and a submodule | code execution or escape during seeding | a licence misdeclared upstream | seed-corpus-from-record.sh |
+
+### Dependencies
+- Sprint 2 intermediate version recorded; Docker image 259; the egress suite green on it; model credentials for the spike and the smoke (operator environment); landing order 3.3 → 3.2 → 3.1 → 3.4/3.6 (3.2 and 3.3 both touch `registration.py`: v2 lives in 3.3); the measurement pin is the commit recorded by Task 3.5
+
+### Security Considerations
+- PR-supplied `.claude/` content is data only (the spike proves it before the mount lands); the smoke runs under the egress block; no change to the cycle-132 record
+
+### Risks & Mitigation
+- Risk: the spike shows project-scope items still load → the run HALTS with the spike record; fallback (c) is the operator's decision (D-3.6); nothing else in Sprint 3 depends on the mount mode and continues
+- Risk: the smoke exposes the oracle for a path class the overlay missed → the detector names the path; fix the overlay; one verification rerun within the USD 40 share; if that fails too, G-4 stays incomplete and FR-10 is deferred with a DEC row — never claimed
+- Risk: alias normalisation breaks an existing dissent envelope → aliases accepted with a warning for one release; replay of cycle-132 envelopes in tests
+
+### Success Metrics
+- The smoke grade at the recorded measurement pin: `oracle_exposed_defects` 0, `pr_bytes_read` covering every cited changed file, clause (g) clean; four validators agree on the vectors; three dry-runs pass; 1 bead closed (Appendix E); review and audit APPROVED
+
+---
+
+## Sprint 4 (Final): Hygiene and ship (global 275)
+
+**Duration:** 1 day
+**Dates:** 2026-10-29
+
+### Sprint Goal
+A tracker that tells the truth and a release candidate on a commit `main` can reach, shipped through the gates this cycle fixed.
+
+### Deliverables
+- [ ] C-13 the frozen inventory, seven Explore batch manifests, applied closures and labels, the 10 % re-verification, the five-category table → **[G-7]**
+- [ ] C-14 CHANGELOG `## [2.0.0-rc.8]`, release notes, version stamps, README pin; PR; Bridgebuilder (cycle-branch build) round(s) triaged; CI green; admin merge; `record-branch.sh` stage; rc.8 published through the fixed path; archive → **[G-3]**
+
+### Acceptance Criteria
+- [ ] PRD FR-13 AC 1–2 (the manifests form a complete partition of the frozen inventory; categories sum; opened-during-cycle listed; the sample is verified before any closure applies and a disagreement re-sweeps the batch)
+- [ ] PRD FR-14 AC 1–2 (rc.8 pre-release with notes and `main` contains the tag; record branch by `record-branch.sh`; archive directory with the merged CHANGELOG section and README)
+- [ ] PRD G-2 (the cycle's own PR reviewed by the Bridgebuilder built on the cycle branch with no `degraded_reason`, summary verdict equal to the consensus block's; if the PR's shape degrades the review, the PR is split per the FR-12 guidance before G-2 is read)
+- [ ] Review APPROVED, audit APPROVED before the admin merge (Task 4.4; the sweep report, the release metadata and any Bridgebuilder-triggered fix are the sprint's code), ≤ 3 dissent runs
+
+### Technical Tasks
+
+- [ ] Task 4.1: Sweep inventory and batches (lead + Explore) — the lead decides the batch boundaries and judges each returned row's evidence before it counts; `sweep-inventory.sh` freezes the open beads (minus Tier 1) to `a2a/sprint-275/sweep/inventory.jsonl` with its sha256; Explore subagents (read-only, ≤ 40 beads each; as many batches as the inventory needs) verify each bead against the code and return `manifest-<k>.jsonl` rows `{id, category ∈ {closed-implemented, closed-obsolete, kept, pulled-in}, evidence, confidence}`; `sweep-apply.sh --validate` checks the manifests form a complete partition (duplicate, missing, unknown or conflicting ids rejected) and that every closure's evidence resolves (commit sha, PR number, or a path at head) → **[G-7]** · kind: judgment
+- [ ] Task 4.2: Sample, apply, report (lead) — `sweep-sample.sh` (seed 20261023, `ceil(10 %)` of the proposed closures) re-verified by a second Explore BEFORE anything is applied; a disagreement sends that batch back for a re-sweep; then the lead triages every closure row (accept, demote to kept, or send back) and `sweep-apply.sh` closes with `--reason` naming the evidence, labels `backlog-2026-10` with the status line and review-by date, pulls in by the rule, writing the append-only `applied.jsonl` (every mutation reversible with `br reopen`); the five-category table (incl. opened-during-cycle) and the sample result in the sprint report → **[G-7]** · kind: judgment
+- [ ] Task 4.3: Release metadata (lead) — CHANGELOG `[Unreleased]` → `## [2.0.0-rc.8] — <date> — The follow-through (release candidate)` with a fresh `[Unreleased]`; `grimoires/loa/reports/release-notes-2.0.0-rc.8.md` (what shipped, the revert paths, the deferred Should Haves and any deferred FR-10); `update-loa-bump-version.sh --target 2.0.0-rc.8` under the zone marker; checksums; README version, badge and install pin; any fix landed afterwards is appended to the rc.8 section and the notes and the stamps and checksums re-verified → **[G-3]** · kind: mechanical
+- [ ] Task 4.4: Sprint close (lead) — the sweep report, the release metadata and any pending fix are the sprint's code: `/review-sprint`, `/audit-sprint` (≤ 3 dissent runs); DEC rows; beads closed; the running spend line per share; nothing merges before both are APPROVED · kind: judgment
+- [ ] Task 4.5: Ship (lead) — the lead triages the Bridgebuilder findings, decides the merge and judges the publish preconditions; the draft PR from Sprint 1 marked ready (body from the sprint reports); Bridgebuilder round(s) with the skill built on the cycle branch, triaged (a fix touching the harness re-runs the relevant bats; plateau rule: stop after a round adding no new HIGH or MEDIUM, at most three rounds within USD 20; a HIGH → fix, re-review, re-audit before the merge); required checks enumerated and every result bound to the final head sha — any later patch invalidates the evidence and the checks re-run; admin merge (merge commit); `record-branch.sh --cycle 133 --head <merge> --prev <cycle-132 record> --stage "stage 1"` + ICE push; branch-protection preflight recorded; post-merge candidate v2 → publish through C-3 (ancestry re-verified against freshly fetched remote `main`; remote tag target and pre-release metadata verified after) → `git branch --contains v2.0.0-rc.8` lists `main`; a deferred ledger commit has an owner (the lead) and a bead; if the v2 publish path fails irrecoverably, `--allow-v1` with a logged reason, a bead and a DEC row (the tag-on-merge requirement still holds); `archive-cycle.sh --cycle 133 --retention 50` (archive README by hand as cycles 131/132); beads closed; run state JACKED_OUT; NOTES and memory → **[G-3]** · kind: judgment
+- [ ] Task 4.E2E: End-to-End Goal Validation — G-1 (every Tier 1 bead closed with commit and test), G-7 (the table and the sample), G-3 (the tag reachable from freshly fetched `main`; remote tag and pre-release verified), G-2 (the PR's non-degraded Bridgebuilder verdict); evidence paths named · kind: mechanical
+
+### Seams Under Test
+| Seam | Catches | Misses | Prior art |
+|------|---------|--------|-----------|
+| The 10 % re-verification sample | a batch of false closures | a false closure outside the sample | beads-compliance lesson |
+| The cycle PR through the cycle-branch Bridgebuilder | a regression in C-1/C-2 on a real PR | — | KF-054, KF-055 |
+| `git branch --contains v2.0.0-rc.8` | an unreachable tag | — | rc.6, rc.7 |
+
+### Dependencies
+- Sprints 1–3 landed on the cycle branch; Task 4.4 (review and audit) before Task 4.5; the operator token for the admin merge and the publish; `gh` authenticated
+
+### Security Considerations
+- The refusal list (PRD § Authorization basis) binds every git and GitHub action; the record build's secret scan; no publish of a non-rc
+
+### Risks & Mitigation
+- Risk: the Bridgebuilder round finds a HIGH in the cycle's own changes → fix cycle on the cycle branch, re-review, re-audit; the PR waits
+- Risk: `--force-with-lease` push refused by branch protection → the preflight predicts it; the deferral path leaves the tag valid, the lead owns the deferred ledger commit with a bead
+- Risk: the v2 publish path fails on its first real exercise → `--allow-v1` with a logged reason, a bead and a DEC row; the tag still lands on the merge
+- Risk: Sprint 4's day ends before publish → dates are targets; the gates are not; the cycle runs longer
+- Risk: the sweep sample disagrees → re-sweep the batch before applying
+
+### Success Metrics
+- rc.8 published and reachable from freshly fetched `main`; the sweep table published with the sample verified first; every Tier 1 bead closed (Appendix E: 26); review and audit APPROVED before the merge
 
 ---
 
@@ -258,80 +261,140 @@ Take only the registered reads, then the sensitivities; write the report a conso
 
 | Risk | Sprint | Likelihood | Impact | Mitigation |
 |------|--------|-----------|--------|------------|
-| Kappa low | 1 | medium | high | codebook trial; adjudication share as caveat; review-derived set as sensitivity |
-| Unaffordable N | 1 | medium | high | affordable-N rule; exploratory declaration below 0.5 power |
-| Matched-cell degradation | 2 | medium | medium | D-7.3 session-level validity; intention-to-run table |
-| Codex token expiry | 2 | low | medium | pre-flight; schedule |
-| Positive control void | 2–3 | low | high | reported as void; apparatus finding shipped |
-| Reproduction mismatch | 3 | low | high | named; read unreproduced until fixed |
+| Scope facts do not support design (a′) | 3 | Medium | High | spike first; fallback (c); DEC amended |
+| Branch protection refuses the ledger fast-forward | 4 | Low | Medium | deferral path; tag on the merge is always valid |
+| Proxy allowlist incomplete | 2 | Medium | High | registry-generated; self-check per model before a batch |
+| `dist/` drift | 1 | Medium | Medium | rebuild in the same commit; CI gate |
+| Unit-test repairs change shipped behaviour | 1 | Medium | Medium | quarantine with expiry (D-9) |
+| Sweep false closures | 4 | Medium | Medium | evidence rule; manifest review; 10 % sample |
+| Dissent voice budget (KF-004) | all | High | Low | code-only diffs; ≤ 3 runs |
+| Smoke spend over its share | 3 | Low | Low | one launch; `--max-usd 30` |
+
+> Sources: prd.md § Risks & Mitigation; sdd.md §9
+
+---
 
 ## Success Metrics Summary
 
-| Metric | Target |
-|--------|--------|
-| Fixtures with v2 labels and kappa | N (+2 spares) |
-| Registration hash before any Phase 1 row | yes, in NOTES and every MANIFEST |
-| Placebo (existing and new rows) | inside the band |
-| Positive control | positive with verified exposure (or "not exercised" / void, stated) |
-| Primary read | reported with 95 %/90 %/RCI, REML, permutation; stopping rule stated |
-| Reproduction | byte-identical grades, rows, reads; sampled rerun in range |
-| Spend | ≤ the registered cap |
+| Goal | Sprint | Evidence |
+|------|--------|----------|
+| G-1 every Tier 1 bead closed with evidence | 1–4 | `br show` per bead; sprint reports |
+| G-2 Bridgebuilder reviews a large PR; verdict trustworthy | 1, 4 | vitest fixtures; the cycle PR's round |
+| G-3 tag reachable from `main` | 1, 4 | bats; `git branch --contains v2.0.0-rc.8` |
+| G-4 Loa reviews Loa | 3 | the smoke's grade; clause (f); negative control |
+| G-5 one finding contract at four gates | 3 | validator fixtures |
+| G-6 green suites in CI | 1 | check-runs on the cycle PR |
+| G-7 truthful tracker | 4 | the five-category table |
+| G-8 shippable harness | 2, 3 | bats; dry-runs; pipeline version table |
+
+> Sources: prd.md § Goals & Success Metrics
+
+---
 
 ## Dependencies Map
 
-sprint-bug-266 … 268 (merged) → Sprint 1 (Tasks 1.1 … 1.5, 1.7, 1.8 in parallel; 1.6 after 1.3–1.5 and the candidate order; 1.9 after 1.8 and the 63-run inputs; 1.10 after 1.8; 1.11 after 1.6, 1.9, 1.10; 1.12 last) → Sprint 2 (2.1 → 2.2 → 2.3 → 2.4 → 2.5 → 2.6 → 2.7) → Sprint 3 (3.1 → 3.2 → 3.3/3.4 → 3.5 → 3.6 → 3.E2E).
+Sprint 1 (land A 1.1 → 1.2, B, C, D; draft PR opened) → Sprint 2 (2.1 → 2.2 → 2.3 → 2.4 → 2.5 intermediate version; egress suite green) → Sprint 3 (3.0 spike first with 3.1's invariant parts in parallel; 3.3 → 3.2 → 3.1 mount mode → 3.4; 3.5 pin + smoke; 3.6 after a green smoke) → Sprint 4 (4.1 → 4.2 → 4.3 → 4.4 review and audit → 4.5 ship).
+
+> Sources: sdd.md §8
 
 ---
 
 ## Appendix
 
 ### A. PRD Feature Mapping
-| PRD Feature (FR-X) | Sprint | Status |
-|--------------------|--------|--------|
-| FR-1 corpus with provenance | Sprint 1 (Task 1.1) | Planned |
-| FR-2 ground truth re-derived | Sprint 1 (Tasks 1.2 … 1.6) | Planned |
-| FR-3 compute-matched arm | Sprint 1 (Tasks 1.7a–c) | Planned |
-| FR-4 grader validation by a blind judge | Sprint 1 (1.4, 1.8); Sprint 2 (2.6) | Planned |
-| FR-5 analysis code, placebo, stopping rule | Sprint 1 (1.8, 1.10) | Planned |
-| FR-6 power simulation | Sprint 1 (1.8, 1.9) | Planned |
-| FR-7 hashed registration + dissent | Sprint 1 (1.7c, 1.11) | Planned |
-| FR-8 batches with looks | Sprint 2 (2.1 … 2.5, 2.7) | Planned |
-| FR-9 reads and report | Sprint 3 (3.1, 3.2) | Planned |
-| FR-10 proof | Sprint 3 (3.3, 3.4) | Planned |
-| FR-11 follow-ups and the release hold | Sprint 1 (1.7a–b, 1.12); Sprint 3 (3.5) | Planned |
+| PRD Feature (FR-X) | Sprint (Tasks) | Status |
+|--------------------|----------------|--------|
+| FR-1 Bridgebuilder large PRs | 1 (1.1) | Planned |
+| FR-2 consensus integrity | 1 (1.2) | Planned |
+| FR-3 release tag reaches main | 1 (1.3); 4 (4.4) | Planned |
+| FR-4 framework ergonomics | 1 (1.4, 1.5) | Planned |
+| FR-5 CI and test health | 1 (1.6) | Planned |
+| FR-6 session library | 2 (2.1); 3 (3.6) | Planned |
+| FR-7 reproduction and analysis | 2 (2.2) | Planned |
+| FR-8 grader 1.4 and refusal policy | 2 (2.3) | Planned |
+| FR-9 batch operations | 2 (2.4, 2.5) | Planned |
+| FR-10 Loa reviews Loa | 3 (3.0, 3.1, 3.5) | Planned |
+| FR-11 finding contract and judge hook | 3 (3.2) | Planned |
+| FR-12 external seeding and guidance | 3 (3.3) | Planned |
+| FR-13 beads hygiene | 4 (4.1, 4.2) | Planned |
+| FR-14 release and ship | 4 (4.3, 4.4, 4.5) | Planned |
 
 ### B. SDD Component Mapping
-| SDD Component | Sprint | Status |
-|---------------|--------|--------|
-| Corpus seeder (§1.4) | Sprint 1 | Planned |
-| Incident scanner | Sprint 1 | Planned |
-| Annotation packets, blind sessions, merge | Sprint 1 | Planned |
-| Matched-bare cells (runner, union grader, took-effect, row, report) | Sprint 1 | Planned |
-| Registration manifest and runner flags | Sprint 1 | Planned |
-| Analysis module | Sprint 1 | Planned |
-| Judge sampler and agreement | Sprints 1–2 | Planned |
-| Pre-registration and suite root | Sprint 1 | Planned |
-| Batches and looks (§5.3) | Sprint 2 | Planned |
-| Report and reproduction | Sprint 3 | Planned |
+| Component | Sprint (Tasks) |
+|-----------|----------------|
+| C-1, C-2 Bridgebuilder | 1 (1.1, 1.2) |
+| C-3 release publish | 1 (1.3) |
+| C-4 framework ergonomics | 1 (1.4, 1.5) |
+| C-5 CI and quarantine | 1 (1.6) |
+| C-6 session library | 2 (2.1) |
+| C-7 reproduction and analysis | 2 (2.2) |
+| C-8 grader 1.4, refusal policy | 2 (2.3) |
+| C-9 supervisor, egress, image | 2 (2.4, 2.5) |
+| C-10 Loa reviews Loa | 3 (3.0, 3.1, 3.5) |
+| C-11 finding contract, grader 1.5 | 3 (3.2) |
+| C-12 seeder, registration v2, guidance | 3 (3.3) |
+| C-13 sweep | 4 (4.1, 4.2) |
+| C-14 release | 4 (4.3, 4.4, 4.5) |
 
 ### C. PRD Goal Mapping
-| Goal ID | Goal Description | Contributing Tasks | Validation Task |
-|---------|------------------|-------------------|-----------------|
-| G-1 | Ground truth re-derived | Sprint 1: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6 | Sprint 3: Task 3.E2E |
-| G-2 | A powered design | Sprint 1: 1.1, 1.8, 1.9 | Sprint 3: Task 3.E2E |
-| G-3 | Hashed registration, placebo first, dissent before any run | Sprint 1: 1.7b, 1.7c, 1.8, 1.10, 1.11; Sprint 2: 2.1 | Sprint 3: Task 3.E2E |
-| G-4 | The arms run on the unseen corpus | Sprint 1: 1.4, 1.7a, 1.7b; Sprint 2: 2.2 … 2.6 | Sprint 3: Task 3.E2E |
-| G-5 | Only the pre-registered reads; stopping rule stated | Sprint 1: 1.8; Sprint 2: 2.3 … 2.7; Sprint 3: 3.1, 3.2 | Sprint 3: Task 3.E2E |
-| G-6 | Proof | Sprint 3: 3.2, 3.3, 3.4 | Sprint 3: Task 3.E2E |
-| G-7 | Nothing shipped changes; rc.7 held | Sprint 1: 1.12; Sprint 3: 3.5, 3.6 | Sprint 3: Task 3.E2E |
+| Goal | Evidence path |
+|------|---------------|
+| G-1 | `br show <bead>` close reasons naming commit and test |
+| G-2 | `resources/__tests__/paged-fetch.test.ts`, `enrichment-guard.test.ts`; the cycle PR's Bridgebuilder summary JSON |
+| G-3 | `tests/unit/post-merge-publication.bats`; `git branch --contains v2.0.0-rc.8` |
+| G-4 | the smoke's `grade.json` (`oracle_exposed_defects`, `pr_bytes_read`); `evals/tests/sandbox-mount-home-scope.bats` |
+| G-5 | `tests/unit/verdict-derive-failure-clause.bats`; `adversarial-finding` schema tests; BB `schemas.test.ts`; `test_grader_judge_verdicts.py` |
+| G-6 | the cycle PR's check-runs |
+| G-7 | `a2a/sprint-275/sweep/report.md` |
+| G-8 | `evals/tests/session-exec.bats`, `egress-proxy.bats`, `batch-supervisor.bats`, grader 1.4 fixtures, `external-candidates.md` |
 
-**Goal Coverage Check:**
-- [x] All PRD goals have at least one contributing task
-- [x] All goals have a validation task in final sprint
+### D. Flatline integration (sprint review, `a2a/flatline/cycle-133-sprint-review.json`; D-S.1 DEC-0859)
 
-### D. Flatline integration (sprint run, 2026-10-21T02:28–02:36Z)
-Two voices (claude-headless = Fable 5.1, gpt-5.5 via codex), 12 blockers (all HIGH), cross-scoring degraded (KF-041 shape, 0 % agreement, `verdict_quality` DEGRADED); read in full and integrated by judgment (DEC-0708). Record: `grimoires/loa/a2a/flatline/sprint-review-c132.json`.
+Run: claude-headless + gpt-5.5, cross-scoring degraded (KF-041, recurrence 11), 18 skeptic blockers, 21 + 28 reviewer items; every one folded.
 
-**Adopted (task text amended):** two-stage record branch — the evidence commit is built and pushed before the reproduction and the proof is appended after merge, with a re-trigger rule for post-reproduction fixes (SKP-002, SKP-003 → Tasks 3.3a, 3.3b, 3.6; DEC-0709); release-metadata files authorized for the ship step (SKP-001 → Task 3.5, prd.md § Technical Considerations; DEC-0707); the cap's accounting scope and reserve lines stated before the affordable-N comparison (SKP-004 → Task 1.9; DEC-0710); the corpus ceiling counted in Task 1.1 and bounding N in Task 1.9 (SKP-001 gpt → Tasks 1.1, 1.9); the registration binds the image digest and the pin, with an amendment policy (SKP-011 → Task 1.11); the spend reservation gate derived from the cycle meter and pinned by tests (SKP-003 gpt → Task 1.7c); the power simulation runs under data-dependent completion and partial groups (SKP-005 → Task 1.8); missingness by arm and k with bounding sensitivities (SKP-012 → Task 1.8, SDD D-7.3); the judge universe names missed defects explicitly (SKP-007 → Task 1.8); an adversarial-packet taint case (SKP-010 → Task 1.4).
+| Concern | Where it landed |
+|---|---|
+| SKP-001 (pin contradiction), gpt 01, 13–14, opus 01, 10 | Task 2.5 intermediate version; Task 3.5 measurement pin + integrated self-check; smoke metadata |
+| SKP-002 (smoke fix without rerun), gpt 02, opus 04 | Task 3.5 launch rule, one reserved rerun, G-4 incomplete → FR-10 deferred; Spend header |
+| SKP-006, gpt 03–04, opus 06 | Spend header: shares 40/20/40, spike inside the smoke share, running line, HALT when exhausted |
+| SKP-022, gpt 21 | Task 4.5: required checks bound to the final head sha; ancestry and remote tag verified |
+| SKP-008, SKP-009, SKP-010, gpt 05–08, opus 15, 18 | Task 1.3: ancestry re-verified per step, identity-matched existing tag, ledger patch restriction, state-aware rerun, v1 refusal; Task 4.5 fallback and preflight |
+| SKP-004, SKP-002b, gpt 09, opus 12–13 | Tasks 2.4, 2.5, 3.0, 3.5: egress suite a hard gate, run locally when CI cannot, spike inside the block |
+| SKP-014, SKP-016, gpt 15–16 | Tasks 1.1, 3.2: verdict eligibility per degraded reason; invalid blockers still block; vectors across four validators |
+| SKP-017, gpt 10 | Task 2.4: durable identity, reboot lifecycle, retry classes |
+| SKP-012, SKP-013 | Task 1.2: every canonical field preserved; adapters prove the stance at invocation |
+| SKP-001b (surface), SKP-003, gpt 12–13 | Tasks 3.0, 3.1: surface derived from the pinned version incl. output-styles and plugins; canaries with filesystem effects under process capture; spike inputs recorded |
+| SKP-005 | Task 2.4: ports, resolved addresses, DNS, host gateway, rebinding, misconfiguration |
+| SKP-011 | Task 1.4: parents asserted public; scan of the differing paths |
+| gpt 11, opus 26 | Task 2.3: immutable attempts, final-row rule |
+| gpt 17–18, opus 28, 30 | Tasks 4.1, 4.2: complete partition, sample before apply, overflow batches |
+| gpt 19, opus 09 | Task 1.6: ISO expiry (commit date + 30 days), full-suite totals |
+| gpt 20, opus 05 | Execution header and Dependencies: landing order, one integration owner, same-file tasks sequenced |
+| opus 02, 03, 27 | Task 4.4 close before the merge; dissent-exhaustion HALT; plateau rule |
+| opus 07 | Appendix E bead map; counts corrected (12 / 13 / 1) |
+| opus 08 | Task 1.7: draft PR at Sprint 1 close carries CI |
+| opus 11 | Task 3.2: build, dist, grader 1.5 regression |
+| opus 14 | Sprint 4 AC G-2: non-degraded review or split the PR |
+| opus 16 | Task 3.0: fallback is a HALT, never built autonomously |
+| opus 17, 20 | Tasks 3.4/3.6 split; 3.1 invariant parts start during the spike |
+| opus 19 | Execution header: dates are targets |
+| opus 21–23 | Task 1.6 repair rule; "Judgment calls" section; CHANGELOG after stamping |
+| opus 24–25 | Tasks 2.5, 2.2: probe shape; synth reproduction assertion |
+| opus 26 | Task 3.3: candidates file outside the `-diff` path |
 
-**Not adopted, with reasons:** an "independent discovery pass" as a ground-truth source (SKP-009) — a model reading the PR to label it is another arm in disguise (PRD D14; the judge-confirmed-stray sensitivity is the independent channel); runtime network restriction for blind sessions (SKP-010, in part) — the model API is the only egress the container needs and no proxy exists this cycle (SDD §11.E); re-litigating cell-level validity (SKP-012, in part) — SDD D-7.3 already decides session-level validity and the intention-to-run table.
+### E. Tier 1 bead map (26 beads)
+
+| Sprint | Task | Beads |
+|---|---|---|
+| 1 | 1.1 | bd-ra4im |
+| 1 | 1.2 | bd-cpvc6 |
+| 1 | 1.3 | bd-kwloh |
+| 1 | 1.4 | bd-mgun5 |
+| 1 | 1.5 | bd-rz5ks, bd-nbs7w, bd-d7dwt, bd-crzm5, bd-4pjqm |
+| 1 | 1.6 | bd-yroj0, bd-tgn04, bd-dt5r8 |
+| 2 | 2.1 | bd-wqaj4, bd-g2c5i |
+| 2 | 2.2 | bd-jat0z, bd-161zz, bd-ombvn, bd-xr3uq, bd-o3a5h, bd-qxwrm, bd-um8ol |
+| 2 | 2.3 | bd-kddde, bd-r9abp |
+| 2 | 2.4 | bd-yvjew, bd-ijxuk |
+| 3 | 3.3 | bd-y1smc |
+| 4 | 4.1, 4.2 | the other open beads (FR-13) |

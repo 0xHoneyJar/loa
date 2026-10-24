@@ -1,0 +1,15 @@
+{
+  "description": "an array is not a finding",
+  "expect": {
+    "errors": [
+      "not_object"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": [
+    "HIGH"
+  ],
+  "markdown": null
+}

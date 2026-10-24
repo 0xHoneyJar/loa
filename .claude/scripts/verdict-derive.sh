@@ -17,6 +17,13 @@
 #      demoted to '## Observations' as speculative + confidence: low; critical
 #      is never excludable; an audit's `excluded_confirmed` must match the
 #      review's `excluded` (--review-file)
+#   6. cycle-133 C-11 (FR-11; D-3.5 DEC-0857): finding bullets follow the canonical grammar
+#      `- **SEV** (confidence: c[, speculative][, blocking]) \`file:line[-end]\` <dash> <title>. Failure: <scenario>.`
+#      (.claude/schemas/finding.schema.json; the content rule through lib/finding-validate.sh). A CRITICAL/HIGH/
+#      MEDIUM/LOW bullet without a valid Failure clause is a violation on every path (with or without a trailer); a
+#      CRITICAL, HIGH or `blocking` bullet — valid or not — is counted in the blocking tally (a speculative,
+#      confidence: low HIGH under ## Observations excepted), and a tally above zero makes an APPROVED trailer a
+#      violation. Bullets in code fences and under '## Rejected dissent payloads' are not judged.
 #
 # Usage:
 #   verdict-derive.sh --file <feedback.md> --gate review|audit [--json] [--require-trailer]
@@ -78,6 +85,12 @@ the number of HIGH findings the reviewer demoted to "## Observations" because
 they are tagged speculative with confidence: low. critical is never excludable;
 a HIGH under ## Observations needs both markers; N must equal what the section
 holds. An audit trailer carries "excluded_confirmed": N and must match.
+
+Finding grammar (cycle-133 C-11): a finding bullet is
+  - **SEV** (confidence: high|medium|low[, speculative][, blocking]) \`file:line[-end]\` — title. Failure: <scenario>.
+(dash — – - or --; the clause starts at the last 'Failure:' outside backticks). A CRITICAL/HIGH/MEDIUM/LOW bullet
+without a valid clause (a 'when … then …' or at least 12 words; never TODO, n/a, see above, as described,
+placeholder) is a violation; a CRITICAL, HIGH or blocking bullet, valid or not, can never ride an APPROVED trailer.
 
 Exit codes:
   0  trailer present and consistent
@@ -398,6 +411,106 @@ rejected_summary_check() {  # appends a violation when the contract is broken; s
     fi
 }
 
+# cycle-133 C-11 (FR-11; D-3.5 DEC-0857): the finding grammar of review/audit bullets and the blocking rule.
+#   - **SEV** (confidence: c[, speculative][, blocking]) `file:line[-end]` <dash> <title>. Failure: <scenario>.
+# (the items in the parenthesis comma-separated in any order; the dash — – - or --; the clause starts at the LAST
+# `Failure:` outside backticks; one trailing '.' of the title and of the scenario dropped). A bullet is a finding when
+# its first token is a severity of the canonical schema written **SEV**, **[SEV]**, [SEV] (any case) or bare upper
+# case, followed by a blank, '(' or the line end (so `- **Critical**: 0` and `- HIGH-1 …` are not findings). Judged:
+# every list item outside code fences and outside '## Rejected dissent payloads' (triage lines, not findings).
+# A defect-severity bullet (CRITICAL/HIGH/MEDIUM/LOW) that does not parse, or whose finding fails the canonical
+# validator (lib/finding-validate.sh: the content rule, the path and anchor rules), is a violation. Every CRITICAL,
+# HIGH or `blocking` bullet — valid or not — is counted in blocking_tally, except a HIGH under ## Observations marked
+# speculative with confidence: low (FR-9's excluded demotion); a tally above zero makes an APPROVED trailer a violation.
+_VD_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+blocking_tally=0
+blocking_lines=""
+# shellcheck disable=SC2016
+_VD_BULLET_JQ_A='
+  def trim: sub("^[ \\t]+"; "") | sub("[ \\t]+$"; "");
+  def SEVS: ["CRITICAL","HIGH","MEDIUM","LOW","PRAISE","SPECULATION","REFRAME","INFO"];
+  def mask: [splits("`")] | to_entries | map(if .key % 2 == 0 then .value else (.value | gsub("."; "x")) end) | join("`");
+  def dropdot: if endswith(".") then .[0:-1] else . end;
+  split("\t") as $c | ($c[0] | tonumber) as $ln | $c[1] as $sec | ($c[2:] | join("\t")) as $text
+  | ($text | sub("^ {0,3}([-*+]|[0-9]+\\.)[ \\t]+"; "")) as $rest
+  | ($rest | capture("^(?<open>\\*\\*\\[|\\*\\*|\\[)?(?<w>[A-Za-z]+)(?<close>\\]\\*\\*|\\*\\*|\\])?(?=[ \\t(]|$)") // null) as $m
+  | (if $m == null then null else ($m.w | ascii_upcase) end) as $sev
+  | if $m == null or ($sev | IN(SEVS[]) | not)
+       or (($m.open // "") != "" and ({"**": "**", "**[": "]**", "[": "]"}[$m.open] != ($m.close // "")))
+       or (($m.open // "") == "" and (($m.close // "") != "" or $m.w != $sev)) then empty
+    else
+      ($sev | IN("CRITICAL","HIGH","MEDIUM","LOW")) as $defect
+      | ($rest | capture("^\\*\\*(?<s>[A-Z]+)\\*\\*[ \\t]+\\((?<items>[^)]*)\\)[ \\t]+`(?<loc>[^`]+)`[ \\t]+(?:—|–|--|-)[ \\t]+(?<body>.*)$") // null) as $g
+      | ($g.loc // "" | capture("^(?<file>.+):(?<a>[0-9]{1,8})(?:-(?<b>[0-9]{1,8}))?$") // null) as $loc
+      | ($g.items // "" | split(",") | map(trim)) as $items
+      | ([$items[] | select(test("^confidence:[ \\t]*(high|medium|low)$"))] | map(sub("^confidence:[ \\t]*"; ""))) as $conf
+      | ($g != null and $loc != null and ($conf | length) == 1
+         and ($items | all(. == "speculative" or . == "blocking" or test("^confidence:[ \\t]*(high|medium|low)$")))) as $parsed
+      | ($text | ascii_downcase) as $lc
+      | (if $parsed then ($items | index("blocking") != null)
+         else ($lc | test("\\(([^)]*[ ,])?blocking([ ,][^)]*)?\\)")) end) as $blocking
+      | (if $parsed then ($items | index("speculative") != null) else ($lc | test("speculative")) end) as $spec
+      | (if $parsed then $conf[0] == "low" else ($lc | test("confidence:[ \\t]*low")) end) as $low
+      | (if $parsed then
+           ($g.body | mask | [indices("Failure:")[]] | last) as $at
+           | ({severity: $sev, confidence: $conf[0], file: $loc.file, anchor_line: ($loc.a | tonumber), blocking: $blocking}
+              + (if $loc.b != null then {anchor_line_end: ($loc.b | tonumber)} else {} end)
+              + (if $at == null then ($g.body | trim | dropdot | trim | if . == "" then {} else {title: .} end)
+                 else ($g.body[0:$at] | trim | dropdot | trim | if . == "" then {} else {title: .} end)
+                      + {failure_scenario: ($g.body[$at + 8:] | trim | dropdot | trim)} end))
+           | ('
+# (lib/finding-validate.sh's FINDING_VALIDATE_JQ goes between the two halves — sourced only when the file holds a list item)
+# shellcheck disable=SC2016
+_VD_BULLET_JQ_B=') | .errors
+         else ["grammar"] end) as $codes
+      | {ln: $ln, sev: $sev, defect: $defect, codes: (if $defect then $codes else [] end),
+         tallied: ((($sev | IN("CRITICAL","HIGH")) or $blocking)
+                   and ((($sec | startswith("Observations")) and $sev == "HIGH" and $spec and $low and ($blocking | not)) | not))}
+    end'
+finding_bullets_check() {  # appends a violation per invalid defect bullet; sets blocking_tally / blocking_lines
+    local _rows _r _ln _sev _codes _tal
+    # (the fence pass of rejected_summary_check: a fence closes only on its own character, at least its own length, with
+    # nothing but blanks after; H2 sections tracked, '# ' resets; no interval expression and no POSIX class — mawk)
+    _rows=$(awk '{ ln++; sub(/\r$/, "") }
+        /^ ? ? ?(```|~~~)/{l = $0; sub(/^ */, "", l); q = substr(l, 1, 1); k = 0; while (substr(l, k + 1, 1) == q) k++; r = substr(l, k + 1)
+          if (!f) { if (q != "`" || r !~ /`/) { f = 1; fq = q; fl = k; fo = ln; next } }
+          else if (q == fq && k >= fl && r ~ /^[ \t]*$/) { f = 0; next } }
+        f { next }
+        /^# / { sec = ""; next }
+        /^## / { sec = $0; sub(/^## +/, "", sec); next }
+        /^ ? ? ?([-*+]|[0-9]+\.)[ \t]/ { if (sec !~ /^Rejected dissent payloads/) printf "%d\t%s\t%s\n", ln, sec, $0 }
+        END { if (f) printf "%d\t__unclosed_fence__\t\n", fo }' < "$FILE") || { violations+=("the finding bullets of this file could not be read (the bullet scan failed) — the Failure-clause rule cannot be checked"); return 0; }
+    # cycle-133 Sprint 274 review round 1: a fence still open at the end of the file would hide every later list item
+    # from this scan — fail closed instead of silently judging nothing after it
+    if [[ "$_rows" == *$'\t__unclosed_fence__\t'* ]]; then
+        local _fo; _fo="$(awk -F'\t' '$2 == "__unclosed_fence__" { print $1 }' <<<"$_rows" | head -1)"
+        violations+=("line ${_fo:-?}: a code fence opened here never closes — every later finding bullet would be hidden from the C-11 scan; close the fence (fail-closed)")
+        _rows="$(grep -v $'\t__unclosed_fence__\t' <<<"$_rows" || true)"
+    fi
+    [[ -n "$_rows" ]] || return 0
+    if [[ -z "${FINDING_VALIDATE_JQ:-}" ]]; then
+        if [[ ! -f "$_VD_DIR/lib/finding-validate.sh" ]]; then
+            violations+=("lib/finding-validate.sh is missing beside $(basename -- "$0") — the Failure-clause rule of the finding bullets cannot be checked (cycle-133 C-11); restore the framework's scripts/lib/")
+            return 0
+        fi
+        # shellcheck source=lib/finding-validate.sh
+        source "$_VD_DIR/lib/finding-validate.sh"
+    fi
+    _r=$(jq -R -c "$_VD_BULLET_JQ_A$FINDING_VALIDATE_JQ$_VD_BULLET_JQ_B" <<<"$_rows") || { violations+=("the finding bullets of this file could not be judged (jq failed) — the Failure-clause rule cannot be checked; repair the bullets to the grammar"); return 0; }
+    while IFS=$'\t' read -r _ln _sev _codes _tal; do
+        [[ -n "$_ln" ]] || continue
+        if [[ "$_codes" != "-" ]]; then
+            violations+=("line $_ln: a $_sev bullet without a valid Failure clause ($_codes) — write it as: - **$_sev** (confidence: high|medium|low) \`path:line\` — title. Failure: <the concrete failure, a 'when … then …' or at least 12 words>. (cycle-133 C-11)")
+        fi
+        if [[ "$_tal" == "true" ]]; then
+            blocking_tally=$((blocking_tally + 1))
+            blocking_lines+="${blocking_lines:+, }$_ln"
+        fi
+    # (tab is IFS whitespace: an empty column would collapse into its neighbour — no column is ever empty)
+    done < <(jq -r '[(.ln | tostring), .sev, (.codes | if length == 0 then "-" else join(",") end), (.tallied | tostring)] | @tsv' <<<"$_r")
+    return 0
+}
+
 violations=()
 warnings=()
 # sixteenth run, c2d C-002: an explicit empty value reads as "not given" (eleventh run, b DISS-C-002) but never silently —
@@ -498,6 +611,7 @@ trailer_count=$(grep -ciE "$TRAILER_DETECT" -- "$FILE" 2>/dev/null || true)
 # envelope — checked once, before the trailer dispatch, so every path (legacy, --require-trailer, a
 # duplicated or malformed trailer, a valid one) reports it in the same pass
 rejected_summary_check
+finding_bullets_check
 
 # --- No trailer at all: legacy file ---
 if [[ "$trailer_count" -eq 0 ]]; then
@@ -561,6 +675,10 @@ else
 
         if [[ "$t_verdict" != "APPROVED" && "$t_verdict" != "CHANGES_REQUIRED" ]]; then
             violations+=("trailer verdict '$t_verdict' is not one of APPROVED|CHANGES_REQUIRED")
+        fi
+        # cycle-133 C-11 (D-3.5): a CRITICAL, HIGH or blocking bullet — valid or not — can never ride an APPROVED trailer
+        if [[ "$t_verdict" == "APPROVED" ]] && (( blocking_tally > 0 )); then
+            violations+=("$blocking_tally blocking finding bullet(s) (CRITICAL, HIGH or blocking, with or without a valid Failure clause; line(s) $blocking_lines) — a file holding one cannot be APPROVED: set verdict CHANGES_REQUIRED and count them, or re-triage the bullets")
         fi
 
         if ! is_num "$t_critical" || ! is_num "$t_high" || ! is_num "$t_medium" || ! is_num "$t_low"; then

@@ -1,4 +1,0 @@
-{"timestamp":"2026-05-20T08:05:57Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-bug-171","status":"clean","finding_count":0,"cost_usd":null}
-{"timestamp":"2026-05-20T09:48:08Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-bug-172","status":"reviewed","finding_count":3,"cost_usd":0}
-{"timestamp":"2026-05-20T10:52:13Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-bug-173","status":"reviewed","finding_count":1,"cost_usd":0}
-{"timestamp":"2026-05-20T22:43:31Z","type":"review","model":"gpt-5.5-pro","sprint_id":"sprint-d6-attribution","status":"reviewed","finding_count":1,"cost_usd":0}

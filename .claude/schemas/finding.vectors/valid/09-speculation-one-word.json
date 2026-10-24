@@ -1,0 +1,23 @@
+{
+  "description": "SPECULATION is exempt from the content rule",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "anchor_line": 2,
+      "blocking": false,
+      "failure_scenario": "maybe",
+      "file": "x.py",
+      "id": "F-2f3936",
+      "severity": "SPECULATION"
+    },
+    "valid": true,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 2,
+    "failure_scenario": "maybe",
+    "file": "x.py",
+    "severity": "SPECULATION"
+  },
+  "markdown": null
+}

@@ -1,8 +1,0 @@
-batch_context=c132-smoke2
-base_commit=83be4cb4d0e6bf43b5f60d4ffd5689342f06306a
-loa_mount=none
-loa_mount=none
-claude_md_sha256=absent
-loa_config_sha256=absent
-mount_cheval=none
-arm_ids_pr_native=a0_bare,a1_full,a2_no_sprint_plan,a3_one_voice,a4_no_gates,a5_no_flatline,a6_one_window,a7_effort_medium,a8_no_ceremonies

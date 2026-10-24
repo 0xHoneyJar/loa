@@ -17,6 +17,7 @@
 #                   [--pre-registration-ref TEXT] [--seed N] [--self-check-log F]
 #                   [--registration F] [--spend-since TS] [--batch-context ID]
 #                   [--smoke] [--dry-run] [--resume] [--detach] [--allow-partial] [--clear-arm ID]...
+#                   [--supervised [--max-retries N]]
 #                   [--clear-drift] [--rerow RUN_ID]... [--rerun RUN_ID]... [--rerun-status S]...
 #                   [--pipeline-bin P] [--grade-bin G] [--row-bin R] [--took-effect-bin T]
 #                   [--docker-bin D] [--spend-bin S]
@@ -49,7 +50,7 @@
 #                        batch never writes the tracked file (DEC-0428: smoke rows decide nothing)
 #   --suite-root DIR     suite root (default grimoires/loa/evals/ablation-2.0)
 #   --suite-file F       suite file (default evals/suites/ablation-2.0.yaml)
-#   --image IMG          container image (default loa-ablation:258)
+#   --image IMG          container image (default loa-ablation:259, the pinned pipeline image — README § Pipeline version)
 #   --executor MODE      container (default) or host; passed to pipeline-run.sh and the grader
 #                        (host grading needs LOA_EVAL_ALLOW_HOST_GRADING=1, see ablation-grade.sh)
 #   --pre-registration-ref TEXT  the NOTES pre-registration heading and timestamp (MANIFEST)
@@ -91,6 +92,16 @@
 #                        resume of a batch that started without it is a usage error (exit 2)
 #   --detach             re-exec under setsid nohup (log <batch>/driver.log), print the batch
 #                        directory and the pid, exit 0
+#   --supervised         (cycle-133 C-9, FR-9) hand the batch to lib/batch-supervisor.sh launch: refused (exit 2,
+#                        nothing written) unless the user lingers (`loginctl enable-linger`); the batch runs under
+#                        systemd-run --user --unit loa-batch-<name> --collect, else a setsid loop, holding flock
+#                        <batch>/supervisor.lock; a dead or hung (30 min without a batch file update) runner is
+#                        resumed with --resume after its process groups and loa-abl-<batch>-* containers are
+#                        stopped, for the retryable classes only. The launch arguments go to MANIFEST.json
+#                        supervisor {runner, args, max_retries, batch}; STATUS.json supervisor is the supervisor's
+#                        record (write_status keeps it). Prints the supervisor line, exit 0. Exclusive with
+#                        --detach and --dry-run. After a reboot: lib/batch-supervisor.sh restore <batch-dir>
+#   --max-retries N      with --supervised: resumes per supervision, 0-9 (default 3)
 #   --clear-arm ID       with --resume: remove ID from STATUS.json paused_arms (repeatable)
 #   --clear-drift        with --resume: re-read the run named by STATUS.json drift (its run dir
 #                        <batch>/<arm>/<task>-t<n>, or the highest -r<k> sibling) with the
@@ -155,6 +166,10 @@
 #   row's + its own, its in-line retry only while that stays ≤ 3); a row already at 3 attempts is refused by
 #   --rerun (exit 2) and skipped by --rerun-status (one log line). ablation-row.sh --prior-spend gets the
 #   earlier attempts' spend (all_spend_usd).
+# Refusal policy (cycle-133 C-8, FR-8): each arm's suite refusal_policy (exclude | keep | rerun-once, default exclude)
+#   is checked at pre-flight and recorded in MANIFEST.json refusal_policy {<arm>: policy}; rerun-once relaunches a
+#   refused trial once (<arm>/<task>-t<n>.refusal-1.json records the kept first attempt). The rules sit in the block
+#   after the arm checks; the row fields are ablation-row.sh 1.6's; evals/harness/README.md § Refusal policy.
 #
 # Pre-flight (any refusal: exit 2, nothing written but <batch>/REFUSED.txt with the reason):
 #   1. hard gate, non-smoke batches only (DEC-0435): <suite-root>/MANIFEST.sha256 present,
@@ -394,9 +409,9 @@ MAX_USD="" RUN_CAP="" CONCURRENCY=3 BATCH="" RESULTS_ROOT="" ROWS=""
 CAP_BUILD="" CAP_REVIEW=""   # the per-kind run caps (DEC-0567; cap_for)
 SUITE_ROOT="$REPO_ROOT/grimoires/loa/evals/ablation-2.0"
 SUITE_FILE="$REPO_ROOT/evals/suites/ablation-2.0.yaml"
-IMAGE="loa-ablation:258" EXECUTOR="container" PRE_REG_REF="" SEED=20261015
+IMAGE="loa-ablation:259" EXECUTOR="container" PRE_REG_REF="" SEED=20261015
 SELF_CHECK_LOG="$REPO_ROOT/grimoires/loa/a2a/sprint-259/self-check-image.log"
-SMOKE=false DRY_RUN=false RESUME=false DETACH=false ALLOW_PARTIAL=false
+SMOKE=false DRY_RUN=false RESUME=false DETACH=false ALLOW_PARTIAL=false SUPERVISED=false MAX_RETRIES=""
 CLEAR_ARMS=() REROW_IDS=() CLEAR_DRIFT=false RERUN_IDS=() RERUN_STATUSES=()
 PIPELINE_BIN="$SCRIPT_DIR/pipeline-run.sh" GRADE_BIN="$SCRIPT_DIR/ablation-grade.sh"
 ROW_BIN="$SCRIPT_DIR/ablation-row.sh" TOOK_BIN="$SCRIPT_DIR/took-effect.sh"
@@ -443,6 +458,8 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=true; shift ;;
     --resume) RESUME=true; shift ;;
     --detach) DETACH=true; shift ;;
+    --supervised) SUPERVISED=true; shift ;;
+    --max-retries) MAX_RETRIES="${2:-}"; shift 2 ;;
     --allow-partial) ALLOW_PARTIAL=true; shift ;;
     --clear-arm) CLEAR_ARMS+=("${2:-}"); shift 2 ;;
     --clear-drift) CLEAR_DRIFT=true; shift ;;
@@ -515,6 +532,9 @@ if command -v timeout >/dev/null 2>&1; then
   TMO_ON=true
 fi
 [[ "$RESUME" != true || "$DRY_RUN" != true ]] || die "--resume and --dry-run are exclusive"
+[[ -z "$MAX_RETRIES" || "$SUPERVISED" == true ]] || die "--max-retries needs --supervised"   # cycle-133 C-9
+[[ -z "$MAX_RETRIES" || "$MAX_RETRIES" =~ ^[0-9]$ ]] || die "--max-retries must be 0-9"
+[[ "$SUPERVISED" != true || ( "$DETACH" != true && "$DRY_RUN" != true ) ]] || die "--supervised is exclusive with --detach and --dry-run (the supervisor daemonises the batch)"
 [[ "$RESUME" == true || -n "$SOURCE_COMMIT" ]] || die "--source-commit is required"
 
 if [[ -z "$BATCH" ]]; then
@@ -669,6 +689,123 @@ for a in "${ARMS[@]}"; do
 done
 [[ "$(printf '%s\n' "${ARMS[@]}" | sort | uniq -d)" == "" ]] || die "--arms lists an arm twice"
 
+# --- cycle-133 C-8 (FR-8, bd-r9abp): the refusal policy ---------------------------------------------------------------
+# Every planned arm's suite key refusal_policy (exclude | keep | rerun-once; absent = exclude) is checked here (exit 2
+# naming the repair) and recorded in MANIFEST.json refusal_policy {arm: policy} before any trial runs; at run time it
+# is read from the MANIFEST only, so a batch whose MANIFEST predates the key runs exclude (cycle-132's behaviour). A
+# matched arm (bare_sessions: matched) takes exclude only: a session with a refusal fallback stays invalid.
+# rerun-once (trials): an attempt that ended completed, agent_error or cap_failure, without an override, and whose
+# pipeline record carries a refusal fallback (KF-051) is left untouched in its run dir and recorded once in
+# <batch>/<arm>/<task>-t<n>.refusal-1.json {schema_version, attempt: 1, run_id, run_dir (its basename), status,
+# attempts, cost_usd, refusal_fallbacks: [{label, refusal_fallbacks}]} — immutable: hard-linked into place, never
+# rewritten. The trial is then relaunched once at the same plan index into a fresh -r<k> run dir under the same
+# per-run cap and the D-7.3 attempt limit (no relaunch when its attempts would pass 3: the row reads rerun_not_run).
+# Both attempts are charged: the record's cost_usd goes to spent and the ledger when the trial is collected and into
+# the row's all_spend_usd (--prior-spend); its attempts count in the row's attempts. A second refusal is never
+# relaunched. A driver resumed after the first attempt finds the record and launches only the second attempt (an
+# attempt cut off before its record was written is relaunched from the first, like any interrupted trial). The
+# relaunch runs in its trial's slot without a second budget-gate check: in the worst case a batch passes --max-usd by
+# one run cap per concurrently refused trial. The second attempt's row gets --refusal-attempt 2 --refused-attempt
+# <first run dir>; the outcome and denominator rules are ablation-row.sh's (row writer 1.6).
+REF_ARMS_TSV="$(jq -r --arg arms "$ARMS_CSV" '($arms | split(",")) as $want | .arms // [] | .[] | select(.id as $i | $want | index($i))
+  | [.id, (if has("refusal_policy") then .refusal_policy | tostring else "exclude" end),
+     ((.toggles // {}).bare_sessions == "matched" | tostring)] | @tsv' <<<"$SUITE_JSON")" \
+  || die "suite arms unreadable for the refusal_policy check ($SUITE_FILE)"
+while IFS=$'\t' read -r a pol matched; do
+  [[ -n "$a" ]] || continue
+  case "$pol" in exclude|keep|rerun-once) ;; *) die "arm '$a': refusal_policy '$pol' is not exclude|keep|rerun-once (fix the arm in $SUITE_FILE)" ;; esac
+  [[ "$matched" != true || "$pol" == exclude ]] \
+    || die "arm '$a' is a matched arm (bare_sessions: matched): refusal_policy must be exclude, not '$pol' (fix the arm in $SUITE_FILE)"
+done <<<"$REF_ARMS_TSV"
+refusal_policy_of() {  # refusal_policy_of <arm> → the MANIFEST's policy (exclude when it predates the key)
+  jq -r --arg a "$1" '(.refusal_policy // {})[$a] // "exclude"' "$MAN_PATH" || die "MANIFEST.json unreadable: $MAN_PATH"
+}
+refusal_has_fallback() {  # refusal_has_fallback <run-dir> → 0 when a phase record carries a refusal fallback (KF-051)
+  jq -e '[.phases // [] | .[] | select((.refusal_fallbacks // []) | length > 0)] | length > 0' "$1/meta/pipeline.json" >/dev/null 2>&1
+}
+refusal_record_of() { printf '%s.refusal-1.json' "$1"; }   # <trial base dir> → the immutable first-attempt record
+REF_FRESH=0
+# refusal_pre <jid> <arm> <base> <prior> <prior_usd> <run_id> — a trial's start: with the first attempt's record present
+# (this job's relaunch, or a resume after the first attempt) the trial is the second attempt. REF_PRIOR and
+# REF_PRIOR_USD add the record's attempts and spend, and the spend is queued for the collect charge
+# (<jid>.refusal), except on a --rerun replacement of the second attempt's row, whose old row already counted them
+refusal_pre() {
+  REF_PRIOR="$4" REF_PRIOR_USD="$5"
+  local rec att usd; rec="$(refusal_record_of "$3")"
+  [[ -f "$rec" ]] || return 0
+  if [[ "$REF_FRESH" != 1 ]] && is_rerun "$6"; then return 0; fi
+  att="$(jq -r '.attempts | tostring' "$rec")" && usd="$(jq -r '.cost_usd | tostring' "$rec")" || die "refusal record unreadable: $rec"
+  REF_PRIOR=$((REF_PRIOR + att)) REF_PRIOR_USD="$(fadd "$REF_PRIOR_USD" "$usd")"
+  printf '%s\n' "$usd" > "$JOBS_DIR/$1.refusal"
+}
+# refusal_relaunch <arm> <base> <run-dir> <final status> <override> <prior> <attempts> <first_usd> <log> → 0 when the
+# first attempt was just recorded and the trial is to be relaunched once, 1 otherwise
+refusal_relaunch() {
+  local arm="$1" base="$2" rd="$3" st="$4" ov="$5" prior="$6" att="$7" first="$8" tlog="$9" rec tmp
+  [[ -z "$ov" ]] || return 1
+  case "$st" in completed|agent_error|cap_failure) ;; *) return 1 ;; esac
+  refusal_has_fallback "$rd" || return 1
+  [[ "$(refusal_policy_of "$arm")" == rerun-once ]] || return 1
+  rec="$(refusal_record_of "$base")"
+  [[ ! -e "$rec" ]] || return 1   # this is the second attempt (or an earlier driver's): never a third
+  if [[ $((prior + att)) -ge 3 ]]; then
+    printf '%s run-ablation: refusal fallback (KF-051) under refusal_policy rerun-once; not relaunched: %d attempts used, the limit is 3 (D-7.3)\n' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$((prior + att))" >> "$tlog"
+    return 1
+  fi
+  tmp="$rec.tmp.$$"
+  jq --arg rd "$(basename "$rd")" --arg st "$st" --argjson att "$att" --arg first "$first" '
+      {schema_version: 1, attempt: 1, run_id: (.run_id // null), run_dir: $rd, status: $st, attempts: $att,
+       cost_usd: ((.spent_usd // 0 | tonumber? // 0) + ($first | tonumber)),
+       refusal_fallbacks: [.phases // [] | .[] | select((.refusal_fallbacks // []) | length > 0)
+                           | {label: (.label // .name // null), refusal_fallbacks}]}' "$rd/meta/pipeline.json" > "$tmp" \
+    || { rm -f "$tmp"; die "refusal record for $rd could not be written"; }
+  if ! ln "$tmp" "$rec" 2>/dev/null; then   # another writer won, or no hard links here: never overwrite, no relaunch
+    rm -f "$tmp"
+    printf '%s run-ablation: refusal record %s not written (exists or no hard link); not relaunched\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rec" >> "$tlog"
+    return 1
+  fi
+  rm -f "$tmp"
+  printf '%s run-ablation: refusal fallback (KF-051) under refusal_policy rerun-once: attempt 1 kept in %s (%s); relaunching once\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rd" "$rec" >> "$tlog"
+  REF_FRESH=1
+  return 0
+}
+refusal_row_args() {  # refusal_row_args <run-dir> → REF_ROW_ARGS: the second attempt's ablation-row.sh flags
+  REF_ROW_ARGS=()
+  local rd="$1" base="$1" rec first
+  [[ "$rd" =~ ^(.*)-r[0-9]+$ ]] && base="${BASH_REMATCH[1]}"
+  rec="$(refusal_record_of "$base")"
+  [[ -f "$rec" ]] || return 0
+  first="$(dirname "$base")/$(jq -r '.run_dir' "$rec")" || die "refusal record unreadable: $rec"
+  [[ "$first" != "$rd" ]] || return 0
+  REF_ROW_ARGS=(--refusal-attempt 2 --refused-attempt "$first")
+}
+refusal_collect() {  # refusal_collect <jid> — the queued first-attempt spend (rerun-once) to spent and the ledger
+  local f="$JOBS_DIR/$1.refusal" u
+  [[ -f "$f" ]] || return 0
+  u="$(cat "$f")"
+  SPENT="$(fadd "$SPENT" "$u")"; LEDGER_USD="$(fadd "$LEDGER_USD" "$u")"
+  log "refusal_policy rerun-once: the refused first attempt's USD $u charged to spent"
+}
+
+# --- cycle-133 C-9 (FR-9, bd-yvjew, KF-052): --supervised [--max-retries N] ---------------------------------------------
+# After every argument and arm check, before any write: the launch is handed to lib/batch-supervisor.sh (its header holds
+# the contract), with this invocation's arguments minus --supervised/--max-retries and with --batch named, so a resume
+# and a reboot restore find the batch. The supervisor re-runs this script without --supervised; the arguments it
+# persists in <batch>/supervisor/args.json are copied into MANIFEST.json supervisor by write_manifest.
+if [[ "$SUPERVISED" == true ]]; then   # (the --supervised usage checks sit with the argument validation)
+  sup_child=() sup_skip=false sup_has_batch=false
+  for a in "${SELF_ARGS[@]}"; do
+    if [[ "$sup_skip" == true ]]; then sup_skip=false; continue; fi
+    case "$a" in --supervised) continue ;; --max-retries) sup_skip=true; continue ;; --batch) sup_has_batch=true ;; esac
+    sup_child+=("$a")
+  done
+  [[ "$sup_has_batch" == true ]] || sup_child+=(--batch "$BATCH")
+  exec "$SCRIPT_DIR/lib/batch-supervisor.sh" launch "$BATCH_DIR" --runner "$SCRIPT_DIR/run-ablation.sh" \
+    --max-retries "${MAX_RETRIES:-3}" -- "${sup_child[@]}"
+fi
+
 ALL_TASKS=()
 while IFS= read -r d; do ALL_TASKS+=("$d"); done < <(cd "$TDIR" && for d in */; do d="${d%/}"; [[ -f "$d/task.yaml" ]] && printf '%s\n' "$d"; done | LC_ALL=C sort)
 [[ ${#ALL_TASKS[@]} -gt 0 ]] || die "no tasks under $TDIR"
@@ -822,6 +959,36 @@ if [[ "$EXECUTOR" == container ]]; then
   IMAGE_DIGEST="$("$DOCKER_BIN" image inspect --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{else}}{{.Id}}{{end}}' "$IMAGE" 2>/dev/null | head -1 || true)"
   [[ -n "$IMAGE_DIGEST" ]] || refuse "image $IMAGE not found (docker image inspect)"
 fi
+# cycle-133 FR-9 (SDD C-9) the egress block. Every arm's `egress` (arms[].egress, else the suite's
+# egress.arms.<id>, else egress.default, else blocked). A container batch with a blocked arm needs the
+# block up — lib/egress-proxy.sh up <batch> + self-check, then LOA_EVAL_EGRESS_NETWORK=loa-egress-<batch>
+# (exported to pipeline-run.sh, which joins it) — else the batch is refused before any write; --dry-run
+# and the bats stubs (LOA_EGRESS_TEST_MODE=1 inside bats) record enforced: false instead. MANIFEST `egress`.
+EGRESS_NET="${LOA_EVAL_EGRESS_NETWORK:-}" EGRESS_ENFORCED=false
+EGRESS_ARMS_JSON="$(jq -c --argjson arms "$(printf '%s\n' "${ARMS[@]}" | jq -R . | jq -sc .)" '. as $s
+  | [$arms[] as $a | {($a): ([$s.arms // [] | .[] | select(.id == $a)][0].egress // ($s.egress // {} | .arms // {})[$a]
+      // ($s.egress // {}).default // "blocked")}] | add // {}' <<<"$SUITE_JSON")" || refuse "the suite's egress keys do not parse"
+EGRESS_BAD="$(jq -r 'to_entries[] | select(.value != "blocked" and .value != "bridge") | "\(.key)=\(.value)"' <<<"$EGRESS_ARMS_JSON")"
+[[ -z "$EGRESS_BAD" ]] || refuse "egress must be blocked or bridge: $EGRESS_BAD"
+EGRESS_BLOCKED="$(jq -r '[to_entries[] | select(.value == "blocked") | .key] | join(",")' <<<"$EGRESS_ARMS_JSON")"
+if [[ "$EXECUTOR" == container && -n "$EGRESS_NET" ]]; then
+  [[ "$EGRESS_NET" =~ ^loa-egress-[A-Za-z0-9._-]{1,80}$ ]] || refuse "LOA_EVAL_EGRESS_NETWORK '$EGRESS_NET' is not loa-egress-<batch>"
+  [[ "$("$DOCKER_BIN" network inspect -f '{{.Internal}}' "$EGRESS_NET" 2>/dev/null || true)" == true ]] \
+    || refuse "egress network $EGRESS_NET is not an internal docker network; bring the block up: evals/harness/lib/egress-proxy.sh up ${EGRESS_NET#loa-egress-} <allowlist-file>"
+  [[ "$("$DOCKER_BIN" container inspect -f '{{.State.Running}}' "loa-proxy-${EGRESS_NET#loa-egress-}" 2>/dev/null || true)" == true ]] \
+    || refuse "egress sidecar loa-proxy-${EGRESS_NET#loa-egress-} is not running; bring the block up: evals/harness/lib/egress-proxy.sh up ${EGRESS_NET#loa-egress-} <allowlist-file>"
+  # KF-058: every sandbox runs in a guard started from the sidecar's image; an image built before the guard is refused
+  [[ "$("$DOCKER_BIN" container inspect -f '{{index .Config.Labels "org.loa.egress.guard"}}' "loa-proxy-${EGRESS_NET#loa-egress-}" 2>/dev/null || true)" == 1 ]] \
+    || refuse "egress sidecar loa-proxy-${EGRESS_NET#loa-egress-} runs an image without the sandbox guard (built before KF-058); rebuild it (docker build -t loa-egress-proxy:259 - < evals/harness/Dockerfile.proxy), then egress-proxy.sh down and up ${EGRESS_NET#loa-egress-}"
+  EGRESS_ENFORCED=true; export LOA_EVAL_EGRESS_NETWORK="$EGRESS_NET"
+elif [[ "$EXECUTOR" == container && -n "$EGRESS_BLOCKED" && "$DRY_RUN" != true ]] \
+     && ! [[ "${LOA_EGRESS_TEST_MODE:-}" == 1 && -n "${BATS_TEST_FILENAME:-}" ]]; then
+  refuse "arm(s) $EGRESS_BLOCKED are egress: blocked and no egress block is named; run evals/harness/lib/egress-proxy.sh allowlist > <f>, up <batch> <f>, self-check <batch> --image $IMAGE, then export LOA_EVAL_EGRESS_NETWORK=loa-egress-<batch> (or record egress: bridge for the arm as a factor)"
+else
+  unset LOA_EVAL_EGRESS_NETWORK; EGRESS_NET=""
+fi
+EGRESS_JSON="$(jq -c --arg n "$EGRESS_NET" --argjson e "$EGRESS_ENFORCED" \
+  '{arms: ., network: (if $n == "" then null else $n end), proxy: (if $n == "" then null else "loa-proxy-" + ($n | ltrimstr("loa-egress-")) end), enforced: $e}' <<<"$EGRESS_ARMS_JSON")"
 
 if [[ -n "${LOA_ABLATION_SOURCE_TREE:-}" ]]; then
   TREE="$(abspath "$LOA_ABLATION_SOURCE_TREE")"
@@ -1118,6 +1285,11 @@ PLAN_LINE="plan: ${#ARMS[@]} arms, $N_TASKS tasks, $PLAN_N trials$PLAN_UNITS, sh
 
 write_manifest() {  # write_manifest <path> <dry_run>
   local out="$1" dry="$2" harness_commit harness_dirty=false
+  # cycle-133 C-9: a supervised launch's persisted arguments (lib/batch-supervisor.sh), else null
+  SUP_ARGS_JSON=null
+  if [[ "$dry" == false && -f "$BATCH_DIR/supervisor/args.json" ]]; then
+    SUP_ARGS_JSON="$(jq -c '.' "$BATCH_DIR/supervisor/args.json")" || die "unreadable $BATCH_DIR/supervisor/args.json"
+  fi
   harness_commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
   [[ -n "$(git -C "$REPO_ROOT" status --porcelain -- evals/harness evals/suites grimoires/loa/evals/ablation-2.0 2>/dev/null)" ]] && harness_dirty=true
   mkdir -p "$(dirname "$out")"
@@ -1139,7 +1311,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
     --arg jq_v "$(jq --version 2>/dev/null)" --arg yq_v "$(yq --version 2>/dev/null)" \
     --arg py_v "$(python3 --version 2>/dev/null)" --arg git_v "$(git --version 2>/dev/null)" \
     --arg bctx "$BATCH_CONTEXT" --arg reg_sha "$REG_SHA" --arg reg_path "$REGISTRATION" --argjson reg "$REG_JSON" \
-    --argjson sgate "$SPEND_GATE_JSON" --arg reserve "$RESERVE_CAP" '
+    --argjson sgate "$SPEND_GATE_JSON" --arg reserve "$RESERVE_CAP" --argjson sup "$SUP_ARGS_JSON" --argjson egress "${EGRESS_JSON:-null}" '
     $plan_f[0] as $p | $suite_f[0] as $s | $gate_f[0] as $g
     | {schema_version: 1, suite: ($s.name // "ablation-2.0"), batch: $batch, dry_run: $dry, smoke: $smoke, created: $created,
        source_commit: $src, source_worktree: $tree, source_commit_dot_claude_delta: $delta,
@@ -1168,10 +1340,11 @@ write_manifest() {  # write_manifest <path> <dry_run>
        codex_token_exp: ($cpf // {}).token_exp, codex_preflight: $cpf,
        overshoot_bound_usd: ($conc * ($reserve | tonumber)), batch_context: $bctx,
        bare_sessions_by_task: (reduce ($p.plan[] | select(.bare_sessions != null)) as $e ({}; .[$e.arm][$e.task_id] = $e.bare_sessions)),
+       refusal_policy: (reduce ($s.arms // [] | .[] | select(.id as $i | $arms | index($i))) as $a ({}; .[$a.id] = ($a.refusal_policy // "exclude"))),
        registration_sha256: (if $reg_sha == "" then null else $reg_sha end),
        registration_path: (if $reg_sha == "" then null else $reg_path end),
        preregistration_sha256: (($reg // {}).preregistration_sha256 // null),
-       registration: $reg, spend_gate: $sgate,
+       registration: $reg, spend_gate: $sgate, supervisor: $sup, egress: $egress,
        environment: {os: $os, bash: $bash_v, jq: $jq_v, yq: $yq_v, python: $py_v, git: $git_v}}' > "$out.tmp"
   mv "$out.tmp" "$out"
 }
@@ -1279,6 +1452,7 @@ LOG="$BATCH_DIR/run.log"
 if [[ "$SMOKE" != true && ! -f "$BATCH_DIR/.gitignore" ]]; then
   printf '%s\n' "# run-ablation.sh: run directories, logs and job state stay out of git;" \
     "# MANIFEST.json, STATUS.json and spend.txt are the batch record" "/*/" "/run.log" "/driver.log" "/.lock/" "/.jobs/" \
+    "/supervisor.lock" "/STATUS.json.lock" \
     > "$BATCH_DIR/.gitignore"
 fi
 [[ "$RESUME" == true ]] || write_manifest "$MAN_PATH" false
@@ -1361,7 +1535,17 @@ write_status() {
                      | map({key: .[0].key, value: {runs: length, output_tokens: (map(.value) | add)}}) | from_entries),
       extra_models_by_run: $ebr, rows_invalid: $invalid, signalled: $signalled,
       source_commit: $src, rows_file: $rows, started: $started, finished: $finished}' > "$BATCH_DIR/STATUS.json.tmp"
-  mv "$BATCH_DIR/STATUS.json.tmp" "$BATCH_DIR/STATUS.json"
+  # cycle-133 C-9: the supervisor's entry (lib/batch-supervisor.sh) is kept, read and replaced under its status lock
+  {
+    command -v flock >/dev/null 2>&1 && flock -x 8
+    local sup=null
+    if [[ -f "$BATCH_DIR/STATUS.json" ]]; then sup="$(jq -c '.supervisor // null' "$BATCH_DIR/STATUS.json")" || sup=null; fi
+    if [[ "$sup" != null ]]; then
+      jq --argjson s "$sup" '.supervisor = $s' "$BATCH_DIR/STATUS.json.tmp" > "$BATCH_DIR/STATUS.json.tmp2" \
+        && mv "$BATCH_DIR/STATUS.json.tmp2" "$BATCH_DIR/STATUS.json.tmp"
+    fi
+    mv "$BATCH_DIR/STATUS.json.tmp" "$BATCH_DIR/STATUS.json"
+  } 8>>"$BATCH_DIR/STATUS.json.lock"
 }
 
 cleanup() {
@@ -1406,6 +1590,7 @@ post_run() {
   local -a r=("$ROW_BIN" --run-dir "$rd" --task-yaml "$tyaml" --manifest "$MAN_PATH" --attempts "$attempts" --out "$row_out")
   [[ -n "$rr" ]] && r+=(--retry-reason "$rr")
   [[ -n "$PR_OVERRIDE" ]] && r+=(--status "$PR_OVERRIDE")
+  refusal_row_args "$rd"; r+=(${REF_ROW_ARGS[@]+"${REF_ROW_ARGS[@]}"})   # cycle-133 C-8: the second attempt of rerun-once
   awk -v p="${PR_PRIOR_SPEND:-0}" 'BEGIN { exit !(p > 0) }' && r+=(--prior-spend "$PR_PRIOR_SPEND")   # cycle-132: all_spend_usd
   "${r[@]}" >> "$plog" 2>&1 || PR_RRC=$?
   return 0
@@ -1464,6 +1649,7 @@ run_trial() {  # run_trial <jid> <arm> <task> <type> <kind> <trial> <run_id> <ta
   local attempt=0 rd="" st="" prc retry_reason="" first_usd=0 sig override="" pid
   local t0 t1
   mkdir -p "$BATCH_DIR/$arm"
+  refusal_pre "$jid" "$arm" "$base" "$prior" "$prior_usd" "$rid"; prior="$REF_PRIOR" prior_usd="$REF_PRIOR_USD"   # cycle-133 C-8
   t0="$(date +%s)"
   while [[ $attempt -lt 2 ]]; do
     attempt=$((attempt + 1))
@@ -1505,6 +1691,9 @@ run_trial() {  # run_trial <jid> <arm> <task> <type> <kind> <trial> <run_id> <ta
     fi
     break
   done
+  if refusal_relaunch "$arm" "$base" "$rd" "$st" "$override" "$prior" "$attempt" "$first_usd" "$tlog"; then   # cycle-133 C-8
+    run_trial "$jid" "$arm" "$task" "$type" "$kind" "$trial" "$rid" "$tyaml" "$wds" "$prior" "$prior_usd"; return 0
+  fi
   PR_PRIOR_SPEND="$(fadd "$prior_usd" "$first_usd")"
   post_run "$rd" "$rid" "$task" "$tyaml" "$((prior + attempt))" "$retry_reason" "$st" "$override" "$JOBS_DIR/$jid.row" "$tlog"
   t1="$(date +%s)"
@@ -1778,6 +1967,7 @@ outage_tick() {
 
 collect() {  # collect <jid> <plan-index>[:<session number>]
   if [[ "$2" == *:* ]]; then collect_session "$1" "${2%%:*}" "${2#*:}"; return 0; fi
+  refusal_collect "$1"   # cycle-133 C-8: a rerun-once trial's refused first attempt
   local jid="$1" k="$2" arm="${PL_ARM[$2]}" rid="${PL_RUN[$2]}" kind="${PL_KIND[$2]}" res="$JOBS_DIR/$1.result"
   if [[ ! -f "$res" ]]; then
     SPENT="$(fadd "$SPENT" "$(cap_for "$kind")")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))

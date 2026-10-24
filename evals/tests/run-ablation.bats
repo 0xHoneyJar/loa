@@ -12,6 +12,9 @@
 # =============================================================================
 
 setup() {
+  # cycle-133 FR-9 (SDD C-9): these suites drive run-ablation.sh with a stub docker and no egress block; the
+  # test-mode escape (LOA_EGRESS_TEST_MODE=1 AND BATS_TEST_FILENAME) records enforced: false instead of refusing.
+  export LOA_EGRESS_TEST_MODE=1
   TESTS_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
   REPO_ROOT="$(cd "$TESTS_DIR/../.." && pwd)"
   RA="$REPO_ROOT/evals/harness/run-ablation.sh"
@@ -192,14 +195,18 @@ print(",".join(out))')"
   [ "$(jq -r '.smoke' "$B/MANIFEST.json")" = true ]
   [ "$(jq -r '.tasks_dir' "$B/MANIFEST.json")" = smoke ]
   [ "$(jq -c '.trials_per_type' "$B/MANIFEST.json")" = '{"build":1,"review-catch":1}' ]
-  [ "$(wc -l < "$B/rows.jsonl")" -eq 5 ]     # 3 arms x 2 smoke tasks, a4 refused on the review task
+  # the smoke set grows by cycle (cycle-133 added smoke-review-c133 and -c133b): 3 arms x every smoke task,
+  # minus a4_no_gates (build only), which refuses each review-catch smoke task (DEC-0405)
+  nsmoke=$(ls -d "$S"/smoke/*/ | wc -l); nreview=$(grep -l '^type: review-catch' "$S"/smoke/*/task.yaml | wc -l)
+  expect=$(( 3 * nsmoke - nreview )); [ "$expect" -ge 5 ]
+  [ "$(wc -l < "$B/rows.jsonl")" -eq "$expect" ]
   [ ! -e "$RES/runs.jsonl" ]
   [ ! -e "$B/.gitignore" ]
   "$REPO_ROOT/evals/harness/ablation-row.sh" --validate "$B/rows.jsonl" --allow-ungraded
-  [ "$(grep -c -- '--tasks-dir smoke' "$T/grade.log")" -eq 5 ]
+  [ "$(grep -c -- '--tasks-dir smoke' "$T/grade.log")" -eq "$expect" ]
   [ "$(jq -r '.state' "$B/STATUS.json")" = complete ]
   grep -q 'cycle spend USD' "$B/spend.txt"
-  grep -q '^.* batch smoke-t1 spend USD 12.5' "$B/spend.txt"
+  grep -q "^.* batch smoke-t1 spend USD $(awk -v n="$expect" 'BEGIN{printf "%g", n * 2.5}')" "$B/spend.txt"   # the stub bills USD 2.5 a trial
   # a drifted smoke file is refused by the freeze
   echo "drift" >> "$S/smoke/smoke-review-01/TASK.md"
   run "$RA" --source-commit "$SHA" --results-root "$RES" --suite-root "$S" --docker-bin "$T/bin/docker" \
@@ -379,7 +386,7 @@ print(",".join(out))')"
   ra --arms a1_full --tasks nope-01 --batch u3 --dry-run
   [ "$status" -eq 2 ]
   DOCKER_STUB_NO_IMAGE=1 ra --arms a1_full --tasks bugfix-v2-02 --batch u4 --dry-run
-  [ "$status" -eq 2 ]; grep -q 'image loa-ablation:258 not found' "$RES/u4/REFUSED.txt"
+  [ "$status" -eq 2 ]; grep -q 'image loa-ablation:259 not found' "$RES/u4/REFUSED.txt"
   echo y > "$T/src/.claude/new" && git -C "$T/src" add -A && git -C "$T/src" -c user.email=t@t -c user.name=t commit -q -m two
   ra --arms a1_full --tasks bugfix-v2-02 --batch u5 --dry-run
   [ "$status" -eq 2 ]; grep -q "is not at" "$RES/u5/REFUSED.txt"
@@ -1200,8 +1207,9 @@ sys.exit(0 if 33600 - 120 < d < 33600 + 5 else 1)' "$(jq -r '.codex_preflight.re
     --pipeline-bin "$FX/ablation-pipeline-stub.sh" --grade-bin "$FX/ablation-grade-stub.sh" --docker-bin "$T/bin/docker" \
     --smoke --arms a1_full --batch smoke-bc2 --max-usd 100
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  [ "$(wc -l < "$T/env.log")" -eq 2 ]
-  [ "$(grep -c ' LOA_ABLATION_BATCH_CONTEXT=<unset> batch_context=smoke-bc2$' "$T/env.log")" -eq 2 ]
+  nsmoke=$(ls -d "$S"/smoke/*/ | wc -l); [ "$nsmoke" -ge 2 ]   # a1_full runs every smoke task (the set grows by cycle)
+  [ "$(wc -l < "$T/env.log")" -eq "$nsmoke" ]
+  [ "$(grep -c ' LOA_ABLATION_BATCH_CONTEXT=<unset> batch_context=smoke-bc2$' "$T/env.log")" -eq "$nsmoke" ]
   # the stub reports an absent variable as <unset> (the assertion above is not vacuous)
   : > "$T/env.log"
   "$FX/ablation-pipeline-stub.sh" --task-yaml "$S/tasks/review-01/task.yaml" --arm a1_full --run-dir "$T/manual" \

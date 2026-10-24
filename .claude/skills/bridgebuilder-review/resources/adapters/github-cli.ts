@@ -7,6 +7,7 @@ import type {
   IGitProvider,
   PullRequest,
   PullRequestFile,
+  PullRequestRef,
   PRReview,
   PreflightResult,
   RepoPreflightResult,
@@ -27,6 +28,20 @@ const execFileAsync = promisify(execFile);
 // If throughput becomes a bottleneck, swap to Octokit behind IGitProvider port.
 const GH_TIMEOUT_MS = 30_000;
 
+/**
+ * cycle-133 C-1 (`bridgebuilder.gh_max_buffer_bytes`): the per-call stdout buffer for `gh`. 64 MiB by default — the
+ * paged fetch bounds what one call receives to one page of 100 files, so this only has to hold the largest page.
+ * The pre-cycle-133 value was a fixed 10 MiB that a single `--paginate` call over a 2,000-file PR overflowed (KF-054).
+ */
+export const DEFAULT_GH_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
+
+/** The child-process seam (tests pass a mocked `gh`; production is `execFile`). */
+export type GhExec = (
+  file: string,
+  args: string[],
+  options: { timeout: number; maxBuffer: number },
+) => Promise<{ stdout: string }>;
+
 /** Error from gh CLI that carries the HTTP status code when available. */
 class GhApiError extends GitProviderError {
   readonly httpStatus: number | undefined;
@@ -44,6 +59,9 @@ const ALLOWED_API_ENDPOINTS: ReadonlyArray<RegExp> = [
   /^\/repos\/[^/]+\/[^/]+$/,
   /^\/repos\/[^/]+\/[^/]+\/pulls\?state=open&per_page=100$/,
   /^\/repos\/[^/]+\/[^/]+\/pulls\/\d+\/files\?per_page=100$/,
+  // cycle-133 C-1: the immutable pair (base/head sha, changed_files) and the paged file list (one page per call)
+  /^\/repos\/[^/]+\/[^/]+\/pulls\/\d+$/,
+  /^\/repos\/[^/]+\/[^/]+\/pulls\/\d+\/files\?per_page=100&page=\d{1,2}$/,
   /^\/repos\/[^/]+\/[^/]+\/pulls\/\d+\/reviews\?per_page=100$/,
   /^\/repos\/[^/]+\/[^/]+\/pulls\/\d+\/reviews$/,
   // V3-1: compare commits for incremental review
@@ -150,17 +168,25 @@ function assertAllowedArgs(args: string[]): void {
 
 export interface GitHubCLIAdapterConfig {
   reviewMarker: string;
+  /** cycle-133 C-1: per-call stdout buffer (`bridgebuilder.gh_max_buffer_bytes`); default DEFAULT_GH_MAX_BUFFER_BYTES. */
+  ghMaxBufferBytes?: number;
+  /** Test seam: the `gh` executor. Defaults to execFile. */
+  exec?: GhExec;
 }
+
+const defaultExec: GhExec = (file, args, options) => execFileAsync(file, args, options);
 
 async function gh(
   args: string[],
   timeoutMs: number = GH_TIMEOUT_MS,
+  exec: GhExec = defaultExec,
+  maxBuffer: number = DEFAULT_GH_MAX_BUFFER_BYTES,
 ): Promise<string> {
   assertAllowedArgs(args);
   try {
-    const { stdout } = await execFileAsync("gh", args, {
+    const { stdout } = await exec("gh", args, {
       timeout: timeoutMs,
-      maxBuffer: 10 * 1024 * 1024,
+      maxBuffer,
     });
     return stdout;
   } catch (err: unknown) {
@@ -174,13 +200,20 @@ async function gh(
         "GitHub CLI (gh) required. Install: https://cli.github.com/ and run 'gh auth login'.",
       );
     }
+    // cycle-133 C-1 (KF-054): a payload larger than the per-call buffer is a typed, recoverable condition — the paged
+    // fetch records it as files_payload_oversize — never a Fatal.
+    if (e.code === "ERR_CHILD_PROCESS_STDIO_MAXBUFFER") {
+      throw new GhApiError("PAYLOAD_OVERSIZE", `gh output exceeded the ${maxBuffer}-byte buffer (bridgebuilder.gh_max_buffer_bytes)`);
+    }
     // Do not include stderr/message — may contain tokens or sensitive repo info
     const code = typeof e.code === "string" || typeof e.code === "number" ? String(e.code) : "unknown";
-    // Classify by exit code: 1 = general failure, 4 = auth/forbidden in gh
-    const errorCode = code === "4" ? "FORBIDDEN" : "NETWORK";
     // Extract HTTP status from gh stderr: "gh: ... (HTTP NNN)"
     const httpMatch = e.stderr?.match(/\(HTTP (\d{3})\)/);
     const httpStatus = httpMatch ? parseInt(httpMatch[1], 10) : undefined;
+    // Classify by exit code: 1 = general failure, 4 = auth/forbidden in gh; a rate limit (HTTP 429, or GitHub's
+    // 403 "rate limit exceeded") is RATE_LIMITED (cycle-133 C-1: patch_fetch_rate_limited).
+    const rateLimited = httpStatus === 429 || /rate limit/i.test(e.stderr ?? "");
+    const errorCode = rateLimited ? "RATE_LIMITED" : code === "4" ? "FORBIDDEN" : "NETWORK";
     throw new GhApiError(errorCode, `gh command failed (code=${code})`, httpStatus);
   }
 }
@@ -227,13 +260,53 @@ function splitComment(body: string, maxChars: number): string[] {
 
 export class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
   private readonly marker: string;
+  private readonly exec: GhExec;
+  private readonly maxBuffer: number;
 
   constructor(config: GitHubCLIAdapterConfig) {
     this.marker = config.reviewMarker;
+    this.exec = config.exec ?? defaultExec;
+    this.maxBuffer = config.ghMaxBufferBytes ?? DEFAULT_GH_MAX_BUFFER_BYTES;
+  }
+
+  private gh(args: string[], timeoutMs: number = GH_TIMEOUT_MS): Promise<string> {
+    return gh(args, timeoutMs, this.exec, this.maxBuffer);
+  }
+
+  /** cycle-133 C-1: the pair the review is pinned to (`pulls/N`). */
+  async getPR(owner: string, repo: string, prNumber: number): Promise<PullRequestRef> {
+    const raw = await this.gh(["api", `/repos/${owner}/${repo}/pulls/${prNumber}`]);
+    const data = parseJson<Record<string, unknown>>(raw, `getPR(${owner}/${repo}#${prNumber})`);
+    const base = (data.base as Record<string, unknown> | undefined)?.sha;
+    const head = (data.head as Record<string, unknown> | undefined)?.sha;
+    const changed = data.changed_files;
+    if (typeof base !== "string" || typeof head !== "string" || typeof changed !== "number" || !Number.isInteger(changed) || changed < 0) {
+      throw new GitProviderError("NETWORK", `getPR(${owner}/${repo}#${prNumber}): response lacks base.sha, head.sha or changed_files`);
+    }
+    return { base_sha: base, head_sha: head, changed_files: changed };
+  }
+
+  /** cycle-133 C-1: one page of the files list (≤ 100 entries, patch text included — the endpoint has no other mode). */
+  async getPRFilesPage(owner: string, repo: string, prNumber: number, page: number): Promise<PullRequestFile[]> {
+    if (!Number.isInteger(page) || page < 1 || page > 30) {
+      throw new GitProviderError("NETWORK", `getPRFilesPage: page ${page} outside 1..30 (the endpoint lists at most 3,000 files)`);
+    }
+    const raw = await this.gh(["api", `/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100&page=${page}`]);
+    const data = parseJson<unknown>(raw, `getPRFilesPage(${owner}/${repo}#${prNumber}, page ${page})`);
+    if (!Array.isArray(data)) {
+      throw new GitProviderError("NETWORK", `getPRFilesPage(${owner}/${repo}#${prNumber}, page ${page}): not a JSON array`);
+    }
+    return (data as Array<Record<string, unknown>>).map((f) => ({
+      filename: f.filename as string,
+      status: f.status as PullRequestFile["status"],
+      additions: f.additions as number,
+      deletions: f.deletions as number,
+      patch: typeof f.patch === "string" ? f.patch : undefined,
+    }));
   }
 
   async listOpenPRs(owner: string, repo: string): Promise<PullRequest[]> {
-    const raw = await gh([
+    const raw = await this.gh([
       "api",
       `/repos/${owner}/${repo}/pulls?state=open&per_page=100`,
       "--paginate",
@@ -259,7 +332,7 @@ export class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
     repo: string,
     prNumber: number,
   ): Promise<PullRequestFile[]> {
-    const raw = await gh([
+    const raw = await this.gh([
       "api",
       `/repos/${owner}/${repo}/pulls/${prNumber}/files?per_page=100`,
       "--paginate",
@@ -282,7 +355,7 @@ export class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
     repo: string,
     prNumber: number,
   ): Promise<PRReview[]> {
-    const raw = await gh([
+    const raw = await this.gh([
       "api",
       `/repos/${owner}/${repo}/pulls/${prNumber}/reviews?per_page=100`,
       "--paginate",
@@ -301,14 +374,14 @@ export class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
   }
 
   async preflight(): Promise<PreflightResult> {
-    const raw = await gh(["api", "/rate_limit"]);
+    const raw = await this.gh(["api", "/rate_limit"]);
     const data = parseJson<Record<string, unknown>>(raw, "preflight");
     const resources = data.resources as Record<string, unknown> | undefined;
     const core = resources?.core as Record<string, unknown> | undefined;
 
     let scopes: string[] = [];
     try {
-      const authRaw = await gh(["auth", "status"], 10_000);
+      const authRaw = await this.gh(["auth", "status"], 10_000);
       const scopeMatch = authRaw.match(/Token scopes: (.+)/);
       if (scopeMatch) {
         scopes = scopeMatch[1].split(",").map((s) => s.trim());
@@ -328,7 +401,7 @@ export class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
     repo: string,
   ): Promise<RepoPreflightResult> {
     try {
-      await gh(["api", `/repos/${owner}/${repo}`]);
+      await this.gh(["api", `/repos/${owner}/${repo}`]);
       return { owner, repo, accessible: true };
     } catch (err: unknown) {
       return {
@@ -346,7 +419,7 @@ export class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
     base: string,
     head: string,
   ): Promise<CommitCompareResult> {
-    const raw = await gh([
+    const raw = await this.gh([
       "api",
       `/repos/${owner}/${repo}/compare/${base}...${head}`,
     ]);
@@ -396,7 +469,7 @@ export class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
     ];
 
     try {
-      await gh(makeArgs(input.event));
+      await this.gh(makeArgs(input.event));
     } catch (err) {
       // GitHub returns 422 when REQUEST_CHANGES targets own PR.
       // Fall back to COMMENT so the review content is still posted.
@@ -405,7 +478,7 @@ export class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
         err instanceof GhApiError &&
         err.httpStatus === 422
       ) {
-        await gh(makeArgs("COMMENT"));
+        await this.gh(makeArgs("COMMENT"));
         return true;
       }
       throw err;
@@ -445,7 +518,7 @@ export class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
     body: string,
   ): Promise<void> {
     // GitHub PR comments use the issues endpoint (PRs are issues in GitHub's model)
-    await gh([
+    await this.gh([
       "api",
       `/repos/${owner}/${repo}/issues/${prNumber}/comments`,
       "-X",

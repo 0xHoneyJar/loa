@@ -1,7 +1,0 @@
-{
-  "arm": "a1_full",
-  "task_id": "review-r15",
-  "type": "review-catch",
-  "reason": "mount_cheval_broken",
-  "detail": "ImportError: cannot import name 'EFFORT_LEVELS' from 'loa_cheval.types' (/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-smoke2/a1_full/review-r15-t1/sandbox/.claude/adapters/loa_c"
-}

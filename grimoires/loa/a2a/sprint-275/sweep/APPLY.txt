@@ -1,0 +1,15 @@
+sweep-apply: closed-implemented 168
+sweep-apply: closed-obsolete 9
+sweep-apply: kept 145
+sweep-apply: pulled-in 7
+sweep-apply: VALID — 329 rows over 9 manifest(s) form a complete partition of the frozen inventory (sha256 667765512a5c)
+sweep-apply: bd-16wg (closed-implemented): skipped-blocked — blocked by bd-de0b, which this sweep keeps open 
+sweep-apply: bd-1rhd (closed-implemented): failed — Warning: Skipped bd-1rhd: epic has 5/8 open children (use --force to close anyway) Error: Nothing to do: all 1 issue(s) skipped Hint: All specified issues were 
+sweep-apply: bd-3o53 (closed-implemented): failed — Warning: Skipped bd-3o53: epic has 5/11 open children (use --force to close anyway) Error: Nothing to do: all 1 issue(s) skipped Hint: All specified issues were
+sweep-apply: applied 319 row(s), skipped 7 already in applied.jsonl, 3 not applied
+sweep-apply: closed-implemented 166
+sweep-apply: closed-obsolete 9
+sweep-apply: kept 147
+sweep-apply: pulled-in 7
+sweep-apply: VALID — 329 rows over 9 manifest(s) form a complete partition of the frozen inventory (sha256 667765512a5c)
+sweep-apply: applied 2 row(s), skipped 327 already in applied.jsonl, 0 not applied

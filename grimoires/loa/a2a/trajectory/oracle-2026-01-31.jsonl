@@ -1,7 +1,0 @@
-{
-  "timestamp": "2026-01-31T12:19:28Z",
-  "event_type": "oracle_query",
-  "query_terms": "oracle",
-  "matched_ids": "\"L-0001\"",
-  "result_count": 1
-}

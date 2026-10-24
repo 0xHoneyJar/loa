@@ -1,2 +1,0 @@
-{"timestamp":"2026-10-12T03:27:44Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/prompts/skills-review-2026-10-12.md","reason":"actor=project-work writes project zone"}
-{"timestamp":"2026-10-12T03:27:55Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/home/merlin/.claude/projects/-home-merlin-Documents-thj-code-loa/memory/reference_pocock_skills_review_task.md","reason":"path not declared in zones.yaml; no opinion"}

@@ -1,2 +1,0 @@
-WARNING: Your kernel does not support memory limit capabilities or the cgroup is not mounted. Limitation discarded.
-Background tasks still running 10m after the last turn (subagent "Review Python adapter changes"); stopping them. Set CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0 to wait indefinitely.

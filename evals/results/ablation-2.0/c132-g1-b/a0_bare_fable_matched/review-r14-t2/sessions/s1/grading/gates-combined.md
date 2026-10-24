@@ -1,9 +1,0 @@
-head/.claude/defaults/model-config.yaml:477
-head/.claude/adapters/tests/test_anthropic_catalog_floor.py:277
-head/.claude/defaults/model-config.yaml:491
-head/.loa.config.yaml.example:1342
-head/evals/graders/recall-vs-defects.sh:73
-a.sh:40
-a.sh:3
-head/tools/check-prompt-budget.sh:53
-head/.claude/hooks/compliance/implement-gate.sh:46

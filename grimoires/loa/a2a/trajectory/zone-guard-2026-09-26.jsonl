@@ -1,7 +1,0 @@
-{"timestamp":"2026-09-26T02:34:05Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/sprint-248/engineer-feedback-round-1.md","reason":"actor=project-work writes project zone"}
-{"timestamp":"2026-09-26T02:34:14Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/sprint-248/engineer-feedback-round-1.md","reason":"actor=project-work writes project zone"}
-{"timestamp":"2026-09-26T02:34:17Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/sprint-248/engineer-feedback-round-1.md","reason":"actor=project-work writes project zone"}
-{"timestamp":"2026-09-26T02:34:27Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/sprint-248/reviewer.md","reason":"actor=project-work writes project zone"}
-{"timestamp":"2026-09-26T02:38:09Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
-{"timestamp":"2026-09-26T02:38:14Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/NOTES.md","reason":"actor=project-work writes project zone"}
-{"timestamp":"2026-09-26T02:49:37Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":"/tmp/claude-1000/-home-merlin-Documents-thj-code-loa/e3ae6ef1-c66d-4e96-8d1f-3635a4ae860a/scratchpad/sprint248-round1-fix-t.py","reason":"path not declared in zones.yaml; no opinion"}

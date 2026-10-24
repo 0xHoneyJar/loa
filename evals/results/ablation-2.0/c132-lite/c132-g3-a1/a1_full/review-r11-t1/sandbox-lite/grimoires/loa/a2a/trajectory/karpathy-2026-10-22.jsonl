@@ -1,4 +1,0 @@
-{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"2026-10-22T18:30:55Z","files_modified":1,"lines_total":152,"threshold":100,"verdict":"warn","tool_call_count":1,"session_id":"69f49165-97a5-4468-a0c1-059bbeb8165b"}
-{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"2026-10-22T18:31:34Z","files_modified":2,"lines_total":167,"threshold":100,"verdict":"warn","tool_call_count":2,"session_id":"69f49165-97a5-4468-a0c1-059bbeb8165b"}
-{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"2026-10-22T18:45:11Z","files_modified":3,"lines_total":266,"threshold":100,"verdict":"warn","tool_call_count":3,"session_id":"933efc61-d8b1-47b1-8ace-c3a593e06797"}
-{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"2026-10-22T18:45:29Z","files_modified":4,"lines_total":269,"threshold":100,"verdict":"warn","tool_call_count":4,"session_id":"933efc61-d8b1-47b1-8ace-c3a593e06797"}

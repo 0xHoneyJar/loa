@@ -45,7 +45,8 @@
 # Remaining repo-wide sites are follow-up sweep work tracked in #1025.
 #
 # Usage:
-#   tools/check-no-swallowed-jq.sh                 # scan enforced gate-critical set
+#   tools/check-no-swallowed-jq.sh                 # scan enforced gate-critical set (+ evals/harness/lib/*,
+#                                                  # the eval harness libraries: cycle-133 FR-6, C-6)
 #   tools/check-no-swallowed-jq.sh --root <dir>    # scan custom root (recursive)
 #   tools/check-no-swallowed-jq.sh --quiet         # exit-code only
 #
@@ -259,12 +260,26 @@ AWK
 # Assemble the scan file list (NUL-delimited for path safety).
 _list_files() {
     if [[ -n "$ROOT" ]]; then
-        find "$ROOT" -type f -print0 | sort -z
+        # cycle-133 FR-5 (bd-dt5r8): the vendored snapshots under
+        # evals/fixtures/review-prs/pr-*/ and the sensitivity-grade trees are
+        # frozen data (.gitattributes linguist-generated), not live scripts;
+        # prune them when they sit directly under the scan root. Pinned by
+        # tests/unit/lint-walk-excludes-fixtures.bats (which deletes the
+        # marked lines to prove the prune is what excludes them).
+        local r="$ROOT" rq
+        local -a prune=()
+        while [[ "$r" == */ && "$r" != "/" ]]; do r="${r%/}"; done
+        rq="$(printf '%s' "$r" | sed 's/[][*?\\]/\\&/g')"
+        # frozen-fixture-prune:begin
+        prune=( \( -path "$rq/evals/fixtures/review-prs/pr-*" \
+                   -o -path "$rq/grimoires/loa/reports/ablation-2.0/*-grades" \) -prune -o )
+        # frozen-fixture-prune:end
+        find "$r" ${prune[@]+"${prune[@]}"} -type f -print0 | sort -z
         return 0
     fi
     local f
     local found_any=0
-    for f in "${ENFORCED_FILES[@]}" .claude/scripts/red-team-*; do
+    for f in "${ENFORCED_FILES[@]}" .claude/scripts/red-team-* evals/harness/lib/*; do
         # Missing enforced files are skipped (consumer installs may not ship
         # every gate script); an unmatched glob falls through the -f test.
         if [[ -f "$f" ]]; then

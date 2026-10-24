@@ -1,9 +1,0 @@
-head/tests/unit/floor-snapshot.bats:39
-head/tests/unit/floor-snapshot.bats:17
-head/evals/harness/execute-agent.sh:266
-head/evals/harness/compare-ab.py:145
-head/.claude/skills/implementing-tasks/SKILL.md:28
-head/.claude/skills/reviewing-code/SKILL.md:284
-head/.claude/data/floor.yaml:10
-head/evals/README.md:526
-head/evals/harness/seed-corpus-from-record.sh:751

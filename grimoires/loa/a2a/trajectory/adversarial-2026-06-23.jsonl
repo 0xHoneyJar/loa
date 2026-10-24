@@ -1,2 +1,0 @@
-{"timestamp":"2026-06-23T00:36:39Z","type":"review","model":"gpt-5.5","sprint_id":"sprint-bug-226","status":"clean","finding_count":0,"cost_usd":null}
-{"timestamp":"2026-06-23T00:40:51Z","type":"audit","model":"gpt-5.5","sprint_id":"sprint-bug-226","status":"reviewed","finding_count":0,"cost_usd":0}

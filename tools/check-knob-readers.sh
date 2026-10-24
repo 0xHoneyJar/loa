@@ -69,7 +69,16 @@ rm -f -- "$gerr"
 hits=$(printf '%s\n' "$raw" \
   | grep -v -E '^(\./)?\.claude/scripts/lib/profile-lib\.sh:' \
   | grep -v -E '^(\./)?tools/check-knob-readers\.sh:' \
+  | grep -v -E '^(\./)?\.claude/skills/[^/:]+/resources/__tests__/fixtures/[^:]*\.(md|markdown|txt|json|jsonl|tsv|csv|yaml|yml|html|xml)(\.[a-z0-9]+)?:' \
   | sed '/^$/d' || true)
+# A skill's recorded DATA fixtures (.claude/skills/<skill>/resources/__tests__/fixtures/*.md,
+# .json, .txt, .tsv, .yaml, .html, …) may quote an offending read — e.g. a posted review
+# thread — and are never readers; the exclusion is anchored to that one root (Sprint 272
+# review, DISS-C-008) and to data extensions only (Sprint 272 audit, DISS-C-003: a .sh/.bash
+# fixture a test sources or executes stays in scope). Controls: profile-lib.bats PL-17
+# (planted reader caught), PL-18 (a reader under a hooks tests/fixtures/ dir is still caught;
+# a skill .md fixture quoting a read is not), PL-19 (a .sh reader under a skill fixtures dir is
+# caught). cycle-133 Sprint 272: the verbatim PR #1289 comment fixtures quote one.
 if [[ -n "$hits" ]]; then
   echo "check-knob-readers.sh: direct read(s) of a profile key; use loa_knob from .claude/scripts/lib/profile-lib.sh:" >&2
   printf '%s\n' "$hits" | cut -c1-240 >&2

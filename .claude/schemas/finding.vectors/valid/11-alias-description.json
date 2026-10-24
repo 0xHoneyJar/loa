@@ -1,0 +1,25 @@
+{
+  "description": "description alone normalises to failure_scenario with the warning",
+  "expect": {
+    "errors": [],
+    "finding": {
+      "anchor_line": 9,
+      "blocking": false,
+      "failure_scenario": "when two writers race then the second overwrites the first",
+      "file": "x.py",
+      "id": "F-6f2e1e",
+      "severity": "MEDIUM"
+    },
+    "valid": true,
+    "warnings": [
+      "`description` is an alias of `failure_scenario`; removed in 2.1.0"
+    ]
+  },
+  "finding": {
+    "anchor_line": 9,
+    "description": "when two writers race then the second overwrites the first",
+    "file": "x.py",
+    "severity": "MEDIUM"
+  },
+  "markdown": null
+}

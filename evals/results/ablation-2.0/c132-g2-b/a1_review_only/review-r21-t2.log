@@ -1,8 +1,0 @@
-2026-10-22T16:59:07Z run-ablation: c132-g2-b-a1_review_only-review-r21-t2 attempt 1 run_dir /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-g2-b/a1_review_only/review-r21-t2
-arm a1_review_only: review_only_phases OK phases REVIEW; no auditor-sprint-feedback.md
-arm a1_review_only: oracle_closed OK ok head:0 answer paths (0 present), 0 later-only pinned versions, sandbox git = base commit only; 75 .claude path(s) left pinned
-arm a1_review_only: integrity_clean OK 1973 manifest entries verified; manifest_sha256 bcac7fbf2c82 (matches checksums.json)
-arm a1_review_only: mount_cheval_ok OK mount_cheval=ok
-arm a1_review_only: dissent_present OK dissent ran at review (eval/ envelopes, voices_succeeded >= 1)
-arm a1_review_only: OK
-graded review-r21: recall 0.625 false_positives 47; verdict_accuracy True; contaminated no → /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-g2-b/a1_review_only/review-r21-t2/grade.json

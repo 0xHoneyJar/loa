@@ -1,4 +1,0 @@
-interface:
-  display_name: "Update pet"
-  short_description: "Inspect or update a custom ChatGPT Work mode pet"
-  default_prompt: "Use $update-pet to inspect, validate, or update one of my existing custom ChatGPT pets."

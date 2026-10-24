@@ -113,6 +113,11 @@ Before finalizing sprint plan:
    - Demo-able progress after each sprint
    - User feedback opportunities
 
+5. **Measurement Cycles Ship Stacked**
+   - A cycle that adds fixtures or records a measurement plans four stacked PRs, merged in order: code, fixtures, artefacts, release
+   - One PR is acceptable only when the diff is code, tests and docs, or when the payload fits the Bridgebuilder limits with nothing omitted
+   - The full rule and the reasons: `evals/harness/README.md` § Shipping a measurement cycle
+
 ## Integration Context
 
 When `grimoires/loa/a2a/integration-context.md` exists (Phase 0 Step 2), read it for:

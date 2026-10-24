@@ -1,3 +1,0 @@
-{"timestamp":"2026-06-15T03:41:43Z","decision":"ALLOW","actor":"project-work","zone":"unclassified","path":".run/bugs/20260615-i1064-2e8933/state.json","reason":"path not declared in zones.yaml; no opinion"}
-{"timestamp":"2026-06-15T03:42:19Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/bug-20260615-i1064-2e8933/triage.md","reason":"actor=project-work writes project zone"}
-{"timestamp":"2026-06-15T03:42:41Z","decision":"ALLOW","actor":"project-work","zone":"project","path":"grimoires/loa/a2a/bug-20260615-i1064-2e8933/sprint.md","reason":"actor=project-work writes project zone"}

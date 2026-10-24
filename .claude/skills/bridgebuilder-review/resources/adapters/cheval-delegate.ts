@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { LLMProviderError } from "../ports/llm-provider.js";
+import { toolStanceFor } from "./tool-stance.js";
 import type {
   ILLMProvider,
   LLMProviderErrorCode,
@@ -56,6 +57,8 @@ interface ChevalResponse {
   provider?: string;
   usage?: { input_tokens?: number; output_tokens?: number };
   latency_ms?: number;
+  /** cheval emits the provider's tool calls when a reply carries any (cheval.py JSON output). */
+  tool_calls?: unknown[];
 }
 
 /** Parsed JSON error envelope from cheval stderr's last line (--json-errors). */
@@ -265,6 +268,12 @@ export class ChevalDelegateAdapter implements ILLMProvider {
         latencyMs:
           typeof latencyFromCheval === "number" ? latencyFromCheval : wallClockLatency,
         ...(verdictQuality ? { verdictQuality } : {}),
+        // cycle-133 C-2: the dispatched route's enforced no-tool stance and any tool call the reply carried
+        ...(() => {
+          const stance = toolStanceFor(this.opts.model, parsed.provider);
+          return stance ? { toolStance: stance } : {};
+        })(),
+        ...(Array.isArray(parsed.tool_calls) && parsed.tool_calls.length > 0 ? { toolCallsAttempted: parsed.tool_calls.length } : {}),
       };
     } finally {
       try {

@@ -85,7 +85,22 @@
 #       toggles carry sprint_plan: false (resolved from $LOA_EVAL_SUITE_FILE, default
 #       evals/suites/ablation-2.0.yaml) gets NO sprint.md. Build tasks leave sprint.md
 #       to the PLAN phase. Nothing written names the arm.
-#   overlay_answer_paths <ws> <fixture-dir> <mode> [<source-tree> [<source-commit>]]
+#   overlay_answer_paths <ws> <fixture-dir> <mode> [<source-tree> [<source-commit> [<mount-mode>]]]
+#       <mount-mode> (cycle-133 C-10, default pinned-root = everything below, byte-identical to cycle-132):
+#       home-scope (head mode only; base is refused) puts the PR's changed .claude/ paths at the workspace root as
+#       DATA — the head version, or removed where the PR has none (deleted, renamed away, a symlink) — and removes
+#       the executable and prompt surface from the root: surface() = .claude/{skills,commands,agents,hooks,rules,
+#       output-styles,plugins}/**, .claude/{settings.json,settings.local.json,CLAUDE.md}, any *.local.* under
+#       .claude/, a CLAUDE.md or CLAUDE.local.md at any depth, anything under a nested .claude/, the root CLAUDE.md,
+#       CLAUDE.local.md and .mcp.json, and every path an @-import of a changed memory file names (followed from the
+#       PR's head tree, five hops, code spans and fences ignored). The surface stays readable under pr/head/ and
+#       pr/base/ (the fixture copy). The list is derived from Claude Code SURFACE_DERIVED_FOR (2.1.299, the image's
+#       pin) and re-derived when that version changes. Extra evidence (home-scope only): mount_mode=home-scope,
+#       surface_derived_for=<version>, overlay_surface_removed=<n>, overlay_imports=<comma list>;
+#       overlay_excluded lists the surface paths. The pinned framework under HOME is the mount mode's (not this
+#       function's).
+#   (the rest of this entry describes pinned-root)
+
 #       cycle-131 FR-1 (closed mount): every answer-bearing path of the review-catch PR
 #       fixture (head.diff paths, pr/head/ and pr/base/ files, fixture.yaml fix_commit
 #       paths; only under .claude/, never .claude/checksums.json) gets the mode's version
@@ -122,6 +137,26 @@
 #       count, list capped at 20), and each excluded path must still be at its pinned version (absent
 #       when the pin has none); clauses (a)-(d) judge the remaining paths. Exit 0 + evidence mount_closed=pre-launch …; exit 2 naming the
 #       first violated clause and path.
+#       The evidence's mount_mode (absent = pinned-root) selects the answer set. home-scope (cycle-133 C-10) adds
+#       clause (e): every surface path of the PR is absent at the root; none of the fixed project-scope load paths
+#       (CLAUDE.md, CLAUDE.local.md, .mcp.json, .claude/settings.json, .claude/settings.local.json, .claude/CLAUDE.md,
+#       .claude/{skills,commands,agents,hooks,rules,output-styles,plugins}) exists there; every other changed .claude/
+#       path at the root hashes to the PR's head bytes (absent where the PR has none); and the root .claude/ holds
+#       nothing else (the harness-owned checksums.json excepted). In home-scope the excluded (surface) paths are
+#       expected absent rather than pinned, and (b) also looks for later-only pinned versions of the surface paths.
+#       An unknown mount_mode fails (a).
+
+#   mount_home_scope <home-root> <source-tree> <container-home> <report-json>
+#       (cycle-133 C-10) the pinned framework under the session HOME for mount mode home-scope: a copy of
+#       <source-tree>/.claude/ in <home-root>/.claude/, redirected through LOA_FRAMEWORK_ROOT=<container-home> by the
+#       reversible rules R1-R5 of _sm_home_py (hook commands, shell project-root forms, Python root joins and path
+#       literals, relative skill text made absolute); tests/ and test/ copied untransformed; the user memory
+#       <home-root>/.claude/CLAUDE.md importing CLAUDE.loa.md and every rules file by absolute path; verify proves
+#       reverse(copy) == the pinned bytes. Evidence mount=home-scope, framework_root, home_transform, home_residual,
+#       home_verify, home_hook_counts, home_mcp_servers (see the function). Exit 2 on a residual project-root
+#       reference, an irreversible transform, an occupied HOME .claude/, a bad container home.
+#   SM_FRAMEWORK_ROOT (env): the directory whose .claude/ apply_arm_toggles edits and init_sandbox_beads' opt-out
+#       script runs from (home-scope: the session HOME); unset = <ws>, the cycle-132 behaviour.
 #   apply_eval_config_variant <ws>
 #       the cycle-131 evaluation config in the sandbox .loa.config.yaml:
 #       flatline_protocol.{code_review,security_audit}.budget_scale = "diff" and
@@ -143,7 +178,8 @@
 # else they go to the descriptor in SANDBOX_MOUNT_EVIDENCE_FD (default 1).
 # resolve_arm_toggles prints JSON on stdout and no evidence.
 #
-# Tested by evals/tests/arm-toggles.bats (directly and through execute-agent.sh),
+# Tested by evals/tests/arm-toggles.bats (directly and through execute-agent.sh), evals/tests/sandbox-mount-home-scope.bats
+# (the home-scope mode, clause (e), the pinned-root mode unchanged),
 # evals/tests/execute-agent.bats and evals/tests/sandbox-mount.bats (the closed mount,
 # the cycle-131 toggles and the eval config variant).
 # =============================================================================
@@ -152,6 +188,9 @@
 _SANDBOX_MOUNT_LOADED=true
 
 _SM_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# the Claude Code version the home-scope surface (surface() in _sm_oracle_py, SURFACE_DERIVED_FOR) is derived for;
+# pipeline-run.sh refuses home-scope on an image recording another (evals/tests/sandbox-mount-home-scope.bats pins both)
+SM_SURFACE_DERIVED_FOR="2.1.299"
 _SM_REPO_ROOT="$(cd "$_SM_LIB_DIR/../../.." && pwd)"
 
 _sm_err() { echo "ERROR: $*" >&2; }
@@ -338,6 +377,8 @@ _sm_cfg_set_false() {  # _sm_cfg_set_false <cfg> <yq-path>... ; verifies each
 
 apply_arm_toggles() {
   local ws="$1" toggles="${2:-}" arm="${3:-}"
+  # cycle-133 C-10: the framework copy the toggles edit (home-scope: the session HOME); the config stays in <ws>
+  local fw="${SM_FRAMEWORK_ROOT:-$ws}"
   [[ -d "$ws" ]] || { _sm_err "apply_arm_toggles: workspace not found: $ws"; return 2; }
   [[ -n "$toggles" ]] || toggles='{}'
   jq -e 'type == "object"' >/dev/null 2>&1 <<<"$toggles" || { _sm_err "arm '$arm' toggles are not a JSON object"; return 2; }
@@ -364,19 +405,19 @@ apply_arm_toggles() {
         _sm_evidence companion_voice "flatline_protocol.{code_review,security_audit}.companion_voice=false"
         ;;
       karpathy_block)
-        local k="$ws/.claude/loa/CLAUDE.loa.md" n
+        local k="$fw/.claude/loa/CLAUDE.loa.md" n
         [[ -f "$k" ]] || { _sm_err "karpathy_block toggle: no sandbox CLAUDE.loa.md"; return 2; }
         n="$(_sm_drop_md_section "$k" '## Karpathy Principles' "$eval_dir")"
         if [[ "${n:-0}" -eq 0 ]] || grep -q '^## Karpathy Principles' "$k"; then
           _sm_err "karpathy_block toggle: no '## Karpathy Principles' section removed"; return 2
         fi
-        local cj="$ws/.claude/data/constraints.json" cjn="none"
+        local cj="$fw/.claude/data/constraints.json" cjn="none"
         if [[ -f "$cj" ]]; then
           # audit r1 DISS-C-008: a failed rewrite is exit 2, not a silent pass; verify afterwards
           jq '(.constraints // []) |= map(select((tostring | test("karpathy"; "i")) | not))' "$cj" > "$cj.tmp" \
             || { rm -f "$cj.tmp"; _sm_err "karpathy_block toggle: constraints.json could not be rewritten"; return 2; }
           mv "$cj.tmp" "$cj"
-          cjn="$(jq '[(.constraints // [])[] | select(tostring | test("karpathy"; "i"))] | length' "$cj" 2>/dev/null || echo "?")"
+          cjn="$(jq '[(.constraints // [])[] | select(tostring | test("karpathy"; "i"))] | length' "$cj" 2>/dev/null || echo "?")"  # check-no-swallowed-jq: ok (fails closed: "?" is not "0", so the toggle errors below)
           [[ "$cjn" == "0" ]] || { _sm_err "karpathy_block toggle: constraints.json still carries Karpathy rows ($cjn)"; return 2; }
         fi
         _sm_evidence karpathy_block "removed ${n} lines from CLAUDE.loa.md; constraints.json karpathy rows after: ${cjn}"
@@ -384,13 +425,13 @@ apply_arm_toggles() {
       rule_files)
         local r gone=""
         for r in stash-safety.md skill-invariants.md; do
-          if [[ -e "$ws/.claude/rules/$r" ]]; then rm -f "$ws/.claude/rules/$r"; gone="$gone $r"; fi
-          [[ ! -e "$ws/.claude/rules/$r" ]] || { _sm_err "rule_files toggle: $r still present"; return 2; }
+          if [[ -e "$fw/.claude/rules/$r" ]]; then rm -f "$fw/.claude/rules/$r"; gone="$gone $r"; fi
+          [[ ! -e "$fw/.claude/rules/$r" ]] || { _sm_err "rule_files toggle: $r still present"; return 2; }
         done
         _sm_evidence rule_files "removed:${gone:- none present}"
         ;;
       audit_delta_instruction)
-        local s="$ws/.claude/skills/auditing-security/SKILL.md"
+        local s="$fw/.claude/skills/auditing-security/SKILL.md"
         [[ -f "$s" ]] || { _sm_err "audit_delta_instruction toggle: no sandbox auditing-security/SKILL.md"; return 2; }
         _sm_drop_paragraph "$s" "$eval_dir/arm-removed.txt" \
           || { _sm_err "audit_delta_instruction toggle: no delta paragraph found in the sandbox SKILL.md"; return 2; }
@@ -406,14 +447,14 @@ apply_arm_toggles() {
         ;;
       effort)
         local f total=0 stripped=0 still=""
-        for f in "$ws"/.claude/skills/*/SKILL.md; do
+        for f in "$fw"/.claude/skills/*/SKILL.md; do
           [[ -f "$f" ]] || continue
           total=$((total + 1))
           if [[ "$(_sm_strip_frontmatter_effort "$f")" == "1" ]]; then stripped=$((stripped + 1)); fi
-          if _sm_frontmatter_has_effort "$f"; then still="$still ${f#"$ws"/}"; fi
+          if _sm_frontmatter_has_effort "$f"; then still="$still ${f#"$fw"/}"; fi
         done
         [[ -z "$still" ]] || { _sm_err "effort toggle: effort: still in the frontmatter of:$still"; return 2; }
-        local mc="$ws/.claude/defaults/model-config.yaml" cat_state="absent"
+        local mc="$fw/.claude/defaults/model-config.yaml" cat_state="absent"
         if [[ -f "$mc" ]]; then
           local nkeys
           nkeys="$(yq '[.. | select(tag == "!!map" and has("default_effort"))] | length' "$mc" 2>/dev/null || echo 0)"
@@ -623,7 +664,7 @@ init_sandbox_beads() {
     _sm_evidence beads "br"
     return 0
   fi
-  local ubs="$ws/.claude/scripts/beads/update-beads-state.sh"
+  local ubs="${SM_FRAMEWORK_ROOT:-$ws}/.claude/scripts/beads/update-beads-state.sh"   # home-scope: the HOME copy
   if [[ -f "$ubs" ]]; then
     PROJECT_ROOT="$ws" bash "$ubs" --opt-out "eval sandbox: br not on PATH" >/dev/null 2>&1 \
       || { _sm_err "init_sandbox_beads: update-beads-state.sh --opt-out failed"; return 2; }
@@ -640,9 +681,10 @@ init_sandbox_beads() {
 # the pre-launch check (check_mount_closed) and took-effect.sh's oracle_closed rule,
 # so the launched surface and the post-run verdict use the same comparison.
 #
-# _sm_oracle_py answer-set <fixture-dir> <source-repo>
-#     prints "<pr|fix>\t<path>" per answer-bearing path (sorted)
-# _sm_oracle_py overlay <ws> <fixture-dir> <mode> <source-repo>
+# _sm_oracle_py answer-set <fixture-dir> <source-repo> [<mount-mode>]
+#     prints "<pr|fix>\t<path>" per answer-bearing path (sorted); home-scope adds "surface\t<path>" rows
+# _sm_oracle_py overlay <ws> <fixture-dir> <mode> <source-repo> [<mount-mode>]
+
 #     applies the overlay; prints the evidence key=value lines on stdout, notes on stderr
 # _sm_oracle_py check <ws> <fixture-dir> <evidence-file> <source-repo> <source-commit>
 #     clauses (a)-(d); exit 0 with "ok …", exit 1 with "FAIL (<clause>) <path>: <detail>"
@@ -682,7 +724,7 @@ init_sandbox_beads() {
 # ---------------------------------------------------------------------------
 _sm_oracle_py() {
   python3 -I - "$@" <<'PY'
-import hashlib, os, re, shutil, stat, subprocess, sys
+import fnmatch, hashlib, os, re, shutil, stat, subprocess, sys
 
 def note(msg):
     sys.stderr.write("sandbox-mount: " + msg + "\n")
@@ -861,6 +903,72 @@ if os.environ.get("SM_TEST_MODE") == "1" and os.environ.get("BATS_TEST_FILENAME"
 def excluded(p):
     return p.startswith(EXCLUDED_PREFIX)
 
+# cycle-133 C-10 (FR-10; D-3.1 DEC-0848 as amended by D-3.6 DEC-0858): mount mode home-scope. The pinned framework lives
+# under the session's HOME (user scope); the workspace root holds the PR's changed .claude/ paths as DATA, minus the
+# executable and prompt surface below, which is removed from the root and stays readable under pr/head/ (and pr/base/).
+# The surface is derived from the documented project-scope load paths of the Claude Code version the image pins
+# (Dockerfile.ablation CLAUDE_CODE_VERSION); re-derive it (and SURFACE_DERIVED_FOR) when that version changes.
+SURFACE_DERIVED_FOR = "2.1.299"
+SURFACE_ROOT_FILES = ("CLAUDE.md", "CLAUDE.local.md", ".mcp.json")              # outside .claude/
+SURFACE_CLAUDE_DIRS = ("skills", "commands", "agents", "hooks", "rules", "output-styles", "plugins")
+SURFACE_CLAUDE_FILES = ("settings.json", "settings.local.json", "CLAUDE.md")
+MEMORY_NAMES = ("CLAUDE.md", "CLAUDE.local.md")
+IMPORT_DEPTH = 5                                                                # Claude Code's import hop limit
+MOUNT_MODES = ("pinned-root", "home-scope")
+
+def surface(p):
+    """True when Claude Code would load or execute p from the project scope: the root memory and MCP files, a
+    surface directory or settings file under .claude/, any *.local.* file under .claude/, a CLAUDE.md or
+    CLAUDE.local.md at any depth (nested memory loads on file access), and anything under a nested .claude/"""
+    if p in SURFACE_ROOT_FILES:
+        return True
+    parts = p.split("/")
+    if parts[-1] in MEMORY_NAMES:
+        return True
+    if parts[0] != ".claude" or len(parts) < 2:
+        return False
+    if ".claude" in parts[1:-1] or (len(parts) > 2 and parts[1] in SURFACE_CLAUDE_DIRS):
+        return True
+    if len(parts) == 2 and (parts[1] in SURFACE_CLAUDE_FILES or parts[1] in SURFACE_CLAUDE_DIRS):
+        return True
+    if parts[-1] == "persona.md":       # cycle-133 s3-a3: cheval loads .claude/[skills/]<agent>/persona.md as a system prompt
+        return True
+    return fnmatch.fnmatchcase(parts[-1], "*.local.*")
+
+def memory_file(p):
+    """a file whose @-imports Claude Code follows: CLAUDE.md / CLAUDE.local.md at any depth, .claude/rules/**.md"""
+    return p.split("/")[-1] in MEMORY_NAMES or (p.startswith(".claude/rules/") and p.endswith(".md"))
+
+CODE_FENCE = re.compile(r"^(```|~~~).*?^\1[^\n]*$", re.M | re.S)
+CODE_SPAN = re.compile(r"`[^`\n]*`")
+IMPORT_TOKEN = re.compile(r"(?:^|(?<=\s))@([^\s`'\"<>()\[\]]+)")
+
+def imported_paths(head_root, roots):
+    """repository-relative paths an @-import names, followed from the given memory files of the PR's head tree up
+    to IMPORT_DEPTH hops (code fences and spans ignored, ~/ and absolute targets skipped: they are not the PR's)"""
+    out, frontier = set(), [(p, 0) for p in sorted(roots)]
+    seen = set(roots)
+    while frontier:
+        p, depth = frontier.pop(0)
+        ff = fixture_file(head_root, p)
+        if ff is None or depth >= IMPORT_DEPTH:
+            continue
+        text = CODE_SPAN.sub(" ", CODE_FENCE.sub(" ", ff[0][:1 << 20].decode("utf-8", "replace")))
+        base = p.rsplit("/", 1)[0] if "/" in p else ""
+        for m in IMPORT_TOKEN.finditer(text):
+            t = m.group(1).rstrip(".,;:")
+            if not t or t.startswith(("~", "/")):
+                continue
+            q = os.path.normpath(os.path.join(base, t)).replace(os.sep, "/") if base else os.path.normpath(t).replace(os.sep, "/")
+            q = norm(q)
+            if q is None or q in seen:
+                continue
+            seen.add(q)
+            out.add(q)
+            frontier.append((q, depth + 1))
+    return out
+
+
 def excluded_evidence(ex):
     """overlay_excluded value: 0, or <exact count>:<the first 20 paths>[,…]"""
     if not ex:
@@ -868,8 +976,11 @@ def excluded_evidence(ex):
     s = ",".join(ex[:EXCLUDED_LIST_CAP])
     return "%d:%s%s" % (len(ex), s, ",\u2026" if len(ex) > EXCLUDED_LIST_CAP else "")
 
-def answer_set(fixture, repo):
-    """{path: "pr"|"fix"}, notes, meta"""
+def answer_set(fixture, repo, mount_mode="pinned-root"):
+    """{path: "pr"|"fix"}, notes, meta. pinned-root (cycle-132 addendum 9): every .claude/ path is excluded (left
+    pinned). home-scope (C-10): the surface paths (surface(), the PR's root memory and MCP files, and every path an
+    @-import of a changed memory file names) are excluded and must be absent at the root; the others are entries."""
+
     notes = []
     if not os.path.isfile(os.path.join(fixture, "head.diff")):
         die("fixture has no head.diff: " + fixture)
@@ -907,6 +1018,20 @@ def answer_set(fixture, repo):
     meta["head_available"] = bool(hc) and has_commit(repo, hc)
     entries = {}
     meta["excluded"] = []
+    meta["mount_mode"] = mount_mode
+    if mount_mode == "home-scope":
+        changed = pr | fix
+        roots = [p for p in changed if memory_file(p)]
+        imports = imported_paths(os.path.join(fixture, "head"), roots)
+        meta["imports"] = sorted(q for q in imports if q in changed)
+        for p in sorted(changed):
+            if not (in_scope(p) or p in SURFACE_ROOT_FILES):
+                continue
+            if surface(p) or p in imports:
+                meta["excluded"].append(p)
+            else:
+                entries[p] = "pr" if p in pr else "fix"
+        return entries, notes, meta
     for p in sorted(pr | fix):
         if in_scope(p):
             if excluded(p):
@@ -914,6 +1039,7 @@ def answer_set(fixture, repo):
             else:
                 entries[p] = "pr" if p in pr else "fix"
     return entries, notes, meta
+
 
 def fixture_file(root, path):
     """(bytes, exec) of a regular file at root/path with no symlink component, else None"""
@@ -995,12 +1121,17 @@ def remove(dst):
 def gate_script(p):
     return bool(re.match(r"^\.claude/(scripts|hooks)/", p) or re.match(r"^\.claude/skills/[^/]+/SKILL\.md$", p))
 
-def cmd_overlay(ws, fixture, mode, repo):
+def cmd_overlay(ws, fixture, mode, repo, mount_mode="pinned-root"):
     if mode not in ("head", "base"):
         die("overlay mode must be head or base, got %r" % mode)
+    if mount_mode not in MOUNT_MODES:
+        die("mount mode must be one of %s, got %r" % ("|".join(MOUNT_MODES), mount_mode))
+    if mount_mode == "home-scope" and mode != "head":
+        die("overlay: refused: mount mode home-scope puts the PR's head bytes at the root (overlay mode %s)" % mode)
     if not os.path.isdir(ws) or os.path.islink(ws):
         die("workspace not found: " + ws)
-    entries, notes, meta = answer_set(fixture, repo)
+    entries, notes, meta = answer_set(fixture, repo, mount_mode)
+
     for n in notes:
         note("overlay: " + n)
     if meta.get("fix_available") == "unavailable":
@@ -1013,7 +1144,16 @@ def cmd_overlay(ws, fixture, mode, repo):
     if entries and any(s == "fix" for s in entries.values()) and not meta.get("head_available"):
         note("overlay: head_commit %s unavailable: fix-commit paths outside the PR are removed" % meta.get("head_commit"))
     lines, gates, removed = [], [], 0
+    surface_removed = 0
+    if mount_mode == "home-scope":
+        # C-10: the executable and prompt surface is never at the root (it stays readable under pr/head/)
+        for p in meta["excluded"]:
+            dst = safe_dst(ws, p)
+            if os.path.lexists(dst):
+                remove(dst)
+                surface_removed += 1
     for p in sorted(entries):
+
         dst = safe_dst(ws, p)
         e = exp[p]
         remove(dst)
@@ -1030,8 +1170,14 @@ def cmd_overlay(ws, fixture, mode, repo):
                 gates.append(p)
         lines.append("overlay_sha256=%s=%s" % (p, state(ws, p)))
     print("mount_overlay=%s:%d" % (mode, len(entries)))
+    if mount_mode == "home-scope":
+        print("mount_mode=home-scope")
+        print("surface_derived_for=%s" % SURFACE_DERIVED_FOR)
+        print("overlay_surface_removed=%d" % surface_removed)
+        print("overlay_imports=%s" % ",".join(meta["imports"]))
     ex = meta["excluded"]
     print("overlay_excluded=%s" % excluded_evidence(ex))
+
     if TEST_PREFIX is not None:
         print("overlay_test_excluded_prefix=%s" % TEST_PREFIX)
     for l in lines:
@@ -1066,7 +1212,10 @@ def cmd_check(ws, fixture, evfile, repo, source_commit):
     mode, n = m.group(1), int(m.group(2))
     if ev.get("overlay_fix_commit") == "unavailable":
         print("FAIL (a) -: overlay_fix_commit=unavailable (the fix paths outside the PR were never pinned)"); sys.exit(1)
-    entries, _notes, meta = answer_set(fixture, repo)
+    mm = ev.get("mount_mode", "pinned-root")
+    if mm not in MOUNT_MODES:
+        print("FAIL (a) -: mount_mode=%s (want %s)" % (mm, "|".join(MOUNT_MODES))); sys.exit(1)
+    entries, _notes, meta = answer_set(fixture, repo, mm)
     exp = expected(entries, mode, fixture, repo, meta)
     fails = []
     if n != len(entries):
@@ -1076,7 +1225,10 @@ def cmd_check(ws, fixture, evfile, repo, source_commit):
     want_ex = excluded_evidence(ex)
     if ev.get("overlay_excluded", "0") != want_ex:
         fails.append(("a", "-", "overlay_excluded=%s, the answer set excludes %s" % (ev.get("overlay_excluded", "<missing>"), want_ex)))
-    for p in ex:
+    if mm == "home-scope":
+        fails.extend(clause_e(ws, entries, exp, ex, mode))
+    for p in ([] if mm == "home-scope" else ex):
+
         tb = tree_blob(repo, source_commit, p) if has_commit(repo, source_commit) else None
         want = sha(tb[0]) if tb else "absent"
         got = state(ws, p)
@@ -1113,8 +1265,10 @@ def cmd_check(ws, fixture, evfile, repo, source_commit):
                 if ff is not None:
                     known.add(sha(ff[0]))
         later = {}
-        for p in sorted(entries):
+        # home-scope: a pinned (later) copy of a surface path anywhere outside pr/ reopens the oracle as well
+        for p in sorted(set(entries) | (set(ex) if mm == "home-scope" else set())):
             tb = tree_blob(repo, source_commit, p)
+
             if tb is None or len(tb[0]) == 0:
                 continue
             h = sha(tb[0])
@@ -1168,22 +1322,74 @@ def cmd_check(ws, fixture, evfile, repo, source_commit):
         c, p, d = fails[0]
         print("FAIL (%s) %s: %s%s" % (c, p, d, " (+%d more)" % (len(fails) - 1) if len(fails) > 1 else ""))
         sys.exit(1)
+    if mm == "home-scope":
+        tail = "; home-scope: %d surface path(s) absent at the root (surface derived for Claude Code %s)" % (len(ex), SURFACE_DERIVED_FOR)
+    else:
+        tail = "; %d .claude path(s) left pinned" % len(ex) if ex else ""
     print("ok %s:%d answer paths (%d present), %d later-only pinned versions, sandbox git = base commit only%s"
-          % (mode, len(entries), present, len(later), "; %d .claude path(s) left pinned" % len(ex) if ex else ""))
+          % (mode, len(entries), present, len(later), tail))
+
+def clause_e(ws, entries, exp, ex, mode):
+    """C-10 clause (e) for a home-scope root: every surface path absent (the PR's surface paths, the fixed
+    project-scope load paths, any surface-classified path under the root .claude/), and the root .claude/ holding
+    nothing but the answer set's data paths at the PR's bytes (plus the harness-owned checksums.json)"""
+    out = []
+    for p in ex:
+        got = state(ws, p)
+        if got != "absent":
+            out.append(("e", p, "a surface path is at the root (%s); it belongs under pr/head/ only" % got[:12]))
+    fixed = list(SURFACE_ROOT_FILES) + [".claude/" + f for f in SURFACE_CLAUDE_FILES] + [".claude/" + d for d in SURFACE_CLAUDE_DIRS]
+    for p in fixed:
+        if p not in ex and os.path.lexists(os.path.join(ws, *p.split("/"))):
+            out.append(("e", p, "a project-scope load path is present at the root"))
+    for p in sorted(entries):
+        want = sha(exp[p][0]) if exp[p] is not None else "absent"
+        got = state(ws, p)
+        if got != want:
+            out.append(("e", p, "a changed .claude path at the root is %s, want the PR's %s (%s)" % (got[:12], want[:12], mode)))
+    root = os.path.join(ws, ".claude")
+    if os.path.islink(root) or (os.path.lexists(root) and not os.path.isdir(root)):
+        out.append(("e", ".claude", "the root .claude is not a directory"))
+    elif os.path.isdir(root):
+        for d, dirs, files in os.walk(root, followlinks=False):
+            for nme in sorted(dirs + files):
+                full = os.path.join(d, nme)
+                rel = os.path.relpath(full, ws).replace(os.sep, "/")
+                if os.path.isdir(full) and not os.path.islink(full):
+                    if surface(rel):
+                        out.append(("e", rel, "a project-scope surface directory is present at the root"))
+                    continue
+                if rel == ".claude/checksums.json":
+                    continue
+                if surface(rel):
+                    out.append(("e", rel, "a surface path is present at the root"))
+                elif rel not in entries:
+                    out.append(("e", rel, "the root .claude/ holds a path that is not one of the PR's changed paths"))
+    return out
+
 
 cmd = sys.argv[1] if len(sys.argv) > 1 else ""
-if cmd == "answer-set" and len(sys.argv) == 4:
-    entries, notes, _meta = answer_set(sys.argv[2], sys.argv[3])
+if cmd == "answer-set" and len(sys.argv) in (4, 5):
+    amm = sys.argv[4] if len(sys.argv) == 5 else "pinned-root"
+    if amm not in MOUNT_MODES:
+        die("mount mode must be one of %s, got %r" % ("|".join(MOUNT_MODES), amm))
+    entries, notes, ameta = answer_set(sys.argv[2], sys.argv[3], amm)
     for n in notes:
         note("answer-set: " + n)
-    for p in sorted(entries):
-        print("%s\t%s" % (entries[p], p))
-elif cmd == "overlay" and len(sys.argv) == 6:
-    cmd_overlay(*sys.argv[2:6])
+    rows = dict(entries)
+    if amm == "home-scope":
+        rows.update((p, "surface") for p in ameta["excluded"])
+    for p in sorted(rows):
+        print("%s\t%s" % (rows[p], p))
+elif cmd == "overlay" and len(sys.argv) in (6, 7):
+    cmd_overlay(*sys.argv[2:7])
+
 elif cmd == "check" and len(sys.argv) == 7:
     cmd_check(*sys.argv[2:7])
 else:
-    die("usage: overlay <ws> <fixture> <mode> <repo> | check <ws> <fixture> <evidence> <repo> <commit>")
+    die("usage: answer-set <fixture> <repo> [<mount-mode>] | overlay <ws> <fixture> <mode> <repo> [<mount-mode>] | "
+        "check <ws> <fixture> <evidence> <repo> <commit>")
+
 PY
 }
 
@@ -1199,10 +1405,12 @@ _sm_copy_source() {
 
 # ---------------------------------------------------------------------------
 overlay_answer_paths() {
-  local ws="$1" fixture="${2:-}" mode="${3:-head}" tree="${4:-${EVAL_PROMPT_TREE:-$_SM_REPO_ROOT}}" want="${5:-}"
+  local ws="$1" fixture="${2:-}" mode="${3:-head}" tree="${4:-${EVAL_PROMPT_TREE:-$_SM_REPO_ROOT}}" want="${5:-}" mmode="${6:-pinned-root}"
   [[ -d "$ws" ]] || { _sm_err "overlay_answer_paths: workspace not found: $ws"; return 2; }
   [[ -n "$fixture" && -f "$fixture/head.diff" ]] || { _sm_err "overlay_answer_paths: fixture not found or has no head.diff: ${fixture:-<none>}"; return 2; }
   case "$mode" in head|base) ;; *) _sm_err "overlay_answer_paths: mode must be head or base, got '$mode'"; return 2 ;; esac
+  case "$mmode" in pinned-root|home-scope) ;; *) _sm_err "overlay_answer_paths: mount mode must be pinned-root or home-scope, got '$mmode'"; return 2 ;; esac
+
   [[ -d "$tree" ]] || { _sm_err "overlay_answer_paths: source tree not found: $tree"; return 2; }
   local cs
   cs="$(_sm_copy_source "$tree")"
@@ -1214,7 +1422,12 @@ overlay_answer_paths() {
     _sm_err "overlay_answer_paths: copy_source $cs differs from source_commit $want"; return 2
   fi
   local out line rc=0
-  out="$(_sm_oracle_py overlay "$ws" "$fixture" "$mode" "$tree")" || rc=$?
+  if [[ "$mmode" == pinned-root ]]; then
+    out="$(_sm_oracle_py overlay "$ws" "$fixture" "$mode" "$tree")" || rc=$?
+  else
+    out="$(_sm_oracle_py overlay "$ws" "$fixture" "$mode" "$tree" "$mmode")" || rc=$?
+  fi
+
   [[ $rc -eq 0 ]] || { _sm_err "overlay_answer_paths: the overlay failed (exit $rc)"; return 2; }
   while IFS= read -r line; do
     [[ "$line" == *=* ]] || continue
@@ -1240,6 +1453,349 @@ check_mount_closed() {
     return 2
   fi
   _sm_evidence mount_closed "pre-launch ${out#ok }"
+  return 0
+}
+
+# ---------------------------------------------------------------------------
+# home-scope framework (cycle-133 C-10). The pinned framework runs from the session HOME (user scope,
+# --setting-sources user; Sprint 274 spike, Claude Code 2.1.299). The framework finds its own files under the PROJECT
+# root (hook commands "$(git rev-parse --show-toplevel)"/.claude/…, $PROJECT_ROOT/.claude in scripts, Path(project_root)
+# / ".claude" in Python, relative .claude/ in skill text), and under home-scope the project root's .claude/ holds the
+# PR's DATA — so the HOME copy (never the repository) is redirected through ONE root variable, LOA_FRAMEWORK_ROOT (= the
+# session HOME). The rules, each exactly reversible (verify proves reverse(copy) == the pinned bytes):
+#   R1 git toplevel   $(git rev-parse --show-toplevel)["|\"]/.claude → ${LOA_FRAMEWORK_ROOT:-$(git rev-parse …)}…/.claude
+#                     (settings.json hook commands, shell, markdown)
+#   R2 shell root     $V/.claude, ${V}/.claude, "$V"/.claude for V in PROJECT_ROOT REPO_ROOT ROOT ROOT_DIR repo_root
+#                     _*REPO_ROOT → ${LOA_FRAMEWORK_ROOT:-$V}/.claude (shell and markdown)
+#   R3 markdown rel   a .claude/ path not preceded by a path character → <home>/.claude/ (absolute)
+#   R4 python root    Path(X) / ".claude" → Path(<env> or X) / ".claude"; bare X / ".claude" for X in project_root
+#                     repo_root REPO_ROOT PROJECT_ROOT _project_root() _find_project_root() → pathlib.Path(<env> or X) / …
+#   R5 python literal a string literal that is exactly a .claude/… path (not a join operand) → os.path.join(<env>, it); a bare
+#                     ".claude" is a NAME (headless_cli's project markers) and is never rewritten (s3-a3, smoke-c133-s274)
+#   R6 shell proj     $(cd "$V/../.." && pwd) whose climb lands on the HOME root (the .. count = the file's depth) →
+#                     ${LOA_PROJECT_ROOT:-$(cd …)}: the PROJECT root the script derives from its own location (s3-a3)
+#   R7 python proj    Path(__file__).resolve().parents[<depth>] → LOA_PROJECT_ROOT if set, else the original (s3-a3)
+#   R8 python proj    os.path.dirname(…) chained depth+1 times around __file__ / here → LOA_PROJECT_ROOT or the original
+#   The session gets LOA_FRAMEWORK_ROOT=<home> and LOA_PROJECT_ROOT=<workspace> (pipeline-run.sh).
+# Tests directories (tests/, test/), __pycache__ and node_modules are copied but not transformed. A residual project-root
+# framework reference (an R2 or R1 form left, a Python root join the rules did not rewrite) or an unwrapped climb that lands
+# on the root (an R6/R7/R8 form) refuses the mount.
+_sm_home_py() {
+  python3 -I - "$@" <<'PY'
+import hashlib, json, os, re, sys
+
+FW = "LOA_FRAMEWORK_ROOT"
+SKIP = {"tests", "test", "__pycache__", "node_modules", ".git"}
+MAX = 4 << 20
+V = r"(?:PROJECT_ROOT|REPO_ROOT|ROOT|ROOT_DIR|repo_root|_[A-Z0-9_]*REPO_ROOT)"
+END = r"(?![A-Za-z0-9_.-])"
+R1 = re.compile(r"(?<!" + FW + r":-)\$\(git rev-parse --show-toplevel\)(\\?\"?)/\.claude" + END)
+R1_REV = re.compile(r"\$\{" + FW + r":-(\$\(git rev-parse --show-toplevel\))\}")
+R2 = re.compile(r"\$(?:\{(" + V + r")\}|(" + V + r")(?![A-Za-z0-9_]))(\"?)/\.claude" + END)
+R2_REV = re.compile(r"\$\{" + FW + r":-(\$\{" + V + r"\}|\$" + V + r")\}")
+R3 = re.compile(r"(?<![A-Za-z0-9_./$~{}\\-])\.claude/")
+PYV = r"(?:project_root|repo_root|REPO_ROOT|PROJECT_ROOT|root|ROOT|walked)"
+ENV = '__import__("os").environ.get("' + FW + '")'
+R4A = re.compile(r"Path\(\s*(" + PYV + r")\s*\)(\s*/\s*[\"']\.claude[\"'/])")
+R4A_REV = re.compile(r"Path\(" + re.escape(ENV) + r" or (" + PYV + r")\)")
+R4B = re.compile(r"(?<![\w.])(_project_root\(\)|_find_project_root\(\)|repo_root|REPO_ROOT|project_root|PROJECT_ROOT)(\s*/\s*[\"']\.claude[\"'/])")
+R4B_REV = re.compile(r"__import__\(\"pathlib\"\)\.Path\(" + re.escape(ENV) + r" or (_project_root\(\)|_find_project_root\(\)|repo_root|REPO_ROOT|project_root|PROJECT_ROOT)\)")
+R5 = re.compile(r"(?<!/ )(?<!/)(['\"])(\.claude/[A-Za-z0-9_./-]*)\1")
+R5_PRE = '__import__("os").path.join(__import__("os").environ.get("' + FW + '", ""), '
+R5_REV = re.compile(re.escape(R5_PRE) + r"((['\"])\.claude/[A-Za-z0-9_./-]*\2)\)")
+# R6-R8 (s3-a3): the PROJECT root a script derives from its own location lands on the HOME under home-scope; it is the
+# workspace: LOA_PROJECT_ROOT (the session's /workspace), the derivation kept as the fallback
+PR = "LOA_PROJECT_ROOT"
+R6 = re.compile(r'(?<!' + PR + r':-)\$\(cd "\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?((?:/\.\.)+)/?" *&& *pwd(?: -P)?\)')
+R6_REV = re.compile(r'\$\{' + PR + r':-(\$\(cd "\$\{?[A-Za-z_][A-Za-z0-9_]*\}?(?:/\.\.)+/?" *&& *pwd(?: -P)?\))\}')
+R7 = re.compile(r"Path\(__file__\)\.resolve\(\)\.parents\[(\d+)\]")
+R7_PRE = '(__import__("pathlib").Path(__import__("os").environ["' + PR + '"]) if __import__("os").environ.get("' + PR + '") else '
+R7_REV = re.compile(re.escape(R7_PRE) + r"(Path\(__file__\)\.resolve\(\)\.parents\[\d+\])\)")
+R8_PRE = '(__import__("os").environ.get("' + PR + '") or '
+R8_REV = re.compile(re.escape(R8_PRE) + r"((?:os\.path\.dirname\()+(?:here|os\.path\.abspath\(__file__\)|__file__)\)+)\)")
+
+def depth_of(rel):
+    """the directories between the HOME root and the file (.claude/scripts/x.sh → 2)"""
+    return len(rel.split("/")) - 1
+
+def r8_targets(text, rel):
+    """the dirname chains that climb from this file to the HOME root (one more dirname than the file's depth)"""
+    k = depth_of(rel) + 1
+    out = []
+    for var in ("os.path.abspath(__file__)", "__file__", "here"):
+        if var == "here" and not re.search(r"^\s*here\s*=\s*os\.path\.abspath\(__file__\)\s*$", text, re.M):
+            continue
+        out.append("os.path.dirname(" * k + var + ")" * k)
+    return out
+# any join onto ".claude" whose operand is not redirected: the known roots, and any other name — except the project-root
+# detection (`parent / ".claude"`, which must find the WORKSPACE) and the user's own home (`Path.home() / ".claude"`)
+PY_RESID = re.compile(r"(?<!or )(?<![\w.])(?!parent\b)(?!Path\.home\(\))[A-Za-z_][\w.]*(?:\(\))?\s*\)?\s*/\s*[\"']\.claude[\"'/]")
+
+PY_LINE = re.compile(r"^\s*/\s*[\"']\.claude[\"']")
+SH_REL = re.compile(r"(?<![A-Za-z0-9_./$~{}\\-])\.claude/")
+
+def kind(path, data):
+    n = os.path.basename(path)
+    if n.endswith(".md"):
+        return "md"
+    if n.endswith(".py"):
+        return "py"
+    if n.endswith((".sh", ".bash")):
+        return "sh"
+    if n == "settings.json" or n.endswith(".json"):
+        return "json"
+    first = data.split(b"\n", 1)[0]
+    if first.startswith(b"#!") and re.search(rb"\b(ba|z|da|k)?sh\b", first):
+        return "sh"
+    if first.startswith(b"#!") and b"python" in first:
+        return "py"
+    return None
+
+def walk(root):
+    for d, dirs, files in os.walk(root, followlinks=False):
+        dirs[:] = sorted(x for x in dirs if x not in SKIP)
+        for n in sorted(files):
+            p = os.path.join(d, n)
+            if os.path.islink(p) or not os.path.isfile(p):
+                continue
+            yield p
+
+def transform(text, k, home, rel=""):
+    c = {}
+    def sub(name, rx, rep, t):
+        out, n = rx.subn(rep, t)
+        if n:
+            c[name] = c.get(name, 0) + n
+        return out
+    if k in ("sh", "md", "json"):
+        text = sub("R1", R1, lambda m: "${%s:-$(git rev-parse --show-toplevel)}%s/.claude" % (FW, m.group(1)), text)
+    if k in ("sh", "md"):
+        text = sub("R2", R2, lambda m: ("${%s:-${%s}}" % (FW, m.group(1)) if m.group(1) else "${%s:-$%s}" % (FW, m.group(2)))
+                   + m.group(3) + "/.claude", text)
+    if k == "md":
+        text = sub("R3", R3, home + "/.claude/", text)
+    if k == "py":
+        text = sub("R4", R4A, lambda m: "Path(%s or %s)%s" % (ENV, m.group(1), m.group(2)), text)
+        text = sub("R4", R4B, lambda m: '__import__("pathlib").Path(%s or %s)%s' % (ENV, m.group(1), m.group(2)), text)
+        text = sub("R5", R5, lambda m: R5_PRE + m.group(0) + ")", text)
+        d = depth_of(rel)
+        text = sub("R7", R7, lambda m: R7_PRE + m.group(0) + ")" if int(m.group(1)) == d else m.group(0), text)
+        if c.get("R7") is not None:       # subn counted every parents[] match; keep only the ones wrapped
+            c["R7"] = len(re.findall(re.escape(R7_PRE), text))
+            if not c["R7"]:
+                del c["R7"]
+        for t in r8_targets(text, rel):
+            n = 0
+            while (R8_PRE + t) not in text and t in text:
+                text = text.replace(t, R8_PRE + t + ")", 1)
+                n += 1
+                if n > 64:
+                    break
+            if n:
+                c["R8"] = c.get("R8", 0) + n
+    if k == "sh":
+        d = depth_of(rel)
+        hits = [0]
+        def r6(m):
+            if m.group(2).count("..") == d:      # the climb lands on the root: a project-root derivation
+                hits[0] += 1
+                return "${%s:-%s}" % (PR, m.group(0))
+            return m.group(0)
+        text = R6.sub(r6, text)
+        if hits[0]:
+            c["R6"] = hits[0]
+    return text, c
+
+def reverse(text, k, home):
+    if k == "py":
+        text = R8_REV.sub(lambda m: m.group(1), text)
+        text = R7_REV.sub(lambda m: m.group(1), text)
+        text = R5_REV.sub(lambda m: m.group(1), text)
+        text = R4B_REV.sub(lambda m: m.group(1), text)
+        text = R4A_REV.sub(lambda m: "Path(" + m.group(1) + ")", text)
+    if k == "md":
+        text = text.replace(home + "/.claude/", ".claude/")
+    if k in ("sh", "md"):
+        text = R2_REV.sub(lambda m: m.group(1), text)
+    if k == "sh":
+        text = R6_REV.sub(lambda m: m.group(1), text)
+    if k in ("sh", "md", "json"):
+        text = R1_REV.sub(lambda m: m.group(1), text)
+    return text
+
+def residuals(text, k, rel=""):
+    out, prev = [], ""
+    d = depth_of(rel)
+    chains = r8_targets(text, rel) if k == "py" else []
+    for i, line in enumerate(text.split("\n"), 1):
+        if k == "sh" and any(m.group(2).count("..") == d for m in R6.finditer(line)):
+            out.append((i, line.strip()[:160]))
+            continue
+        if k == "py" and (any(int(m.group(1)) == d and not line[:m.start()].endswith(" else ") for m in R7.finditer(line))
+                          or any(t in line and (R8_PRE + t) not in line for t in chains)):
+            out.append((i, line.strip()[:160]))
+            continue
+        if k in ("sh", "md", "json") and (R1.search(line) or (k != "json" and R2.search(line))):
+            out.append((i, line.strip()[:160]))
+        elif k == "py" and not line.lstrip().startswith("#"):
+            # a join continued on the next line (`X` then `/ ".claude"`) is redirected when its operand line is
+            if PY_RESID.search(line) or (PY_LINE.search(line) and ENV not in prev):
+                out.append((i, line.strip()[:160]))
+        if line.strip():
+            prev = line
+    return out
+
+
+def relative_sh(text):
+    return sum(1 for line in text.split("\n") if not line.lstrip().startswith("#") and SH_REL.search(line))
+
+def cmd_transform(home_root, home, report):
+    claude = os.path.join(home_root, ".claude")
+    if not os.path.isdir(claude) or os.path.islink(claude):
+        sys.exit("home-scope: no framework copy at %s" % claude)
+    counts, files, changed, resid, rel_sh, refused = {}, 0, [], [], 0, None
+    for p in walk(claude):
+        data = open(p, "rb").read(MAX + 1)
+        rel = os.path.relpath(p, home_root).replace(os.sep, "/")
+        files += 1
+        if len(data) > MAX or b"\0" in data:
+            continue
+        k = kind(p, data)
+        if k is None:
+            continue
+        try:
+            text = data.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        if FW in text or (home + "/.claude/") in text:
+            refused = "%s already names %s or %s/.claude/ (the transform would not be reversible)" % (rel, FW, home)
+            break
+        new, c = transform(text, k, home, rel)
+        if new != text:
+            if reverse(new, k, home) != text:
+                refused = "%s: the transform is not reversible" % rel
+                break
+            st = os.stat(p)
+            with open(p, "w", encoding="utf-8") as fh:
+                fh.write(new)
+            os.chmod(p, st.st_mode & 0o7777)
+            changed.append(rel)
+            for key, n in c.items():
+                counts[key] = counts.get(key, 0) + n
+        for i, l in residuals(new, k, rel):
+            resid.append("%s:%d %s" % (rel, i, l))
+        if k == "sh":
+            rel_sh += relative_sh(new)
+    rep = {"framework_root_var": FW, "framework_root": home, "files": files, "files_transformed": len(changed),
+           "rules": dict(sorted(counts.items())), "residual": len(resid), "residual_first": resid[:50],
+           "shell_relative_refs": rel_sh, "transformed": changed}
+    with open(report, "w", encoding="utf-8") as fh:
+        json.dump(rep, fh, indent=1, sort_keys=True)
+        fh.write("\n")
+    if refused:
+        print("refused: " + refused)
+        sys.exit(2)
+    print("home_framework_files=%d" % files)
+    print("home_transform=%s" % ",".join("%s:%d" % kv for kv in sorted(counts.items())))
+    print("home_transformed_files=%d" % len(changed))
+    print("home_residual=%d" % len(resid))
+    print("home_shell_relative_refs=%d" % rel_sh)
+    if resid:
+        print("refused: %d project-root framework reference(s) left unredirected (first: %s)" % (len(resid), resid[0]))
+        sys.exit(2)
+
+def cmd_verify(home_root, source_root, home):
+    """reverse(every copied file) == the pinned bytes; the file sets equal (the generated CLAUDE.md and the manifest
+    excepted); prints ok <n> or the first difference"""
+    a, b = os.path.join(home_root, ".claude"), os.path.join(source_root, ".claude")
+    extra = {".claude/CLAUDE.md", ".claude/checksums.json"}
+    got = set(os.path.relpath(p, home_root).replace(os.sep, "/") for p in walk(a))
+    want = set(os.path.relpath(p, source_root).replace(os.sep, "/") for p in walk(b))
+    for q in sorted((want - got) | (got - want - extra)):
+        print("FAIL %s: %s" % (q, "missing from the HOME copy" if q in want else "not in the pinned tree")); sys.exit(1)
+    n = 0
+    for q in sorted(want - extra):
+        x = open(os.path.join(home_root, q), "rb").read()
+        y = open(os.path.join(source_root, q), "rb").read()
+        if x != y:
+            k = kind(q, y)
+            try:
+                ok = k is not None and reverse(x.decode("utf-8"), k, home).encode("utf-8") == y
+            except UnicodeDecodeError:
+                ok = False
+            if not ok:
+                print("FAIL %s: differs from the pinned bytes beyond the recorded redirection" % q); sys.exit(1)
+            n += 1
+    print("ok %d files, %d redirected, reverse == pinned" % (len(want - extra), n))
+
+def cmd_hooks(settings):
+    """<event>:<n>,… — the hook commands per event the pinned user settings declare (home_hook_counts)"""
+    try:
+        s = json.load(open(settings, encoding="utf-8"))
+    except (OSError, ValueError):
+        s = {}
+    out = []
+    for ev, groups in sorted((s.get("hooks") or {}).items()):
+        n = sum(len(g.get("hooks") or []) for g in groups if isinstance(g, dict)) if isinstance(groups, list) else 0
+        out.append("%s:%d" % (ev, n))
+    print(",".join(out))
+
+cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+if cmd == "transform" and len(sys.argv) == 5:
+    cmd_transform(*sys.argv[2:5])
+elif cmd == "verify" and len(sys.argv) == 5:
+    cmd_verify(*sys.argv[2:5])
+elif cmd == "hooks" and len(sys.argv) == 3:
+    cmd_hooks(sys.argv[2])
+else:
+    sys.exit("usage: transform <home-root> <home> <report> | verify <home-root> <source-root> <home> | hooks <settings>")
+PY
+}
+
+# mount_home_scope <home-root> <source-tree> <container-home> <report-json>
+#   (cycle-133 C-10) materialises the pinned framework under the session HOME: <home-root>/.claude/ = a copy of
+#   <source-tree>/.claude/ redirected by _sm_home_py's rules through LOA_FRAMEWORK_ROOT=<container-home>, the user
+#   memory <home-root>/.claude/CLAUDE.md importing <container-home>/.claude/loa/CLAUDE.loa.md and every
+#   .claude/rules/*.md by ABSOLUTE path (rules load unconditionally: an @-import has no paths: filter). The user-scope
+#   settings are the pinned .claude/settings.json (its hooks redirected). <report-json> receives the transform record.
+#   Evidence: mount=home-scope, framework_root=LOA_FRAMEWORK_ROOT=<container-home>, home_framework_files,
+#   home_transform=<rule>:<n>,…, home_transformed_files, home_residual, home_shell_relative_refs, home_verify=ok …,
+#   home_hook_counts=<event>:<n>,…, home_mcp_servers= (the HOME declares none).
+#   Exit 2: a missing tree, a container home that is not an absolute plain path, an existing <home-root>/.claude with
+#   content, a residual project-root reference, an irreversible transform, a verify difference.
+mount_home_scope() {
+  local hr="$1" tree="$2" ch="${3:-}" rep="${4:-}" out rc=0 f
+  [[ -d "$hr" && ! -L "$hr" ]] || { _sm_err "mount_home_scope: home root not found: $hr"; return 2; }
+  [[ -d "$tree/.claude" ]] || { _sm_err "mount_home_scope: source tree has no .claude/: $tree"; return 2; }
+  [[ "$ch" =~ ^/[A-Za-z0-9._/-]+$ && "$ch" != */ && "$ch" != *..* ]] || { _sm_err "mount_home_scope: container home '$ch' is not an absolute plain path"; return 2; }
+  [[ -n "$rep" ]] || { _sm_err "mount_home_scope: no report path"; return 2; }
+  if [[ -e "$hr/.claude" || -L "$hr/.claude" ]]; then
+    [[ -d "$hr/.claude" && ! -L "$hr/.claude" && -z "$(ls -A "$hr/.claude")" ]] \
+      || { _sm_err "mount_home_scope: $hr/.claude already holds files"; return 2; }
+  fi
+  mkdir -p "$hr/.claude"
+  cp -a "$tree/.claude/." "$hr/.claude/" || { _sm_err "mount_home_scope: copying .claude/ failed"; return 2; }
+  out="$(_sm_home_py transform "$hr" "$ch" "$rep")" || rc=$?
+  if [[ $rc -ne 0 ]]; then
+    _sm_err "mount_home_scope: $(printf '%s\n' "$out" | sed -n 's/^refused: //p' | sed -n '1p')"
+    return 2
+  fi
+  local line
+  _sm_evidence mount "home-scope"
+  _sm_evidence framework_root "LOA_FRAMEWORK_ROOT=$ch"
+  while IFS= read -r line; do
+    [[ "$line" == *=* ]] && _sm_evidence "${line%%=*}" "${line#*=}"
+  done <<<"$out"
+  {
+    printf '@%s/.claude/loa/CLAUDE.loa.md\n' "$ch"
+    for f in "$hr"/.claude/rules/*.md; do
+      [[ -f "$f" ]] && printf '@%s/.claude/rules/%s\n' "$ch" "$(basename "$f")"
+    done
+  } > "$hr/.claude/CLAUDE.md"
+  out="$(_sm_home_py verify "$hr" "$tree" "$ch")" || { _sm_err "mount_home_scope: verify: $out"; return 2; }
+  _sm_evidence home_verify "$out"
+  _sm_evidence home_hook_counts "$(_sm_home_py hooks "$hr/.claude/settings.json")"
+  _sm_evidence home_mcp_servers ""
   return 0
 }
 

@@ -1,6 +1,0 @@
-# NOTES
-
-## Session Continuity
-
-- 2026-10-21 `/review-sprint sprint-1` (task review-r23): CHANGES_REQUIRED, 7 high / 8 medium / 4 low, feedback at `grimoires/loa/a2a/sprint-1/engineer-feedback.md`; dissent envelope `adversarial-review.json` (2 voices, consensus). Reproduced by execution: seeder staging collision (`seed_tasks.py:373`), `git apply` silent skip without `patch(1)` (`seed_tasks.py:229`), `ABS_WORD` false positive on `"$VAR"/dir` (`ablation-grade.sh:940`). Host notes: `/tmp` is noexec, `patch` absent, Python 3.11.2 lacks `tarfile.data_filter`, `TMPDIR` lies inside the repo.
-- 2026-10-21 `/audit-sprint sprint-1` (task review-r23): CHANGES_REQUIRED, 10 high / 10 medium / 7 low (excluded 0, excluded_confirmed 0), feedback at `grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md`; dissent envelope `adversarial-audit.json` (2 voices, consensus, 10 findings, 0 rejected). New highs beyond the review: forged test stdout passes `all_pass` (`ablation-grade.sh:653`), pytest node ids opened as host paths (`:576`), host executor runs agent code before transcripts/bundles are read (`:511`). Run with the review gate still CHANGES_REQUIRED (orchestration request); no COMPLETED marker. Working files: `grimoires/loa/a2a/audits/2026-10-21/`.

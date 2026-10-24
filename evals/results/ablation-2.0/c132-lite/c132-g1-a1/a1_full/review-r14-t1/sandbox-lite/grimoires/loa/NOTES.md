@@ -1,6 +1,0 @@
-# NOTES
-
-## Session Continuity
-
-- 2026-10-21 /review-sprint sprint-1 (task review-r14): CHANGES_REQUIRED, 1 HIGH (grader bare `:N` credits the LOA-VERDICT trailer, head/evals/graders/recall-vs-defects.sh:74), 4 MEDIUM, 5 LOW. Feedback: grimoires/loa/a2a/sprint-1/engineer-feedback.md; contract copy: review.md. Dissent envelope: a2a/sprint-1/adversarial-review.json (2/2 voices, nothing rejected). Head overlay for running the PR tests: path in /home/evaluser/.headrepo-path (noexec /tmp; pr/head files lack exec bits).
-- 2026-10-21 /audit-sprint sprint-1 (task review-r14): CHANGES_REQUIRED, 0/1/4/5 (excluded 0, excluded_confirmed 0); verdict-derive CONSISTENT. HIGH reproduced independently (head grader recall 1.0 vs base 0.5 with the trailer). Feedback: a2a/sprint-1/auditor-sprint-feedback.md; dissent envelope: a2a/sprint-1/adversarial-audit.json (primary gpt-5.5-pro clean via codex-headless, companion claude-headless 5 findings, 2/2 voices, 0 rejected; DISS-C-003 dismissed on vendor docs: `:*` ≡ trailing ` *`). Working file + findings.jsonl: a2a/audits/2026-10-21/. Phase 0 deviation: review was not "All good"; audit ran on operator instruction. known-failures.md absent (ICM surface degraded).

@@ -1,3 +1,15 @@
+/** cycle-133 C-2: the no-tool stance a dispatch route enforces (reported by adapters/tool-stance.ts). */
+export interface ToolStance {
+  /** The route: `claude-headless`, `codex-headless`, `anthropic-api`, `openai-api`, `google-api`, `bedrock-api`. */
+  adapter: string;
+  adapter_version: string;
+  /** `none`: no tool can execute under this dispatch; `native`: the CLI agent keeps native tools. */
+  tools: "none" | "native";
+  /** A dispatch-level restriction (true) or a posture (false). */
+  enforced: boolean;
+  mechanism: string;
+}
+
 export interface ReviewRequest {
   systemPrompt: string;
   userPrompt: string;
@@ -26,6 +38,13 @@ export interface ReviewResponse {
    * pipeline, PR-comment formatter) MUST handle absence gracefully.
    */
   verdictQuality?: VerdictQualityEnvelope;
+  /**
+   * cycle-133 C-2: the no-tool stance of the route this dispatch took, self-reported by the adapter; the writer-role
+   * check verifies it. Absent means "not reported" and is refused for the writer role.
+   */
+  toolStance?: ToolStance;
+  /** cycle-133 C-2: tool calls the provider returned (cheval's `tool_calls`); any is a refused writer dispatch. */
+  toolCallsAttempted?: number;
 }
 
 /** cycle-109 Sprint 2 — verdict_quality envelope structural type. The

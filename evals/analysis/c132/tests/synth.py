@@ -6,11 +6,18 @@ build(root, ...) writes
   root/rows.jsonl                                       (row-writer-1.5-shaped rows)
   root/REGISTRATION.json                                (groups, seed, constant, planned_final_se)
 and returns the paths.
+
+power_mini_diffs(out, seed=20261023) writes the power-mini head.diff fixtures (out/pr-9N/head.diff and the
+preimage out/pr-9N/base/x.sh) that tests/test_power.py reads; CLI:
+  python3 -I synth.py power-mini-diffs --seed 20261023 --out DIR
+(bd-qxwrm: generated at test time with correct hunk headers instead of committed blobs; exit 0 written, 2 usage).
 """
+import argparse
 import hashlib
 import json
 import os
 import random
+import sys
 
 ARMS = ("a1_full", "a0_bare_matched", "a0_bare_fable_matched", "a1_review_only")
 
@@ -94,3 +101,52 @@ def build(root, n_prs=8, trials=2, k=4, seed=1, p_full=0.75, p_session=0.30, gro
             f.write(json.dumps(r, sort_keys=True) + "\n")
     return {"rows": rows_path, "results": os.path.join(root, "results"), "registration": reg_path,
             "tasks": tasks, "reg_sha": reg_sha}
+
+
+POWER_MINI_SEED = 20261023
+POWER_MINI_PAIRS = {"pr-91": 30, "pr-92": 200, "pr-93": 750, "pr-94": 1500}   # removed/added line pairs per fixture
+
+
+def power_mini_diffs(out, seed=POWER_MINI_SEED, headers="correct"):
+    """the power-mini head.diff fixtures: one file x.sh, N pairs '-line 2i' / '+line 2i+1' (one hunk).
+    headers="correct" declares '@@ -1,N +1,N @@' (git apply accepts it against base/x.sh);
+    headers="legacy" writes the committed '@@ -1,1 +1,1 @@' so a test can prove byte-identity with the removed
+    blobs. The bodies are a fixed sequence; the seed is validated and recorded, not drawn from."""
+    if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
+        raise ValueError("seed must be a non-negative int")
+    if headers not in ("correct", "legacy"):
+        raise ValueError("headers must be correct or legacy")
+    paths = {}
+    for pr, n in sorted(POWER_MINI_PAIRS.items()):
+        d = os.path.join(out, pr)
+        os.makedirs(os.path.join(d, "base"), exist_ok=True)
+        hunk = "@@ -1,1 +1,1 @@" if headers == "legacy" else "@@ -1,%d +1,%d @@" % (n, n)
+        body = "".join("-line %d\n+line %d\n" % (2 * i, 2 * i + 1) for i in range(n))
+        with open(os.path.join(d, "head.diff"), "w", encoding="utf-8", newline="\n") as f:
+            f.write("diff --git a/x.sh b/x.sh\n--- a/x.sh\n+++ b/x.sh\n%s\n%s" % (hunk, body))
+        with open(os.path.join(d, "base", "x.sh"), "w", encoding="utf-8", newline="\n") as f:
+            f.write("".join("line %d\n" % (2 * i) for i in range(n)))
+        paths[pr] = os.path.join(d, "head.diff")
+    return paths
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(prog="synth.py")
+    sub = ap.add_subparsers(dest="cmd")
+    pm = sub.add_parser("power-mini-diffs")
+    pm.add_argument("--seed", type=int, required=True)
+    pm.add_argument("--out", required=True)
+    pm.add_argument("--headers", choices=("correct", "legacy"), default="correct")
+    try:
+        a = ap.parse_args(sys.argv[1:] if argv is None else argv)
+    except SystemExit as e:
+        return 2 if e.code else 0
+    if a.cmd != "power-mini-diffs" or a.seed < 0:
+        ap.print_usage(sys.stderr)
+        return 2
+    power_mini_diffs(a.out, seed=a.seed, headers=a.headers)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

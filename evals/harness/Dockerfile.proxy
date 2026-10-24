@@ -1,0 +1,154 @@
+# Dockerfile.proxy — the egress proxy sidecar of an ablation batch (cycle-133 FR-9; SDD C-9, D-2.4 DEC-0847,
+# D-2.5 DEC-0854). tinyproxy 1.11 on Debian bookworm, plus netfilter rules in the proxy's own network namespace.
+#
+# Threat model: the block denies repository and arbitrary-destination egress from the sandbox. Exfiltration
+# through an allowlisted model API is out of scope (the grader's class-9 tripwire stays the second line).
+#
+# Two layers, both fail closed:
+#   1. tinyproxy: FilterDefaultDeny Yes over an exact-hostname allowlist (FilterType fnmatch; no pattern
+#      characters are ever written to it, lib/egress-proxy.sh validates every host), CONNECT only to port 443.
+#      An IP literal, another hostname, another port or an alternate spelling of a host is refused (403).
+#   2. netfilter OUTPUT (iptables and ip6tables, default DROP): the proxy itself may only open TCP 443 to a
+#      public IPv4 address, plus Docker's embedded resolver (127.0.0.11). Every private, loopback,
+#      link-local (metadata 169.254.169.254), CGNAT, benchmark, multicast and reserved range is rejected,
+#      so an allowlisted name that resolves (or rebinds) to such an address fails at connect time, after
+#      resolution, and the host gateway of either network is unreachable from the proxy (the sandbox's own
+#      route to it is closed by the guard, below). Plain HTTP (port 80) never leaves.
+#      Redirects: the proxy never follows one; the client's next request is a new CONNECT, validated again.
+#
+# The guard (cycle-133 KF-058): the sandbox never joins the internal network itself. Each sandbox container
+# runs in the network namespace of its own guard (`docker run --network container:<guard>`), a container of
+# this image started with `--entrypoint /usr/local/bin/loa-egress-guard` on loa-egress-<batch>. An --internal
+# network has no route out, but the host's own address on it (the gateway) still answers; the guard closes
+# that in the sandbox's namespace: netfilter OUTPUT (iptables and ip6tables, default DROP) allows loopback,
+# replies, and TCP to the sidecar's address on port 8888 only, everything else (either network's gateway on
+# every port, other containers, the metadata address, IPv6) is rejected locally with admin-prohibited (the
+# sandbox sees EHOSTUNREACH, never the host); INPUT allows loopback and replies only. The sandbox has no
+# NET_ADMIN in that namespace, so it cannot change the rules; the guard drops to nobody after installing them
+# and sleeps (the namespace lives while it does). It keeps its own address on the internal network, so the
+# sidecar's log still attributes every request to one sandbox.
+#   LOA_EGRESS_PROXY       the sidecar's container name (loa-proxy-<batch>), resolved once on the internal network
+#
+# Configuration comes from the environment only (no mount; the container runs --read-only):
+#   LOA_EGRESS_ALLOWLIST   space-separated hostnames (required, non-empty: an empty list refuses to start)
+#   LOA_EGRESS_TEST_ALLOW  space-separated IPv4 addresses allowed on TCP 443 before the private-range
+#                          rules (bats only: lib/egress-proxy.sh passes it only under LOA_EGRESS_TEST_MODE=1
+#                          inside bats, for the local stub endpoint on a Docker network)
+# The entrypoint runs as root with NET_ADMIN to install the rules (a failure exits: no proxy, no egress),
+# then tinyproxy drops to the tinyproxy user (no capabilities left). Logs go to stderr (`docker logs`):
+# lib/egress-proxy.sh parses the Connect / Request / refusal lines into denials attributed by source address.
+#
+# Build (no build context; nothing is COPY'd):
+#   docker build -t loa-egress-proxy:259 - < evals/harness/Dockerfile.proxy
+# Run (lib/egress-proxy.sh up does this):
+#   docker run -d --name loa-proxy-<batch> --network loa-egress-<batch>-ext --read-only --tmpfs /tmp:rw,size=8m
+#     --cap-drop ALL --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID --pids-limit 128 --memory 256m
+#     -e LOA_EGRESS_ALLOWLIST="…" loa-egress-proxy:259
+#   docker network connect loa-egress-<batch> loa-proxy-<batch>
+# A guard (lib/egress-proxy.sh guard does this):
+#   docker run -d --name <guard> --network loa-egress-<batch> --dns 0.0.0.1 --read-only --cap-drop ALL
+#     --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID --security-opt no-new-privileges
+#     -e LOA_EGRESS_PROXY=loa-proxy-<batch> --entrypoint /usr/local/bin/loa-egress-guard loa-egress-proxy:259
+#
+# Digest pinned 2026-10-24: docker image inspect debian:bookworm-slim --format '{{index .RepoDigests 0}}'
+
+FROM debian:bookworm-slim@sha256:7ff6ba31527b9e336162fa061746c366c4b2032f4d2cff2078bea43f78efe3f8
+
+ARG TINYPROXY_VERSION=1.11.1-2.1+deb12u1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      "tinyproxy=${TINYPROXY_VERSION}" iptables ca-certificates \
+    && apt-get clean && find /var/lib/apt/lists -mindepth 1 -delete
+
+RUN cat > /usr/local/bin/loa-egress-entrypoint <<'ENTRY'
+#!/bin/sh
+# loa-egress-entrypoint — netfilter first, then tinyproxy (see Dockerfile.proxy)
+set -eu
+export LC_ALL=C
+allow="${LOA_EGRESS_ALLOWLIST:-}"
+[ -n "$(printf '%s' "$allow" | tr -d ' ')" ] || { echo "loa-egress: refused: LOA_EGRESS_ALLOWLIST is empty" >&2; exit 2; }
+for h in $allow; do
+  case "$h" in *.*) ;; *) echo "loa-egress: refused: allowlist entry '$h' has one label" >&2; exit 2 ;; esac
+  case "$h" in *[!a-z0-9.-]*|.*|*.|*..*) echo "loa-egress: refused: allowlist entry '$h' is not a lower-case hostname" >&2; exit 2 ;; esac
+  case "${h##*.}" in *[a-z]*) ;; *) echo "loa-egress: refused: allowlist entry '$h' is an IP literal" >&2; exit 2 ;; esac
+done
+iptables -F OUTPUT
+iptables -P OUTPUT DROP
+iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A OUTPUT -d 127.0.0.11/32 -j ACCEPT
+for a in ${LOA_EGRESS_TEST_ALLOW:-}; do iptables -A OUTPUT -d "$a/32" -p tcp --dport 443 -j ACCEPT; done
+for n in 0.0.0.0/8 10.0.0.0/8 100.64.0.0/10 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.0.0.0/24 \
+         192.0.2.0/24 192.88.99.0/24 192.168.0.0/16 198.18.0.0/15 198.51.100.0/24 203.0.113.0/24 \
+         224.0.0.0/4 240.0.0.0/4; do
+  iptables -A OUTPUT -d "$n" -j REJECT
+done
+iptables -A OUTPUT -p tcp --dport 443 -j ACCEPT
+iptables -A OUTPUT -j REJECT
+ip6tables -F OUTPUT
+ip6tables -P OUTPUT DROP
+ip6tables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+ip6tables -A OUTPUT -j REJECT
+mkdir -p /tmp/loa-egress
+: > /tmp/loa-egress/allowlist
+for h in $allow; do printf '%s\n' "$h" >> /tmp/loa-egress/allowlist; done
+cat > /tmp/loa-egress/tinyproxy.conf <<CONF
+User tinyproxy
+Group tinyproxy
+Port 8888
+Listen 0.0.0.0
+Timeout 120
+LogLevel Info
+MaxClients 200
+ConnectPort 443
+Filter "/tmp/loa-egress/allowlist"
+FilterType fnmatch
+FilterDefaultDeny Yes
+DisableViaHeader Yes
+CONF
+chmod 0755 /tmp/loa-egress; chmod 0644 /tmp/loa-egress/allowlist /tmp/loa-egress/tinyproxy.conf
+echo "loa-egress: netfilter installed; allowlist $(wc -l < /tmp/loa-egress/allowlist) host(s); tinyproxy $(tinyproxy -v | awk '{print $2}')" >&2
+exec tinyproxy -d -c /tmp/loa-egress/tinyproxy.conf
+ENTRY
+RUN cat > /usr/local/bin/loa-egress-guard <<'GUARD'
+#!/bin/sh
+# loa-egress-guard — the network namespace a sandbox joins: the sidecar's port 8888 only (see Dockerfile.proxy)
+set -eu
+export LC_ALL=C
+proxy="${LOA_EGRESS_PROXY:-}"
+case "$proxy" in
+  loa-proxy-*) case "$proxy" in *[!A-Za-z0-9._-]*) echo "loa-egress-guard: refused: LOA_EGRESS_PROXY '$proxy' has unexpected characters" >&2; exit 2 ;; esac ;;
+  *) echo "loa-egress-guard: refused: LOA_EGRESS_PROXY must name loa-proxy-<batch>" >&2; exit 2 ;;
+esac
+addr="" i=0
+while [ "$i" -lt 50 ]; do
+  addr="$(getent ahostsv4 "$proxy" 2>/dev/null | awk 'NR == 1 {print $1}')" || addr=""
+  [ -n "$addr" ] && break
+  sleep 0.2; i=$((i + 1))
+done
+case "$addr" in ''|*[!0-9.]*) echo "loa-egress-guard: refused: $proxy does not resolve to an IPv4 address on this network" >&2; exit 2 ;; esac
+iptables -F OUTPUT
+iptables -F INPUT
+iptables -P OUTPUT DROP
+iptables -A OUTPUT -o lo -j ACCEPT
+iptables -A OUTPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A OUTPUT -d "$addr/32" -p tcp --dport 8888 -j ACCEPT
+iptables -A OUTPUT -j REJECT --reject-with icmp-admin-prohibited
+iptables -P INPUT DROP
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+ip6tables -F OUTPUT
+ip6tables -F INPUT
+ip6tables -P OUTPUT DROP
+ip6tables -A OUTPUT -o lo -j ACCEPT
+ip6tables -A OUTPUT -j REJECT --reject-with icmp6-adm-prohibited
+ip6tables -P INPUT DROP
+ip6tables -A INPUT -i lo -j ACCEPT
+echo "loa-egress-guard: installed; the namespace reaches $proxy $addr:8888 only" >&2
+exec setpriv --reuid=65534 --regid=65534 --clear-groups --inh-caps=-all sleep infinity
+GUARD
+RUN chmod 0755 /usr/local/bin/loa-egress-entrypoint /usr/local/bin/loa-egress-guard && tinyproxy -v && iptables --version \
+    && command -v setpriv getent
+
+LABEL org.loa.component="egress-proxy" org.loa.tinyproxy="${TINYPROXY_VERSION}" org.loa.egress.guard="1"
+EXPOSE 8888
+ENTRYPOINT ["/usr/local/bin/loa-egress-entrypoint"]

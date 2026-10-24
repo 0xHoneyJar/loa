@@ -1,9 +1,0 @@
-head/.claude/scripts/lib/dec-write-lib.sh:359
-head/.claude/scripts/lib/dec-write-lib.sh:513
-head/.claude/scripts/lib/dec-write-lib.sh:601
-validate-artifact.sh:681
-head/.claude/scripts/validate-artifact.sh:653
-head/.claude/scripts/lib/dec-write-lib.sh:694
-head/.claude/scripts/validate-artifact.sh:852
-head/.loa.config.yaml.example:140
-head/.claude/skills/run-mode/resources/render-templates.md:106

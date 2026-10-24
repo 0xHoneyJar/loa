@@ -159,6 +159,8 @@ export interface TrustedView {
     providers: unknown;
     locality: unknown;
     exit: unknown;
+    /** cycle-133 C-2: `bridgebuilder.writer_role_allowlist`. */
+    writer?: unknown;
     /** `hounfour.aliases` (audit a257-1: resolves fallback aliases; compared for head drift). */
     aliases?: unknown;
     /** `hounfour.secret_env_allowlist` — the list cheval's loader reads (compared for head drift). */
@@ -286,6 +288,14 @@ export declare function singleModelLocalityRefusal(model: string, trusted: Trust
  * per review.
  */
 export declare function agyGateStartupLines(gate: AgyGate, keyStatus: ReturnType<typeof validateApiKeys>): string[];
+/**
+ * cycle-133 C-1 (FR-1): exclude patterns every review applies before any patch is retained (prepended to
+ * `bridgebuilder.exclude_patterns` and `--exclude`). Frozen review-PR fixtures and ablation grade trees are data, not
+ * code under review; they made PR #1289's payload unreadable (KF-054). They apply under self-review too.
+ */
+export declare const DEFAULT_EXCLUDE_PATTERNS: readonly string[];
+/** cycle-133 C-1: bounds for `bridgebuilder.gh_max_buffer_bytes` (default 64 MiB; 1 MiB … 512 MiB). */
+export declare const GH_MAX_BUFFER_BYTES_DEFAULT: number;
 export interface CLIArgs {
     dryRun?: boolean;
     repos?: string[];
@@ -321,6 +331,8 @@ export interface YamlConfig {
     review_mode?: "two-pass" | "single-pass";
     ecosystem_context_path?: string;
     pass1_cache_enabled?: boolean;
+    /** cycle-133 C-1: per-call `gh` stdout buffer in bytes. */
+    gh_max_buffer_bytes?: number;
 }
 export interface EnvVars {
     BRIDGEBUILDER_REPOS?: string;
@@ -357,6 +369,11 @@ export declare function resolveConfig(cliArgs: CLIArgs, env: EnvVars, yamlConfig
     config: BridgebuilderConfig;
     provenance: ConfigProvenance;
 }>;
+/**
+ * cycle-133 C-1: `bridgebuilder.gh_max_buffer_bytes` — an integer in 1 MiB … 512 MiB, else the default with a warning
+ * (a configured buffer bounds memory per call; it is never unbounded).
+ */
+export declare function resolveGhMaxBufferBytes(raw: number | undefined): number;
 /**
  * Validate --pr flag: requires exactly one repo (IMP-008).
  */

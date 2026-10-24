@@ -1,0 +1,16 @@
+7cd525c912089aec5ff74d725dfb1d3869a5436dd71f201a88a5c9bbc61533e0  ./.claude/CLAUDE.md
+a887ac9263862b7a35018ef85f47914e1a405ffa1625f605bd27237602382994  ./.claude/agents/pagent.md
+8d7231f937123f5d8bdfdd26e708ae2fe5bcb666f40677f605f13169438d2a07  ./.claude/commands/pcmd.md
+9857cb89b297f8993c36b7cd3b02b595e1574e965429a3392786c572239894f8  ./.claude/imported.md
+8022df393c8e88a493715c6493fc46fda60fb4e5c41d919e252966074b3f8d9f  ./.claude/output-styles/spikestyle.md
+7a28766d71cc4e1bf20819cd3791d698f8631534822a4af8396392b29d3d1b4e  ./.claude/plugins/pplugin/hooks/hooks.json
+bb20e36518441ed7efc4a0941a29cf2d6cb000f2159ae830721d83cbeae99844  ./.claude/plugins/pplugin/plugin.json
+3065fd9c68fffd1711ba7978499f39bb3ca229f6f6dbba9dbcbf9b768fcba754  ./.claude/rules/spike.md
+f22162e98d9aa64b15a6b1bbae652eee4ab8ff46c1202595f8fa5e17e30c4031  ./.claude/scripts/spike.sh
+35839bc7b20d066acc9a38217aedfbc2ec1bc1ca32352e0954f87d916f48ad9f  ./.claude/settings.json
+d3ba6e9c1af6512c11723f93dcb221d6854043edb3116cfad2b3e0c5f64f6235  ./.claude/settings.local.json
+60b40f91d30b0b4f50e81a1549d646ff0255c75fd7e51959cb6f6fc1e87ad0be  ./.claude/skills/pskill/SKILL.md
+b56bdb0f3c65791acc2e52d207e7f36a851f3b39186ee8ba6de8e069ee77dfc6  ./.mcp.json
+4f274b55dac2c257144dd395938f96f5bfb60c0b4afdd4cafa12ef777b6ec8cb  ./CLAUDE.local.md
+ef5b452517b93cdfcc6f0057651d9b70dd6a78c012a011221db833704276d6e8  ./CLAUDE.md
+6669e500b48a287e458a88de68b42e6d2f1679eed61e0ebe95cc972e25c00233  ./README.md

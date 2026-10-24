@@ -1,0 +1,5 @@
+sweep-apply: closed-implemented 166
+sweep-apply: closed-obsolete 9
+sweep-apply: kept 147
+sweep-apply: pulled-in 7
+sweep-apply: VALID — 329 rows over 9 manifest(s) form a complete partition of the frozen inventory (sha256 667765512a5c)

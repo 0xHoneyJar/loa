@@ -1,0 +1,20 @@
+{
+  "description": "eleven tokens without the when … then … shape",
+  "expect": {
+    "errors": [
+      "failure_scenario"
+    ],
+    "finding": null,
+    "valid": false,
+    "warnings": []
+  },
+  "finding": {
+    "anchor_line": 1,
+    "confidence": "medium",
+    "failure_scenario": "the parser drops the last record of every file it reads",
+    "file": "a.py",
+    "severity": "MEDIUM",
+    "title": "x"
+  },
+  "markdown": "- **MEDIUM** (confidence: medium) `a.py:1` — x. Failure: the parser drops the last record of every file it reads."
+}

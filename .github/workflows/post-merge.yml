@@ -168,6 +168,7 @@ jobs:
           path: |
             .run/post-merge-candidate.json
             .run/post-merge-candidate.patch
+            .run/post-merge-ledger.patch
             .run/post-merge-candidate.bundle
             .run/post-merge-candidate.sha256
             .run/post-merge-state.json
@@ -238,6 +239,7 @@ jobs:
           path: |
             .run/post-merge-candidate.json
             .run/post-merge-candidate.patch
+            .run/post-merge-ledger.patch
             .run/post-merge-candidate.bundle
             .run/post-merge-candidate.sha256
             .run/post-merge-state.json

@@ -1,2 +1,0 @@
-2026-10-21T10:57:26Z run-ablation: c132-smoke2-a1_full-review-r15-t1 attempt 1 run_dir /home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-smoke2/a1_full/review-r15-t1
-pipeline-run.sh: infrastructure_error: refused: mount_cheval_broken: ImportError: cannot import name 'EFFORT_LEVELS' from 'loa_cheval.types' (/home/merlin/Documents/thj/code/loa/evals/results/ablation-2.0/c132-smoke2/a1_full/review-r15-t1/sandbox/.claude/adapters/loa_c (a dissent-enabled arm on a mount whose cheval does not import; KF-050)

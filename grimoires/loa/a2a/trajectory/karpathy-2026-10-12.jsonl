@@ -1,2 +1,0 @@
-{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"2026-10-12T03:27:44Z","files_modified":1449,"lines_total":129478,"threshold":100,"verdict":"warn","tool_call_count":2782,"session_id":"merlin-20261012"}
-{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"2026-10-12T03:27:56Z","files_modified":1450,"lines_total":129495,"threshold":100,"verdict":"warn","tool_call_count":2783,"session_id":"merlin-20261012"}
