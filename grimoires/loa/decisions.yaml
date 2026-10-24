@@ -29668,3 +29668,39 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0886"
+    created_at: "2026-10-24T01:56:48Z"
+    updated_at: "2026-10-24T01:56:48Z"
+    phase: "review"
+    category: "implementation"
+    summary: "Sprint 272 round 1 → s1-d2: quarantine date = UTC committer date ±1 day; shallow boundary ≤ today+31; missing bead = br exit 3 + ISSUE_NOT_FOUND only"
+    decision: "tools/check-quarantine-expiry.sh dates a row by the committer-time of the commit that last wrote it (author dates survive rebase, cherry-pick and GitHub's squash and ignore the author's timezone), accepts expiry in [qday+30, qday+31], and under a shallow clone compares against TODAY+31 (the boundary commit's date says nothing about the row; +31 so a same-day row the exact rule accepts is not refused by a depth-1 checkout); a bead counts as missing only when br exits 3 AND its stderr parses as JSON with .error.code == \"ISSUE_NOT_FOUND\" — no .beads/ workspace, a missing br, NOT_INITIALIZED or any other failure is unverified (exit 3, a CI warning); br runs with </dev/null and stdout/stderr separated; --json may return an object or an array; rows are split on \\x1f so empty fields survive; a TAP file without test lines fails the totals step (exit 2); the CI gate step names rows-invalid-or-expired (exit 1) separately from a usage/setup failure."
+    rationale: "The cross-model dissent (DISS-001, DISS-C-001…C-005, C-007) showed a validator that would fail CI falsely on a valid row (a 'not found' text match, a rebased or non-UTC author date) and print zeros on an aborted TAP; a quarantine mechanism that cannot be used the first time it is needed is worse than none; every change has a red-then-green QX case (QX-17 … QX-27)."
+    alternatives_considered:
+      - option: "match the message text 'Issue not found'"
+        rejected_because: "localisable prose and exactly the substring class DISS-001 flagged"
+      - option: "keep the author date and add a timezone correction"
+        rejected_because: "author dates still survive rebase/cherry-pick/squash; the committer date is what GitHub and git reset consistently"
+      - option: "shallow bound today + 30"
+        rejected_because: "a same-day row with the tolerance day (+31) that the exact rule accepts would fail a depth-1 CI checkout"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "5d936f4c"
+    source: "grimoires/loa/a2a/sprint-272/engineer-feedback.md § Required changes (round 1); reviewer-d.md § Follow-up d2 (Judgment calls)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T01:56:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 5d936f4cf (tools/check-quarantine-expiry.sh, tests/unit/quarantine-expiry.bats QX-17…QX-27, .github/workflows/bats-tests.yml gate step); sdd.md C-5 aligned"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
