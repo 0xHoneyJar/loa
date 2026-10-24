@@ -17,6 +17,7 @@
 #                   [--pre-registration-ref TEXT] [--seed N] [--self-check-log F]
 #                   [--registration F] [--spend-since TS] [--batch-context ID]
 #                   [--smoke] [--dry-run] [--resume] [--detach] [--allow-partial] [--clear-arm ID]...
+#                   [--supervised [--max-retries N]]
 #                   [--clear-drift] [--rerow RUN_ID]... [--rerun RUN_ID]... [--rerun-status S]...
 #                   [--pipeline-bin P] [--grade-bin G] [--row-bin R] [--took-effect-bin T]
 #                   [--docker-bin D] [--spend-bin S]
@@ -91,6 +92,16 @@
 #                        resume of a batch that started without it is a usage error (exit 2)
 #   --detach             re-exec under setsid nohup (log <batch>/driver.log), print the batch
 #                        directory and the pid, exit 0
+#   --supervised         (cycle-133 C-9, FR-9) hand the batch to lib/batch-supervisor.sh launch: refused (exit 2,
+#                        nothing written) unless the user lingers (`loginctl enable-linger`); the batch runs under
+#                        systemd-run --user --unit loa-batch-<name> --collect, else a setsid loop, holding flock
+#                        <batch>/supervisor.lock; a dead or hung (30 min without a batch file update) runner is
+#                        resumed with --resume after its process groups and loa-abl-<batch>-* containers are
+#                        stopped, for the retryable classes only. The launch arguments go to MANIFEST.json
+#                        supervisor {runner, args, max_retries, batch}; STATUS.json supervisor is the supervisor's
+#                        record (write_status keeps it). Prints the supervisor line, exit 0. Exclusive with
+#                        --detach and --dry-run. After a reboot: lib/batch-supervisor.sh restore <batch-dir>
+#   --max-retries N      with --supervised: resumes per supervision, 0-9 (default 3)
 #   --clear-arm ID       with --resume: remove ID from STATUS.json paused_arms (repeatable)
 #   --clear-drift        with --resume: re-read the run named by STATUS.json drift (its run dir
 #                        <batch>/<arm>/<task>-t<n>, or the highest -r<k> sibling) with the
@@ -400,7 +411,7 @@ SUITE_ROOT="$REPO_ROOT/grimoires/loa/evals/ablation-2.0"
 SUITE_FILE="$REPO_ROOT/evals/suites/ablation-2.0.yaml"
 IMAGE="loa-ablation:258" EXECUTOR="container" PRE_REG_REF="" SEED=20261015
 SELF_CHECK_LOG="$REPO_ROOT/grimoires/loa/a2a/sprint-259/self-check-image.log"
-SMOKE=false DRY_RUN=false RESUME=false DETACH=false ALLOW_PARTIAL=false
+SMOKE=false DRY_RUN=false RESUME=false DETACH=false ALLOW_PARTIAL=false SUPERVISED=false MAX_RETRIES=""
 CLEAR_ARMS=() REROW_IDS=() CLEAR_DRIFT=false RERUN_IDS=() RERUN_STATUSES=()
 PIPELINE_BIN="$SCRIPT_DIR/pipeline-run.sh" GRADE_BIN="$SCRIPT_DIR/ablation-grade.sh"
 ROW_BIN="$SCRIPT_DIR/ablation-row.sh" TOOK_BIN="$SCRIPT_DIR/took-effect.sh"
@@ -447,6 +458,8 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=true; shift ;;
     --resume) RESUME=true; shift ;;
     --detach) DETACH=true; shift ;;
+    --supervised) SUPERVISED=true; shift ;;
+    --max-retries) MAX_RETRIES="${2:-}"; shift 2 ;;
     --allow-partial) ALLOW_PARTIAL=true; shift ;;
     --clear-arm) CLEAR_ARMS+=("${2:-}"); shift 2 ;;
     --clear-drift) CLEAR_DRIFT=true; shift ;;
@@ -519,6 +532,9 @@ if command -v timeout >/dev/null 2>&1; then
   TMO_ON=true
 fi
 [[ "$RESUME" != true || "$DRY_RUN" != true ]] || die "--resume and --dry-run are exclusive"
+[[ -z "$MAX_RETRIES" || "$SUPERVISED" == true ]] || die "--max-retries needs --supervised"   # cycle-133 C-9
+[[ -z "$MAX_RETRIES" || "$MAX_RETRIES" =~ ^[0-9]$ ]] || die "--max-retries must be 0-9"
+[[ "$SUPERVISED" != true || ( "$DETACH" != true && "$DRY_RUN" != true ) ]] || die "--supervised is exclusive with --detach and --dry-run (the supervisor daemonises the batch)"
 [[ "$RESUME" == true || -n "$SOURCE_COMMIT" ]] || die "--source-commit is required"
 
 if [[ -z "$BATCH" ]]; then
@@ -772,6 +788,23 @@ refusal_collect() {  # refusal_collect <jid> — the queued first-attempt spend 
   SPENT="$(fadd "$SPENT" "$u")"; LEDGER_USD="$(fadd "$LEDGER_USD" "$u")"
   log "refusal_policy rerun-once: the refused first attempt's USD $u charged to spent"
 }
+
+# --- cycle-133 C-9 (FR-9, bd-yvjew, KF-052): --supervised [--max-retries N] ---------------------------------------------
+# After every argument and arm check, before any write: the launch is handed to lib/batch-supervisor.sh (its header holds
+# the contract), with this invocation's arguments minus --supervised/--max-retries and with --batch named, so a resume
+# and a reboot restore find the batch. The supervisor re-runs this script without --supervised; the arguments it
+# persists in <batch>/supervisor/args.json are copied into MANIFEST.json supervisor by write_manifest.
+if [[ "$SUPERVISED" == true ]]; then   # (the --supervised usage checks sit with the argument validation)
+  sup_child=() sup_skip=false sup_has_batch=false
+  for a in "${SELF_ARGS[@]}"; do
+    if [[ "$sup_skip" == true ]]; then sup_skip=false; continue; fi
+    case "$a" in --supervised) continue ;; --max-retries) sup_skip=true; continue ;; --batch) sup_has_batch=true ;; esac
+    sup_child+=("$a")
+  done
+  [[ "$sup_has_batch" == true ]] || sup_child+=(--batch "$BATCH")
+  exec "$SCRIPT_DIR/lib/batch-supervisor.sh" launch "$BATCH_DIR" --runner "$SCRIPT_DIR/run-ablation.sh" \
+    --max-retries "${MAX_RETRIES:-3}" -- "${sup_child[@]}"
+fi
 
 ALL_TASKS=()
 while IFS= read -r d; do ALL_TASKS+=("$d"); done < <(cd "$TDIR" && for d in */; do d="${d%/}"; [[ -f "$d/task.yaml" ]] && printf '%s\n' "$d"; done | LC_ALL=C sort)
@@ -1222,6 +1255,11 @@ PLAN_LINE="plan: ${#ARMS[@]} arms, $N_TASKS tasks, $PLAN_N trials$PLAN_UNITS, sh
 
 write_manifest() {  # write_manifest <path> <dry_run>
   local out="$1" dry="$2" harness_commit harness_dirty=false
+  # cycle-133 C-9: a supervised launch's persisted arguments (lib/batch-supervisor.sh), else null
+  SUP_ARGS_JSON=null
+  if [[ "$dry" == false && -f "$BATCH_DIR/supervisor/args.json" ]]; then
+    SUP_ARGS_JSON="$(jq -c '.' "$BATCH_DIR/supervisor/args.json")" || die "unreadable $BATCH_DIR/supervisor/args.json"
+  fi
   harness_commit="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)"
   [[ -n "$(git -C "$REPO_ROOT" status --porcelain -- evals/harness evals/suites grimoires/loa/evals/ablation-2.0 2>/dev/null)" ]] && harness_dirty=true
   mkdir -p "$(dirname "$out")"
@@ -1243,7 +1281,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
     --arg jq_v "$(jq --version 2>/dev/null)" --arg yq_v "$(yq --version 2>/dev/null)" \
     --arg py_v "$(python3 --version 2>/dev/null)" --arg git_v "$(git --version 2>/dev/null)" \
     --arg bctx "$BATCH_CONTEXT" --arg reg_sha "$REG_SHA" --arg reg_path "$REGISTRATION" --argjson reg "$REG_JSON" \
-    --argjson sgate "$SPEND_GATE_JSON" --arg reserve "$RESERVE_CAP" '
+    --argjson sgate "$SPEND_GATE_JSON" --arg reserve "$RESERVE_CAP" --argjson sup "$SUP_ARGS_JSON" '
     $plan_f[0] as $p | $suite_f[0] as $s | $gate_f[0] as $g
     | {schema_version: 1, suite: ($s.name // "ablation-2.0"), batch: $batch, dry_run: $dry, smoke: $smoke, created: $created,
        source_commit: $src, source_worktree: $tree, source_commit_dot_claude_delta: $delta,
@@ -1276,7 +1314,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
        registration_sha256: (if $reg_sha == "" then null else $reg_sha end),
        registration_path: (if $reg_sha == "" then null else $reg_path end),
        preregistration_sha256: (($reg // {}).preregistration_sha256 // null),
-       registration: $reg, spend_gate: $sgate,
+       registration: $reg, spend_gate: $sgate, supervisor: $sup,
        environment: {os: $os, bash: $bash_v, jq: $jq_v, yq: $yq_v, python: $py_v, git: $git_v}}' > "$out.tmp"
   mv "$out.tmp" "$out"
 }
@@ -1384,6 +1422,7 @@ LOG="$BATCH_DIR/run.log"
 if [[ "$SMOKE" != true && ! -f "$BATCH_DIR/.gitignore" ]]; then
   printf '%s\n' "# run-ablation.sh: run directories, logs and job state stay out of git;" \
     "# MANIFEST.json, STATUS.json and spend.txt are the batch record" "/*/" "/run.log" "/driver.log" "/.lock/" "/.jobs/" \
+    "/supervisor.lock" "/STATUS.json.lock" \
     > "$BATCH_DIR/.gitignore"
 fi
 [[ "$RESUME" == true ]] || write_manifest "$MAN_PATH" false
@@ -1466,7 +1505,17 @@ write_status() {
                      | map({key: .[0].key, value: {runs: length, output_tokens: (map(.value) | add)}}) | from_entries),
       extra_models_by_run: $ebr, rows_invalid: $invalid, signalled: $signalled,
       source_commit: $src, rows_file: $rows, started: $started, finished: $finished}' > "$BATCH_DIR/STATUS.json.tmp"
-  mv "$BATCH_DIR/STATUS.json.tmp" "$BATCH_DIR/STATUS.json"
+  # cycle-133 C-9: the supervisor's entry (lib/batch-supervisor.sh) is kept, read and replaced under its status lock
+  {
+    command -v flock >/dev/null 2>&1 && flock -x 8
+    local sup=null
+    if [[ -f "$BATCH_DIR/STATUS.json" ]]; then sup="$(jq -c '.supervisor // null' "$BATCH_DIR/STATUS.json")" || sup=null; fi
+    if [[ "$sup" != null ]]; then
+      jq --argjson s "$sup" '.supervisor = $s' "$BATCH_DIR/STATUS.json.tmp" > "$BATCH_DIR/STATUS.json.tmp2" \
+        && mv "$BATCH_DIR/STATUS.json.tmp2" "$BATCH_DIR/STATUS.json.tmp"
+    fi
+    mv "$BATCH_DIR/STATUS.json.tmp" "$BATCH_DIR/STATUS.json"
+  } 8>>"$BATCH_DIR/STATUS.json.lock"
 }
 
 cleanup() {
