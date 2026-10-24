@@ -10,6 +10,8 @@ eda802f3c8c5ebc2762eb11394be0dab7a197e96cda65490054f16c12078c267  smoke/smoke-bu
 e306833836ae33c5988e0a9ecbda47b8940e12a9a23ccf779c498c3fc41885c5  smoke/smoke-review-01/task.yaml
 8220616952f4dee63b91ef0c61d4a6f88223f50d8d0e492406a8bd13088438f9  smoke/smoke-review-c133/TASK.md
 a52acb0d4083594884b095d4d8f1ed09199606f13151d81cc41d2220c953718d  smoke/smoke-review-c133/task.yaml
+682b24011ee8473eb45ceca0bc62ffc588435f2f938a0d45dc43b24914eb0763  smoke/smoke-review-c133b/TASK.md
+bd500cde868c6117eeb0c1219da1ada4f3c58d4a1fb9fffdb50d2146df57490b  smoke/smoke-review-c133b/task.yaml
 6e937022aeabfc52f109a867971d21c37decb30b3180c3b40f920db88c7dd6e8  tasks/bugfix-v2-02/REVIEW.md
 97b20e477d3397c7774f2202efbfcd6dafbbd4579ceab1c77c6308d685928db3  tasks/bugfix-v2-02/TASK.md
 7f895a7b46be13de6dc50a31dda05301bd303954e2a1d0d723c8f63ed8a074b8  tasks/bugfix-v2-02/fixture/src/kvconf/__init__.py
