@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-24T14:29:47Z",
+  "generated": "2026-10-24T14:52:26Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -988,9 +988,9 @@
     ".claude/scripts/beads/loa-prime.sh": "029b25d320132f56b81ff31021a1a9973efc27d2c91e4fe046e66f6fde80c989",
     ".claude/scripts/beads/log-discovered-issue.sh": "47f74460dd192a6dbef3e08cfacea762dc1af94ea0130bb0baa5843992dd2ae3",
     ".claude/scripts/beads/migrate-to-br.sh": "6ad22d737472a2d92b190aca325ca126f8f98dbb385df1b48f2c2b2685b27920",
-    ".claude/scripts/beads/sweep-apply.sh": "bb4564fe5de8b8604fa78703ef7c438659357534329064d999ebb5a855a2fe61",
-    ".claude/scripts/beads/sweep-inventory.sh": "f39d4153776563d13fc86f1e7c46ccf4450044e43c736b313d89fac410e60dfc",
-    ".claude/scripts/beads/sweep-sample.sh": "f7a89ebd4ab0c177ccf5ea78feaac99019e91481ec526c6760b12bf2360545ee",
+    ".claude/scripts/beads/sweep-apply.sh": "42929a534f16452647237b9a7f0a2c3547cee09736dc7ccd0d27ad0df3976438",
+    ".claude/scripts/beads/sweep-inventory.sh": "4f53d15515b3284359842450f73028c5bbb9a64cf5b6d44941a9cbae90e6bcd5",
+    ".claude/scripts/beads/sweep-sample.sh": "b3424e4804a6bb26b0db52a2f4a85c3272f1472108d4d927d9cb62d76c38f892",
     ".claude/scripts/beads/sync-and-commit.sh": "6f7efbf7608f9fb12781c92f317bbe278ea1eecbdb8616f844648901f33d52ac",
     ".claude/scripts/beads/update-beads-state.sh": "de9d7c92c9faefe34e9c7f9d894e797149cad89f4e0f9234ea063233f0d52f5a",
     ".claude/scripts/bootstrap.sh": "092cf267482f2b3270add9c2b6f32f0b37176ff5328ac4fa63842e7d734fe416",

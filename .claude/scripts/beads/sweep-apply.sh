@@ -32,11 +32,15 @@
 #   - a closure's evidence resolves: a 7–40 hex commit sha that exists in this repository, a PR number
 #     (#NNN or PR NNN) that a merge commit or the repository's git log names, or a path that exists at HEAD;
 #     several references may be separated by `;` or `,` — at least one must resolve
-#   - a closure's bead is still open in the tracker (br list) — a bead closed meanwhile is reported, not re-closed
+#   - a closure's bead still open in the tracker (br list) is applied; one closed meanwhile is noted and, under --apply,
+#     logged already-closed (never re-closed)
 #
 # Exit: 0 valid / applied · 1 invalid (nothing mutated) or a row not applied (the others are; re-run after fixing) · 2 usage.
-#   A bead br refuses as blocked by open dependencies is force-closed only when every blocker is a closure of this sweep;
-#   otherwise the row is logged as skipped-blocked and reported.
+#   A closure br refuses as blocked by open dependencies is never forced: closures run in passes and a blocked row is
+#   re-attempted after the sweep's other closures have closed; rows still blocked when a pass makes no progress are logged
+#   skipped-blocked and left open. A closure bead already closed before the apply is logged already-closed and skipped.
+#   Evidence note: a path that exists at HEAD satisfies the resolver (sdd C-13); the brief asks agents for the commit or PR
+#   and the 10 % second pass plus the lead's triage are the controls on tangential paths.
 # =============================================================================
 set -euo pipefail
 export LC_ALL=C
@@ -136,8 +140,9 @@ if [[ ${#problems[@]} -eq 0 ]]; then
   while IFS=$'\t' read -r id cat ev; do
     case "$cat" in closed-implemented|closed-obsolete)
       resolves "$ev" || p "$id ($cat): evidence does not resolve to a commit, a PR number or a path at HEAD: ${ev:0:120}"
+      # a closure bead already closed outside the sweep is not an error: --apply logs it as already-closed and skips it
       grep -qx -- "$id" <<<"$OPEN_IDS" || grep -qx -- "$id" <<<"$DONE_IDS" \
-        || p "$id ($cat): not open in the tracker now (closed meanwhile?) — demote to kept or drop the row"
+        || echo "sweep-apply: note: $id ($cat) is already closed in the tracker — it will be logged already-closed, not re-closed" >&2
       ;;
     esac
   done < <(jq -r '[.id, .category, .evidence] | @tsv' "$ROWS")
@@ -160,40 +165,57 @@ run() {
   local out; out="$("$@" 2>&1)" && { RUN_ERR=""; return 0; }
   RUN_ERR="$out"; return 1
 }
-CLOSURE_IDS="$(jq -r 'select(.category | startswith("closed")) | .id' "$ROWS")"
-# close_bead <id> <reason>: a bead that br refuses as "blocked by" open dependencies is force-closed only when every
-# blocker is itself a closure of this sweep (the partition closes them together); otherwise the row is logged skipped
-close_bead() {
-  local id="$1" reason="$2" blockers b
-  run "$BR" close "$id" --reason "$reason" && return 0
-  blockers="$(grep -oE 'blocked by: *[A-Za-z0-9, -]+' <<<"$RUN_ERR" | head -1 | sed -E 's/blocked by: *//' | tr ',' ' ')"
-  [[ -n "$blockers" ]] || return 1
-  for b in $blockers; do grep -qx -- "$b" <<<"$CLOSURE_IDS" || { RUN_ERR="blocked by $b, which this sweep keeps open"; return 2; }; done
-  run "$BR" close "$id" --reason "$reason (blockers $blockers close in the same sweep)" --force
+log_row() {  # log_row <id> <category> <action> <reason>
+  [[ "$DRY" == true ]] && return 0
+  jq -n -c --arg id "$1" --arg cat "$2" --arg action "$3" --arg reason "$4" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    '{id: $id, category: $cat, action: $action, reason: $reason, ts: $ts}' >> "$APPLIED"
 }
 applied=0 skipped=0 failed=0
+# Pass 1: every non-closure row, and every closure the tracker accepts as is. A closure br refuses as "blocked by" open
+# dependencies is NEVER forced: it waits for later passes, which re-attempt it after the blockers that are closures of this
+# sweep have closed (the review round 1 HIGH: a one-level blocker check could force-close over a chain that ends in a kept
+# bead). Rows still blocked when a pass makes no progress are logged skipped-blocked and left open.
+declare -a PENDING=()
 while IFS=$'\t' read -r id cat ev; do
   if grep -qx -- "$id" <<<"$DONE_IDS"; then skipped=$((skipped + 1)); continue; fi
-  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; ok=0
   case "$cat" in
-    closed-implemented) reason="implemented: $ev"; close_bead "$id" "$reason" || ok=$?; action=close ;;
-    closed-obsolete)    reason="obsolete: $ev";    close_bead "$id" "$reason" || ok=$?; action=close ;;
-    kept)  reason="status: kept — $ev; review-by $REVIEW_BY (sweep sprint-$SPRINT)"; action="label $LABEL"
-           { run "$BR" label add "$id" "$LABEL" && run "$BR" comments add "$id" "$reason"; } || ok=$? ;;
-    pulled-in) reason="pulled in: $ev (sweep sprint-$SPRINT)"; action="label sprint:$SPRINT"
-           { run "$BR" label add "$id" "sprint:$SPRINT" && run "$BR" comments add "$id" "$reason"; } || ok=$? ;;
+    closed-implemented|closed-obsolete)
+      if ! grep -qx -- "$id" <<<"$OPEN_IDS"; then
+        log_row "$id" "$cat" already-closed "closed in the tracker before the sweep applied; row skipped"; skipped=$((skipped + 1)); continue
+      fi
+      PENDING+=("$id"$'\t'"$cat"$'\t'"$ev") ;;
+    kept)  reason="status: kept — $ev; review-by $REVIEW_BY (sweep sprint-$SPRINT)"
+           if run "$BR" label add "$id" "$LABEL" && run "$BR" comments add "$id" "$reason"; then log_row "$id" "$cat" "label $LABEL" "$reason"; applied=$((applied + 1))
+           else failed=$((failed + 1)); echo "sweep-apply: $id ($cat): failed — $(head -c 160 <<<"$RUN_ERR" | tr '\n' ' ')" >&2; fi ;;
+    pulled-in) reason="pulled in: $ev (sweep sprint-$SPRINT)"
+           if run "$BR" label add "$id" "sprint:$SPRINT" && run "$BR" comments add "$id" "$reason"; then log_row "$id" "$cat" "label sprint:$SPRINT" "$reason"; applied=$((applied + 1))
+           else failed=$((failed + 1)); echo "sweep-apply: $id ($cat): failed — $(head -c 160 <<<"$RUN_ERR" | tr '\n' ' ')" >&2; fi ;;
   esac
-  if [[ "$ok" -ne 0 ]]; then
-    failed=$((failed + 1)); action="$( [[ "$ok" -eq 2 ]] && echo skipped-blocked || echo failed)"
-    echo "sweep-apply: $id ($cat): $action — $(head -c 160 <<<"$RUN_ERR" | tr '\n' ' ')" >&2
-    reason="$action: $(head -c 300 <<<"$RUN_ERR" | tr '\n' ' ')"
-  else
-    applied=$((applied + 1))
-  fi
-  if [[ "$DRY" != true && ( "$ok" -eq 0 || "$ok" -eq 2 ) ]]; then
-    jq -n -c --arg id "$id" --arg cat "$cat" --arg action "$action" --arg reason "$reason" --arg ts "$ts" \
-      '{id: $id, category: $cat, action: $action, reason: $reason, ts: $ts}' >> "$APPLIED"
-  fi
 done < <(jq -r '[.id, .category, .evidence] | @tsv' "$ROWS")
-echo "sweep-apply: applied $applied row(s), skipped $skipped already in $(basename "$APPLIED"), $failed not applied$( [[ "$DRY" == true ]] && printf ' (dry run: nothing mutated, nothing logged)')"
+pass=0
+while [[ ${#PENDING[@]} -gt 0 ]]; do
+  pass=$((pass + 1)); progress=0; declare -a NEXT=()
+  for row in "${PENDING[@]}"; do
+    IFS=$'\t' read -r id cat ev <<<"$row"
+    case "$cat" in closed-implemented) reason="implemented: $ev" ;; *) reason="obsolete: $ev" ;; esac
+    if run "$BR" close "$id" --reason "$reason"; then
+      log_row "$id" "$cat" close "$reason"; applied=$((applied + 1)); progress=1
+    elif grep -qi 'blocked by' <<<"$RUN_ERR"; then
+      NEXT+=("$row")
+    else
+      failed=$((failed + 1)); echo "sweep-apply: $id ($cat): failed — $(head -c 160 <<<"$RUN_ERR" | tr '\n' ' ')" >&2
+    fi
+  done
+  PENDING=(${NEXT[@]+"${NEXT[@]}"})
+  if [[ ${#PENDING[@]} -gt 0 && ( "$progress" -eq 0 || "$pass" -ge 50 ) ]]; then
+    for row in "${PENDING[@]}"; do
+      IFS=$'\t' read -r id cat ev <<<"$row"
+      msg="blocked by an open dependency this sweep does not close (after $pass pass(es)); left open"
+      echo "sweep-apply: $id ($cat): skipped-blocked — $msg" >&2
+      log_row "$id" "$cat" skipped-blocked "$msg"; failed=$((failed + 1))
+    done
+    break
+  fi
+done
+echo "sweep-apply: applied $applied row(s), skipped $skipped already in $(basename "$APPLIED") or already closed, $failed not applied, $pass close pass(es)$( [[ "$DRY" == true ]] && printf ' (dry run: nothing mutated, nothing logged)')"
 [[ "$failed" -eq 0 ]] || exit 1

@@ -33,6 +33,10 @@ done
 command -v jq >/dev/null 2>&1 || { echo "sweep-sample: jq is required" >&2; exit 1; }
 if [[ "$CHECK" == true ]]; then
   [[ -f "$SAMPLE" && -f "$VERIFIED" ]] || { echo "sweep-sample: --check needs SAMPLE and VERIFIED files" >&2; exit 2; }
+  # fail closed (review round 1 MEDIUM): both files must parse as JSON Lines and the sample must hold at least one row
+  jq -e -s 'all(.[]; type == "object" and (.id | type) == "string")' "$SAMPLE" >/dev/null 2>&1 || { echo "sweep-sample: $SAMPLE does not parse as JSON Lines rows with ids" >&2; exit 1; }
+  jq -e -s 'all(.[]; type == "object" and (.id | type) == "string")' "$VERIFIED" >/dev/null 2>&1 || { echo "sweep-sample: $VERIFIED does not parse as JSON Lines rows with ids" >&2; exit 1; }
+  [[ "$(grep -c '^{' "$SAMPLE" || true)" -ge 1 ]] || { echo "sweep-sample: $SAMPLE holds no sampled closure — nothing was verified" >&2; exit 1; }
   bad=0
   while IFS=$'\t' read -r id batch; do
     v="$(jq -c --arg id "$id" 'select(.id == $id)' "$VERIFIED" | head -1)"

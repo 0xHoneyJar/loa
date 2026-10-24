@@ -19,7 +19,19 @@ setup() {
  {"id":"bd-zzz99","title":"gone","status":"closed","issue_type":"task","priority":2,"labels":[],"created_at":"2026-01-01T00:00:00Z","description":"d5"}
 ]}
 JSON
-  printf '#!/usr/bin/env bash\ncase "$1 $2" in\n  "list --json"*) cat "%s" ;;\n  "close bd-bbb22") case " $* " in *" --force "*) printf "%%s\\n" "$*" >> "%s" ;; *) echo "Warning: Skipped bd-bbb22: blocked by: ${BR_BLOCKER:-bd-aaa11}" >&2; exit 3 ;; esac ;;\n  *) printf "%%s\\n" "$*" >> "%s" ;;\nesac\n' "$T/beads.json" "$T/br.log" "$T/br.log" > "$T/bin/br"
+  cat > "$T/bin/br" <<STUB
+#!/usr/bin/env bash
+# stub tracker: list serves the fixture; close honours BR_BLOCKS ("dep:blocker dep:blocker …"): a dep is refused with
+# "blocked by: <blocker>" until the log shows "close <blocker>"; every mutating call is logged
+LOG="$T/br.log"
+case "\$1 \$2" in
+  "list --json"*) cat "$T/beads.json" ;;
+  close*) dep="\$2"; for pair in \${BR_BLOCKS:-bd-bbb22:bd-aaa11}; do d="\${pair%%:*}"; blk="\${pair#*:}"
+            if [[ "\$d" == "\$dep" ]] && ! grep -q "^close \$blk " "\$LOG" 2>/dev/null; then echo "Warning: Skipped \$dep: blocked by: \$blk" >&2; exit 3; fi; done
+          printf '%s\\n' "\$*" >> "\$LOG" ;;
+  *) printf '%s\\n' "\$*" >> "\$LOG" ;;
+esac
+STUB
   chmod +x "$T/bin/br"
   export PATH="$T/bin:$PATH"
   printf 'bd-ddd44\n# a comment\n\n' > "$T/tier1.txt"
@@ -90,7 +102,7 @@ write_manifests() {  # a complete, valid partition: one closure with a commit, o
   [ "$status" -eq 1 ]; [[ "$output" == *"snapshot moved"* ]]
 }
 
-@test "SW-6 apply --validate: a PR-number evidence resolves through the repository's log; a bead closed meanwhile is reported" {
+@test "SW-6 apply --validate: a PR-number evidence resolves through the repository's log; a bead closed meanwhile is noted, not refused" {
   freeze; write_manifests
   pr="$(git -C "$ROOT" log --all --format=%B -E --grep='(^|[^0-9])#[0-9]{3,5}([^0-9]|$)' -n 1 | grep -oE '#[0-9]{3,5}' | head -1)"
   [ -n "$pr" ] || skip "no PR number in this repository's log"
@@ -99,7 +111,7 @@ write_manifests() {  # a complete, valid partition: one closure with a commit, o
   [ "$status" -eq 0 ]
   jq '(.issues[] | select(.id == "bd-aaa11") | .status) = "closed"' "$T/beads.json" > "$T/b2.json" && mv "$T/b2.json" "$T/beads.json"
   run "$APPLY" --inventory "$T/sw" --manifests "$T/man" --validate
-  [ "$status" -eq 1 ]; [[ "$output" == *"bd-aaa11 (closed-implemented): not open in the tracker now"* ]]
+  [ "$status" -eq 0 ]; [[ "$output" == *"bd-aaa11 (closed-implemented) is already closed in the tracker"* ]]
 }
 
 @test "SW-7 apply --apply: closes with the evidence in the reason, labels and comments kept beads, logs every mutation, and a re-run skips them" {
@@ -107,7 +119,9 @@ write_manifests() {  # a complete, valid partition: one closure with a commit, o
   run "$APPLY" --inventory "$T/sw" --manifests "$T/man" --apply --sprint 275 --review-by 2027-01-31
   [ "$status" -eq 0 ]; [[ "$output" == *"applied 3 row(s), skipped 0"* ]]
   grep -q "^close bd-aaa11 --reason implemented: $HEAD_SHA\$" "$T/br.log"
-  grep -q '^close bd-bbb22 --reason obsolete: CHANGELOG.md (blockers bd-aaa11 close in the same sweep) --force$' "$T/br.log"   # blocked by a closure of this sweep → forced
+  grep -q '^close bd-bbb22 --reason obsolete: CHANGELOG.md$' "$T/br.log"   # bd-aaa11 (its blocker) closed earlier in the same pass; never forced
+  ! grep -q -- '--force' "$T/br.log"
+  [[ "$output" == *" close pass(es)"* ]]
   grep -q '^label add bd-ccc33 backlog-2026-10$' "$T/br.log"
   grep -q '^comments add bd-ccc33 status: kept — still wanted; review-by 2027-01-31 (sweep sprint-275)$' "$T/br.log"
   [ "$(wc -l < "$T/sw/applied.jsonl")" -eq 3 ]
@@ -151,15 +165,56 @@ write_manifests() {  # a complete, valid partition: one closure with a commit, o
 
 @test "SW-10 apply: a bead br refuses as blocked by a bead this sweep KEEPS is logged skipped-blocked, the rest apply, exit 1 names it; a re-run skips the log" {
   freeze; write_manifests
-  export BR_BLOCKER=bd-ccc33   # kept in the manifests, so bd-bbb22 must not be forced
+  export BR_BLOCKS="bd-bbb22:bd-ccc33"   # kept in the manifests, so bd-bbb22 stays blocked
   run "$APPLY" --inventory "$T/sw" --manifests "$T/man" --apply --sprint 275 --review-by 2027-01-31
   [ "$status" -eq 1 ]
   [[ "$output" == *"bd-bbb22 (closed-obsolete): skipped-blocked"* ]]
-  [[ "$output" == *"applied 2 row(s), skipped 0 already in applied.jsonl, 1 not applied"* ]]
+  [[ "$output" == *"applied 2 row(s), skipped 0 already in applied.jsonl or already closed, 1 not applied"* ]]
   ! grep -q 'close bd-bbb22' "$T/br.log"
   grep -q '^close bd-aaa11 ' "$T/br.log"; grep -q '^label add bd-ccc33 backlog-2026-10$' "$T/br.log"
   jq -e 'select(.id == "bd-bbb22") | .action == "skipped-blocked"' "$T/sw/applied.jsonl" >/dev/null
   : > "$T/br.log"
   run "$APPLY" --inventory "$T/sw" --manifests "$T/man" --apply --sprint 275 --review-by 2027-01-31
   [ "$status" -eq 0 ]; [[ "$output" == *"applied 0 row(s), skipped 3"* ]]; [ ! -s "$T/br.log" ]
+}
+
+@test "SW-11 apply: a chain closure→closure→kept is never forced — both closures end skipped-blocked after a pass without progress" {
+  freeze; write_manifests
+  export BR_BLOCKS="bd-aaa11:bd-bbb22 bd-bbb22:bd-ccc33"   # A blocked by B, B blocked by the kept C
+  run "$APPLY" --inventory "$T/sw" --manifests "$T/man" --apply --sprint 275 --review-by 2027-01-31
+  [ "$status" -eq 1 ]
+  ! grep -q '^close ' "$T/br.log"; ! grep -q -- '--force' "$T/br.log"
+  [[ "$output" == *"bd-aaa11 (closed-implemented): skipped-blocked"* ]]; [[ "$output" == *"bd-bbb22 (closed-obsolete): skipped-blocked"* ]]
+  grep -q '^label add bd-ccc33 backlog-2026-10$' "$T/br.log"
+  [ "$(jq -r 'select(.action == "skipped-blocked") | .id' "$T/sw/applied.jsonl" | wc -l)" -eq 2 ]
+}
+
+@test "SW-12 sample --check fails closed on a corrupt or empty sample file" {
+  printf 'not json\n' > "$T/bad.jsonl"; printf '{"id":"bd-aaa11","agree":true,"evidence":"x"}\n' > "$T/v.jsonl"
+  run "$SAMPLE" --check "$T/bad.jsonl" "$T/v.jsonl"
+  [ "$status" -eq 1 ]; [[ "$output" == *"does not parse"* ]]
+  : > "$T/empty.jsonl"
+  run "$SAMPLE" --check "$T/empty.jsonl" "$T/v.jsonl"
+  [ "$status" -eq 1 ]; [[ "$output" == *"holds no sampled closure"* ]]
+}
+
+@test "SW-13 inventory: an exclude file with only comments and blank lines is an empty exclusion set, and the freeze is atomic" {
+  printf '# tier 1 ids\n\n' > "$T/none.txt"
+  run "$INV" --out "$T/sw2" --exclude "$T/none.txt" --batch-size 3
+  [ "$status" -eq 0 ]; [ "$(wc -l < "$T/sw2/inventory.jsonl")" -eq 4 ]
+  grep -q 'minus 0 excluded' "$T/sw2/INVENTORY.md"
+  [ "$(ls "$T/sw2"/batches/batch-*.jsonl | wc -l)" -eq 2 ]
+  [ -z "$(ls -A "$T/sw2" | grep '^\.freeze')" ]   # no temporary freeze directory left behind
+}
+
+@test "SW-14 apply: a closure bead already closed in the tracker is logged already-closed and skipped; the other rows apply" {
+  freeze; write_manifests
+  jq '(.issues[] | select(.id == "bd-aaa11") | .status) = "closed"' "$T/beads.json" > "$T/b2.json" && mv "$T/b2.json" "$T/beads.json"
+  run "$APPLY" --inventory "$T/sw" --manifests "$T/man" --validate
+  [ "$status" -eq 0 ]; [[ "$output" == *"already closed in the tracker"* ]]
+  export BR_BLOCKS="none:none"
+  run "$APPLY" --inventory "$T/sw" --manifests "$T/man" --apply --sprint 275 --review-by 2027-01-31
+  [ "$status" -eq 0 ]
+  ! grep -q '^close bd-aaa11' "$T/br.log"; grep -q '^close bd-bbb22 ' "$T/br.log"
+  jq -e 'select(.id == "bd-aaa11") | .action == "already-closed"' "$T/sw/applied.jsonl" >/dev/null
 }
