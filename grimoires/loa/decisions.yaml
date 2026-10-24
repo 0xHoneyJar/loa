@@ -32145,3 +32145,117 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0954"
+    created_at: "2026-10-24T14:30:41Z"
+    updated_at: "2026-10-24T14:30:41Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sweep triage: Sprint 275's own seven beads are pulled-in (sprint:275), not backlog; one low-confidence closure demoted to kept before the draw."
+    decision: "Before the 10 % sample the lead edited the manifests: bd-2255 (closed, confidence low) → kept; the Sprint 275 epic and tasks 4.1–4.E2E → pulled-in with the label sprint:275 so the active sprint is never labelled backlog-2026-10; four completed sprint items were promoted to closed-implemented with ledger evidence (two epics were later returned to kept by the re-sweep, see the next row)."
+    rationale: "The brief told the agents a low closure is demoted; the kept action labels backlog, which is wrong for beads the current sprint closes at its end."
+    alternatives_considered:
+      - option: "leave the sprint beads as kept and strip the label afterwards"
+        rejected_because: "two mutations where one category fits"
+      - option: "exclude the active sprint's beads from the inventory"
+        rejected_because: "the inventory is every open bead minus Tier 1 by the plan"
+    consequences:
+      positive:
+        - "the table says what the sprint's own beads are"
+      negative:
+        - "pulled-in now also means 'this sprint's own work'"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "8e20c44c"
+    source: "grimoires/loa/a2a/sprint-275/sweep/REPORT.md; sdd.md C-13; sprint.md Task 4.2"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T14:30:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "a2a/sprint-275/sweep/manifests; applied.jsonl"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0955"
+    created_at: "2026-10-24T14:30:44Z"
+    updated_at: "2026-10-24T14:30:44Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sample disagreement: batch 03 fully re-verified instead of re-drawn; its three demotions accepted, two of them sprint epics with open children."
+    decision: "bd-a4td's disagreement (the evidence implements part of the ask) returned batch 03 to a fresh Explore that re-verified every closure of the batch with the rule 'a partially done ask is kept'; it demoted bd-a4td and the lead's two promoted epics bd-a3t83 and bd-6cvom (open follow-up children) to kept. The lead accepted all three; the original sample result (17 of 18) stands as the sample's record and the re-swept batch is fully re-verified rather than re-sampled."
+    rationale: "Re-drawing the sample after a change would loop; a full second look at the disagreeing batch is stronger than another 10 %. An epic with open children is not implemented in the tracker's own terms (br refuses the close)."
+    alternatives_considered:
+      - option: "re-draw the sample after the re-sweep and verify again"
+        rejected_because: "an unbounded loop on a deterministic seed with a changing closure set"
+      - option: "force-close the sprint epics over their open follow-ups"
+        rejected_because: "hides deferred work under a closed epic"
+    consequences:
+      positive:
+        - "every closure of the only doubted batch was read twice"
+      negative:
+        - "two completed sprints keep an open epic until their follow-ups are re-homed"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "8e20c44c"
+    source: "grimoires/loa/a2a/sprint-275/sweep/{sample-verify.first.jsonl,manifest-03.first-pass.jsonl,manifests/manifest-03.jsonl,REPORT.md}"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T14:30:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "a2a/sprint-275/sweep/REPORT.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0956"
+    created_at: "2026-10-24T14:30:47Z"
+    updated_at: "2026-10-24T14:30:47Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Blocked closures: force-close only when every blocker closes in the same sweep; blocked by a kept bead → skipped-blocked, left open; epics with open children…"
+    decision: "sweep-apply's close_bead retries with --force only when each blocker named by br is itself a closure row of the sweep (the partition closes them together); otherwise the row is logged skipped-blocked and left open (bd-16wg, blocked by the kept bd-de0b). bd-1rhd and bd-3o53, epics br refused for open children, were demoted to kept and labelled."
+    rationale: "A blocker closing in the same sweep is a sequencing artefact; a blocker the sweep keeps is a real dependency. The tracker's own refusal is the signal."
+    alternatives_considered:
+      - option: "always --force"
+        rejected_because: "closes over real open dependencies"
+      - option: "never --force and leave every blocked row"
+        rejected_because: "sequencing artefacts would leave dozens of implemented beads open"
+    consequences:
+      positive:
+        - "the tracker's dependency semantics are honoured"
+      negative:
+        - "one implemented bead (bd-16wg) stays open until its blocker resolves"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "8e20c44c"
+    source: ".claude/scripts/beads/sweep-apply.sh close_bead; grimoires/loa/a2a/sprint-275/sweep/APPLY.txt"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T14:30:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "f48de024e; 3deb39cd5; applied.jsonl"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
