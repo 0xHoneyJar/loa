@@ -31765,3 +31765,81 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0944"
+    created_at: "2026-10-24T11:15:24Z"
+    updated_at: "2026-10-24T11:15:24Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Smoke run 1 (a1_full × pr-20, pin 32a8d79cf, USD 11.54) FAILED took-effect: clause (f) pinned_bytes_read on three pinned files pr-20 changes; dissent absent."
+    decision: "Smoke run 1 is recorded as failed, not relaunched as is. The mount worked (1775 files, 306 redirected, reverse == pinned, residual 0; 25 surface paths absent at the root; no egress denial from the trial; review.md 14 findings). Two failures: (1) clause (f) pinned_bytes_read — the reviewer read /home/evaluser/.claude/skills/reviewing-code/SKILL.md, .claude/loa/CLAUDE.loa.md and .claude/scripts/lib/profile-lib.sh, all changed by pr-20 (KF-060: a design limit, detected not prevented); (2) every dissent voice failed inside the sandbox (cheval exit 2 for the API voices, claude -p 'could not prepare its run' EPERM) — a home-scope harness defect under investigation (s3-a3). G-4 stays incomplete after run 1."
+    rationale: "sdd § 7.3: a failed smoke leaves G-4 incomplete; the detector did its job and must not be weakened to pass; the dissent defect must be fixed before the one reserved rerun or the rerun is wasted."
+    alternatives_considered:
+      - option: "treat the reviewer's reads of its own active skill as a declared, non-failing exposure class"
+        rejected_because: "weakens clause (f) after seeing the failure — the fox-guards-the-henhouse pattern"
+      - option: "relaunch immediately on pr-16"
+        rejected_because: "pr-16 changes five review-time files (a session-start hook, karpathy-principles.md, dec-write-lib.sh, settings.json) and the dissent defect is unfixed — the rerun would fail the same way"
+    consequences:
+      positive:
+        - "the failure is evidence: the overlay isolates the root, HOME remains the exposure path for review-time files"
+      negative:
+        - "USD 11.54 of the USD 40 share spent on a failed run"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "34fde92a"
+    source: "evals/results/ablation-2.0/smoke-c133-s274/a1_full/smoke-review-c133-t1/meta/{took-effect.json,arm-evidence.txt}; rows.jsonl; grimoires/loa/known-failures.md KF-060"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T11:15:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "smoke-c133-s274 rows.jsonl; 131725092"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0945"
+    created_at: "2026-10-24T11:15:27Z"
+    updated_at: "2026-10-24T11:15:27Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The reserved verification rerun uses pr-03 (its .claude/scripts changes are off the review-time surface) after the dissent fix lands and a new pin is recorded."
+    decision: "The one verification rerun runs a1_full × smoke-review-c133b (pr-03: ledger-lib.sh, mount-submodule.sh, classify-pr-type.sh; 3 defects critical/high/low) under home-scope, with --max-usd 20, at the pin recorded after s3-a3 lands. pr-20 and pr-16 are not rerun: both change files the pinned framework reads or executes during a review, so (f) would fire again. Only pr-03 among the record fixtures has .claude/ changes disjoint from that surface (pr-09/10 carry no defects; pr-23 … 28 change nothing under .claude/ and would make (f) vacuous)."
+    rationale: "The smoke's purpose is to prove the pipeline at the pin end to end (clauses (a)–(g), grade under 1.5, spend); a fixture the design cannot isolate proves only the detector, which run 1 already did. The plan's pr-16 fallback was conditioned on overlay range, and range is not the failure."
+    alternatives_considered:
+      - option: "pr-16 as pre-named"
+        rejected_because: "five review-time files changed; predictable (f) failure"
+      - option: "defer FR-10 now without the rerun"
+        rejected_because: "the share holds the reserved rerun and a disjoint fixture exists; FR-10's limitation (KF-060) is recorded either way"
+      - option: "a fixture with no .claude/ changes (pr-23 … 28)"
+        rejected_because: "clause (f) and the overlay would be exercised vacuously"
+    consequences:
+      positive:
+        - "one more launch can still establish G-4 for the isolable class"
+      negative:
+        - "pr-03 is a small v1-label fixture (3 files), so the smoke says little about recall"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "34fde92a"
+    source: "grimoires/loa/known-failures.md KF-060 (fixture intersection over all 28 record fixtures); sprint.md Task 3.5 (pr-16 fallback); evals/analysis of head.diff per fixture"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T11:15:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "131725092"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

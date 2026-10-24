@@ -107,6 +107,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-057](#kf-057-bats-tests-that-spawn-a-nested-bats-via-npx-pass-locally-and-fail-in-ci) | Fixed for tests/unit/quarantine-expiry.bats (a0624b285); pattern to follow in any test that runs a nested bats | tests/unit/*.bats nested bats runs; .github/workflows/bats-tests.yml (bats-core v1.13.0 installed on PATH) | 1 |
 | [KF-058](#kf-058-an---internal-docker-network-still-reaches-the-hosts-bridge-gateway-address) | Fixed (874fc64a9) | evals/harness/lib/egress-proxy.sh egress block; evals/tests/egress-proxy.bats EGR-8/EGR-12; evals/harness/Dockerfile.proxy | 1 |
 | [KF-059](#kf-059-a-test-that-resolves-historical-commits-fails-on-cis-depth-1-checkout) | Fixed for evals/analysis/c132/tests/test_registration_v2.py (Cycle132ChainTest skips when the registered pin commits are absent); pattern to follow in any test that runs git rev-parse / cat-file on a recorded commit | .github/workflows/bats-tests.yml Shell Tests (actions/checkout depth 1); evals/analysis/c132/registration.py verify (analysis_tree REV:PATH via git rev-parse) | 1 |
+| [KF-060](#kf-060-home-scope-a-pr-that-changes-review-time-framework-files-exposes-their-later-version-through-the-sandbox-home-clause-f-pinned_bytes_read) | Open — design limit of C-10 home-scope; detected by took-effect clause (f), not prevented; fixture choice is the only mitigation until external fixtures (C-12) exist | evals/harness/lib/sandbox-mount.sh mount_home_scope; evals/harness/took-effect.sh oracle_closed clause (f); the Task 3.5 smoke | 1 |
 
 ---
 
@@ -2104,3 +2105,24 @@ Not a tinyproxy or allowlist defect: the sandbox never goes through the proxy to
 ### Reading guide
 
 Not a chain defect: the registration bytes are unchanged and verify everywhere the pin commits exist. Before adding a test that calls git on a recorded sha, decide what the test means on a shallow clone — skip with the reason, or make the CI job fetch the history. Check the next occurrence's revision list in the skip message before deepening a checkout.
+
+## KF-060: home-scope: a PR that changes review-time framework files exposes their later version through the sandbox HOME (clause (f) pinned_bytes_read)
+
+**Status**: Open — design limit of C-10 home-scope; detected by took-effect clause (f), not prevented; fixture choice is the only mitigation until external fixtures (C-12) exist
+**Feature**: evals/harness/lib/sandbox-mount.sh mount_home_scope; evals/harness/took-effect.sh oracle_closed clause (f); the Task 3.5 smoke
+**Symptom**: run-ablation PAUSED arm a1_full: took-effect exit 1: oracle_closed FAIL (f) .claude/skills/reviewing-code/SKILL.md: pinned_bytes_read: a later-only line of the pinned version in Bash (events-REVIEW.jsonl) (+34 more); the reviewer cat-ed /home/evaluser/.claude/skills/reviewing-code/SKILL.md, .claude/loa/CLAUDE.loa.md and .claude/scripts/lib/profile-lib.sh — pinned files that the PR under review (pr-20) also changes
+**First observed**: 2026-10-24 cycle-133 Sprint 274 Task 3.5 smoke run 1 (batch smoke-c133-s274, pin 32a8d79cf, USD 11.54)
+**Recurrence count**: 1
+**Current workaround**: pick fixtures whose .claude/ changes are disjoint from what the pinned framework reads or executes during a review (skills/reviewing-code, auditing-security, CLAUDE.loa.md, scripts/lib/*, hooks, settings, rules, protocols/karpathy, data/floor|profiles|constraints, adapters); of the record fixtures only pr-03 (ledger-lib.sh, mount-submodule.sh, classify-pr-type.sh) qualifies — or seed external fixtures (C-12), which are disjoint by construction
+**Upstream issue**: inherent: the reviewer IS the later framework; Claude Code loads the active skill, CLAUDE.loa.md and hooks from HOME whether or not the reviewer cats them, so a PR touching those files cannot be isolated by any mount; the detector (f) sees the explicit reads only
+**Related visions / lore**: DEC-0936 (clause (f)); DEC-0943 (pr-20 choice); KF-049 (the pinned-root oracle); cycle-133 Sprint 274 Task 3.5
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-24 | Task 3.5 smoke run 1: a1_full × pr-20 under home-scope at pin 32a8d79cf; mount verified (1775 files, 306 redirected, residual 0), no egress denials from the trial, review.md 14 findings; (f) FAIL on three pinned files the PR changes | failed as designed (detected); G-4 incomplete after run 1; verification rerun planned on pr-03 after the home-scope dissent defect is fixed | evals/results/ablation-2.0/smoke-c133-s274/a1_full/smoke-review-c133-t1/meta/{took-effect.json,arm-evidence.txt}; rows.jsonl status infrastructure_error cost_usd 11.540791 |
+
+### Reading guide
+
+Before a home-scope run, intersect the fixture's changed .claude/ paths with the review-time surface (the list in Workaround; grep the fixture's head.diff). Non-empty → the run will fail (f) or, worse, pass (f) while the exposure happened through Claude Code's own loading. Do not weaken (f) to pass a smoke. Prefer external fixtures.
