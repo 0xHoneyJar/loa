@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-23T23:56:05Z",
+  "generated": "2026-10-24T00:03:56Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1193,7 +1193,7 @@
     ".claude/scripts/permission-audit.sh": "0d6b285d298d38f58234e74f647733c45f6d1587ee78c76a2f6814cae8498232",
     ".claude/scripts/pii-filter.sh": "000e60898cf5627af71fbb6ae96121e07af5a2c2aee22a114948d446bd15113f",
     ".claude/scripts/pipeline-self-review.sh": "a83bb87b350f8a167da182f6336ada3a85e3c30f754599934592f00a436c82e7",
-    ".claude/scripts/post-merge-orchestrator.sh": "657b1166a854d8707cc7bfc8a7c44ba6907b25e795ea69d0a8045427c59156f7",
+    ".claude/scripts/post-merge-orchestrator.sh": "859b59472ef83ee632c415d9aad6d592b9422d7defc41b1b88c0c76cef58d915",
     ".claude/scripts/post-pr-audit.sh": "80db891ebe06f9cc991b98c4d1e1e2668192be83cb3352f29be23f9c4c8a17af",
     ".claude/scripts/post-pr-context-clear.sh": "6fd99e8fc2b822e9f89ab35e74c3f857a217868f8aac9a5b8cd6df3b8e7037ea",
     ".claude/scripts/post-pr-e2e.sh": "b171c127f49e155f349519209745e7fbee6905a29988b1622121313315b20eda",
@@ -1800,7 +1800,7 @@
     ".claude/skills/continuous-learning/resources/skill-template.md": "0a8b0c010dd38667982b66cbf96d3f75daa9d62dc1027bab6af5a4b1cfe34b7d",
     ".claude/skills/cost-budget-enforcer/SKILL.md": "2ebcf60c8845f8b97b4a9345fb3a7c843644cb073999c45e34c41c50c778783c",
     ".claude/skills/cross-repo-status-reader/SKILL.md": "1c2774d7032d5723ae5a637a6eb363651dedf8744bf91d92f5a48d52d9204070",
-    ".claude/skills/deploying-infrastructure/SKILL.md": "8942039332ddd464d1cec6da1b6892465e65a2c688a51db8ff5a22dbe1d1a6d7",
+    ".claude/skills/deploying-infrastructure/SKILL.md": "67129d755cbab474f299d328595e84e32e2cf89cc054aa84a92e9b421762f54c",
     ".claude/skills/deploying-infrastructure/index.yaml": "76f78799197c96df91c61bfaf28074f244111e728cd8fc00f4486aa28b980bee",
     ".claude/skills/deploying-infrastructure/resources/BIBLIOGRAPHY.md": "7c09743e66623134d434a7f0bcc2550832c904b15b80f50821956f50b2a7d193",
     ".claude/skills/deploying-infrastructure/resources/REFERENCE.md": "747c5cc4267055f3d773cbb4172715cb066002d24b89776583285a6e03b7a9ab",
