@@ -2,6 +2,12 @@
 
 Every grade, row and read of the measurement is re-derived from a fresh clone of the stage-1 record commit by one script. Nothing below needs the lead's working tree.
 
+## 0. Which tooling reproduces cycle-132 (note added in cycle-133)
+
+Cycle-132 is reproduced only with the tooling of its record: the clone of § 1, whose pipeline tree (`evals/harness`, `evals/suites`, `evals/fixtures`, the suite root's `tasks/` and `MANIFEST.sha256`) is the pin `fbd36a0c`'s and whose `evals/analysis/c132` is the registered analysis tree. The same holds for the live sample of § 5: it runs the pipeline at the pin `fbd36a0c`. The copies of `reproduce.sh`, `record_lite.py`, `judge_defects.py` and the drivers on `main` from cycle-133 on are the next pipeline version (sdd.md C-7). Their attestation compares the working tree with the pin, compares the analysis paths with the registered analysis tree and requires a clean porcelain. A `main` checkout therefore cannot attest cycle-132, and the new `reproduce.sh` refuses it with exit 2. To reproduce cycle-132 from a `main` clone, check out a worktree at the record (`git worktree add <dir> record/cycle-132-conclusive-review-catch`) and run § 3 there. The record branch's copies and every tracked read are unchanged.
+
+`record_lite.py build` writes `INDEX.json` beside the lite tree. A partial build with `--only` writes `INDEX-only.json` instead, so a partial build never replaces the full index. `reproduce.sh` requires `INDEX.json`.
+
 ## 1. Clone the record
 
 ```

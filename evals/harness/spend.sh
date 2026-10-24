@@ -23,11 +23,15 @@
 #                  batch run with --results-root evals/results/ablation-2.0; cycle-132
 #                  addendum 3) and every evals/results/ablation-2.0/*/rows.jsonl that
 #                  exists. A batch rowed under another results root is metered only
-#                  through --runs. Each run_id
+#                  through --runs. Each (run_id, batch) pair
 #                  counts once across files: a run rowed twice counts its larger cost
-#                  (a smoke row, then the graded row). A row with an empty or missing
-#                  run_id cannot be deduplicated and counts on its own (one stderr
-#                  warning per file naming it).
+#                  (a smoke row, then the graded row); the same run_id under two
+#                  batches is two runs. A row with an empty or missing run_id is
+#                  identified by its content (canonical JSON): the same row in two
+#                  files (the tracked copy and the live runs.jsonl) counts once, two
+#                  such rows in one file each count (one stderr warning per file
+#                  naming the count). cycle-133 bd-um8ol (DISS-C-006); tested by
+#                  evals/analysis/c132/tests/test_spend.py.
 #   --ledger FILE  cost ledger (JSONL, `ts`, `cost_micro_usd`; default .run/cost-ledger.jsonl)
 #   --cap USD      cycle cap (default: evals.ablation.cycle_cap_usd in .loa.config.yaml,
 #                  else caps.cycle_usd in evals/suites/ablation-2.0.yaml, else 1500)
@@ -140,7 +144,8 @@ since = ts(since_s)
 skipped = 0
 dedup, anon_rows, anon_usd = 0, 0, 0.0
 before_since, undated = 0, 0
-best = {}  # run_id -> the largest cost_usd seen for it (a re-rowed run counts its larger cost)
+best = {}  # (run_id, batch) -> the largest cost_usd seen for it (a re-rowed run counts its larger cost)
+anon_seen = {}  # canonical JSON of a row without a run_id -> the file that first held it (dedup across files only)
 def row_ts(r):   # started, else finished; None when neither parses
     for k in ("started", "finished"):
         v = r.get(k)
@@ -173,17 +178,24 @@ for f in runs_files:
             continue
         rid = r.get("run_id")
         if not (isinstance(rid, str) and rid):
+            ident = json.dumps(r, sort_keys=True, separators=(",", ":"))
+            if anon_seen.get(ident, f) != f:
+                dedup += 1      # the same anonymous row already counted from another file
+                continue
+            anon_seen[ident] = f
             anon_rows += 1
             anon_here += 1
             anon_usd += c
             continue
-        if rid in best:
+        b = r.get("batch")
+        key = (rid, b if isinstance(b, str) else None)
+        if key in best:
             dedup += 1
-            best[rid] = max(best[rid], c)
+            best[key] = max(best[key], c)
         else:
-            best[rid] = c
+            best[key] = c
     if anon_here:
-        print(f"spend: {f}: {anon_here} row(s) without a run_id counted individually (no dedup possible)", file=sys.stderr)
+        print(f"spend: {f}: {anon_here} row(s) without a run_id counted individually (deduplicated across files by content only)", file=sys.stderr)
     if undated_here:
         print(f"spend: {f}: {undated_here} row(s) with no started/finished timestamp counted (no date to compare with --since)", file=sys.stderr)
 runs_usd = sum(best.values()) + anon_usd

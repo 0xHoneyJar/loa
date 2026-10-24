@@ -151,6 +151,8 @@ class SampleTest(unittest.TestCase):
         for d, it in key["items"].items():
             j = by_unit[it["unit"]]
             a = open(os.path.join(out, "packets", d + ".md")).read().replace(d, "X", 1)
+            # the one difference from judge-sample.sh's layout: the sample id line (cycle-133 bd-xr3uq)
+            a = a.replace("Sample: `%s`\n\n" % key["sample_id"], "", 1)
             b = open(os.path.join(self.src, "packets", j + ".md")).read().replace(j, "X", 1)
             self.assertEqual(a, b)
             self.assertIn("annotator text", a)
@@ -208,8 +210,81 @@ class SampleTest(unittest.TestCase):
         self.assertEqual(len(key["invalid_cells_skipped"]), 1)
         self.assertNotIn(key["invalid_cells_skipped"][0], key["cells"])
 
+    # ---------------------------------------------- cycle-133 bd-xr3uq: labels bound to the sample
+    def test_sample_id_in_the_key_and_every_packet_header(self):
+        out = os.path.join(self.tmp, "sid")
+        self.assertEqual(self.sample(out)[0], 0)
+        key = json.load(open(os.path.join(out, "key.json")))
+        sid = key["sample_id"]
+        self.assertRegex(sid, r"^[0-9a-f]{12}$")
+        self.assertEqual(jd.sample_id_of(key), sid)
+        body = dict(key)
+        del body["sample_id"]
+        import hashlib
+        self.assertEqual(hashlib.sha256((json.dumps(body, sort_keys=True, indent=1) + "\n").encode()).hexdigest()[:12], sid)
+        for n in os.listdir(os.path.join(out, "packets")):
+            text = open(os.path.join(out, "packets", n)).read()
+            self.assertEqual(text.splitlines()[2], "Sample: `%s`" % sid, n)
+
+    def test_an_existing_key_needs_force_and_force_replaces_the_sample(self):
+        out = os.path.join(self.tmp, "force")
+        self.assertEqual(self.sample(out)[0], 0)
+        first = json.load(open(os.path.join(out, "key.json")))["sample_id"]
+        shutil.rmtree(os.path.join(out, "packets"))           # the packets cleared: the old guard alone let this through
+        rc, err = self.sample(out, seed=99, per_arm=2)
+        self.assertEqual(rc, 1)
+        self.assertIn("--force", err)
+        self.assertEqual(json.load(open(os.path.join(out, "key.json")))["sample_id"], first, "key.json untouched")
+        rc, err = run_cli(["sample", "--key", os.path.join(self.src, "key.json"), "--rows", self.rows,
+                           "--results-root", self.res, "--descriptions", self.descs, "--out", out, "--seed", "99",
+                           "--per-arm", "2", "--suite-root", os.path.join(self.repo, "suite"), "--repo-root", self.repo,
+                           "--force"])
+        self.assertEqual(rc, 0, err)
+        key = json.load(open(os.path.join(out, "key.json")))
+        self.assertNotEqual(key["sample_id"], first)
+        self.assertEqual(sorted(os.listdir(os.path.join(out, "packets"))), sorted(i + ".md" for i in key["items"]))
+
+    def test_stale_labels_against_a_new_key_are_rejected(self):
+        a, b = os.path.join(self.tmp, "ka"), os.path.join(self.tmp, "kb")
+        self.assertEqual(self.sample(a, per_arm=2)[0], 0)
+        self.assertEqual(self.sample(b, per_arm=2, seed=5)[0], 0)
+        ka, kb = (json.load(open(os.path.join(d, "key.json"))) for d in (a, b))
+        self.assertNotEqual(ka["sample_id"], kb["sample_id"])
+        lab = {i: {"verdict": "describes", "note": ""} for i in ka["items"]}
+        lab["sample_id"] = ka["sample_id"]
+        lp = os.path.join(self.tmp, "labels-a.json")
+        _w(lp, json.dumps(lab))
+        base = ["aggregate", "--labels", lp, "--rows", self.rows, "--results-root", self.res, "--boot", "50"]
+        rc, err = run_cli(base + ["--key", os.path.join(a, "key.json"), "--out", os.path.join(self.tmp, "ra")])
+        self.assertEqual(rc, 0, err)
+        rc, err = run_cli(base + ["--key", os.path.join(b, "key.json"), "--out", os.path.join(self.tmp, "rb")])
+        self.assertEqual(rc, 1)
+        self.assertIn("sample_id", err)
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "rb")))
+
+    def test_aggregate_loads_the_grades_for_its_validity_filter(self):
+        out = os.path.join(self.tmp, "gv")
+        self.assertEqual(self.sample(out, per_arm=2)[0], 0)
+        key = json.load(open(os.path.join(out, "key.json")))
+        lab = {i: {"verdict": "describes", "note": ""} for i in key["items"]}
+        lab["sample_id"] = key["sample_id"]
+        lp = os.path.join(self.tmp, "labels-gv.json")
+        _w(lp, json.dumps(lab))
+        ck = sorted(key["cells"])[0]
+        b, arm, task, trial = ck.split("/")
+        gp = os.path.join(self.res, b, arm, "%s-t%s" % (task, trial), "grade.json")
+        g = json.load(open(gp))
+        g["contaminated"] = {"pattern": "outside_path"}          # the row says clean, the grade says contaminated
+        _w(gp, json.dumps(g))
+        rc, err = run_cli(["aggregate", "--key", os.path.join(out, "key.json"), "--labels", lp, "--rows", self.rows,
+                           "--results-root", self.res, "--out", os.path.join(self.tmp, "rg"), "--boot", "50"])
+        self.assertEqual(rc, 1)
+        self.assertIn(ck, err)
+
     def test_usage(self):
         self.assertEqual(run_cli([])[0], 2)
+        self.assertEqual(run_cli(["aggregate", "--key", "k", "--labels", "l", "--rows", "r", "--out", "o"])[0], 2,
+                         "aggregate needs --results-root")
         self.assertEqual(run_cli(["sample", "--key", "x"])[0], 2)
 
 
@@ -239,8 +314,8 @@ def hand_key():
                       "units": [items[i]["unit"] for i in ids], "inclusion_probability": 1.0}
     universe = {a: {"cells": 2, "prs": 2, "defects": 8, "credited_pairs": k, "credited_units": 0,
                     "sampled_pairs": k, "sampled_units": 0, "pi": 1.0} for a, k in (("a1_full", 4), ("a0_bare_matched", 2))}
-    return {"schema_version": 1, "seed": 20261021, "per_arm": 40, "universe": universe, "pairs": pairs, "items": items,
-            "cells": cells}
+    return jd.with_sample_id({"schema_version": 1, "seed": 20261021, "per_arm": 40, "universe": universe, "pairs": pairs,
+                              "items": items, "cells": cells})
 
 
 def hand_rows():
@@ -258,14 +333,27 @@ LABELS = {"D0001": "does-not-describe", "D0002": "describes",          # P001 st
           "D0009": "does-not-describe", "D0010": "does-not-describe"}  # P006 miss
 
 
-def labels(over=None):
+def labels(over=None, sample_id=None):
     d = dict(LABELS, **(over or {}))
-    return {k: {"verdict": v, "note": "n"} for k, v in d.items() if v is not None}
+    out = {k: {"verdict": v, "note": "n"} for k, v in d.items() if v is not None}
+    out["sample_id"] = sample_id or hand_key()["sample_id"]
+    return out
+
+
+GRADES = {}   # hand_rows carry everything the validity filter needs; no cell's grade adds a reason
+
+
+def hand_results(root):
+    """a results root holding one grade.json per hand row (what aggregate --results-root reads)"""
+    for r in hand_rows():
+        _w(os.path.join(root, r["batch"], r["arm"], "%s-t%d" % (r["task_id"], r["trial"]), "grade.json"),
+           json.dumps({"recall": {"missed_pm3": []}, "contaminated": None}))
+    return root
 
 
 class AggregateTest(unittest.TestCase):
     def test_shares_and_corrected_recall(self):
-        doc = jd.run(hand_key(), labels(), hand_rows(), 20261021, 400)
+        doc = jd.run(hand_key(), labels(), hand_rows(), 20261021, 400, GRADES)
         a1, a0 = doc["per_arm"]["a1_full"], doc["per_arm"]["a0_bare_matched"]
         self.assertEqual((a1["pairs_judged"], a1["items"]), (4, 7))
         self.assertAlmostEqual(a1["share_strict"], 0.5)
@@ -288,7 +376,7 @@ class AggregateTest(unittest.TestCase):
                                                           "lenient": 1})
 
     def test_incomplete_pair_left_out(self):
-        doc = jd.run(hand_key(), labels({"D0005": None}), hand_rows(), 1, 50)
+        doc = jd.run(hand_key(), labels({"D0005": None}), hand_rows(), 1, 50, GRADES)
         self.assertEqual(doc["incomplete_pairs"], ["P003"])
         self.assertEqual(doc["per_arm"]["a1_full"]["pairs_judged"], 3)
         self.assertAlmostEqual(doc["per_arm"]["a1_full"]["share_strict"], 2.0 / 3)
@@ -300,15 +388,17 @@ class AggregateTest(unittest.TestCase):
             _w(kp, json.dumps(hand_key()))
             _w(rp, "".join(json.dumps(r) + "\n" for r in hand_rows()))
             lab = labels()
+            sid = lab.pop("sample_id")
+            res = hand_results(os.path.join(tmp, "results"))
             ks = sorted(lab)
-            _w(os.path.join(tmp, "sessions/c01/labels.json"), json.dumps({k: lab[k] for k in ks[:5]}))
-            _w(os.path.join(tmp, "sessions/c02/labels.json"), json.dumps({k: lab[k] for k in ks[5:]}))
+            _w(os.path.join(tmp, "sessions/c01/labels.json"), json.dumps(dict({k: lab[k] for k in ks[:5]}, sample_id=sid)))
+            _w(os.path.join(tmp, "sessions/c02/labels.json"), json.dumps(dict({k: lab[k] for k in ks[5:]}, sample_id=sid)))
             _w(os.path.join(tmp, "sessions/c02.failed-120000/labels.json"), json.dumps({"D0001": lab["D0001"]}))
             outs = []
             for n in ("r1", "r2"):
                 o = os.path.join(tmp, n)
                 self.assertEqual(run_cli(["aggregate", "--key", kp, "--labels", os.path.join(tmp, "sessions"),
-                                          "--rows", rp, "--out", o, "--boot", "200"])[0], 0)
+                                          "--rows", rp, "--results-root", res, "--out", o, "--boot", "200"])[0], 0)
                 outs.append(tree(o))
             self.assertEqual(outs[0], outs[1])
             md = outs[0]["result.md"].decode()
@@ -316,18 +406,32 @@ class AggregateTest(unittest.TestCase):
             self.assertIn("a1_full − a0_bare_matched", md)
             self.assertNotIn(tmp, md + outs[0]["result.json"].decode())
             merged = os.path.join(tmp, "merged.json")
-            _w(merged, json.dumps(lab))
+            _w(merged, json.dumps(dict(lab, sample_id=sid)))
             o3 = os.path.join(tmp, "r3")
-            self.assertEqual(run_cli(["aggregate", "--key", kp, "--labels", merged, "--rows", rp, "--out", o3,
-                                      "--boot", "200"])[0], 0)
+            self.assertEqual(run_cli(["aggregate", "--key", kp, "--labels", merged, "--rows", rp, "--results-root", res,
+                                      "--out", o3, "--boot", "200"])[0], 0)
             self.assertEqual(tree(o3), outs[0])
             # an item labelled in two sessions, an unknown item, a stray verdict: refused
-            _w(os.path.join(tmp, "sessions/c03/labels.json"), json.dumps({"D0001": lab["D0001"]}))
+            _w(os.path.join(tmp, "sessions/c03/labels.json"), json.dumps({"D0001": lab["D0001"], "sample_id": sid}))
             self.assertEqual(run_cli(["aggregate", "--key", kp, "--labels", os.path.join(tmp, "sessions"),
-                                      "--rows", rp, "--out", os.path.join(tmp, "r4")])[0], 1)
-            for bad in ({"J0001": {"verdict": "describes"}}, {"D0001": {"verdict": "real"}}):
+                                      "--rows", rp, "--results-root", res, "--out", os.path.join(tmp, "r4")])[0], 1)
+            os.remove(os.path.join(tmp, "sessions/c03/labels.json"))
+            # a session without the sample id, a key edited after sampling: refused
+            _w(os.path.join(tmp, "sessions/c01/labels.json"), json.dumps({k: lab[k] for k in ks[:5]}))
+            rc, err = run_cli(["aggregate", "--key", kp, "--labels", os.path.join(tmp, "sessions"), "--rows", rp,
+                               "--results-root", res, "--out", os.path.join(tmp, "r6")])
+            self.assertEqual(rc, 1)
+            self.assertIn("c01", err)
+            edited = dict(hand_key(), seed=7)
+            _w(os.path.join(tmp, "edited.json"), json.dumps(edited))
+            _w(merged, json.dumps(dict(lab, sample_id=sid)))
+            rc, err = run_cli(["aggregate", "--key", os.path.join(tmp, "edited.json"), "--labels", merged, "--rows", rp,
+                               "--results-root", res, "--out", os.path.join(tmp, "r7")])
+            self.assertEqual(rc, 1)
+            self.assertIn("does not match its content", err)
+            for bad in ({"J0001": {"verdict": "describes"}, "sample_id": sid}, {"D0001": {"verdict": "real"}, "sample_id": sid}):
                 _w(merged, json.dumps(bad))
-                rc, err = run_cli(["aggregate", "--key", kp, "--labels", merged, "--rows", rp,
+                rc, err = run_cli(["aggregate", "--key", kp, "--labels", merged, "--rows", rp, "--results-root", res,
                                    "--out", os.path.join(tmp, "r5")])
                 self.assertEqual(rc, 1, err)
                 self.assertFalse(os.path.exists(os.path.join(tmp, "r5")))

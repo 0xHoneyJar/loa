@@ -31,7 +31,8 @@ build writes, for every run directory REL (relative to the results root):
                                 for every entry under sandbox/ (.git/ and .eval/ included), pr_head_equals_fixture,
                                 pr_base_equals_fixture, pr_diffs, pr_missing, defect_files, defect_files_absent,
                                 lite_sha256 {path: sha}, dropped {count, bytes}, reconstructable {count, bytes}, …}
-  OUT/INDEX.json                every run directory built, with its manifest's sha256
+  OUT/INDEX.json                every run directory built, with its manifest's sha256 (with --only: OUT/INDEX-only.json,
+                                so a partial build never replaces the full index; reproduce.sh requires INDEX.json)
 A symlink in the lite set (review.md, anything under grimoires/, a defect file or a path component of one, a
 differing pr/ file) is refused: exit 1 and nothing is written (every run directory is scanned before any write).
 Output is deterministic (sorted keys and paths, no timestamps, no absolute paths).
@@ -41,6 +42,11 @@ or a matched cell (all its sessions, then --union) — plus every --check-unit R
 directory (--scratch, default a fresh temp dir), re-graded with the grader (container executor, the batch
 MANIFEST's tasks_dir and allow_partial) and its grade.json compared byte for byte with the recorded one; a table is
 printed. The recorded run directories are never written (the grader rewrites <run-dir>/grading/).
+
+Hashing (cycle-133 bd-ombvn): every verification path (the post-copy check, reconstruct's lite and pr/ files,
+compare, --check, reproduce) reads the bytes; only the build-side fixture map and sandbox scan memoise, keyed on the
+realpath and a following stat with st_ctime_ns. reconstruct refuses a pr/ symlink whose manifest target is absolute or
+has a '..' component (exit 1).
 
 Exit codes: 0 done (every check identical); 1 refused (symlink in the lite set), a reconstruction failed its
 manifest, or a check / reproduction differs; 2 usage or unreadable input.
@@ -83,18 +89,24 @@ class Mismatch(Exception):
 _SHA_CACHE = {}
 
 
-def sha256_file(path):
-    st = os.stat(path, follow_symlinks=False)
-    key = (st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns)
-    hit = _SHA_CACHE.get(key)
-    if hit is not None:
-        return hit
+def sha256_file(path, verify=False):
+    """the file's sha256. verify=True (every verification path: the copy check, reconstruct, compare, --check)
+    always reads the bytes. Otherwise (the build-side fixture map and sandbox scan) a digest is memoised under the
+    realpath and a following stat including st_ctime_ns, so a same-size same-mtime in-place rewrite (cp -p,
+    rsync -t, copy2 onto the inode) changes the key (cycle-133 bd-ombvn, Sprint 271 audit SEC-003)."""
+    if not verify:
+        st = os.stat(path)
+        key = (os.path.realpath(path), st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+        hit = _SHA_CACHE.get(key)
+        if hit is not None:
+            return hit
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
-    _SHA_CACHE[key] = h.hexdigest()
-    return _SHA_CACHE[key]
+    if not verify:
+        _SHA_CACHE[key] = h.hexdigest()
+    return h.hexdigest()
 
 
 def sha256_bytes(b):
@@ -386,7 +398,7 @@ def write_lite(out, rel, man, lite):
         dst = os.path.join(ld, *path.split("/"))
         os.makedirs(os.path.dirname(dst), exist_ok=True)
         shutil.copyfile(lite[path], dst, follow_symlinks=False)
-        if sha256_file(dst) != man["lite_sha256"][path]:
+        if sha256_file(dst, verify=True) != man["lite_sha256"][path]:
             raise Mismatch("%s: the copy of %s changed while copying" % (rel, path))
     text = dump_json(man)
     with open(os.path.join(d, "sandbox-manifest.json"), "w", encoding="utf-8") as f:
@@ -489,7 +501,7 @@ def reconstruct_run_dir(record_root, lite_root, fixtures_root, rel, dest_root):
             if not os.path.isfile(s) or os.path.islink(s):
                 errs.append("lite file missing: %s" % path)
                 continue
-            got = sha256_file(s)
+            got = sha256_file(s, verify=True)
             if got != lite_sha[path] or got != e.get("sha256"):
                 errs.append("lite file sha differs: %s" % path)
                 continue
@@ -497,17 +509,22 @@ def reconstruct_run_dir(record_root, lite_root, fixtures_root, rel, dest_root):
             shutil.copyfile(s, q)
         elif path.startswith("pr/"):
             if e.get("type") == "symlink":
+                # the grader copies sandbox/pr/ and counts its symlinks: a target that is absolute or climbs out
+                # (any '..' component) is never recreated from a manifest (bd-ombvn, Sprint 271 audit SEC-005)
+                if not isinstance(e.get("target"), str) or not safe_rel(e["target"]):
+                    raise Mismatch("%s: unsafe symlink target for %s: %r" % (rel, path, e.get("target")))
                 os.makedirs(os.path.dirname(q), exist_ok=True)
                 os.symlink(e["target"], q)
                 continue
             if e.get("type") == "other":
                 continue
+            src_fx = os.path.join(fixtures_root, man["fixture"], *path[3:].split("/"))
             fx = fmap.get(path[3:])
-            if fx is None or fx[0] != e.get("sha256"):
+            if fx is None or sha256_file(src_fx, verify=True) != e.get("sha256"):
                 errs.append("pr file not reconstructable from the fixture: %s" % path)
                 continue
             os.makedirs(os.path.dirname(q), exist_ok=True)
-            link_or_copy(os.path.join(fixtures_root, man["fixture"], *path[3:].split("/")), q)
+            link_or_copy(src_fx, q)
     for path in lite_sha:
         if not any(e["path"] == path for e in man.get("files") or []):
             errs.append("lite file not in the manifest's files: %s" % path)
@@ -547,7 +564,8 @@ def run_grader(cmd, log_path):
 
 
 def file_sha(p):
-    return sha256_file(p) if os.path.isfile(p) and not os.path.islink(p) else None
+    """a comparison digest (verification path: never the cache)"""
+    return sha256_file(p, verify=True) if os.path.isfile(p) and not os.path.islink(p) else None
 
 
 def compare_unit(results_root, scratch_root, rel):

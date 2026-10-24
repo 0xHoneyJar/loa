@@ -74,9 +74,11 @@ PY
 
 @test "AC-4 power.py under python3 -I: seeded, byte-identical, the chosen N from the frozen mini inputs" {
   M="$A/tests/fixtures/power-mini"
+  # the head.diff fixtures are generated (bd-qxwrm), not committed
+  python3 -I "$A/tests/synth.py" power-mini-diffs --seed 20261023 --out "$T/fx"
   cd /
   for i in 1 2; do
-    run python3 -I "$A/power.py" --rows "$M/rows.jsonl" --fixtures-dir "$M/fixtures" --suite-root "$M/suite" \
+    run python3 -I "$A/power.py" --rows "$M/rows.jsonl" --fixtures-dir "$T/fx" --suite-root "$M/suite" \
       --candidates "$M/candidates.tsv" --seed 20261021 --out "$T/p$i" --grid 6 --studies 40 --se-method linear --no-sensitivities
     [ "$status" -eq 0 ]
   done
