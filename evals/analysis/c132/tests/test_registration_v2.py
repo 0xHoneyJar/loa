@@ -235,6 +235,17 @@ class Cycle132ChainTest(unittest.TestCase):
     def test_every_tracked_cycle_132_registration_verifies_unchanged(self):
         files = sorted(glob.glob(os.path.join(REPO, "grimoires", "loa", "evals", "ablation-2.0-c132", "REGISTRATION*.json")))
         self.assertGreaterEqual(len(files), 18)
+        # verify resolves analysis_tree (REV:PATH) with `git rev-parse` in the repo; a depth-1 checkout (CI's
+        # bats-tests.yml "Shell Tests", run 40085119661) has none of the cycle-132 commits, so the chain can be
+        # verified only where the history is present. Skip, never fail, on a clone without the pin commits.
+        missing = []
+        for p in files:
+            rev = json.loads(rb(p)).get("analysis_tree", "").split(":", 1)[0]
+            if subprocess.run(["git", "-C", REPO, "cat-file", "-e", rev + "^{commit}"], capture_output=True).returncode != 0:
+                missing.append(rev[:12])
+        if missing:
+            self.skipTest(f"{len(missing)} registered pin commit(s) not in this clone (shallow checkout): {', '.join(missing)}; "
+                          "the chain verifies on a full clone")
         for p in files:
             so = io.StringIO()
             with redirect_stdout(so), redirect_stderr(io.StringIO()):

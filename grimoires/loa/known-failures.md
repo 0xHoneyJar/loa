@@ -106,6 +106,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-056](#kf-056-dec-rows-written-during-planning-carry-the-previous-cycles-id) | Open (fix candidate on bead bd-d7dwt; Sprint 4 sweep) | dec-write-lib.sh default_cycle / decisions.yaml cycle field | 1 |
 | [KF-057](#kf-057-bats-tests-that-spawn-a-nested-bats-via-npx-pass-locally-and-fail-in-ci) | Fixed for tests/unit/quarantine-expiry.bats (a0624b285); pattern to follow in any test that runs a nested bats | tests/unit/*.bats nested bats runs; .github/workflows/bats-tests.yml (bats-core v1.13.0 installed on PATH) | 1 |
 | [KF-058](#kf-058-an---internal-docker-network-still-reaches-the-hosts-bridge-gateway-address) | Fixed (874fc64a9) | evals/harness/lib/egress-proxy.sh egress block; evals/tests/egress-proxy.bats EGR-8/EGR-12; evals/harness/Dockerfile.proxy | 1 |
+| [KF-059](#kf-059-a-test-that-resolves-historical-commits-fails-on-cis-depth-1-checkout) | Fixed for evals/analysis/c132/tests/test_registration_v2.py (Cycle132ChainTest skips when the registered pin commits are absent); pattern to follow in any test that runs git rev-parse / cat-file on a recorded commit | .github/workflows/bats-tests.yml Shell Tests (actions/checkout depth 1); evals/analysis/c132/registration.py verify (analysis_tree REV:PATH via git rev-parse) | 1 |
 
 ---
 
@@ -2082,3 +2083,24 @@ Not a bats or test defect: the test's choice of launcher. Locally bats comes fro
 ### Reading guide
 
 Not a tinyproxy or allowlist defect: the sandbox never goes through the proxy to reach the gateway; it is plain IP reachability of the host on the internal bridge. Fix candidates: the sandbox shares the sidecar's network namespace with owner-matched netfilter (tinyproxy uid → 443 public; sandbox uid → 127.0.0.1:8888 only), or a host-side DOCKER-USER rule (needs root). Reproduce without CI: docker network create --internal N; docker run --network N … python socket.create_connection((gateway, port)) — ConnectionRefused means the host was reached.
+
+## KF-059: A test that resolves historical commits fails on CI's depth-1 checkout
+
+**Status**: Fixed for evals/analysis/c132/tests/test_registration_v2.py (Cycle132ChainTest skips when the registered pin commits are absent); pattern to follow in any test that runs git rev-parse / cat-file on a recorded commit
+**Feature**: .github/workflows/bats-tests.yml Shell Tests (actions/checkout depth 1); evals/analysis/c132/registration.py verify (analysis_tree REV:PATH via git rev-parse)
+**Symptom**: CI 'Shell Tests': FAILED test_registration_v2.py::Cycle132ChainTest::test_every_tracked_cycle_132_registration_verifies_unchanged — 'drift: analysis_tree_sha256: registered a7bd2456…, now <git rev-parse 664c4516…:evals/analysis/c132 failed>'; the same 18 registrations verify 18/18 on every full clone
+**First observed**: 2026-10-24 cycle-133 Sprint 274 head db668858d (run 40085119661)
+**Recurrence count**: 1
+**Current workaround**: guard the test: git cat-file -e <rev>^{commit} for every recorded revision, skipTest (never fail) when one is missing; or deepen the checkout for that job (fetch-depth 0 costs the full history on every run)
+**Upstream issue**: bats-tests.yml line 97 already documents the depth-1 consequence for origin/main; same class as KF-057 (an environment the implementer's host has and the runner lacks)
+**Related visions / lore**: KF-057; DEC-0917 (registration v2); cycle-133 Sprint 274 Task 3.3
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-24 | Cycle132ChainTest gains a pre-check: every REGISTRATION's analysis_tree revision must exist (git cat-file -e); otherwise skipTest naming the missing revisions; verified on a local depth-1 clone (skipped) and on the full clone (passes 18/18) | fixed; CI confirmation on the next push | test_registration_v2.py (commit follows db668858d); CI run 40085119661 |
+
+### Reading guide
+
+Not a chain defect: the registration bytes are unchanged and verify everywhere the pin commits exist. Before adding a test that calls git on a recorded sha, decide what the test means on a shallow clone — skip with the reason, or make the CI job fetch the history. Check the next occurrence's revision list in the skip message before deepening a checkout.
