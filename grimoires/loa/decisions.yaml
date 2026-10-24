@@ -29394,3 +29394,277 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0878"
+    created_at: "2026-10-24T01:20:46Z"
+    updated_at: "2026-10-24T01:20:46Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 272 Task 1.6: the ten tests/unit failures share one cause (host AWS_BEARER_TOKEN_BEDROCK leaks in); repaired at test level — 10 repaired, 0 quarantined"
+    decision: "A1–A6, c114-FR1-2/-3, c124-1.3-5 and cost-report CR-7 fail because the host exports AWS_BEARER_TOKEN_BEDROCK, the loader correctly defaults to bedrock_only forward-routing, and CR-7's --json capture is broken by the loader's stderr notice; the repair is -u AWS_BEARER_TOKEN_BEDROCK at the cheval call (three files) and unset in cost-report.bats setup() (every CR test uses the same resolver), the pattern of cycle-124-effort-flag.bats; no quarantine row is written."
+    rationale: "PRD D-9 (DEC-0835) allows a quarantine only when a repair would change shipped behaviour the cycle does not touch; here a test-only fix exists and the shipped routing is correct, so the quarantine mechanism is proven by fixtures (QX-3) and not by live rows."
+    alternatives_considered:
+      - option: "quarantine four of the ten as the AC ceiling permits"
+        rejected_because: "a local test-level fix exists; a quarantine would hide a correct product behaviour behind a dated row"
+      - option: "make the loader ignore the token under --dry-run"
+        rejected_because: "changes shipped routing behaviour outside the cycle's scope"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f1b349e0"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-d.md § Judgment calls (Repaired all ten at test level; cost-report unsets the token in setup)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T01:20:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit f1b349e06 (cheval-alias-regression.bats:36, cycle-114-opus-4-8-registry.bats:37, cycle-124-anthropic-catalog.bats:42, cost-report.bats:19)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0879"
+    created_at: "2026-10-24T01:20:49Z"
+    updated_at: "2026-10-24T01:20:49Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.6: .gitattributes marks review-prs/pr-*/** and *-grades/** (not review-prs/**) so corpus.tsv, labels, manifests, incidents stay reviewable"
+    decision: "The linguist-generated -diff rows are evals/fixtures/review-prs/pr-*/** (the frozen PR trees) and grimoires/loa/reports/ablation-2.0/*-grades/** (every cycle's sensitivity grades), per the sprint plan and brief; the SDD C-5 and PRD FR-5 text that said review-prs/** is aligned to the narrower glob."
+    rationale: "review-prs/** would hide the curated corpus.tsv, labels/, manifests/ and incidents/ from every diff and pull-request view, and those are exactly the files a reviewer must read; the grade glob covers future cycles without another edit."
+    alternatives_considered:
+      - option: "review-prs/** as the SDD text had it"
+        rejected_because: "hides the curated label and manifest files from review"
+      - option: "name c132-sensitivity-grades only"
+        rejected_because: "every later cycle would need a new row"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f1b349e0"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-d.md § Judgment calls (.gitattributes glob; the grade tree glob)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T01:20:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit f1b349e06 (.gitattributes); sdd.md C-5 and prd.md FR-5 aligned in the Sprint 272 close commit"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0880"
+    created_at: "2026-10-24T01:20:52Z"
+    updated_at: "2026-10-24T01:20:52Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.6: only check-no-swallowed-jq.sh prunes the frozen trees, root-anchored and in --root mode only; the tripwire covers five walkers at runtime"
+    decision: "The find prune sits between frozen-fixture-prune:begin/end markers, matches $ROOT/evals/fixtures/review-prs/pr-* and $ROOT/grimoires/loa/reports/ablation-2.0/*-grades with trailing slashes stripped and glob characters escaped, and applies only in --root mode (default mode scans the enforced set); the other four walkers' CI scopes never reach the fixtures (LW-2 proves it), so they are not changed; the tripwire plants a violating script under a temp pr-99/ and a *-grades tree and asserts every walker reports zero (LW-1 positive control, LW-3 mutant); walkers with script-relative roots get a static check; the planted stub is named scoring-engine.sh to avoid the CMP-121 rule that fires on adversarial-review.sh."
+    rationale: "An any-depth match would make a --root under a fixture-like path scan nothing; changing walkers whose scope already excludes the fixtures would be code without a failing test; the tripwire must be non-vacuous."
+    alternatives_considered:
+      - option: "any-depth prune pattern"
+        rejected_because: "a --root under a fixture-like path would scan nothing"
+      - option: "prune every walker"
+        rejected_because: "four of them never reach the fixtures; LW-2 proves it without code"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f1b349e0"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-d.md § Judgment calls (The prune is root-anchored; Only check-no-swallowed-jq.sh is pruned; The tripwire's scope; stub name)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T01:20:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit f1b349e06 (tools/check-no-swallowed-jq.sh:262-277; tests/unit/lint-walk-excludes-fixtures.bats LW-1…LW-7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0881"
+    created_at: "2026-10-24T01:20:55Z"
+    updated_at: "2026-10-24T01:20:55Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.6: quarantine id = <bats path>::<description>; expiry = blame author date + 30 (≤ boundary + 30 when shallow); no .beads → exit 3 warn"
+    decision: "A quarantine row is identified by the repo-relative bats path and the exact @test description; its date is the row's git-blame author date (an uncommitted row is dated --today), expiry must equal that date + 30 days, never more than 60 days out, and under a shallow clone the check relaxes to ≤ boundary + 30; 'open bead' means status open or in_progress via br show --json; a runner without a .beads/ workspace exits 3 with a per-row reason and CI warns, while invalid or expired rows exit 1."
+    rationale: "A description alone is ambiguous across files and a TAP number is unstable; the committer date is renewed by a rebase while the author date is not; CI's depth-1 clone blames every line on HEAD, so exact equality would fail every older row; .beads/ is gitignored, so failing CI on its absence would fail every quarantine permanently."
+    alternatives_considered:
+      - option: "description-only ids or TAP numbers"
+        rejected_because: "ambiguous across files / unstable across runs"
+      - option: "committer date for the quarantine date"
+        rejected_because: "a rebase renews it and silently extends every expiry"
+      - option: "fail CI when no beads workspace exists"
+        rejected_because: "the runner's normal state; every quarantine row would fail permanently"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f1b349e0"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-d.md § Judgment calls (test id; blame author date; shallow boundary; open bead; no beads workspace exit 3)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T01:20:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit f1b349e06 (tools/check-quarantine-expiry.sh; tests/unit/helpers/quarantine.bash; quarantine-expiry.bats QX-1…QX-16)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0882"
+    created_at: "2026-10-24T01:20:58Z"
+    updated_at: "2026-10-24T01:20:58Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.6: mandatory gates never quarantinable (brief's three + mount-provenance, batch-supervisor, verdict-derive-failure-clause); one shared regex"
+    decision: "The helper holds the mandatory-gate name pattern (isolation, egress-denial, mount-provenance, batch-supervisor (C-9), verdict-derive-failure-clause (§ 7.3)) and the validator sources it so there is one list; a row whose test file never calls loa_quarantine_check is refused because it would have no effect; the writer-tool-disabling test is added to the pattern when C-10 names its file."
+    rationale: "sdd.md C-5 forbids quarantining the isolation, egress and provenance tests; the sprint plan (D-S.1) adds the egress suite as a hard gate; two copies of the list would drift."
+    alternatives_considered:
+      - option: "keep the gate list in the validator only"
+        rejected_because: "the helper could skip a gate the validator would later refuse — two sources of truth"
+      - option: "accept rows for files without the helper call"
+        rejected_because: "the row would claim a quarantine that never happens"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f1b349e0"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-d.md § Judgment calls (Mandatory gates; The validator refuses a row whose file never calls the helper; The validator sources the helper's regex)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T01:20:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit f1b349e06 (tests/unit/helpers/quarantine.bash gate regex; tools/check-quarantine-expiry.sh sourcing it; QX cases)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0883"
+    created_at: "2026-10-24T01:21:01Z"
+    updated_at: "2026-10-24T01:21:01Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 272 Task 1.6: unit step runs bats --tap | tee under pipefail with an always() totals step; path triggers added; no nullglob on the pytest glob"
+    decision: "bats-tests.yml runs the unit suite as bats --tap … | tee $RUNNER_TEMP/unit.tap under pipefail and an if: always() step prints executed / skipped / quarantined totals; the workflow also triggers on tools/check-*.sh and evals/analysis/**; the pytest glob evals/analysis/*/tests runs without nullglob so a missing suite fails loudly."
+    rationale: "FR-5 requires executed, skipped and quarantined counts reported separately, which needs the TAP stream; without the triggers an analysis or lint-tool change would never run the workflow; a silently empty glob would report green on nothing."
+    alternatives_considered:
+      - option: "keep the plain bats step and compute totals elsewhere"
+        rejected_because: "the counts exist only in the TAP stream"
+      - option: "nullglob for the pytest step"
+        rejected_because: "an empty glob would pass with zero tests"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f1b349e0"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-d.md § Judgment calls (The unit step changed to --tap | tee; Path triggers added; No nullglob)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T01:21:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit f1b349e06 (.github/workflows/bats-tests.yml:39-40, 67-68, 196, 198-211, 214-240)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0884"
+    created_at: "2026-10-24T01:21:04Z"
+    updated_at: "2026-10-24T01:21:04Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 272 close (lead): knob-reader gate excludes <dir>/__tests__/fixtures/ and <dir>/tests/fixtures/ — fixtures are data, not readers; controls still bite"
+    decision: "tools/check-knob-readers.sh filters hits under any <dir>/__tests__/fixtures/ or <dir>/tests/fixtures/ path: the verbatim PR #1289 comment fixtures of Task 1.2 quote a `yq '.soul_identity_doc.enabled …'` read inside a recorded review thread; the positive-control cases in tests/unit/profile-lib.bats plant their readers under .claude/hooks/ and still fire (17/17)."
+    rationale: "A recorded payload that quotes an offending read is evidence of the defect being fixed, not a reader; altering the fixture bytes would make the KF-055 reproduction non-verbatim, and the gate's purpose (no direct profile-key reads in framework code) is unchanged by excluding data directories."
+    alternatives_considered:
+      - option: "edit the fixture text to break the quoted yq token"
+        rejected_because: "the fixtures are verbatim posted threads; a non-verbatim reproduction weakens the KF-055 evidence"
+      - option: "allowlist the two fixture files by name"
+        rejected_because: "every future recorded-thread fixture would need a new allowlist row; the directory rule states the principle once"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f1b349e0"
+    source: "grimoires/loa/a2a/sprint-272/reviewer.md § What the lead did at landing; tools/check-knob-readers.sh"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T01:21:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 6c3929f70 (tools/check-knob-readers.sh); profile-lib.bats 17/17; gate chain green on the Sprint 272 head"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0885"
+    created_at: "2026-10-24T01:21:07Z"
+    updated_at: "2026-10-24T01:21:07Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 272 close (lead): A's live-run-on-import breach handled by a follow-up patch (s1-a2) rather than a note; sprint a2a reports stay local (record branch)"
+    decision: "When implementer A reported that persona.test.ts had started a live review on import (read-only gh calls, no model call, no post), the lead requested an incremental patch making main.ts run only as the entrypoint (landed ad8dae02b, npm test 1017/1017, KF-036 recurrence 5 + attempt row) instead of recording the breach and leaving the known failure; the sprint's a2a directory (reviewer*.md, e2e.md) stays untracked on the cycle branch and rides the record branch, so implementer C's staged copy of reviewer-c.md was removed from the index (8ae43d655)."
+    rationale: "A test that can perform live calls on import is a hazard every future implementer could trip; fixing it costs one small patch inside A's ownership. Sprint a2a on main would add reviewable files to every cycle PR without being code; the record branch is their home since cycle-125."
+    alternatives_considered:
+      - option: "document the breach and keep KF-036 open"
+        rejected_because: "leaves a live-call hazard in a test every contributor runs"
+      - option: "track sprint a2a on the cycle branch"
+        rejected_because: "breaks the record-branch convention and inflates the PR's reviewable set"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f1b349e0"
+    source: "grimoires/loa/a2a/sprint-272/reviewer.md § Status and § What the lead did at landing; a2a/sprint-272/reviewer-a.md § Follow-up a2"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T01:21:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commits ad8dae02b, 8ae43d655; known-failures.md KF-036 attempt row 2026-10-23"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
