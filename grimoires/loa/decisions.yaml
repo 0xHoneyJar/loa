@@ -30212,3 +30212,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0902"
+    created_at: "2026-10-24T06:52:34Z"
+    updated_at: "2026-10-24T06:52:34Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 Task 2.4a: address validation = the sidecar's netfilter after resolution (default DROP; only tcp 443 to public IPv4), not proxy DNS checks"
+    decision: "The sidecar (tinyproxy 1.11, FilterDefaultDeny over an exact lower-case hostname allowlist, ConnectPort 443, DisableViaHeader) runs netfilter in its own network namespace: OUTPUT default DROP, ESTABLISHED/RELATED and Docker's embedded resolver 127.0.0.11 accepted, every private, loopback, link-local/metadata, CGNAT, benchmark, multicast and reserved IPv4 range REJECTed, then tcp 443 to any other IPv4 accepted, everything else rejected; ip6tables OUTPUT DROP/REJECT entirely. A DNS-rebinding answer (an allowlisted name resolving to loopback, metadata, a private or the gateway address) is therefore refused at connect time, after resolution, regardless of what the proxy's filter saw."
+    rationale: "A hostname filter alone validates the name, not the address it resolves to at connect time; netfilter after resolution is the only place the final destination is known; keeping TLS end to end (no private CA) means the proxy never sees or alters the payload."
+    alternatives_considered:
+      - option: "resolve in the proxy and compare the address list before CONNECT"
+        rejected_because: "the proxy's lookup and the kernel's connect can see different answers (rebinding); the netfilter rule binds the actual connect"
+      - option: "a TLS-terminating proxy with a private CA for content inspection"
+        rejected_because: "out of the threat model (model API exfiltration is the grader's class-9 tripwire) and would put credentials through the sidecar"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "d6a4b234"
+    source: "evals/harness/Dockerfile.proxy header and loa-egress-entrypoint; evals/harness/lib/egress-proxy.sh header (the implementer left no report; the lead read the code and the self-check log)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T06:52:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit d6a4b2349 (Dockerfile.proxy loa-egress-entrypoint; egress-proxy.bats EGR-3, 4, 6, 8, 9; self-check 'sidecar netfilter: PASS')"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
