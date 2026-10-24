@@ -870,3 +870,84 @@ EOF
   [ "$output" = 2.1.299 ]
   grep -qx 'SURFACE_DERIVED_FOR = "2.1.299"' "$LIB"
 }
+
+# --- HS-13: clause (f) widened to single-file Bash reads judged by content (lead decision, option b) --------------
+# bash_read <label> <id> <command> — a Bash tool_use whose result is the command's real output in the sandbox
+bash_read() { tu "$1" "$2" Bash "$(bash_in "$3")" "$(cd "$W" && bash -c "${3//\/workspace/$W}" 2>&1)"; }   # the output as the container would print it
+
+@test "HS-13 clause (f) credits single-file Bash reads by content like Read (cat, cat -n, cat -A, head, tail, sed -n, nl), merged with Read windows and named per window; a window under 60 %, a pipe, two files, a redirect, a glob, a substitution, grep/diff/git show never count" {
+  # a longer changed file (100 lines) beside the fixture's
+  local i
+  mkdir -p "$FX/head/.claude/protocols" "$FX/base/.claude/protocols"
+  for i in $(seq 1 100); do echo "long protocol line $i (head)"; done > "$FX/head/.claude/protocols/long.md"
+  for i in $(seq 1 100); do echo "long protocol line $i (base)"; done > "$FX/base/.claude/protocols/long.md"
+  printf 'diff --git a/.claude/protocols/long.md b/.claude/protocols/long.md\n--- a/.claude/protocols/long.md\n+++ b/.claude/protocols/long.md\n' >> "$FX/head.diff"
+  cp -a "$FX/head/.claude/protocols/long.md" "$W/pr/head/.claude/protocols/"; cp -a "$FX/base/.claude/protocols/long.md" "$W/pr/base/.claude/protocols/"
+  hs_run
+  cp -a "$RD" "$T/run0"
+  # cat on a changed root data file: credited, the evidence names the tool and the window
+  bash_read REVIEW b1 'cat .claude/protocols/p.md'
+  fb 'head/.claude/protocols/p.md:5 the guard wording'
+  te_hs
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  oc | grep -qF 'pr_bytes_read=[".claude/protocols/p.md"]'
+  oc | grep -qF 'pr_bytes_read_by=[".claude/protocols/p.md Bash 1-10"]'
+  # sed -n '1,40p' on the 100-line file: 40 % — not credited; a cited file so read FAILs (f)
+  bash_read REVIEW b2 "sed -n '1,40p' pr/head/.claude/protocols/long.md"
+  fb 'head/.claude/protocols/p.md:5; head/.claude/protocols/long.md:30 the long protocol'
+  te_hs
+  [ "$status" -eq 1 ]; oc | grep -qF 'FAIL (f) .claude/protocols/long.md: cited by the review but its PR bytes were never read' || { echo "$output"; false; }
+  # the rest of the file through Read: the windows merge across tools and phases
+  tu AUDIT r1 Read "$(rd_win /workspace/pr/head/.claude/protocols/long.md 41 60)" "$(gut "$W/pr/head/.claude/protocols/long.md" 41 60)"
+  te_hs
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  oc | grep -qF 'pr_bytes_read_by=[".claude/protocols/long.md Bash 1-40",".claude/protocols/long.md Read 41-100",".claude/protocols/p.md Bash 1-10"]' || { echo "$output"; false; }
+  # a pipe is never a read, even when its output is the file
+  reset_run
+  tu REVIEW r0 Read "$(rd_in /workspace/.claude/protocols/p.md)" "$(gut "$W/.claude/protocols/p.md")"   # a credited read: the cited-file verdict decides
+  bash_read REVIEW b3 'cat .claude/scripts/s.sh | grep version'
+  fb '.claude/scripts/s.sh:2 the script'
+  te_hs
+  [ "$status" -eq 1 ]; oc | grep -qF 'FAIL (f) .claude/scripts/s.sh: cited by the review but its PR bytes were never read' || { echo "$output"; false; }
+  # every credited form, each alone on the 2-line script; and every refused form
+  local cmd want
+  while IFS='|' read -r cmd want; do
+    reset_run
+    tu REVIEW r0 Read "$(rd_in /workspace/.claude/protocols/p.md)" "$(gut "$W/.claude/protocols/p.md")"   # a credited read: the cited-file verdict decides
+    bash_read REVIEW f1 "$cmd"
+    fb '.claude/scripts/s.sh:2 the script'
+    te_hs
+    if [[ "$want" == credited ]]; then
+      [ "$status" -eq 0 ] || { echo "form '$cmd' not credited: $(oc)"; false; }
+      oc | grep -qF 'pr_bytes_read=[".claude/protocols/p.md",".claude/scripts/s.sh"]' || { echo "form '$cmd': $(oc)"; false; }
+    else
+      [ "$status" -eq 1 ] || { echo "form '$cmd' credited: $(oc)"; false; }
+      oc | grep -qF 'FAIL (f) .claude/scripts/s.sh: cited by the review but its PR bytes were never read' || { echo "form '$cmd': $(oc)"; false; }
+    fi
+  done <<'FORMS'
+cat .claude/scripts/s.sh|credited
+cat -n .claude/scripts/s.sh|credited
+cat -A .claude/scripts/s.sh|credited
+cat /workspace/pr/head/.claude/scripts/s.sh|credited
+head .claude/scripts/s.sh|credited
+head -n 2 .claude/scripts/s.sh|credited
+head -2 .claude/scripts/s.sh|credited
+tail .claude/scripts/s.sh|credited
+tail -n 2 .claude/scripts/s.sh|credited
+tail -n +1 .claude/scripts/s.sh|credited
+sed -n '1,2p' .claude/scripts/s.sh|credited
+sed -n 1,2p .claude/scripts/s.sh|credited
+nl .claude/scripts/s.sh|credited
+head -n 1 .claude/scripts/s.sh|refused
+sed -n 2p .claude/scripts/s.sh|refused
+cat .claude/scripts/s.sh .claude/protocols/p.md|refused
+cat .claude/scripts/s.sh > /dev/null; cat .claude/scripts/s.sh|refused
+cat .claude/scripts/s.sh && true|refused
+cat .claude/scripts/*.sh|refused
+cat $(echo .claude/scripts/s.sh)|refused
+grep -n version .claude/scripts/s.sh|refused
+diff pr/base/.claude/scripts/s.sh .claude/scripts/s.sh|refused
+git show HEAD:pr/head/.claude/scripts/s.sh|refused
+cat -v .claude/scripts/s.sh|refused
+FORMS
+}

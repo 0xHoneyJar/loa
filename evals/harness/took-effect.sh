@@ -74,7 +74,12 @@
 #                              (e) (the library's check) every surface path absent at the root, the root
 #                                  .claude/ holding only the PR's changed data paths at the PR's bytes;
 #                              (f) a positive read: the transcript parser (transcript_schema
-#                                  claude-stream-json/2.1.299, parser read-coverage/1) joins the Read results
+#                                  claude-stream-json/2.1.299, parser read-coverage/2) joins the Read results
+#                                  and the single-file Bash reads (Sprint 274 lead decision b: `cat`, `cat -n`,
+#                                  `cat -A`, `nl`, `head`/`tail` [-n N | -N | -n +K], `sed -n 'A[,B]p'`, exactly one
+#                                  path, no pipe, redirect, glob, ;, &&, || or substitution; the window is the lines
+#                                  the command returns, judged by content like a Read)
+
 #                                  per path (the "<n><TAB>" or "<n>→" gutter stripped, offset/limit windows
 #                                  concatenated across phases, <system-reminder> blocks dropped, an errored
 #                                  Read ignored); a changed .claude/ file with PR head bytes counts as read
@@ -88,6 +93,7 @@
 #                                  pinned version (pinned at source_commit, >= 8 characters stripped, in
 #                                  neither fixture side) FAILs as pinned_bytes_read (the HOME framework copy is
 #                                  readable; reading it reopens the oracle). Evidence pr_bytes_read=[…],
+#                                  pr_bytes_read_by=["<path> Read|Bash <a>-<b>", …] (the credited windows by tool),
 #                                  cited=[…], grep_only=[…], pinned_bytes_read=[…].
 #                              (g) nothing of the PR's executable surface loaded or ran: a process capture
 #                                  meta/ps-<label>.txt per executed phase with at least one sample ("# sample" header lines, then
@@ -489,11 +495,11 @@ rule_oracle_closed() {
 # "FAIL (<f|g>) <path|->: <detail>[ (+<n> more)]" (exit 1). See the header for the clauses.
 _te_home_scope_py() {
   python3 -I - "$@" <<'PY'
-import hashlib, json, math, os, re, subprocess, sys
+import hashlib, json, math, os, re, shlex, subprocess, sys
 
 run, fixture, setfile, repo, commit, evfile = sys.argv[1:7]
 SCHEMA = "claude-stream-json/2.1.299"   # the transcript shape read here: Claude Code 2.1.299 stream-json --verbose
-PARSER = "read-coverage/1"
+PARSER = "read-coverage/2"     # 2: single-file Bash reads credited by content (Sprint 274, lead decision b)
 COVER = 0.6                             # a file counts as read at >= 60 % of its lines (or all of them)
 TRUNC = 2000                            # Read truncates longer lines; a truncated line counts when it is a prefix
 FILE_CAP, LINE_CAP, EVENT_CAP, CMD_CAP = 4 << 20, 20000, 8 << 20, 65536
@@ -654,7 +660,102 @@ def rel_of(p, cwd):
 GUTTER = re.compile(r"^\s*(\d+)(?:\t|→)(.*)$")
 REMINDER = re.compile(r"<system-reminder>.*?</system-reminder>", re.S)
 EXIT_LINE = re.compile(r"\AExit code \d+\n?")
-reads, read_seen, grep_seen = {}, set(), set()
+reads, read_seen, grep_seen, windows = {}, set(), set(), {}
+# a credited Bash read: exactly one of these forms on exactly one path, nothing else in the command string
+BASH_FORBID = re.compile(r"[|;&<>`$*?\[\]{}()\n\r\\]")
+NUM = re.compile(r"^\d+$")
+
+def bash_form(cmd):
+    """(kind, path, arg) for a credited single-file read command, else None. kinds: cat, cat-n, cat-A, nl, head (arg =
+    n), tail (arg = n, or "+k"), sed (arg = (a, b))"""
+    if not isinstance(cmd, str) or len(cmd) > 4096 or BASH_FORBID.search(cmd):
+        return None
+    try:
+        w = shlex.split(cmd)
+    except ValueError:
+        return None
+    if len(w) < 2:
+        return None
+    exe, args = w[0], w[1:]
+    if exe == "cat":
+        if len(args) == 1:
+            return ("cat", args[0], None)
+        if len(args) == 2 and args[0] in ("-n", "-A"):
+            return ("cat" + args[0], args[1], None)
+        return None
+    if exe == "nl":
+        return ("nl", args[0], None) if len(args) == 1 else None
+    if exe in ("head", "tail"):
+        if len(args) == 1:
+            return (exe, args[0], 10)
+        n = None
+        if len(args) == 3 and args[0] == "-n":
+            n = args[1]
+        elif len(args) == 2 and re.match(r"^-n?\+?\d+$", args[0]):
+            n = args[0].lstrip("-").lstrip("n")
+        if n is None or args[-1].startswith("-"):
+            return None
+        if NUM.match(n):
+            return (exe, args[-1], int(n))
+        if exe == "tail" and n.startswith("+") and NUM.match(n[1:]):
+            return (exe, args[-1], n)
+        return None
+    if exe == "sed" and len(args) == 3 and args[0] == "-n":
+        m = re.match(r"^(\d+)(?:,(\d+))?p$", args[1])
+        if m:
+            return ("sed", args[2], (int(m.group(1)), int(m.group(2) or m.group(1))))
+    return None
+
+def file_need(p):
+    lines = text_lines(changed[p])
+    return 0 if changed[p] == b"" else (len(lines) - 1 if len(lines) > 1 and lines[-1] == "" else len(lines))
+
+def bash_pairs(kind, arg, p, res):
+    """[(line number, text)] the command's output claims, or None when the output is not that form's shape"""
+    out = res[:-1] if res.endswith("\n") else res
+    lines = out.split("\n")[:LINE_CAP] if out != "" else []
+    if kind in ("cat", "head"):
+        return [(i, t) for i, t in enumerate(lines, 1)]
+    if kind == "sed":
+        return [(arg[0] + i, t) for i, t in enumerate(lines)]
+    if kind == "tail":
+        start = int(arg[1:]) if isinstance(arg, str) else file_need(p) - len(lines) + 1
+        return [(start + i, t) for i, t in enumerate(lines)] if start >= 1 else None
+    pairs = []
+    for i, t in enumerate(lines, 1):
+        if kind == "cat-n":
+            g = re.match(r"^\s*(\d+)\t(.*)$", t)
+            if not g:
+                return None
+            pairs.append((int(g.group(1)), g.group(2)))
+        elif kind == "cat-A":
+            if not t.endswith("$"):
+                return None
+            pairs.append((i, t[:-1].replace("^I", "\t")))
+        elif kind == "nl":
+            g = re.match(r"^\s*\d+\t(.*)$", t)
+            if g:
+                pairs.append((i, g.group(1)))
+            elif t.strip() == "":
+                pairs.append((i, ""))
+            else:
+                return None
+    return pairs
+
+def add_window(key, tool, pairs):
+    read_seen.add(key)
+    m = reads.setdefault(key, {})
+    for n, txt in pairs:
+        if n in m and m[n] != txt:
+            m[n] = None                     # two reads disagree on the line: it proves nothing
+        elif n not in m:
+            m[n] = txt
+    ns = [n for n, _t in pairs]
+    windows.setdefault(key, set()).add((tool, min(ns) if ns else 0, max(ns) if ns else 0))
+
+def key_of(rel):
+    return (rel[len("pr/head/"):], "pr/head") if rel.startswith("pr/head/") else (rel, "root")
+
 for tn, name, inp, ucwd, res, errored in results:
     if name == "Grep" and not errored:
         rel = rel_of(inp.get("path"), ucwd)
@@ -662,25 +763,33 @@ for tn, name, inp, ucwd, res, errored in results:
             if (rel is not None and (rel == p or rel == "pr/head/" + p)) or p in res:
                 grep_seen.add(p)
         continue
-    if name != "Read" or errored:
+    if errored:
+        continue
+    if name == "Bash":
+        form = bash_form(inp.get("command"))
+        if form is None:
+            continue
+        rel = rel_of(form[1], ucwd)
+        if rel is None or key_of(rel)[0] not in changed:
+            continue
+        key = key_of(rel)
+        pairs = bash_pairs(form[0], form[2], key[0], res)
+        if pairs is None:
+            reads.setdefault(key, {})[0] = None   # an output that is not the form's shape voids the source
+            continue
+        add_window(key, "Bash", pairs)
+        continue
+    if name != "Read":
         continue
     rel = rel_of(inp.get("file_path"), ucwd)
-    if rel is None:
+    if rel is None or key_of(rel)[0] not in changed:
         continue
-    key = (rel[len("pr/head/"):], "pr/head") if rel.startswith("pr/head/") else (rel, "root")
-    if key[0] not in changed:
-        continue
-    read_seen.add(key)
-    m = reads.setdefault(key, {})
+    pairs = []
     for l in REMINDER.sub("", res).split("\n")[:LINE_CAP]:
         g = GUTTER.match(l)
-        if not g:
-            continue
-        n, txt = int(g.group(1)), g.group(2)
-        if n in m and m[n] != txt:
-            m[n] = None                     # two reads disagree on the line: it proves nothing
-        elif n not in m:
-            m[n] = txt
+        if g:
+            pairs.append((int(g.group(1)), g.group(2)))
+    add_window(key_of(rel), "Read", pairs)
 
 def qualifies(p, m):
     lines = text_lines(changed[p])
@@ -697,7 +806,9 @@ def qualifies(p, m):
             matched += 1
     return True if need == 0 else matched >= max(1, math.ceil(COVER * need))
 
-pr_bytes_read = sorted(set(p for key, m in reads.items() for p in [key[0]] if qualifies(p, m)))
+credited = [key for key, m in reads.items() if qualifies(key[0], m)]
+pr_bytes_read = sorted(set(key[0] for key in credited))
+pr_bytes_read_by = sorted(set("%s %s %d-%d" % (key[0], t, lo, hi) for key in credited for t, lo, hi in windows.get(key, ())))
 grep_only = sorted(p for p in grep_seen if p not in pr_bytes_read)
 cited, ftext = [], []
 fbroot = os.path.join(ws_host, "grimoires", "loa", "a2a")
@@ -739,12 +850,12 @@ for tn, name, inp, ucwd, res, errored in results:
 for p, d in pinned_hits:
     fail("f", p, d)
 if changed and not pr_bytes_read:
-    fail("f", "-", "pr_bytes_read is empty (%d changed .claude/ file(s); no Read returned the PR's bytes for >= 60 %% of one)" % len(changed))
+    fail("f", "-", "pr_bytes_read is empty (%d changed .claude/ file(s); no Read or single-file Bash read returned the PR's bytes for >= 60 %% of one)" % len(changed))
 for p in cited:
     if p not in pr_bytes_read:
-        fail("f", p, "cited by the review but its PR bytes were never read (Read of %s or pr/head/%s; Grep never counts)" % (p, p))
-fev = "(f) transcript_schema=%s parser=%s pr_bytes_read=%s cited=%s grep_only=%s pinned_bytes_read=%s" % (
-    SCHEMA, PARSER, jl(pr_bytes_read), jl(cited), jl(grep_only), jl(set(p for p, _ in pinned_hits)))
+        fail("f", p, "cited by the review but its PR bytes were never read (Read or a single-file Bash read of %s or pr/head/%s; Grep, pipes and multi-file commands never count)" % (p, p))
+fev = "(f) transcript_schema=%s parser=%s pr_bytes_read=%s pr_bytes_read_by=%s cited=%s grep_only=%s pinned_bytes_read=%s" % (
+    SCHEMA, PARSER, jl(pr_bytes_read), jl(pr_bytes_read_by), jl(cited), jl(grep_only), jl(set(p for p, _ in pinned_hits)))
 
 # ---- clause (g): nothing of the PR's executable surface loaded or ran -----------------------------------------------
 try:
