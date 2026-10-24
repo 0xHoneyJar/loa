@@ -386,6 +386,7 @@ G() { jq -r "$1" "$RD/grade.json"; }
   cp "$REPO_ROOT/evals/harness/pipeline-run.sh" "$REPO_ROOT/evals/harness/fingerprint.sh" "$H/"
   cp -a "$REPO_ROOT/evals/harness/lib/phase-prompts" "$H/lib/"
   cp "$TESTS_DIR/fixtures/mount-lib-stub.sh" "$H/lib/sandbox-mount.sh"
+  cp "$REPO_ROOT/evals/harness/lib/session-exec.sh" "$H/lib/"   # cycle-133 C-6: the session library
   for sk in planning-sprints implementing-tasks reviewing-code auditing-security; do
     mkdir -p "$T/src/.claude/skills/$sk"; printf -- '---\nname: %s\neffort: xhigh\n---\nbody\n' "$sk" > "$T/src/.claude/skills/$sk/SKILL.md"
   done

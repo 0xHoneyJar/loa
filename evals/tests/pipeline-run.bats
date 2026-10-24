@@ -63,12 +63,14 @@ make_source_tree() {
 }
 
 # a temporary copy of the harness: the stub mount library sits at the literal path
-# pipeline-run.sh sources (lib/sandbox-mount.sh)
+# pipeline-run.sh sources (lib/sandbox-mount.sh); the session library (lib/session-exec.sh, cycle-133
+# C-6) is the shipped one — the one copy of the shim, the keys and the pricing
 make_harness() {
   H="$T/h/evals/harness"
   mkdir -p "$H/lib"
   cp "$REPO_ROOT/evals/harness/pipeline-run.sh" "$REPO_ROOT/evals/harness/fingerprint.sh" "$H/"
   cp -a "$REPO_ROOT/evals/harness/lib/phase-prompts" "$H/lib/"
+  cp "$REPO_ROOT/evals/harness/lib/session-exec.sh" "$H/lib/session-exec.sh"
   cp "$TESTS_DIR/fixtures/mount-lib-stub.sh" "$H/lib/sandbox-mount.sh"
   PR="$H/pipeline-run.sh"
 }
@@ -1467,4 +1469,107 @@ arm_named_pr() {
   [ "$(cat "$T/run/sandbox/pr/head/.claude/scripts/gate.sh")" = "gate head" ]
   grep -q private_workspace_base "$T/run/sandbox/pr/head/.claude/adapters/loa_cheval/providers/__init__.py"
   [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = completed ]
+}
+
+# --- cycle-133 Task 2.1 (SDD C-6): the session library and fail-closed metering --------------------------------------
+
+# a CLI wrapper whose IMPLEMENT phase streams the given lines and then hangs (the watchdog must stop it); every other
+# phase is the usual stub
+hang_impl() {  # hang_impl <file-of-lines> [exit]
+  cat > "$T/claude-hang" <<EOF
+#!/usr/bin/env bash
+case "\$*" in
+  *"# Phase: IMPLEMENT"*) echo IMPLEMENT >> "$T/log/hang.calls"; cat "$1"; [[ -n "${2:-}" ]] && exit "${2:-0}"; sleep 20; echo after >> "$T/log/hang.after" ;;
+  *) exec "$T/claude" "\$@" ;;
+esac
+EOF
+  chmod +x "$T/claude-hang"
+}
+
+@test "PR-c133-1 the session library is sourced by its literal path from the staged harness; a harness without it is infrastructure_error (exit 2) before any phase" {
+  grep -qx 'source ./lib/session-exec.sh || { popd >/dev/null; infra "session library failed to load"; }' "$PR"
+  run_pr a1_full
+  [ "$status" -eq 0 ]
+  rm "$H/lib/session-exec.sh"
+  rm -rf "$T/run"
+  run_pr a1_full
+  [ "$status" -eq 2 ]
+  [[ "$(jq -r '.reason' "$T/run/meta/pipeline.json")" == "session library not found"* ]]
+  [ "$(jq -r '.phases | length' "$T/run/meta/pipeline.json")" = 0 ]
+}
+
+@test "PR-c133-2 a planned phase model with no valid price stops the run before the first phase: infrastructure_error, reason metering_incomplete, no CLI call (unknown model, malformed table, negative price)" {
+  local i=0 args
+  for args in "--phase-models {\"REVIEW\":\"global.anthropic.claude-unpriced-1\"}" "" ""; do
+    i=$((i + 1))
+    case $i in
+      2) export LOA_EVAL_PRICING_JSON='{"global.anthropic.claude-opus-5-5": {"input_per_mtok": 4000000,' ;;
+      3) export LOA_EVAL_PRICING_JSON='{"global.anthropic.claude-opus-5-5":{"input_per_mtok":4000000,"output_per_mtok":-1},"global.anthropic.claude-fable-5-1":{"input_per_mtok":10000000,"output_per_mtok":50000000}}' ;;
+    esac
+    rm -rf "$T/run" "$T/log"; mkdir -p "$T/log"
+    # shellcheck disable=SC2086
+    run_pr a1_full "$BUILD" $args
+    echo "$i: $output"
+    [ "$status" -eq 2 ]
+    [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = infrastructure_error ]
+    [[ "$(jq -r '.reason' "$T/run/meta/pipeline.json")" == "metering_incomplete: no valid price for model "* ]]
+    [ "$(jq -r '.phases | length' "$T/run/meta/pipeline.json")" = 0 ]
+    [ ! -e "$T/log/call-1.argv" ]
+  done
+}
+
+@test "PR-c133-3 a completed turn without usage stops the phase: the watchdog kills it, status infrastructure_error, reason metering_incomplete, metering incomplete on the phase record, no later phase" {
+  printf '%s\n' '{"type":"system","subtype":"init","session_id":"s-hang"}' \
+    '{"type":"assistant","message":{"id":"a","content":[{"type":"text","text":"x"}]}}' \
+    '{"type":"assistant","message":{"id":"b","usage":{"input_tokens":1,"output_tokens":1},"content":[]}}' > "$T/nu.jsonl"
+  hang_impl "$T/nu.jsonl"
+  local t0; t0="$(date +%s)"
+  run_pr a1_full "$BUILD" --claude-bin "$T/claude-hang"
+  echo "$output"
+  [ "$status" -eq 2 ]
+  [ $(( $(date +%s) - t0 )) -lt 15 ]
+  [ ! -e "$T/log/hang.after" ]
+  local p="$T/run/meta/pipeline.json"
+  [ "$(jq -r '.status' "$p")" = infrastructure_error ]
+  [[ "$(jq -r '.reason' "$p")" == "metering_incomplete: "*IMPLEMENT* ]]
+  [ "$(labels)" = "PLAN,IMPLEMENT" ]
+  [ "$(jq -r '[.phases[] | select(.label == "IMPLEMENT")][0].metering' "$p")" = incomplete ]
+  [ "$(jq -r '[.phases[] | select(.label == "PLAN")][0].metering' "$p")" = metered ]
+}
+
+@test "PR-c133-4 an invalid token count in a finished phase's stream stops the run the same way (infrastructure_error metering_incomplete)" {
+  printf '%s\n' '{"type":"system","subtype":"init","session_id":"s-bad"}' \
+    '{"type":"assistant","message":{"id":"a","usage":{"input_tokens":-5,"output_tokens":1},"content":[]}}' \
+    '{"type":"result","subtype":"success","is_error":false,"num_turns":1,"total_cost_usd":0.1}' > "$T/bad.jsonl"
+  hang_impl "$T/bad.jsonl" 0
+  run_pr a1_full "$BUILD" --claude-bin "$T/claude-hang"
+  [ "$status" -eq 2 ]
+  [[ "$(jq -r '.reason' "$T/run/meta/pipeline.json")" == "metering_incomplete: "* ]]
+  [ "$(labels)" = "PLAN,IMPLEMENT" ]
+}
+
+@test "PR-c133-5 zero prices are accepted: the run completes with the watchdog pricing every phase at zero" {
+  export LOA_EVAL_PRICING_JSON='{"global.anthropic.claude-opus-5-5":{"input_per_mtok":0,"output_per_mtok":0},"global.anthropic.claude-fable-5-1":{"input_per_mtok":0,"output_per_mtok":0}}'
+  run_pr a1_full
+  [ "$status" -eq 0 ]
+  [ "$(jq -r '[.phases[] | select(.skipped == false) | "\(.metering):\(.watchdog.priced):\(.watchdog.estimate_usd)"] | unique | join(",")' "$T/run/meta/pipeline.json")" = "metered:true:0" ]
+}
+
+@test "PR-c133-6 a phase that started but produced no usage event and no result cost is recorded as an unmetered_attempt" {
+  printf '%s\n' '{"type":"system","subtype":"init","session_id":"s-um"}' > "$T/init.jsonl"
+  hang_impl "$T/init.jsonl" 1
+  run_pr a1_full "$BUILD" --claude-bin "$T/claude-hang"
+  [ "$status" -eq 1 ]
+  [ "$(jq -r '[.phases[] | select(.label == "IMPLEMENT")][0] | "\(.metering) \(.cost_source)"' "$T/run/meta/pipeline.json")" = "unmetered_attempt watchdog_estimate" ]
+}
+
+@test "PR-c133-7 a secret-shaped pass-through key outside SECRET_KEYS fails the startup assertion: infrastructure_error (exit 2), no phase" {
+  sed -i 's/^PASS_KEYS="AWS_REGION /PASS_KEYS="OPENAI_API_KEY AWS_REGION /' "$H/lib/session-exec.sh"
+  grep -q '^PASS_KEYS="OPENAI_API_KEY ' "$H/lib/session-exec.sh"
+  run_pr a1_full
+  echo "$output"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"OPENAI_API_KEY"* ]]
+  [ "$(jq -r '.phases | length' "$T/run/meta/pipeline.json")" = 0 ]
+  [ ! -e "$T/log/call-1.argv" ]
 }

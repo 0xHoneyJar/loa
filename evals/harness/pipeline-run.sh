@@ -111,6 +111,15 @@
 # overrides) and SIGTERMs the phase when spent + estimate ≥ the cap (cap_turn
 # recorded). After each phase the result's total_cost_usd (authoritative) plus the
 # sandbox cost-ledger rows written during the phase are added; ≥ cap → cap_failure.
+# Metering fails closed (cycle-133 C-6, lib/session-exec.sh): before the first phase every
+# planned phase model must have a valid price (an unknown id, a malformed
+# $LOA_EVAL_PRICING_JSON or a null/negative/non-finite price → infrastructure_error, reason
+# `metering_incomplete: …`, no phase runs); a phase stream that cannot be priced (an
+# invalid token count, a completed turn without usage) stops the phase — SIGTERM while it
+# runs — and the run (infrastructure_error, reason `metering_incomplete: <label> …`, the
+# phase record carries metering: incomplete). Each phase record carries metering
+# metered | incomplete | unmetered_attempt (the phase started, no usage event and no
+# result cost: spend unknown, not zero).
 #
 # Exit codes:
 #   0  finished (any verdict)                                   status completed
@@ -182,9 +191,13 @@
 #
 # Mount library: lib/sandbox-mount.sh beside this script, sourced by a literal path.
 # Exported to it: ARM_EVIDENCE_FILE, ARM_ENV_FILE (meta/arm-env), LOA_EVAL_SUITE_FILE.
+# Session library: lib/session-exec.sh beside this script, sourced by a literal path (the one
+# copy of the exec shim, the pass-through/secret keys and the pricing; blind-session.sh
+# shares it); its startup assertion assert_secret_keys failing is infrastructure_error.
 #
 # Tested by evals/tests/pipeline-run.bats (stub claude, stub docker, and a temporary
-# copy of this harness whose lib/sandbox-mount.sh is the stub mount library).
+# copy of this harness whose lib/sandbox-mount.sh is the stub mount library and whose
+# lib/session-exec.sh is the shipped one).
 # =============================================================================
 set -euo pipefail
 export LC_ALL=C
@@ -541,10 +554,18 @@ for fn in mount_prompt_surface resolve_arm_toggles apply_arm_toggles regen_sandb
           overlay_answer_paths check_mount_closed apply_eval_config_variant; do
   declare -F "$fn" >/dev/null || infra "mount library lacks $fn"
 done
+# --- session library (cycle-133 C-6): the exec shim, pass-through/secret keys, pricing ------
+# eval.yml trust boundary: a literal in-tree path, no variable on the source line.
+[[ -f "$SCRIPT_DIR/lib/session-exec.sh" ]] || infra "session library not found: $SCRIPT_DIR/lib/session-exec.sh"
+pushd "$SCRIPT_DIR" >/dev/null
+# shellcheck source=lib/session-exec.sh
+source ./lib/session-exec.sh || { popd >/dev/null; infra "session library failed to load"; }
+popd >/dev/null
 # the library may set its own shell options or traps; the driver's stay as declared
 set -euo pipefail
 trap on_exit EXIT
 trap on_signal TERM INT HUP
+assert_secret_keys || infra "refused: a secret-shaped pass-through key is not in SECRET_KEYS (lib/session-exec.sh)"
 # the library's contract: arm environment lines (gates: false → LOA_ADVERSARIAL_REVIEW_ENFORCE=false)
 # land in ARM_ENV_FILE; write_sandbox_grimoire resolves sprint_plan from LOA_EVAL_SUITE_FILE
 export ARM_ENV_FILE="$META/arm-env"; : > "$ARM_ENV_FILE"
@@ -865,63 +886,14 @@ with os.fdopen(fd, "w", encoding="utf-8") as out:
 }
 [[ "$EXECUTOR" == container ]] && make_home
 
-# --- pricing (one lookup per model; D-4.10) ---------------------------------------------
-PRICE_CACHE=""
-price_for() {  # price_for <model id> → {"in":…,"out":…,"cr":…,"cc":…} micro-USD per Mtok, or null
-  local m="$1" hit alias j
-  hit="$(printf '%s\n' "$PRICE_CACHE" | awk -F'\t' -v m="$m" '$1 == m {print $2; exit}')"
-  [[ -n "$hit" ]] && { printf '%s' "$hit"; return 0; }
-  if [[ -n "${LOA_EVAL_PRICING_JSON:-}" ]]; then
-    j="$(jq -c --arg m "$m" '.[$m] // null' <<<"$LOA_EVAL_PRICING_JSON" 2>/dev/null || echo null)"
-  else
-    alias="$(printf '%s' "$m" | sed -E 's/^([a-z]+\.)?anthropic\.//; s/-v[0-9]+(:[0-9]+)?$//')"
-    j="$(cd "$REPO_ROOT/.claude/adapters" && python3 -I "$REPO_ROOT/.claude/adapters/loa_cheval/metering/pricing.py" \
-          --alias "$alias" --json 2>/dev/null | sed -n '1p' || true)"
-    [[ -n "$j" ]] || j=null
-  fi
-  j="$(jq -c 'if (type == "object") and (.input_per_mtok != null) and (.output_per_mtok != null)
-              then {in: .input_per_mtok, out: .output_per_mtok,
-                    cr: (.cache_read_per_mtok // (.input_per_mtok * 0.1)),
-                    cc: (.cache_write_per_mtok // .cache_creation_per_mtok // (.input_per_mtok * 1.25))}
-              else null end' <<<"$j" 2>/dev/null || echo null)"
-  PRICE_CACHE="$PRICE_CACHE$m"$'\t'"$j"$'\n'
-  printf '%s' "$j"
-}
-# price_events <events> <prices> <budget_micro> → "<turns> <estimate_micro> <crossing_turn|0>"
-price_events() {
-  jq -R -n -r --argjson p "$2" --argjson budget "$3" '
-    def cost(u): ((u.input_tokens // 0) * $p.in + (u.output_tokens // 0) * $p.out
-                  + (u.cache_read_input_tokens // 0) * $p.cr + (u.cache_creation_input_tokens // 0) * $p.cc) / 1000000;
-    reduce (inputs | fromjson? | select(type == "object" and .type == "assistant"
-                                        and ((.message.usage // null) | type) == "object")) as $e
-      ({order: [], u: {}, n: 0};
-       .n += 1
-       | ($e.message.id // ("event-" + (.n | tostring))) as $id
-       | (if .u[$id] == null then .order += [$id] else . end)
-       | .u[$id] = $e.message.usage)
-    | [.order[] as $id | cost(.u[$id])] as $c
-    | (reduce range(0; $c | length) as $i ({s: 0, x: 0};
-         if .x == 0 then (.s += $c[$i]) | (if .s >= $budget then .x = ($i + 1) else . end) else . end)) as $r
-    | "\($c | length) \(($c | add // 0) | round) \($r.x)"' 2>/dev/null < "$1" || echo "0 0 0"
-}
+# --- pricing: price_for / price_events / unmetered_tail come from lib/session-exec.sh (C-6) ---
 
 # --- phase execution ----------------------------------------------------------------
 IMPL_SESSION="" LAST_VERDICT="none" CUR_LABEL=""
 in_container_path() { local p="$1"; printf '%s' "/workspace${p#"$WS"}"; }
 
-# ENV_SHIM <keys-csv> <cmd…>: close every descriptor above 2 (DEC-0412), keep exactly the
-# named environment variables, exec <cmd>. Used on the host (host mode, and around the
-# docker client) and inside the container. No eval (eval.yml trust boundary), and secret
-# values never appear in any argv: they travel in the environment only.
-ENV_SHIM='import os, sys
-keys = [k for k in sys.argv[1].split(",") if k]
-env = {k: os.environ[k] for k in keys if k in os.environ}
-os.closerange(3, 65536)
-os.execvpe(sys.argv[2], sys.argv[2:], env)'
-# pass-through keys, taken from the driver's environment when set; SECRET_KEYS are never
-# written to an argv or a capture (recorded as <set>)
-PASS_KEYS="AWS_REGION AWS_DEFAULT_REGION AWS_PROFILE AWS_BEARER_TOKEN_BEDROCK ANTHROPIC_BEDROCK_REGION_PREFIX ANTHROPIC_DEFAULT_OPUS_MODEL ANTHROPIC_DEFAULT_SONNET_MODEL ANTHROPIC_DEFAULT_HAIKU_MODEL"
-SECRET_KEYS=" AWS_BEARER_TOKEN_BEDROCK "
+# ENV_SHIM, PASS_KEYS and SECRET_KEYS come from lib/session-exec.sh: the shim is used on the
+# host (host mode, and around the docker client) and inside the container.
 
 run_phase() {  # run_phase <name> <label>
   local name="$1" label="$2" model turns tsec prompt_file events errf argv_file
@@ -1002,12 +974,16 @@ run_phase() {  # run_phase <name> <label>
       launcher_argv: $launcher, container: ($executor == "container")}' > "$argv_file"
 
   local ledger_before=0 started_iso start_s end_s rc=0 prices killed=0 cap_turn=0 est="0 0 0" budget
+  local metering=metered est_new="" um=""
   ledger_before="$(wc -l < "$WS/.eval/cost-ledger.jsonl" | tr -d ' ')"
   local minv_before minv_after
   minv_before="$(wc -l < "$WS/.eval/model-invoke.jsonl" | tr -d ' ')"
   started_iso="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   start_s="$(now_ms)"
-  prices="$(price_for "$model")"
+  prices=ERR
+  if ! prices="$(price_for "$model")" || [[ "$prices" == ERR ]]; then
+    finish infrastructure_error 2 "metering_incomplete: no valid price for model $model (phase $label)"
+  fi
   budget=$(( CAP_MICRO - SPENT_MICRO ))
   CUR_LABEL="$label" CUR_CONTAINER="$cname"
   # the allowlist values enter the launcher's environment by export (never argv); the
@@ -1020,14 +996,18 @@ run_phase() {  # run_phase <name> <label>
   while kill -0 "$CUR_PID" 2>/dev/null; do
     sleep "$poll" || true
     [[ "$INTERRUPTED" -eq 1 ]] && break
-    if [[ "$prices" != null ]]; then
-      est="$(price_events "$events" "$prices" "$budget")"
-      if [[ "${est##* }" -gt 0 ]]; then
-        killed=1; cap_turn="${est##* }"
-        echo "pipeline-run.sh: watchdog: $label estimate passes the cap at turn $cap_turn; SIGTERM" >&2
-        kill_phase
-        break
-      fi
+    if ! est_new="$(price_events "$events" "$prices" "$budget")" || [[ "$est_new" == ERR ]]; then
+      metering=incomplete
+      echo "pipeline-run.sh: watchdog: $label metering_incomplete (the stream cannot be priced); SIGTERM" >&2
+      kill_phase
+      break
+    fi
+    est="$est_new"
+    if [[ "${est##* }" -gt 0 ]]; then
+      killed=1; cap_turn="${est##* }"
+      echo "pipeline-run.sh: watchdog: $label estimate passes the cap at turn $cap_turn; SIGTERM" >&2
+      kill_phase
+      break
     fi
   done
   wait "$CUR_PID" 2>/dev/null || rc=$?
@@ -1040,7 +1020,13 @@ run_phase() {  # run_phase <name> <label>
   fi
   end_s="$(now_ms)"
   CUR_PID="" CUR_CONTAINER=""
-  [[ "$prices" != null ]] && est="$(price_events "$events" "$prices" "$budget")"
+  if [[ "$metering" == metered ]]; then
+    if ! est_new="$(price_events "$events" "$prices" "$budget")" || [[ "$est_new" == ERR ]]; then
+      metering=incomplete
+    else
+      est="$est_new"
+    fi
+  fi
 
   # --- record ---
   local result init_sid sid ledger_rows ledger_micro rf timed_out=false elapsed_ms
@@ -1051,6 +1037,11 @@ run_phase() {  # run_phase <name> <label>
   fi
   init_sid="$(jq -R -r 'fromjson? | select(.type == "system" and .subtype == "init") | .session_id // empty' "$events" 2>/dev/null | sed -n '1p' || true)"
   sid="${init_sid:-$(jq -r '.session_id // empty' <<<"$result")}"
+  # an attempt without any usage event and without a result cost is unmetered, never zero spend (C-6)
+  if [[ "$metering" == metered ]] && ! jq -e '(.total_cost_usd | type) == "number"' >/dev/null 2>&1 <<<"$result"; then
+    if ! um="$(unmetered_tail "$events")" || [[ "$um" == ERR ]]; then metering=incomplete
+    elif [[ "$um" == true ]]; then metering=unmetered_attempt; fi
+  fi
   if [[ "$SINGLE_SESSION" == true && -z "$IMPL_SESSION" && -n "$sid" ]]; then
     case "$name" in PLAN|IMPLEMENT|FIX) IMPL_SESSION="$sid" ;; esac
   fi
@@ -1121,7 +1112,7 @@ run_phase() {  # run_phase <name> <label>
     --argjson minv_from "$((minv_before + 1))" --argjson minv_to "$minv_after" \
     --argjson ledger_from "$((ledger_before + 1))" --argjson turn_cap_hit "$turn_cap_hit" \
     --argjson gate_recovered "$gate_recovered" --argjson cli_exit "$cli_exit" \
-    --arg env_gate "$env_gate" --argjson env_copied "$env_copied" --arg env_sha "$env_sha" '
+    --arg env_gate "$env_gate" --argjson env_copied "$env_copied" --arg env_sha "$env_sha" --arg metering "$metering" '
     def u(k1; k2): ($result.usage[k1] // $result.usage[k2] // 0);
     {name: $name, label: $label, skipped: false,
      session_id: (if $sid == "" then null else $sid end),
@@ -1146,6 +1137,7 @@ run_phase() {  # run_phase <name> <label>
      verdict: (if $verdict == "null" or $verdict == "" then null else $verdict end),
      watchdog: {priced: ($priced != "null"), estimate_usd: ($est_micro / 1000000), turns_seen: $est_turns,
                 killed: ($killed == 1), cap_turn: (if $killed == 1 then $cap_turn else null end)},
+     metering: $metering,
      started: $started, finished: $finished}
     + (if $env_gate == "" then {} else {envelope_copied: $env_copied,
                                         envelope_sha256: (if $env_sha == "" then null else $env_sha end)} end)' >> "$PHASES_FILE"
@@ -1155,6 +1147,9 @@ run_phase() {  # run_phase <name> <label>
   cost_micro="$(jq -r --argjson e "${est_micro:-0}" '(.total_cost_usd // ($e / 1000000)) * 1000000 | round' <<<"$result")"
   SPENT_MICRO=$(( SPENT_MICRO + cost_micro + ledger_micro ))
   if [[ "$INTERRUPTED" -eq 1 ]]; then finish interrupted 4 "driver received a signal during $label"; fi
+  if [[ "$metering" == incomplete ]]; then
+    finish infrastructure_error 2 "metering_incomplete: phase $label: the stream cannot be priced (an invalid token count or a completed turn without usage)"
+  fi
   if [[ "$killed" -eq 1 ]]; then CAP_PHASE="$label"; CAP_TURN="$cap_turn"; finish cap_failure 3 "watchdog stopped $label at turn $cap_turn"; fi
   if [[ "$timed_out" == false ]] && { [[ $rc -eq 143 ]] || [[ $rc -eq 137 ]] || [[ $rc -eq 129 ]] || [[ $rc -eq 130 ]]; }; then
     finish interrupted 4 "phase $label was killed from outside (exit $rc)"
@@ -1191,6 +1186,13 @@ done < <(jq -r '.[] | [.name, .label] | @tsv' <<<"$PLAN_JSON")
 [[ ${#PLAN_NAMES[@]} -gt 0 ]] || infra "the phase plan is empty"
 for name in "${PLAN_NAMES[@]}"; do
   [[ -f "$PROMPTS_DIR/$name.md" ]] || infra "no phase prompt for $name"
+done
+# metering fails closed (C-6): every planned phase model is priced before the first launch
+for name in "${PLAN_NAMES[@]}"; do
+  pm="$(phase_model "$name")"; pp=ERR
+  if ! pp="$(price_for "$pm")" || [[ "$pp" == ERR ]]; then
+    finish infrastructure_error 2 "metering_incomplete: no valid price for model $pm (phase $name)"
+  fi
 done
 
 write_pipeline

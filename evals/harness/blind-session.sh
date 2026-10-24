@@ -22,7 +22,12 @@
 #   --image IMG        container image (default loa-ablation:258)
 #   --max-usd USD      the session cap (default 6): the stream is re-priced every
 #                      $LOA_EVAL_WATCHDOG_POLL_S seconds (default 1) and the session is stopped
-#                      when the estimate reaches the cap (cost.json cap_hit, exit 1)
+#                      when the estimate reaches the cap (cost.json cap_hit, exit 1). Metering fails
+#                      closed (lib/session-exec.sh, SDD C-6): a model with no valid price (unknown id,
+#                      a malformed LOA_EVAL_PRICING_JSON, a null/negative/non-finite price) refuses
+#                      the launch (exit 2, before any write); a stream that cannot be priced (an
+#                      invalid token count, a completed turn without usage) stops the session
+#                      (status metering_incomplete, exit 1)
 #   --executor MODE    container (default; $LOA_EVAL_EXECUTOR) or host. host runs the CLI on this
 #                      machine without isolation and is refused (exit 2) unless
 #                      LOA_EVAL_ALLOW_HOST_SESSION=1 (tests use the stub CLI this way)
@@ -61,7 +66,9 @@
 #                     cost, or the watchdog estimate when no result event arrived: cost_source
 #                     result|estimate, plus the ledger), num_turns,
 #                     subtype, is_error, cap_usd, cap_hit, cap_turn, estimate_usd, watchdog,
-#                     timed_out, cli_exit, model}; cost-ledger.jsonl when the ledger has rows
+#                     timed_out, cli_exit, model, metering}; cost-ledger.jsonl when the ledger has rows;
+#                     metering metered | incomplete (the stream could not be priced) | unmetered_attempt
+#                     (the session started, no usage event and no result cost: spend unknown, not zero)
 #   taint.json       {tainted, events: [{event, tool, reason, input}], allowed_tools, sandbox}:
 #                    a tool_use of any tool outside Read/Grep/Glob/Write, or a Read/Grep/Glob/Write
 #                    path (file_path, path, an absolute or `..` pattern/glob) outside the sandbox
@@ -73,14 +80,16 @@
 #                    CLI failure, cap, timeout, taint, interrupt): {run_id, kind: "blind_session",
 #                    out (--out as given), model, started, finished (UTC ISO-8601 Z), cost_usd (cost.json
 #                    total_cost_usd; the watchdog estimate when cost.json could not be written),
-#                    status completed|failed|cap_hit|timeout|tainted, cap_hit}; run_id = "blind-" + the
+#                    status completed|failed|cap_hit|timeout|tainted, cap_hit, metering (as cost.json)};
+#                    run_id = "blind-" + the
 #                    first 12 hex of sha256(<absolute --out> + started); appended under flock on
 #                    FILE.lock when flock exists (the ablation-row.sh pattern). This row is how a blind
 #                    session reaches the cycle meter: pass a run-row file evals/harness/spend.sh counts
 #                    (DEC-0710). Without the flag nothing is appended.
 #
-# Exit: 0 labels written; 1 session failed (CLI error, timeout, cap, interrupted, no or an
-#       invalid labels.json); 2 usage (bad option, packet rule, missing CLI / docker / image);
+# Exit: 0 labels written; 1 session failed (CLI error, timeout, cap, interrupted, metering incomplete,
+#       no or an invalid labels.json); 2 usage (bad option, packet rule, missing CLI / docker / image,
+#       no valid price for --model, a secret-shaped pass-through key outside SECRET_KEYS);
 #       3 tainted (takes precedence over 1).
 # Tested by evals/tests/blind-session.bats (stub claude, stub docker).
 # =============================================================================
@@ -183,6 +192,12 @@ pushd "$SCRIPT_DIR" >/dev/null
 # shellcheck source=lib/session-exec.sh
 source ./lib/session-exec.sh
 popd >/dev/null
+assert_secret_keys || die_usage "refused: a secret-shaped pass-through key is not in SECRET_KEYS (lib/session-exec.sh)"
+# metering fails closed (C-6): no valid price for the model → no launch (nothing written yet)
+prices=ERR
+if ! prices="$(price_for "$MODEL")" || [[ "$prices" == ERR ]]; then
+  die_usage "refused: metering_incomplete: no valid price for model $MODEL (set LOA_EVAL_PRICING_JSON or the pricing table entry)"
+fi
 
 # --- the session directory (sandbox + HOME), deleted on every exit ---------------------------
 mkdir -p "$OUT"
@@ -215,8 +230,9 @@ spend_row() {
   rid="blind-$(printf '%s%s' "$OUT" "$STARTED" | python3 -I -c 'import hashlib, sys; print(hashlib.sha256(sys.stdin.buffer.read()).hexdigest()[:12])')"
   row="$(jq -nc --arg run_id "$rid" --arg out "$OUT_GIVEN" --arg model "$MODEL" --arg started "$STARTED" \
           --arg finished "$finished" --argjson cost "$cost" --arg status "$1" --argjson cap_hit "$2" \
+          --arg metering "${METERING:-metered}" \
           '{run_id: $run_id, kind: "blind_session", out: $out, model: $model, started: $started,
-            finished: $finished, cost_usd: $cost, status: $status, cap_hit: $cap_hit}')"
+            finished: $finished, cost_usd: $cost, status: $status, cap_hit: $cap_hit, metering: $metering}')"
   mkdir -p "$(dirname "$SPEND_ROW")"
   if command -v flock >/dev/null 2>&1; then
     { flock -x 9; printf '%s\n' "$row" >> "$SPEND_ROW"; } 9>>"$SPEND_ROW.lock"
@@ -300,8 +316,7 @@ fi
 
 EVENTS="$OUT/transcript.jsonl" ERRF="$OUT/stderr.log"
 CAP_MICRO="$(jq -n --arg c "$MAX_USD" '($c|tonumber) * 1000000 | round')"
-prices="$(price_for "$MODEL")"
-rc=0 cap_hit=false cap_turn=0 est="0 0 0" start_s="$(date +%s)"
+rc=0 cap_hit=false cap_turn=0 est="0 0 0" start_s="$(date +%s)" METERING=metered est_new=""
 STARTED="$(date -u +%Y-%m-%dT%H:%M:%SZ)" SPEND_PENDING=1
 ( cd "$WS" || exit 2
   if [[ "$EXECUTOR" == host ]]; then for kv in "${envkv[@]}"; do export "$kv"; done; fi
@@ -311,14 +326,18 @@ poll="${LOA_EVAL_WATCHDOG_POLL_S:-1}"
 while kill -0 "$CUR_PID" 2>/dev/null; do
   sleep "$poll" || true
   [[ "$INTERRUPTED" -eq 1 ]] && break
-  if [[ "$prices" != null ]]; then
-    est="$(price_events "$EVENTS" "$prices" "$CAP_MICRO")"
-    if [[ "${est##* }" -gt 0 ]]; then
-      cap_hit=true; cap_turn="${est##* }"
-      echo "blind-session.sh: watchdog: the estimate passes the cap (USD $MAX_USD) at turn $cap_turn; SIGTERM" >&2
-      kill_session
-      break
-    fi
+  if ! est_new="$(price_events "$EVENTS" "$prices" "$CAP_MICRO")" || [[ "$est_new" == ERR ]]; then
+    METERING=incomplete
+    echo "blind-session.sh: watchdog: metering_incomplete: the stream cannot be priced; SIGTERM" >&2
+    kill_session
+    break
+  fi
+  est="$est_new"
+  if [[ "${est##* }" -gt 0 ]]; then
+    cap_hit=true; cap_turn="${est##* }"
+    echo "blind-session.sh: watchdog: the estimate passes the cap (USD $MAX_USD) at turn $cap_turn; SIGTERM" >&2
+    kill_session
+    break
   fi
 done
 wait "$CUR_PID" 2>/dev/null || rc=$?
@@ -329,7 +348,14 @@ if [[ $rc -gt 128 && "$INTERRUPTED" -eq 1 ]]; then
 fi
 CUR_PID="" CUR_CONTAINER=""
 elapsed=$(( $(date +%s) - start_s ))
-[[ "$prices" != null ]] && est="$(price_events "$EVENTS" "$prices" "$CAP_MICRO")"
+if [[ "$METERING" == metered ]]; then
+  if ! est_new="$(price_events "$EVENTS" "$prices" "$CAP_MICRO")" || [[ "$est_new" == ERR ]]; then
+    METERING=incomplete
+    echo "blind-session.sh: metering_incomplete: the transcript cannot be priced" >&2
+  else
+    est="$est_new"
+  fi
+fi
 timed_out=false
 if [[ $rc -eq 124 ]] || { [[ $rc -eq 137 ]] && [[ $elapsed -ge $TSEC ]]; }; then timed_out=true; fi
 
@@ -429,12 +455,17 @@ if [[ -z "$result" ]] || ! jq -e 'type == "object"' >/dev/null 2>&1 <<<"$result"
   result='{"type":"result","subtype":"missing","is_error":true}'
 fi
 read -r _turns est_micro _cross <<<"$est"
+# an attempt that ran without any usage event and without a result cost is unmetered, never zero spend (C-6)
+if [[ "$METERING" == metered ]] && ! jq -e '(.total_cost_usd | type) == "number"' >/dev/null 2>&1 <<<"$result"; then
+  if ! um="$(unmetered_tail "$EVENTS")" || [[ "$um" == ERR ]]; then METERING=incomplete
+  elif [[ "$um" == true ]]; then METERING=unmetered_attempt; fi
+fi
 ledger_json="$(jq -R -n -c '[inputs | fromjson? | select(type == "object")
       | (.cost_micro_usd // ((.cost_usd // 0) * 1000000))] | {rows: length, micro: (add // 0 | round)}' \
       < "$HOME_DIR/.eval/cost-ledger.jsonl")"
 jq -n --argjson r "$result" --argjson l "$ledger_json" --arg model "$MODEL" --argjson cap "$MAX_USD" \
       --argjson cap_hit "$cap_hit" --argjson cap_turn "$cap_turn" --argjson est_micro "${est_micro:-0}" \
-      --argjson watchdog "$([[ "$prices" != null ]] && echo true || echo false)" \
+      --argjson watchdog true --arg metering "$METERING" \
       --argjson timed_out "$timed_out" --argjson rc "$rc" \
   '(if ($r.total_cost_usd | type) == "number" then $r.total_cost_usd else null end) as $rc_usd
    | {model: $model, result_cost_usd: $rc_usd, ledger_rows: $l.rows, ledger_cost_usd: ($l.micro / 1000000),
@@ -442,13 +473,15 @@ jq -n --argjson r "$result" --argjson l "$ledger_json" --arg model "$MODEL" --ar
       total_cost_usd: ((($rc_usd // ($est_micro / 1000000)) * 1000000 + $l.micro) | round / 1000000),
       num_turns: ($r.num_turns // null), subtype: ($r.subtype // null), is_error: ($r.is_error // null),
       cap_usd: $cap, cap_hit: $cap_hit, cap_turn: (if $cap_turn > 0 then $cap_turn else null end),
-      estimate_usd: ($est_micro / 1000000), watchdog: $watchdog, timed_out: $timed_out, cli_exit: $rc}' \
+      estimate_usd: ($est_micro / 1000000), watchdog: $watchdog, timed_out: $timed_out, cli_exit: $rc,
+      metering: $metering}' \
   > "$OUT/cost.json"
 
 subtype="$(jq -r '.subtype // ""' <<<"$result")"
 status=completed exit_code=0
 if [[ "$TAINTED" == true ]]; then status=tainted exit_code=3
 elif [[ "$INTERRUPTED" -eq 1 ]]; then status=interrupted exit_code=1
+elif [[ "$METERING" == incomplete ]]; then status=metering_incomplete exit_code=1
 elif [[ "$cap_hit" == true ]]; then status=cap_failure exit_code=1
 elif [[ "$timed_out" == true ]]; then status=timed_out exit_code=1
 elif [[ "$LABEL_STATUS" != ok ]]; then status="labels_$LABEL_STATUS" exit_code=1

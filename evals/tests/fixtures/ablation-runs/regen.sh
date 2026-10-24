@@ -27,6 +27,7 @@ mkdir -p "$H/lib"
 cp "$REPO_ROOT/evals/harness/pipeline-run.sh" "$REPO_ROOT/evals/harness/fingerprint.sh" "$H/"
 cp -a "$REPO_ROOT/evals/harness/lib/phase-prompts" "$H/lib/"
 cp "$FIX/mount-lib-stub.sh" "$H/lib/sandbox-mount.sh"
+cp "$REPO_ROOT/evals/harness/lib/session-exec.sh" "$H/lib/"   # cycle-133 C-6: the session library
 PR="$H/pipeline-run.sh"
 
 # the pinned source tree the mount is copied from (tiny stand-in)

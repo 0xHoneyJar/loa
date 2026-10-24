@@ -45,7 +45,8 @@
 # Remaining repo-wide sites are follow-up sweep work tracked in #1025.
 #
 # Usage:
-#   tools/check-no-swallowed-jq.sh                 # scan enforced gate-critical set
+#   tools/check-no-swallowed-jq.sh                 # scan enforced gate-critical set (+ evals/harness/lib/*,
+#                                                  # the eval harness libraries: cycle-133 FR-6, C-6)
 #   tools/check-no-swallowed-jq.sh --root <dir>    # scan custom root (recursive)
 #   tools/check-no-swallowed-jq.sh --quiet         # exit-code only
 #
@@ -278,7 +279,7 @@ _list_files() {
     fi
     local f
     local found_any=0
-    for f in "${ENFORCED_FILES[@]}" .claude/scripts/red-team-*; do
+    for f in "${ENFORCED_FILES[@]}" .claude/scripts/red-team-* evals/harness/lib/*; do
         # Missing enforced files are skipped (consumer installs may not ship
         # every gate script); an unmatched glob falls through the -f test.
         if [[ -f "$f" ]]; then

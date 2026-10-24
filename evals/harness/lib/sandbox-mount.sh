@@ -376,7 +376,7 @@ apply_arm_toggles() {
           jq '(.constraints // []) |= map(select((tostring | test("karpathy"; "i")) | not))' "$cj" > "$cj.tmp" \
             || { rm -f "$cj.tmp"; _sm_err "karpathy_block toggle: constraints.json could not be rewritten"; return 2; }
           mv "$cj.tmp" "$cj"
-          cjn="$(jq '[(.constraints // [])[] | select(tostring | test("karpathy"; "i"))] | length' "$cj" 2>/dev/null || echo "?")"
+          cjn="$(jq '[(.constraints // [])[] | select(tostring | test("karpathy"; "i"))] | length' "$cj" 2>/dev/null || echo "?")"  # check-no-swallowed-jq: ok (fails closed: "?" is not "0", so the toggle errors below)
           [[ "$cjn" == "0" ]] || { _sm_err "karpathy_block toggle: constraints.json still carries Karpathy rows ($cjn)"; return 2; }
         fi
         _sm_evidence karpathy_block "removed ${n} lines from CLAUDE.loa.md; constraints.json karpathy rows after: ${cjn}"
