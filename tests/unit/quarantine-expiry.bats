@@ -16,6 +16,15 @@
 # "today" is pinned with --today, so nothing reads the live beads workspace.
 # =============================================================================
 
+# The bats that is running this file: CI installs bats-core on PATH (no npm package, so
+# `npx --no-install bats` fails there — Sprint 272 CI run 40049499175, QX-12 … QX-15);
+# locally it is the npx-provided package. $BATS_ROOT/bin/bats exists in both layouts.
+_bats() {
+  if [[ -n "${BATS_ROOT:-}" && -x "$BATS_ROOT/bin/bats" ]]; then "$BATS_ROOT/bin/bats" "$@"
+  elif command -v bats >/dev/null 2>&1; then bats "$@"
+  else npx --no-install bats "$@"; fi
+}
+
 setup() {
   PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
   CQ="$PROJECT_ROOT/tools/check-quarantine-expiry.sh"
@@ -225,7 +234,7 @@ TAP
 
 @test "QX-12 the helper skips a listed test with its reason and runs the rest" {
   _commit_q 2026-10-20 "$(_row 'tests/unit/sample.bats::S-1 flaky thing' lead 2026-11-19 bd-open1 'races the clock')"
-  run npx --no-install bats --tap "$R/tests/unit/sample.bats"
+  run _bats --tap "$R/tests/unit/sample.bats"
   [ "$status" -eq 0 ]
   [[ "$output" == *"ok 1 S-1 flaky thing # skip quarantined: until 2026-11-19 (bd-open1, owner lead): races the clock"* ]]
   [[ "$output" == *"ok 2 S-2 steady thing"* ]]
@@ -234,7 +243,7 @@ TAP
 
 @test "QX-13 the helper does not skip an expired row; the test runs (and here fails)" {
   _commit_q 2026-09-01 "$(_row 'tests/unit/sample.bats::S-1 flaky thing' lead 2026-10-01 bd-open1 r)"
-  run npx --no-install bats --tap "$R/tests/unit/sample.bats"
+  run _bats --tap "$R/tests/unit/sample.bats"
   [ "$status" -ne 0 ]
   [[ "$output" == *"not ok 1 S-1 flaky thing"* ]]
 }
@@ -242,7 +251,7 @@ TAP
 @test "QX-14 the helper refuses an id argument that does not match the running test" {
   sed -i 's|^  loa_quarantine_check$|  loa_quarantine_check "tests/unit/sample.bats::S-2 steady thing"|' "$R/tests/unit/sample.bats"
   _commit_q 2026-10-20
-  run npx --no-install bats --tap "$R/tests/unit/sample.bats"
+  run _bats --tap "$R/tests/unit/sample.bats"
   [ "$status" -ne 0 ]
   [[ "$output" == *"not ok 1 S-1 flaky thing"* ]]
   [[ "$output" == *"does not match the running test"* ]]
@@ -252,7 +261,7 @@ TAP
 @test "QX-15 the helper refuses to skip a mandatory-gate test even when it is listed" {
   sed 's/^  false$/  true/' "$R/tests/unit/sample.bats" > "$R/tests/unit/sandbox-mount-home-scope.bats"
   _commit_q 2026-10-20 "$(_row 'tests/unit/sandbox-mount-home-scope.bats::S-1 flaky thing' lead 2026-11-19 bd-open1 r)"
-  run npx --no-install bats --tap "$R/tests/unit/sandbox-mount-home-scope.bats"
+  run _bats --tap "$R/tests/unit/sandbox-mount-home-scope.bats"
   [ "$status" -ne 0 ]
   [[ "$output" == *"not ok 1 S-1 flaky thing"* ]]
   [[ "$output" == *"mandatory gate"* ]]
