@@ -141,8 +141,10 @@ A pipeline version is a commit of this repository together with the images it ru
 
 ## Pipeline version (cycle-133 Sprint 274 pin — the measurement pin)
 
-The measurement pin (sdd.md § 7.3; sprint.md Task 3.5) is **the commit that lands this section** — recorded with its tree
-hash in `grimoires/loa/decisions.yaml` (the DEC row written right after it) and named by the Task 3.5 smoke, by every later
+The measurement pin (sdd.md § 7.3; sprint.md Task 3.5) is **the commit that lands this paragraph** — recorded with its tree
+hash in `grimoires/loa/decisions.yaml` (the DEC row written right after it). The first pin of this sprint, `32a8d79cf` (DEC-0942),
+ran smoke run 1 and was moved by the s3-a3 fix to the home-scope dissent path (an `evals/harness` change, DEC-0947/0948); the
+smoke's verification rerun runs at the new pin and named by the Task 3.5 smoke, by every later
 cycle-133 measurement and by `evals/analysis/c132/reproduce.sh --pin` for runs made at it. Later docs-only commits do not
 invalidate it; a change under `evals/harness`, `evals/suites`, `evals/graders`, `evals/fixtures` or `evals/analysis` does.
 
@@ -152,7 +154,7 @@ invalidate it; a change under `evals/harness`, `evals/suites`, `evals/graders`, 
 | proxy image | `loa-egress-proxy:259` — `sha256:95c4c379107c2ae0ce7aea6ca653b9277b4a97c8eb91e2d91af35c1664b86eb0`, rebuilt from `evals/harness/Dockerfile.proxy` with the `loa-egress-guard` entrypoint and label `org.loa.egress.guard=1` (KF-058); `up` and the runner refuse the unlabelled image |
 | Claude Code in the image | `2.1.299` (label `org.loa.claude_code_version`; the home-scope surface is derived for this version, `SM_SURFACE_DERIVED_FOR`) |
 | grader | 1.5.0 (`ablation-grade.sh`, `--judge-verdicts`) · row writer 1.6 (`ablation-row.sh`) · session library `lib/session-exec.sh` · registration v2 (`registration.py`, `looks_seen`) · the four finding validators (`.claude/schemas/finding.schema.json` v1) · seeding library `lib/corpus-seed.sh` |
-| mount modes | `pinned-root` (default) and `home-scope` (`lib/sandbox-mount.sh`, `took-effect.sh` clauses (e)–(g), clause (f) credits Read-tool and single-file Bash reads by content) |
+| mount modes | `pinned-root` (default) and `home-scope` (`lib/sandbox-mount.sh`, `took-effect.sh` clauses (e)–(g), clause (f) credits Read-tool and single-file Bash reads by content; the HOME copy's project-root climbs resolve to the workspace through `LOA_PROJECT_ROOT`, rules R6–R8, s3-a3) |
 | egress block | `lib/egress-proxy.sh` with a guard namespace per blocked sandbox (`guard`, `--network container:<guard>`); allowlist from `.claude/defaults/model-config.yaml` `egress_hosts[]` (10 hosts) |
 | self-check | `grimoires/loa/reports/ablation-2.0/self-check-c133-s274.txt` — 62 checks PASS, 0 FAIL at this pin: a CONNECT probe per allowlisted host (no credential, no completion token), every denial case, both gateways on 22/80/443 and a host listener unreachable from the guard, the sidecar's 22/443, metadata |
 | egress suite | `evals/tests/egress-proxy.bats` EP-1 … 9, EGR-1 … 13 — 22/22 with real containers on this host (`~/.cache/loa/cycle-133/tests/s3e-lead-gate-094721.log`) and the CI eval job green on the GitHub runner (run 40085119807); never quarantined |

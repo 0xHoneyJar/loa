@@ -31883,3 +31883,79 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0947"
+    created_at: "2026-10-24T11:48:03Z"
+    updated_at: "2026-10-24T11:48:03Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "home-scope dissent fix (s3-a3): project-root climbs in the HOME framework copy resolve to the workspace via LOA_PROJECT_ROOT; unwrapped climbs are refused."
+    decision: "Under home-scope the framework's own scripts and modules derived the project root from their file location, so the dissent read its config and wrote its record under the sandbox HOME. The mount transform now recognises a root climb by depth (any variable name) and makes it resolve to the workspace through the existing LOA_PROJECT_ROOT variable (new rules R6 shell, R7 Python parents, R8 dirname chains); the session environment sets it to /workspace; the residual scan refuses an unwrapped climb. pinned-root stays byte-identical."
+    rationale: "The framework root and the project root are different places under home-scope; dec-write-lib, validate-artifact and the spiral guards already read LOA_PROJECT_ROOT, so reusing it adds no new seam."
+    alternatives_considered:
+      - option: "rewrite every SCRIPT_DIR/../.. occurrence"
+        rejected_because: "some climbs land on the framework directory itself and must stay"
+      - option: "a new environment variable name"
+        rejected_because: "an existing one already means the project root"
+    consequences:
+      positive:
+        - "dissent, adapters and gates read the workspace config under home-scope"
+      negative:
+        - "393 of 1,776 files are now transformed in the HOME copy (was 306)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff26fdea"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-a.md § s3-a3 (root cause 1; judgment calls A1, A2); smoke-c133-s274 trial logs"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T11:48:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "s3-a3 commit follows ff26fdea3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0948"
+    created_at: "2026-10-24T11:48:06Z"
+    updated_at: "2026-10-24T11:48:06Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "home-scope dissent fix (s3-a3): rule R5 rewrites only path literals with a slash (the headless CLIs' project-marker name stays relative); persona.md is surface."
+    decision: "The earlier R5 rewrote a bare framework-directory name used as a project marker by the headless CLI adapter, which made every candidate private workspace look like it sat inside a project and failed both headless voices; the API voices then failed on absent keys that pinned-root never reached. R5 now touches only literals with a slash; surface() adds .claude/**/persona.md because the persona fallback reads it from the cwd. Left alone: the loader's install root and modelinv's parent chain (unreachable in a session). HS-14 covers the private workspace, a stub headless run, a mock review reading the workspace config, and the persona surface."
+    rationale: "A directory name used as a marker is not a path; rewriting it changed the adapter's meaning. The stub-based test proves the preparation step without a model call."
+    alternatives_considered:
+      - option: "emulate the codex event stream in a second stub"
+        rejected_because: "codex shares the private-workspace code path already covered"
+      - option: "write the test HOME under the operator's real home"
+        rejected_because: "the bats temp root with cheval's own trust hook keeps the test self-contained"
+    consequences:
+      positive:
+        - "both headless voices prepare their runs under home-scope"
+      negative:
+        - "a future bare-name literal that is a path would be missed by R5; the residual scan is the backstop"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff26fdea"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-a.md § s3-a3 (root cause 2; judgment calls A3-A5)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T11:48:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "s3-a3 commit follows ff26fdea3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

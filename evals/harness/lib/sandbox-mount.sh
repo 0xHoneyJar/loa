@@ -931,6 +931,8 @@ def surface(p):
         return True
     if len(parts) == 2 and (parts[1] in SURFACE_CLAUDE_FILES or parts[1] in SURFACE_CLAUDE_DIRS):
         return True
+    if parts[-1] == "persona.md":       # cycle-133 s3-a3: cheval loads .claude/[skills/]<agent>/persona.md as a system prompt
+        return True
     return fnmatch.fnmatchcase(parts[-1], "*.local.*")
 
 def memory_file(p):
@@ -1468,9 +1470,16 @@ check_mount_closed() {
 #   R3 markdown rel   a .claude/ path not preceded by a path character → <home>/.claude/ (absolute)
 #   R4 python root    Path(X) / ".claude" → Path(<env> or X) / ".claude"; bare X / ".claude" for X in project_root
 #                     repo_root REPO_ROOT PROJECT_ROOT _project_root() _find_project_root() → pathlib.Path(<env> or X) / …
-#   R5 python literal a string literal that is exactly a .claude[/…] path (not a join operand) → os.path.join(<env>, it)
+#   R5 python literal a string literal that is exactly a .claude/… path (not a join operand) → os.path.join(<env>, it); a bare
+#                     ".claude" is a NAME (headless_cli's project markers) and is never rewritten (s3-a3, smoke-c133-s274)
+#   R6 shell proj     $(cd "$V/../.." && pwd) whose climb lands on the HOME root (the .. count = the file's depth) →
+#                     ${LOA_PROJECT_ROOT:-$(cd …)}: the PROJECT root the script derives from its own location (s3-a3)
+#   R7 python proj    Path(__file__).resolve().parents[<depth>] → LOA_PROJECT_ROOT if set, else the original (s3-a3)
+#   R8 python proj    os.path.dirname(…) chained depth+1 times around __file__ / here → LOA_PROJECT_ROOT or the original
+#   The session gets LOA_FRAMEWORK_ROOT=<home> and LOA_PROJECT_ROOT=<workspace> (pipeline-run.sh).
 # Tests directories (tests/, test/), __pycache__ and node_modules are copied but not transformed. A residual project-root
-# framework reference (an R2 or R1 form left, a Python root join the rules did not rewrite) refuses the mount.
+# framework reference (an R2 or R1 form left, a Python root join the rules did not rewrite) or an unwrapped climb that lands
+# on the root (an R6/R7/R8 form) refuses the mount.
 _sm_home_py() {
   python3 -I - "$@" <<'PY'
 import hashlib, json, os, re, sys
@@ -1491,9 +1500,33 @@ R4A = re.compile(r"Path\(\s*(" + PYV + r")\s*\)(\s*/\s*[\"']\.claude[\"'/])")
 R4A_REV = re.compile(r"Path\(" + re.escape(ENV) + r" or (" + PYV + r")\)")
 R4B = re.compile(r"(?<![\w.])(_project_root\(\)|_find_project_root\(\)|repo_root|REPO_ROOT|project_root|PROJECT_ROOT)(\s*/\s*[\"']\.claude[\"'/])")
 R4B_REV = re.compile(r"__import__\(\"pathlib\"\)\.Path\(" + re.escape(ENV) + r" or (_project_root\(\)|_find_project_root\(\)|repo_root|REPO_ROOT|project_root|PROJECT_ROOT)\)")
-R5 = re.compile(r"(?<!/ )(?<!/)(['\"])(\.claude(?:/[A-Za-z0-9_./-]*)?)\1")
+R5 = re.compile(r"(?<!/ )(?<!/)(['\"])(\.claude/[A-Za-z0-9_./-]*)\1")
 R5_PRE = '__import__("os").path.join(__import__("os").environ.get("' + FW + '", ""), '
-R5_REV = re.compile(re.escape(R5_PRE) + r"((['\"])\.claude(?:/[A-Za-z0-9_./-]*)?\2)\)")
+R5_REV = re.compile(re.escape(R5_PRE) + r"((['\"])\.claude/[A-Za-z0-9_./-]*\2)\)")
+# R6-R8 (s3-a3): the PROJECT root a script derives from its own location lands on the HOME under home-scope; it is the
+# workspace: LOA_PROJECT_ROOT (the session's /workspace), the derivation kept as the fallback
+PR = "LOA_PROJECT_ROOT"
+R6 = re.compile(r'(?<!' + PR + r':-)\$\(cd "\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?((?:/\.\.)+)/?" *&& *pwd(?: -P)?\)')
+R6_REV = re.compile(r'\$\{' + PR + r':-(\$\(cd "\$\{?[A-Za-z_][A-Za-z0-9_]*\}?(?:/\.\.)+/?" *&& *pwd(?: -P)?\))\}')
+R7 = re.compile(r"Path\(__file__\)\.resolve\(\)\.parents\[(\d+)\]")
+R7_PRE = '(__import__("pathlib").Path(__import__("os").environ["' + PR + '"]) if __import__("os").environ.get("' + PR + '") else '
+R7_REV = re.compile(re.escape(R7_PRE) + r"(Path\(__file__\)\.resolve\(\)\.parents\[\d+\])\)")
+R8_PRE = '(__import__("os").environ.get("' + PR + '") or '
+R8_REV = re.compile(re.escape(R8_PRE) + r"((?:os\.path\.dirname\()+(?:here|os\.path\.abspath\(__file__\)|__file__)\)+)\)")
+
+def depth_of(rel):
+    """the directories between the HOME root and the file (.claude/scripts/x.sh → 2)"""
+    return len(rel.split("/")) - 1
+
+def r8_targets(text, rel):
+    """the dirname chains that climb from this file to the HOME root (one more dirname than the file's depth)"""
+    k = depth_of(rel) + 1
+    out = []
+    for var in ("os.path.abspath(__file__)", "__file__", "here"):
+        if var == "here" and not re.search(r"^\s*here\s*=\s*os\.path\.abspath\(__file__\)\s*$", text, re.M):
+            continue
+        out.append("os.path.dirname(" * k + var + ")" * k)
+    return out
 # any join onto ".claude" whose operand is not redirected: the known roots, and any other name — except the project-root
 # detection (`parent / ".claude"`, which must find the WORKSPACE) and the user's own home (`Path.home() / ".claude"`)
 PY_RESID = re.compile(r"(?<!or )(?<![\w.])(?!parent\b)(?!Path\.home\(\))[A-Za-z_][\w.]*(?:\(\))?\s*\)?\s*/\s*[\"']\.claude[\"'/]")
@@ -1527,7 +1560,7 @@ def walk(root):
                 continue
             yield p
 
-def transform(text, k, home):
+def transform(text, k, home, rel=""):
     c = {}
     def sub(name, rx, rep, t):
         out, n = rx.subn(rep, t)
@@ -1545,10 +1578,38 @@ def transform(text, k, home):
         text = sub("R4", R4A, lambda m: "Path(%s or %s)%s" % (ENV, m.group(1), m.group(2)), text)
         text = sub("R4", R4B, lambda m: '__import__("pathlib").Path(%s or %s)%s' % (ENV, m.group(1), m.group(2)), text)
         text = sub("R5", R5, lambda m: R5_PRE + m.group(0) + ")", text)
+        d = depth_of(rel)
+        text = sub("R7", R7, lambda m: R7_PRE + m.group(0) + ")" if int(m.group(1)) == d else m.group(0), text)
+        if c.get("R7") is not None:       # subn counted every parents[] match; keep only the ones wrapped
+            c["R7"] = len(re.findall(re.escape(R7_PRE), text))
+            if not c["R7"]:
+                del c["R7"]
+        for t in r8_targets(text, rel):
+            n = 0
+            while (R8_PRE + t) not in text and t in text:
+                text = text.replace(t, R8_PRE + t + ")", 1)
+                n += 1
+                if n > 64:
+                    break
+            if n:
+                c["R8"] = c.get("R8", 0) + n
+    if k == "sh":
+        d = depth_of(rel)
+        hits = [0]
+        def r6(m):
+            if m.group(2).count("..") == d:      # the climb lands on the root: a project-root derivation
+                hits[0] += 1
+                return "${%s:-%s}" % (PR, m.group(0))
+            return m.group(0)
+        text = R6.sub(r6, text)
+        if hits[0]:
+            c["R6"] = hits[0]
     return text, c
 
 def reverse(text, k, home):
     if k == "py":
+        text = R8_REV.sub(lambda m: m.group(1), text)
+        text = R7_REV.sub(lambda m: m.group(1), text)
         text = R5_REV.sub(lambda m: m.group(1), text)
         text = R4B_REV.sub(lambda m: m.group(1), text)
         text = R4A_REV.sub(lambda m: "Path(" + m.group(1) + ")", text)
@@ -1556,13 +1617,24 @@ def reverse(text, k, home):
         text = text.replace(home + "/.claude/", ".claude/")
     if k in ("sh", "md"):
         text = R2_REV.sub(lambda m: m.group(1), text)
+    if k == "sh":
+        text = R6_REV.sub(lambda m: m.group(1), text)
     if k in ("sh", "md", "json"):
         text = R1_REV.sub(lambda m: m.group(1), text)
     return text
 
-def residuals(text, k):
+def residuals(text, k, rel=""):
     out, prev = [], ""
+    d = depth_of(rel)
+    chains = r8_targets(text, rel) if k == "py" else []
     for i, line in enumerate(text.split("\n"), 1):
+        if k == "sh" and any(m.group(2).count("..") == d for m in R6.finditer(line)):
+            out.append((i, line.strip()[:160]))
+            continue
+        if k == "py" and (any(int(m.group(1)) == d and not line[:m.start()].endswith(" else ") for m in R7.finditer(line))
+                          or any(t in line and (R8_PRE + t) not in line for t in chains)):
+            out.append((i, line.strip()[:160]))
+            continue
         if k in ("sh", "md", "json") and (R1.search(line) or (k != "json" and R2.search(line))):
             out.append((i, line.strip()[:160]))
         elif k == "py" and not line.lstrip().startswith("#"):
@@ -1598,7 +1670,7 @@ def cmd_transform(home_root, home, report):
         if FW in text or (home + "/.claude/") in text:
             refused = "%s already names %s or %s/.claude/ (the transform would not be reversible)" % (rel, FW, home)
             break
-        new, c = transform(text, k, home)
+        new, c = transform(text, k, home, rel)
         if new != text:
             if reverse(new, k, home) != text:
                 refused = "%s: the transform is not reversible" % rel
@@ -1610,7 +1682,7 @@ def cmd_transform(home_root, home, report):
             changed.append(rel)
             for key, n in c.items():
                 counts[key] = counts.get(key, 0) + n
-        for i, l in residuals(new, k):
+        for i, l in residuals(new, k, rel):
             resid.append("%s:%d %s" % (rel, i, l))
         if k == "sh":
             rel_sh += relative_sh(new)

@@ -703,7 +703,7 @@ hs_home() { lib mount_home_scope "$1" "$2" /home/evaluser "$1.report.json"; }
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(ev mount)" = home-scope ]
   [ "$(ev framework_root)" = LOA_FRAMEWORK_ROOT=/home/evaluser ]
-  [ "$(ev home_transform)" = R1:4,R2:3,R3:2,R4:2,R5:3 ]
+  [ "$(ev home_transform)" = R1:4,R2:3,R3:2,R4:2,R5:2 ]   # s3-a3: the bare ".claude" in DIRS is a name, not a path
   [ "$(ev home_residual)" = 0 ]
   grep -qx 'home_verify=ok [0-9]* files, 5 redirected, reverse == pinned' "$ARM_EVIDENCE_FILE"
   [ "$(ev home_hook_counts)" = PreToolUse:1,SessionStart:2 ]
@@ -725,7 +725,7 @@ hs_home() { lib mount_home_scope "$1" "$2" /home/evaluser "$1.report.json"; }
   run env LOA_FRAMEWORK_ROOT=/fw python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); from loa_cheval.config import loader as l
 from pathlib import Path
 print(l.load("/ws")); print(l.other(Path("/ws"))); print(l.DEFAULT); print(",".join(l.DIRS)); print(l.detect(Path("/nonexistent")))' "$hh/.claude/adapters"
-  [ "$output" = $'/fw/.claude/defaults/model-config.yaml\n/fw/.claude/x\n/fw/.claude/defaults/model-config.yaml\n/fw/.claude/skills,/fw/.claude\nFalse' ] || { echo "$output"; false; }
+  [ "$output" = $'/fw/.claude/defaults/model-config.yaml\n/fw/.claude/x\n/fw/.claude/defaults/model-config.yaml\n/fw/.claude/skills,.claude\nFalse' ] || { echo "$output"; false; }
   run python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); from loa_cheval.config import loader as l
 print(l.load("/ws")); print(l.DEFAULT)' "$hh/.claude/adapters"
   [ "$output" = $'/ws/.claude/defaults/model-config.yaml\n.claude/defaults/model-config.yaml' ] || { echo "$output"; false; }
@@ -780,6 +780,8 @@ d = l.load_system_defaults(l._find_project_root()); print("pr" if d.get("pr_cata
 hs_harness() {
   HH="$T/h/evals/harness"
   mkdir -p "$HH/lib" "$T/log" "$T/dlog" "$T/creds/.codex"
+  printf 'model = "x"\n' > "$T/creds/.codex/config.toml"
+  printf '{"tokens": {"access_token": "a", "id_token": "i", "refresh_token": "real-refresh", "account_id": "c"}}\n' > "$T/creds/.codex/auth.json"
   cp "$REPO_ROOT/evals/harness/pipeline-run.sh" "$REPO_ROOT/evals/harness/fingerprint.sh" "$REPO_ROOT/evals/harness/took-effect.sh" "$HH/"
   cp -a "$REPO_ROOT/evals/harness/lib/phase-prompts" "$HH/lib/"
   cp "$REPO_ROOT/evals/harness/lib/session-exec.sh" "$REPO_ROOT/evals/harness/lib/sandbox-mount.sh" "$HH/lib/"
@@ -791,6 +793,12 @@ if [[ "\${1:-}" == -p && ! -e "$T/log/home-at-first-phase" ]]; then
   cp "\$HOME/.claude/skills/reviewing-code/SKILL.md" "$T/log/home-at-first-phase/home-skill.md"
   ls -A "\$PWD/.claude" > "$T/log/home-at-first-phase/root-claude.ls" 2>/dev/null || true
   printf '%s\n' "\${LOA_FRAMEWORK_ROOT:-unset}" > "$T/log/home-at-first-phase/fw-root"
+  { [[ -f "\$HOME/.codex/config.toml" ]] && echo codex-config
+    jq -r '.tokens.refresh_token // "none"' "\$HOME/.codex/auth.json" 2>/dev/null
+    jq -r '.projects["/workspace"].hasTrustDialogAccepted' "\$HOME/.claude.json" 2>/dev/null
+    [[ -d "\$HOME/.aws" ]] && echo aws-dir
+    touch "\$HOME/.claude/.write-probe" 2>/dev/null && echo claude-writable
+    stat -c %a "\$HOME"; } > "$T/log/home-at-first-phase/home-items"
 fi
 export STUB_LOG_DIR="$T/log"
 exec "$TESTS_DIR/fixtures/claude-stub-pipeline.sh" "\$@"
@@ -832,12 +840,15 @@ EOF
   local f
   for f in "$RUN"/meta/phase-*.argv.json; do
     jq -e '.argv | (index("--setting-sources")) as $i | .[$i + 1] == "user"' "$f" >/dev/null || { echo "$f"; false; }
-    jq -e '.env.LOA_FRAMEWORK_ROOT == "/home/evaluser"' "$f" >/dev/null || { echo "$f"; false; }
+    jq -e '.env.LOA_FRAMEWORK_ROOT == "/home/evaluser" and .env.LOA_PROJECT_ROOT == "/workspace"' "$f" >/dev/null || { echo "$f"; false; }
   done
   local A="$T/log/home-at-first-phase"
   [ "$(sed -n 1p "$A/CLAUDE.md")" = '@/home/evaluser/.claude/loa/CLAUDE.loa.md' ]
   grep -qF '${LOA_FRAMEWORK_ROOT:-$(git rev-parse --show-toplevel)}' "$A/settings.json"
   grep -qx 'pinned skill text LATER' "$A/home-skill.md"                     # the executing skill is the pinned one
+  # s3-a3: the HOME the dissent's CLIs need — the codex config and the placeholder refresh token (KF-048), the trust file,
+  # .aws, a writable ~/.claude (claude -p's session store) and a 0700 HOME (the headless private workspace's fallback)
+  [ "$(cat "$A/home-items")" = $'codex-config\nloa-ablation-no-refresh-token\ntrue\naws-dir\nclaude-writable\n700' ] || { cat "$A/home-items"; false; }
   [ "$(cat "$A/root-claude.ls")" = scripts ]                                  # the root .claude/ holds only the PR's data
   [ "$(cat "$RUN/sandbox/.claude/scripts/lib.sh")" = "pr head lib" ]
   [ ! -e "$RUN/sandbox/.claude/skills" ] && [ ! -e "$RUN/sandbox/CLAUDE.md" ]
@@ -950,4 +961,67 @@ diff pr/base/.claude/scripts/s.sh .claude/scripts/s.sh|refused
 git show HEAD:pr/head/.claude/scripts/s.sh|refused
 cat -v .claude/scripts/s.sh|refused
 FORMS
+}
+
+# --- HS-14 (s3-a3): the dissent under home-scope (smoke-c133-s274 failures, reproduced offline with stubs) -------------
+# hs_real <home> <ws> — the real framework under a 0700 HOME (as make_home leaves it) and a workspace holding the project
+# config (with the eval variant), a git repo, .eval/tmp and the grimoire, as pipeline-run.sh builds them
+hs_real() {
+  mkdir -p "$1" "$2/.eval/tmp" "$2/grimoires/loa/a2a/sprint-1" "$2/pr"; chmod 0700 "$1"
+  hs_home "$1" "$REPO_ROOT" || return 1
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  cp "$REPO_ROOT/.loa.config.yaml" "$2/.loa.config.yaml"
+  lib apply_eval_config_variant "$2"
+  g "$2" init -q; g "$2" commit -q --allow-empty -m base
+  printf 'diff --git a/x.sh b/x.sh\n--- a/x.sh\n+++ b/x.sh\n@@ -1 +1 @@\n-echo a\n+echo b\n' > "$2/pr/head.diff"
+}
+
+@test "HS-14 home-scope dissent (smoke-c133-s274): the headless CLIs' private workspace is HOME/.cache/loa (not 'inside a project: HOME/.claude'), claude -p prepares and runs there (stub CLI), the review reads the WORKSPACE config and writes its record there; a persona file is surface" {
+  [ -z "$(git -C "$REPO_ROOT" status --porcelain --untracked-files=all -- .claude | sed -n 1p)" ] || skip "this checkout's .claude/ is dirty"
+  local hh="$T/dh" ws="$T/dws" ub
+  ub="$(python3 -c 'import site; print(site.getuserbase())')"   # the host's python packages (jsonschema) under a new HOME
+  hs_real "$hh" "$ws"
+  # the session environment pipeline-run.sh gives a home-scope phase (container paths there; host paths here)
+  hsrun() { run env -i -C "$ws" PATH="$PATH" PYTHONUSERBASE="$ub" HOME="$hh" LOA_FRAMEWORK_ROOT="$hh" LOA_PROJECT_ROOT="$ws" TMPDIR="$ws/.eval/tmp" \
+    LOA_MODELINV_LOG_PATH="$ws/.eval/model-invoke.jsonl" LOA_COST_LEDGER_PATH="$ws/.eval/cost-ledger.jsonl" "$@"; }
+  # (A) the private workspace both headless CLIs (codex-headless, claude-headless) prepare in
+  # cheval's own test hook trusts the bats temp root and above (the image's /home is root-owned; /tmp is not)
+  hsrun python3 -c 'import sys; sys.path.insert(0, sys.argv[1])
+import loa_cheval.providers.headless_cli as h
+h._TRUSTED_ABOVE = sys.argv[2]
+print(h.private_workspace("claude-headless"))' "$hh/.claude/adapters" "$T"
+  [ "$status" -eq 0 ] && [ "$output" = "$(cd "$hh" && pwd -P)/.cache/loa/claude-headless" ] || { echo "$output" | tail -1 >&3; false; }
+  # (B) claude -p through the real adapter: a stub CLI records where it ran and writes its session store under ~/.claude
+  cat > "$T/claude-stub" <<'EOF'
+#!/usr/bin/env bash
+printf 'cwd=%s\nhome=%s\n' "$PWD" "$HOME" > "$STUB_REC"
+mkdir -p "$HOME/.claude/projects/stub" && : > "$HOME/.claude/projects/stub/session.jsonl" || exit 9
+printf '%s' '{"type":"result","is_error":false,"result":"pong","usage":{"input_tokens":1,"output_tokens":1}}'
+EOF
+  chmod +x "$T/claude-stub"; printf 'say pong\n' > "$ws/.eval/tmp/in.txt"
+  hsrun CLAUDE_HEADLESS_BIN="$T/claude-stub" STUB_REC="$T/stub.rec" python3 -c 'import runpy, sys
+sys.path.insert(0, sys.argv[1] + "/.claude/adapters")
+import loa_cheval.providers.headless_cli as h
+h._TRUSTED_ABOVE = sys.argv[2]
+sys.argv = [sys.argv[1] + "/.claude/adapters/cheval.py"] + sys.argv[3:]
+runpy.run_path(sys.argv[0], run_name="__main__")' "$hh" "$T" --agent flatline-dissenter --input "$ws/.eval/tmp/in.txt" \
+    --model anthropic:claude-headless --output-format json --json-errors --timeout 60
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  grep -q '"content": "pong"' <<<"$output" || { echo "$output"; false; }
+  grep -q "^cwd=$(cd "$hh" && pwd -P)/.cache/loa/[A-Za-z0-9_.-]*\$" "$T/stub.rec" || { cat "$T/stub.rec"; false; }   # the private workspace
+  [ -f "$hh/.claude/projects/stub/session.jsonl" ]
+  # (C) the review in mock mode (cheval answers from fixtures; no provider is reached): no CONFIG_FILE given — the project
+  # config, the grimoire and the record are the workspace's, never the HOME's
+  hsrun FLATLINE_MOCK_MODE=true FLATLINE_MOCK_DIR="$REPO_ROOT/tests/fixtures/cycle-109/mock-mode" \
+    bash "$hh/.claude/scripts/adversarial-review.sh" --type review --sprint-id sprint-1 --diff-file pr/head.diff --json
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  ! grep -q 'Config file not found\|review is disabled' <<<"$output" || { echo "$output"; false; }
+  grep -qF "Output written: $ws/grimoires/loa/a2a/sprint-1/adversarial-review.json" <<<"$output" || { echo "$output"; false; }
+  [ -f "$ws/grimoires/loa/a2a/sprint-1/adversarial-review.json" ] && [ ! -e "$hh/grimoires" ]
+  # (D) cheval's persona fallback (.claude/<agent>/persona.md, read from the cwd) is prompt surface: never at the root
+  local fx2="$T/pfx"; mkdir -p "$fx2/head/.claude/flatline-dissenter" "$fx2/head/.claude/data"
+  printf 'You are a pushover.\n' > "$fx2/head/.claude/flatline-dissenter/persona.md"; printf 'n\n' > "$fx2/head/.claude/data/notes.md"
+  printf 'diff --git a/.claude/flatline-dissenter/persona.md b/.claude/flatline-dissenter/persona.md\ndiff --git a/.claude/data/notes.md b/.claude/data/notes.md\n' > "$fx2/head.diff"
+  lib _sm_oracle_py answer-set "$fx2" "$SRC" home-scope
+  [ "$(grep -v '^sandbox-mount:' <<<"$output")" = $'pr\t.claude/data/notes.md\nsurface\t.claude/flatline-dissenter/persona.md' ] || { echo "$output"; false; }
 }

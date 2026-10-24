@@ -185,7 +185,8 @@
 #     the mount_cheval probe imports the HOME adapters, the arm-id guard also scans HOME/.claude;
 #   - meta/mount.json {mount_mode, setting_sources, claude_code_version, surface_derived_for, framework_root(_var),
 #     framework_manifest_sha256, home_verify, home_hook_counts, transform} records what the session loads;
-#   - every phase runs `--setting-sources user` with LOA_FRAMEWORK_ROOT in its environment, under a one-second
+#   - every phase runs `--setting-sources user` with LOA_FRAMEWORK_ROOT (the HOME) and LOA_PROJECT_ROOT (/workspace) in
+#     its environment, under a one-second
 #     `docker top` sampler (meta/ps-<label>.txt: "# sample <epoch>" then "<pid> <ppid> <args>");
 #   - before the HOME is deleted, meta/home-integrity.json checks the HOME framework against its manifest
 #     (took-effect.sh integrity_clean reads it).
@@ -1053,7 +1054,9 @@ run_phase() {  # run_phase <name> <label>
           "LOA_MODELINV_LOG_PATH=$ev_ws/.eval/model-invoke.jsonl"
           "LOA_COST_LEDGER_PATH=$ev_ws/.eval/cost-ledger.jsonl"
           "GIT_CONFIG_GLOBAL=/dev/null" "GIT_CONFIG_NOSYSTEM=1" "GH_CONFIG_DIR=$ev_ws/.eval/gh-empty")
-  [[ "$HS" == true ]] && envkv+=("LOA_FRAMEWORK_ROOT=$home_v")
+  # home-scope: the framework root is the HOME, the PROJECT root the workspace (s3-a3: the framework derives its project
+  # root from its own location, which is the HOME there)
+  [[ "$HS" == true ]] && envkv+=("LOA_FRAMEWORK_ROOT=$home_v" "LOA_PROJECT_ROOT=$ev_ws")
   local kv_arm have_enforce=false
   while IFS= read -r kv_arm; do
     [[ "$kv_arm" =~ ^LOA_[A-Z0-9_]+= ]] || continue    # the arm's own variables only (never PATH, HOME, keys)
