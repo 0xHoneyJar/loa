@@ -29704,3 +29704,37 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0887"
+    created_at: "2026-10-24T02:33:28Z"
+    updated_at: "2026-10-24T02:33:28Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 272 close: Sprint 273 implementers dispatched while 272's final CI run completes; the COMPLETED marker and ledger close wait for the green check"
+    decision: "With Sprint 272's review (round 2) and audit both APPROVED and the one remaining item a mechanical confirmation — the 'Shell Tests' check-run on the final head a0624b285 after the npx launcher fix — the lead dispatched Sprint 273's four implementers into worktrees at 38640409e at 02:40Z instead of idling for the ~70-minute CI run; the COMPLETED marker, the record-round and the ledger status for 272 are written only when that check is green, and a red check reopens 272 before any Sprint 273 patch lands."
+    rationale: "The implementers do not touch tests/unit, the CI workflow or any file Sprint 272 changed; the evidence the marker needs is a CI result, not a decision; a red result would cost one fix round either way, so nothing is lost by overlapping and ~70 minutes of wall-clock are saved on a 4-sprint cycle under an operator instruction to proceed end to end."
+    alternatives_considered:
+      - option: "idle until the check-run is green, then dispatch"
+        rejected_because: "buys no information: the implementers' work does not depend on the check and cannot change its outcome"
+      - option: "write the COMPLETED marker on the local evidence (7,062/7,067 with the explained five) and move on"
+        rejected_because: "FR-5 AC 2 names the shipped head's CI result as the evidence; the previous run had just failed on a CI-only coupling (KF-057)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "a0624b28"
+    source: "grimoires/loa/NOTES.md § 2026-10-24T02:40:00Z; grimoires/loa/a2a/sprint-272/auditor-sprint-feedback.md § Security checklist (Tests)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T02:33:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "CI run on a0624b285 (pending at the time of the row); NOTES entry 02:40Z; dispatch at 02:40Z (agents impl-s2-a … impl-s2-d)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
