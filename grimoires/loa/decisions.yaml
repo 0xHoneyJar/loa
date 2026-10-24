@@ -31843,3 +31843,43 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0946"
+    created_at: "2026-10-24T11:18:35Z"
+    updated_at: "2026-10-24T11:18:35Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Floor amendment: a floor_files entry may differ from origin/main this cycle only at a pinned sha, DEC-named and additive; first row verdict-derive.sh (C-11)."
+    decision: "floor.yaml gains floor_amendments: one row per floor file a cycle changes, pinning the exact sha256 of the landed bytes, the authorising DEC, the cycle and the reason. tests/unit/floor-snapshot.bats FS-1 accepts a floor file that differs from origin/main only when an amendment row names its current sha256 and the change is additive (git numstat deletions 0 against origin/main); any other drift still fails, and two negative tests prove the row is load-bearing. The first row covers .claude/scripts/verdict-derive.sh at the cycle-133 C-11 bytes (the Failure clause grammar and the blocking tally — a strengthening of the gate planned in the operator-approved PRD FR-11 and SDD C-11). guard-origins.bats FLOOR_SHA256 is re-pinned deliberately. The row is removed once the change is on origin/main."
+    rationale: "The floor exists so no profile, knob or cycle task weakens a guard; cycle-129 expressed it as byte identity with origin/main, which also forbids strengthening and gives a planned gate change no path to merge. An explicit, sha-pinned, DEC-named, additive-only amendment keeps the floor visible and deliberate while letting C-11 land; weakening (deletions) is still refused mechanically."
+    alternatives_considered:
+      - option: "revert the verdict-derive.sh change and keep the finding grammar outside the gate"
+        rejected_because: "the finding-clause blocking rule inside verdict-derive is itself a mandatory release gate in sdd § 7.3 (C-11)"
+      - option: "leave FS-1 red and wait for the operator"
+        rejected_because: "blocks the Sprint 273 marker, Sprint 274 and the release; the plan that changes the file was operator-approved; the amendment is surfaced for the operator and the audit"
+      - option: "drop verdict-derive.sh from floor_files"
+        rejected_because: "removes the floor instead of amending it"
+    consequences:
+      positive:
+        - "a floor change is visible in one place with its sha, DEC and reason"
+      negative:
+        - "byte identity with origin/main is no longer absolute; additive-only is a mechanical proxy for strengthening, not a proof"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "4043f900"
+    source: "CI run 40085874207 FS-1 'floor file .claude/scripts/verdict-derive.sh differs from origin/main'; .claude/data/floor.yaml (cycle-129 D-9.2); grimoires/loa/sprint.md Task 3.2; sdd.md C-11, § 7.3 mandatory gates"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T11:18:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "CI run 40085874207; commit follows 4043f900a"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
