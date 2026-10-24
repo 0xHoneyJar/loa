@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-24T07:14:09Z",
+  "generated": "2026-10-24T09:12:47Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1138,6 +1138,7 @@
     ".claude/scripts/lib/scaffold-post-merge-workflow.sh": "a786c93aae9f89dc9b92ee8814ee222e2bba5421f116162e91be67820cfc83a5",
     ".claude/scripts/lib/scheduled-cycle-lib.sh": "1170e72b882754b7792543d423766ab018393f6a24b03f72167d0ac876f68338",
     ".claude/scripts/lib/schema-validator.sh": "5c6745ee93a4a9d5f1698708d4bd0bd4c7fb8255966b5bd91a4ecf6fc7a1d9f6",
+    ".claude/scripts/lib/secret-classes.sh": "7b914dff4abb10ac4b1ac1175912f4472659235e5075ea0537e0a309fb0f2860",
     ".claude/scripts/lib/secret-redaction.sh": "5f59f43f392fa394203ae43833090cb4fdafca42291dfe5695b9802687f9c103",
     ".claude/scripts/lib/session-limit-lib.sh": "6576d70fd80c636957730f4ffcaf5909c855b3c4cde1a756c56ee440781dd1ad",
     ".claude/scripts/lib/soul-identity-lib.sh": "5773484c01a5f07b744e5ac62b39c67cdadb7c3848e2dfa7a3219831403e9210",
@@ -1208,7 +1209,7 @@
     ".claude/scripts/qmd-context-query.sh": "19f75d19c2a4621842438e5c37b2429f51e607c09ee49b118867c355a8f1b577",
     ".claude/scripts/qmd-sync.sh": "a1d5f668097cfbc8a1f9af2755ca2bcecdbdc4866cdc86fb79685f33d310d570",
     ".claude/scripts/quality-gates.sh": "b250cb0d6b72d5af107f6ea84e89f6276d0ddc52de27e39ff8a9c6534ffb294d",
-    ".claude/scripts/record-branch.sh": "088e38ece3a6b33dfa31a64ced8ed01a7369fecead28e9becf0c85777b048e72",
+    ".claude/scripts/record-branch.sh": "de595616a9c572ed8b28258343975ba6e40d8458a5e26609701f535c726330f1",
     ".claude/scripts/recurrence-detector.sh": "e7d2de35c5b4ea30ab8446084f9932ecaedfc678700e5af00fa512f9e716ed14",
     ".claude/scripts/red-team-code-vs-design.sh": "dee7f23d90baf668d1feec87a1a02dcebf3f30df9918290cc293a9caa97809ca",
     ".claude/scripts/red-team-model-adapter.sh": "9f76078a9961405521a400aef114658d7011773fce2853a797ef69d33eaa8129",
@@ -1879,7 +1880,7 @@
     ".claude/skills/planning-sprints/SKILL.md": "8e277f4a17b9b5d54b66bcb32ac8fca304473cd641ea32218aaf71c9f3b597de",
     ".claude/skills/planning-sprints/index.yaml": "763fe344b705c5d7afbd3a1de0402ff1c67fb41f6c3b8b5ae33b3f0e8cedd360",
     ".claude/skills/planning-sprints/resources/BIBLIOGRAPHY.md": "2538f9cdcb85fe1201a1bfefaf09954a3ec4a5b419e69bde7ad0c3fe18cecedc",
-    ".claude/skills/planning-sprints/resources/REFERENCE.md": "ce0fa309a60da2850f8db54f322e4983ef6f0f05895f11cc511193416e0e509d",
+    ".claude/skills/planning-sprints/resources/REFERENCE.md": "2f06393ad6af998bfdca017a536b520ee94e015f2474060fc57f6a5b7ae8c6e2",
     ".claude/skills/planning-sprints/resources/beads-flatline-loop.md": "2a91e5c6be0b6b0c99a5961be81b95439b36275638fe6005adddd3a90c795f9f",
     ".claude/skills/planning-sprints/resources/scripts/check-audit-status.sh": "fc0edadbd47e9f50819ace644cd5ec78e82b9ecf595c8e755d374eed7315d282",
     ".claude/skills/planning-sprints/resources/templates/sprint-template.md": "83acda78c361ae7d87f337b62c1336ab6f6f30a14b5c3e1726b009c87aee73dd",

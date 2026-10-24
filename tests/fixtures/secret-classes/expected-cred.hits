@@ -1,0 +1,10 @@
+a/creds.txt:2:private-key
+a/creds.txt:3:anthropic-key
+a/creds.txt:4:openai-key
+a/creds.txt:5:github-token
+a/creds.txt:6:aws-access-key
+a/creds.txt:7:google-api-key
+a/creds.txt:8:slack-token
+a/creds.txt:9:bearer-token
+b/c/placeholders.md:3:anthropic-key
+b/env.sh:3:github-token

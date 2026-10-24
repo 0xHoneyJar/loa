@@ -15,7 +15,7 @@
 #                         --pin SHA --suite-file PATH --arms CSV --groups JSON --looks JSON
 #                         --boundary-constant X --cap-usd N --seed N [--supersedes SHA256]
 #                         [--kickoff TS] [--image-digest D] [--cycle ID] [--label-set v2]
-#                         [--repo DIR] --out REGISTRATION.json
+#                         [--repo DIR] [--looks-seen JSON [--looks-root DIR]] --out REGISTRATION.json
 #   registration.py verify REGISTRATION.json [--repo DIR]
 #
 # Options (build):
@@ -43,13 +43,27 @@
 #   --repo DIR           the repository the paths are relative to and git runs in (default: the one
 #                        holding this file); every input path must lie inside it
 #   --out PATH           where the canonical bytes go (no trailing newline; written atomically)
+#   --looks-seen JSON    v2 (cycle-133 FR-12, SDD C-12): [{look, suite, registration_sha256, rows_sha256}, …] — every
+#                        committed look the authors had seen; makes the record schema_version 2 (the chain version)
+#   --looks-root DIR     the looks inventory root (default grimoires/loa/reports/ablation-2.0): its committed
+#                        c*-looks/<look>/rows.jsonl files, each with <look>/<look>.json
+#
+# Registration v2 (looks_seen): `look` is the inventory id `c<N>-looks/<dir>` (dir `look-<i>` or `look-<i>-<suffix>`);
+#   `suite` the rows' one suite_manifest_sha256; `registration_sha256` the look's inputs.registration_sha256 (the
+#   registration it was read under); `rows_sha256` the sha256 of its rows.jsonl (= its inputs.rows_sha256). Rules,
+#   checked by build and verify against the inventory as committed (git ls-files): every entry is an inventory look
+#   with equal fields; entries strictly increase by (N, i, suffix — none first); no entry names this registration
+#   itself or a registration that supersedes it (a successor: a look read later cannot have been seen); every
+#   inventory look not listed was read under this registration or a successor (REGISTRATION*.json beside it whose
+#   supersedes chain reaches it) — completeness is verified against the inventory, not merely declared. A v1 record
+#   (schema_version 1) has no looks_seen and builds and verifies byte for byte as before.
 #
 # Record (every path relative to --repo, no timestamp): {schema_version: 1, cycle,
 #   preregistration_path, preregistration_sha256, corpus_sums_path, corpus_sha256sums_sha256,
 #   suite_root, suite_manifest_sha256, suite_file, analysis_tree, analysis_tree_sha256, pin,
 #   image_digest, label_set, seed, arms: [{id, toggles, phase_models: {<phase>: <model id>},
 #   k_by_task: {<task>: k}}], groups, looks, boundary_constant, cap_usd, kickoff, supersedes,
-#   addenda: []}. The bytes are the RFC 8785 canonical form through lib/jcs.sh (the repository's
+#   addenda: []} (v2 adds looks_root and looks_seen). The bytes are the RFC 8785 canonical form through lib/jcs.sh (the repository's
 #   canonicaliser, which needs the rfc8785 package; never jq -S): the same inputs give the same
 #   bytes and the same sha256. A matched arm (toggles bare_sessions: matched) has k_by_task from each
 #   grouped review-catch task's review_catch.bare_sessions_matched (an arm with bare_model: fable reads
@@ -57,7 +71,7 @@
 #
 # verify: the file must be JCS-canonical; every hash is recomputed from the recorded paths (the
 #   pre-registration, the corpus sums, the suite manifest, the analysis tree at the recorded REV:PATH)
-#   and the arms from the recorded suite file and suite root. Prints one `drift: <field>: registered
+#   and the arms from the recorded suite file and suite root; a v2 record's looks_seen against the inventory. Prints one `drift: <field>: registered
 #   <a>, now <b>` line per difference, else `ok <sha256>`.
 #
 # Exit: 0 written / verified; 1 verify found drift; 2 usage, an unreadable input, a failed
@@ -194,6 +208,124 @@ def arm_records(suite_file, suite_root, arm_ids, task_ids):
     return out
 
 
+DEFAULT_LOOKS_ROOT = os.path.join("grimoires", "loa", "reports", "ablation-2.0")
+LOOK_ID = re.compile(r"c([0-9]{1,5})-looks/look-([1-9][0-9]{0,3})(?:-([a-z0-9][a-z0-9-]{0,40}))?")
+LOOK_KEYS = ("look", "suite", "registration_sha256", "rows_sha256")
+HEX64 = re.compile(r"[0-9a-f]{64}")
+
+
+def look_order(look_id):
+    m = LOOK_ID.fullmatch(look_id)
+    return (int(m.group(1)), int(m.group(2)), m.group(3) is not None, m.group(3) or "")
+
+
+def looks_inventory(repo, root):
+    """{look id: {look, suite, registration_sha256, rows_sha256}} of the committed looks under root (git ls-files)"""
+    rel = inside(repo, root) if os.path.isabs(root) else root
+    p = subprocess.run(["git", "-C", repo, "ls-files", "-z", "--", rel], capture_output=True)
+    if p.returncode != 0:
+        raise Fail(f"git ls-files {rel} failed in {repo}")
+    inv = {}
+    for f in sorted(x.decode("utf-8", "replace") for x in p.stdout.split(b"\0") if x):
+        parts = os.path.relpath(f, rel).split(os.sep) if rel not in ("", ".") else f.split("/")
+        if len(parts) != 3 or parts[2] != "rows.jsonl" or not re.fullmatch(r"c[0-9]+-looks", parts[0]):
+            continue
+        look_id = parts[0] + "/" + parts[1]
+        if not LOOK_ID.fullmatch(look_id):
+            raise Fail(f"committed look {look_id}: the directory is not look-<i> or look-<i>-<suffix>")
+        rows_path = os.path.join(repo, f)
+        rows_sha = sha256_file(rows_path)
+        suites = set()
+        with open(rows_path, encoding="utf-8") as fh:
+            for n, line in enumerate(fh, 1):
+                if line.strip():
+                    try:
+                        suites.add(json.loads(line).get("suite_manifest_sha256"))
+                    except (ValueError, AttributeError):
+                        raise Fail(f"committed look {look_id}: rows.jsonl line {n} is not a JSON object")
+        if len(suites) != 1 or not isinstance(next(iter(suites)), str):
+            raise Fail(f"committed look {look_id}: its rows do not share one suite_manifest_sha256")
+        meta_path = os.path.join(repo, os.path.dirname(f), parts[1] + ".json")
+        try:
+            with open(meta_path, encoding="utf-8") as fh:
+                meta = json.load(fh)
+        except (OSError, ValueError):
+            raise Fail(f"committed look {look_id}: no readable {parts[1]}.json beside its rows")
+        inputs = meta.get("inputs") if isinstance(meta, dict) else None
+        reg_sha = inputs.get("registration_sha256") if isinstance(inputs, dict) else None
+        if not isinstance(reg_sha, str) or not HEX64.fullmatch(reg_sha):
+            raise Fail(f"committed look {look_id}: {parts[1]}.json has no inputs.registration_sha256")
+        if inputs.get("rows_sha256") != rows_sha:
+            raise Fail(f"committed look {look_id}: rows.jsonl sha256 {rows_sha[:12]} differs from its inputs.rows_sha256")
+        index = meta.get("look")
+        if index != look_order(look_id)[1]:
+            raise Fail(f"committed look {look_id}: look index {index!r} disagrees with the directory name")
+        inv[look_id] = {"look": look_id, "suite": next(iter(suites)), "registration_sha256": reg_sha, "rows_sha256": rows_sha}
+    return inv
+
+
+def successors_of(reg_path, self_sha):
+    """sha256s of the REGISTRATION*.json beside reg_path whose supersedes chain reaches self_sha"""
+    by_sha = {}
+    d = os.path.dirname(os.path.abspath(reg_path))
+    for name in sorted(os.listdir(d)):
+        fp = os.path.join(d, name)
+        if name.startswith("REGISTRATION") and name.endswith(".json") and os.path.isfile(fp):
+            try:
+                with open(fp, "rb") as fh:
+                    b = fh.read()
+                doc = json.loads(b.decode("utf-8"))
+            except (OSError, ValueError, UnicodeDecodeError):
+                continue
+            by_sha[hashlib.sha256(b).hexdigest()] = doc.get("supersedes") if isinstance(doc, dict) else None
+    out = set()
+    for h in by_sha:
+        cur, seen = by_sha.get(h), {h}
+        while isinstance(cur, str) and cur not in seen:
+            if cur == self_sha:
+                out.add(h)
+                break
+            seen.add(cur)
+            cur = by_sha.get(cur)
+    return out
+
+
+def looks_seen_errors(seen, inv, self_sha=None, successors=frozenset()):
+    """the v2 rules (see the header) — [] when looks_seen is sound and complete"""
+    if not isinstance(seen, list):
+        return ["looks_seen must be a list of {look, suite, registration_sha256, rows_sha256}"]
+    errs, prev, listed = [], None, set()
+    for i, e in enumerate(seen):
+        if not isinstance(e, dict) or tuple(sorted(e)) != tuple(sorted(LOOK_KEYS)):
+            errs.append(f"looks_seen[{i}] must have exactly the keys {', '.join(LOOK_KEYS)}"); continue
+        lid = e["look"]
+        if not isinstance(lid, str) or not LOOK_ID.fullmatch(lid):
+            errs.append(f"looks_seen[{i}].look {lid!r} is not c<N>-looks/look-<i>[-<suffix>]"); continue
+        key = look_order(lid)
+        if prev is not None and key <= prev:
+            errs.append(f"looks_seen[{i}] {lid}: the looks must be strictly increasing (N, i, suffix) with no repeat")
+        prev = key
+        listed.add(lid)
+        if self_sha is not None and e.get("registration_sha256") == self_sha:
+            errs.append(f"looks_seen[{i}] {lid} names this registration itself (a look read under it cannot precede it)")
+        elif e.get("registration_sha256") in successors:
+            errs.append(f"looks_seen[{i}] {lid} was read under a successor of this registration (a cycle)")
+        have = inv.get(lid)
+        if have is None:
+            errs.append(f"looks_seen[{i}] {lid} is not a committed look of the inventory"); continue
+        for k in ("suite", "registration_sha256", "rows_sha256"):
+            if e.get(k) != have[k]:
+                errs.append(f"{lid}: {k} {str(e.get(k))[:12]} differs from the committed look's {have[k][:12]}")
+    for lid in sorted(inv, key=look_order):
+        if lid in listed:
+            continue
+        r = inv[lid]["registration_sha256"]
+        if self_sha is not None and (r == self_sha or r in successors):
+            continue    # read under this registration or a later one
+        errs.append(f"looks_seen omits the committed look {lid} (read under {r[:12]})")
+    return errs
+
+
 def parse_json_arg(name, text):
     try:
         return json.loads(text)
@@ -244,6 +376,15 @@ def build(a):
            "image_digest": a.image_digest, "label_set": a.label_set, "seed": seed,
            "arms": arm_records(a.suite_file, suite_root, arm_ids, flat), "groups": groups, "looks": looks,
            "boundary_constant": bc, "cap_usd": cap, "kickoff": a.kickoff, "supersedes": a.supersedes, "addenda": []}
+    if a.looks_seen is not None:
+        seen = parse_json_arg("looks-seen", a.looks_seen)
+        root = os.path.abspath(a.looks_root) if a.looks_root else os.path.join(repo, DEFAULT_LOOKS_ROOT)
+        errs = looks_seen_errors(seen, looks_inventory(repo, root))
+        if errs:
+            raise Fail("--looks-seen: " + "; ".join(errs[:10]))
+        rec.update({"schema_version": 2, "looks_root": inside(repo, root), "looks_seen": seen})
+    elif a.looks_root:
+        raise Fail("--looks-root needs --looks-seen")
     data = jcs(rec, repo)
     out = os.path.abspath(a.out)
     os.makedirs(os.path.dirname(out), exist_ok=True)
@@ -266,8 +407,8 @@ def verify(a):
         rec = json.loads(raw.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
         raise Fail(f"{a.registration} is not JSON")
-    if not isinstance(rec, dict) or rec.get("schema_version") != 1:
-        raise Fail(f"{a.registration} is not a schema_version 1 registration")
+    if not isinstance(rec, dict) or rec.get("schema_version") not in (1, 2):
+        raise Fail(f"{a.registration} is not a schema_version 1 or 2 registration")
     drift = []
     if jcs(rec, repo) != raw:
         drift.append(("canonical_form", "JCS bytes", "not JCS-canonical"))
@@ -286,6 +427,19 @@ def verify(a):
     check("analysis_tree_sha256", lambda: git_tree(repo, rec.get("analysis_tree")))
     check("arms", lambda: arm_records(p("suite_file"), p("suite_root"), [x.get("id") for x in rec.get("arms") or []],
                                       [x for g in rec.get("groups") or [] if isinstance(g, list) for x in g]))
+    if rec.get("schema_version") == 1 and ("looks_seen" in rec or "looks_root" in rec):
+        drift.append(("looks_seen", "absent (schema_version 1)", "present: a v1 record carries no looks_seen"))
+    if rec.get("schema_version") == 2:
+        try:
+            if not isinstance(rec.get("looks_root"), str) or "looks_seen" not in rec:
+                raise Fail("a schema_version 2 record needs looks_root and looks_seen")
+            self_sha = hashlib.sha256(raw).hexdigest()
+            errs = looks_seen_errors(rec["looks_seen"], looks_inventory(repo, os.path.join(repo, rec["looks_root"])),
+                                     self_sha, successors_of(a.registration, self_sha))
+        except Fail as e:
+            errs = [str(e)]
+        if errs:
+            drift.append(("looks_seen", "sound and complete against the committed looks", "; ".join(errs[:10])))
     for field, was, now in drift:
         print(f"drift: {field}: registered {json.dumps(was, sort_keys=True)}, now {json.dumps(now, sort_keys=True)}")
     if drift:
@@ -313,6 +467,8 @@ def main(argv):
     b.add_argument("--cycle", default="cycle-132")
     b.add_argument("--label-set", default="v2")
     b.add_argument("--repo")
+    b.add_argument("--looks-seen")
+    b.add_argument("--looks-root")
     v = sub.add_parser("verify")
     v.add_argument("registration")
     v.add_argument("--repo")

@@ -58,7 +58,8 @@
 #      bounded temporary directory: audit-secret-redaction-scan.sh (class
 #      audit-key-password-assignment) plus the credential shapes private-key,
 #      anthropic-key, openai-key, github-token, aws-access-key, google-api-key,
-#      slack-token, bearer-token. Credential-shaped hits stop the build
+#      slack-token, bearer-token (lib/secret-classes.sh, shared with the
+#      external corpus seeder). Credential-shaped hits stop the build
 #      unconditionally; other hits stop unless --accept-scan names scan_tree.
 #      Hits print as path:line:class; the matched text is never printed.
 #   5. the manifest grimoires/loa/a2a/record-manifests/<cycle id>/<stage slug>.json
@@ -79,6 +80,11 @@ export LC_ALL=C
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCANNER="$SCRIPT_DIR/audit-secret-redaction-scan.sh"
+# the credential classes and their placeholder filter (shared with the external
+# corpus seeder, cycle-133 Task 3.3; tests/unit/secret-classes.bats)
+# shellcheck source=lib/secret-classes.sh
+source "$SCRIPT_DIR/lib/secret-classes.sh"
+export SECRET_CLASSES_TAG=record-branch
 
 usage() { sed -n '/^# Usage:/,/^# Tests:/p' "$0" | sed 's/^# \{0,1\}//'; }
 refuse() { echo "record-branch: REFUSED: $*" >&2; exit 2; }
@@ -433,51 +439,8 @@ def cmd_export(tree, diff_nul, outdir, maxbytes):
     batch.close()
     sys.stdout.write("".join(p + "\n" for p in listed))
 
-CRED = [
-    ("private-key", re.compile(rb"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY-----"), False),
-    ("anthropic-key", re.compile(rb"sk-ant-([A-Za-z0-9_-]{20,})"), False),
-    ("openai-key", re.compile(rb"(?<![A-Za-z0-9_-])sk-(?!ant-)([A-Za-z0-9_-]{20,})"), True),
-    ("github-token", re.compile(rb"(?<![A-Za-z0-9_])(?:gh[pousr]_([A-Za-z0-9]{36,})|github_pat_([A-Za-z0-9_]{22,}))"), False),
-    ("aws-access-key", re.compile(rb"(?<![A-Z0-9])(?:AKIA|ASIA)([A-Z0-9]{16})(?![A-Z0-9])"), False),
-    ("google-api-key", re.compile(rb"AIza([0-9A-Za-z_-]{35})"), False),
-    ("slack-token", re.compile(rb"xox[abporsu]-([A-Za-z0-9-]{10,})"), True),
-    ("bearer-token", re.compile(rb"[Bb]earer\s+([A-Za-z0-9._~+/-]{20,})"), True),
-]
-
-def secretish(m, generic):
-    groups = [g for g in m.groups() if g]
-    if not groups:
-        return True
-    body = groups[0]
-    if len(set(body)) < 6:
-        return False          # placeholder shapes: xxxx…, 0000…, REDACTED
-    if generic and not (re.search(rb"[0-9]", body) and re.search(rb"[A-Za-z]", body)):
-        return False          # prose ("Bearer authentication-is-required") is not a token
-    return True
-
-def cmd_credscan(outdir, list_file):
-    hits = []
-    for path in [l for l in open(list_file, encoding="utf-8", errors="surrogateescape").read().split("\n") if l]:
-        with open(os.path.join(outdir, path), "rb") as fh:
-            for n, line in enumerate(fh, 1):
-                for cls, rx, generic in CRED:
-                    if any(secretish(m, generic) for m in rx.finditer(line)):
-                        hits.append("%s:%d:%s" % (path, n, cls))
-    sys.stdout.write("".join(h + "\n" for h in hits))
-
-def cmd_parsepw(list_file, pw_out):
-    known = sorted([l for l in open(list_file, encoding="utf-8", errors="surrogateescape").read().split("\n") if l], key=len, reverse=True)
-    hits = []
-    for line in open(pw_out, encoding="utf-8", errors="surrogateescape").read().split("\n"):
-        for p in known:
-            m = re.match(re.escape(p) + r":(\d+):", line)
-            if m:
-                hits.append("%s:%s:audit-key-password-assignment" % (p, m.group(1)))
-                break
-        else:
-            if line.strip():
-                die(1, "unparsed scanner output line (path not in the export): %d bytes" % len(line))
-    sys.stdout.write("".join(h + "\n" for h in hits))
+# the credential classes, the placeholder filter and the scanner-output parser live in
+# lib/secret-classes.sh (secret_classes_py credscan|parsepw)
 
 def cmd_manifest(collect_json, cycle, head, prev, stage, scan_tree, accepted_file):
     c = json.load(open(collect_json, encoding="utf-8"))
@@ -492,7 +455,7 @@ def cmd_manifest(collect_json, cycle, head, prev, stage, scan_tree, accepted_fil
     sys.stdout.write(json.dumps(doc, sort_keys=True, indent=2, ensure_ascii=False) + "\n")
 
 {"collect": cmd_collect, "table": cmd_table, "checktree": cmd_checktree, "export": cmd_export,
- "credscan": cmd_credscan, "parsepw": cmd_parsepw, "manifest": cmd_manifest}[sys.argv[1]](*sys.argv[2:])
+ "manifest": cmd_manifest}[sys.argv[1]](*sys.argv[2:])
 PYEOF
 py() { python3 -I -c "$PY" "$@"; }
 
@@ -529,8 +492,8 @@ case "$pw_rc" in
   1) : ;;
   *) fail "audit-secret-redaction-scan.sh exited $pw_rc: $(head -c 300 "$WORK/pw.err")" ;;
 esac
-py parsepw "$WORK/scan.list" "$WORK/pw.out" > "$WORK/other.hits"
-py credscan "$WORK/scan" "$WORK/scan.list" > "$WORK/cred.hits"
+secret_classes_py parsepw "$WORK/scan.list" "$WORK/pw.out" > "$WORK/other.hits"
+secret_classes_py credscan "$WORK/scan" "$WORK/scan.list" > "$WORK/cred.hits"
 NSCANNED="$(grep -c '' "$WORK/scan.list" || true)"
 
 if [[ -s "$WORK/cred.hits" ]]; then

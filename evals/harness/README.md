@@ -160,6 +160,23 @@ A live batch at this pin: `egress-proxy.sh allowlist > hosts; egress-proxy.sh up
 self-check <batch> --image loa-ablation:259; LOA_EVAL_EGRESS_NETWORK=loa-egress-<batch> run-ablation.sh … --image
 loa-ablation:259 [--supervised]`; `egress-proxy.sh down <batch> --log-dir <dir>` afterwards.
 
+## Shipping a measurement cycle
+
+A measurement cycle changes code, adds fixtures, records a batch and cuts a release. It ships as four stacked PRs, each based on the one before it and merged in this order (cycle-133 SDD C-12, PRD FR-12).
+
+| Order | PR kind | What it holds | How it is reviewed |
+|---|---|---|---|
+| 1 | code | harness, graders, analysis, suites, schemas, their tests and docs | the full gates: `/review-sprint`, `/audit-sprint`, Bridgebuilder, CI |
+| 2 | fixtures | new corpus fixtures from `seed-corpus-from-record.sh` or `seed-corpus-from-external.sh`, their labels, manifests, `SHA256SUMS`, `THIRD-PARTY.tsv` rows | `seed-corpus-from-record.sh --check`, `seed-corpus-from-external.sh --check`, the labels' approval line, the licence and attribution rows |
+| 3 | artefacts | the registration chain (`REGISTRATION-N.json`, with `looks_seen` for every committed look already seen), rows, grades, looks and reads under `grimoires/loa/reports/` | the verifiers: `registration.py verify`, `reproduce.sh`, the reads' input hashes |
+| 4 | release | CHANGELOG, version files, release notes | the release path: post-merge orchestrator, rc publish |
+
+The split exists because Bridgebuilder bounds what it reads. It pages a PR's files under `max_files_per_pr` and `max_diff_bytes`, and an omitted reviewable file marks the review degraded with `incomplete_coverage`. A code change mixed with thousands of fixture or grade files is then reviewed in part, or not at all. Fixtures and artefacts are data whose correctness a script proves. Code is what a reviewer must read.
+
+Each later PR names what it rests on. The fixtures PR states the code commit whose seeder built it. The artefacts PR states the measurement pin, which is the merged code commit with its tree hash, and the registration it ran under. A registration is committed before its batch runs. A new registration's `looks_seen` lists every committed look its authors had seen, and `registration.py verify` refuses one that omits a committed look or names one whose rows changed.
+
+**One PR is acceptable** in two cases. The first is a cycle whose diff is code, tests and documentation only, with no fixture corpus and no measurement artefact. Cycle-133 itself is such a cycle. The second is a payload that fits the Bridgebuilder limits with nothing omitted, so the review is not degraded. Any other mix ships stacked. When the payload outgrows the limits mid-cycle, the code goes first and the generated files follow.
+
 ## Exit codes
 
 Cycle-133 SDD § 5.4 is the authoritative table for every script the cycle touches: 0 completed as asked, 1 a step failed or a named difference, 2 a refusal before any write, 3 completed but degraded with the reason named. Several harness scripts predate it, and their 3 means something else. The table gives each script's codes as the code implements them. Every citation is the `exit` statement, or the call that reaches it through the script's `finish` or `exit "$rc"`.
