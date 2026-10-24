@@ -30110,3 +30110,105 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0899"
+    created_at: "2026-10-24T06:08:54Z"
+    updated_at: "2026-10-24T06:08:54Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 Task 2.4b: hang = no batch file at depth ≤ 4 changed for 30 min (not STATUS alone); retry classes named; six outcomes never retried"
+    decision: "A hang is any batch file at depth ≤ 4 (STATUS.json, run.log, trial logs, transcript event streams) unchanged for 30 minutes; retried classes are driver_lost (process died or signalled from outside with STATUS not final — KF-052's tool-timeout SIGTERM), hang, infrastructure_error (rows of that status or interrupted, resumed with --rerun-status) and incomplete; never retried: refusal (exit 2), failed (exit 3), budget, outage, metering_incomplete, paused."
+    rationale: "The runner rewrites STATUS.json once per trial and a trial's watchdog runs for hours, so a STATUS-only rule would kill healthy trials; a heartbeat would need more runner edits; the never-retried outcomes are decisions or exhausted budgets, not transient failures."
+    alternatives_considered:
+      - option: "STATUS.json-only hang detection"
+        rejected_because: "kills healthy multi-hour trials"
+      - option: "a runner heartbeat"
+        rejected_because: "more runner edits for the same signal the file mtimes already carry"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b252c234"
+    source: "grimoires/loa/a2a/sprint-273/reviewer-e.md § Judgment calls (Hang signal; Retry classes)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T06:08:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit b252c234f (lib/batch-supervisor.sh watch :360, classify :321; BSV-5, 6, 7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0900"
+    created_at: "2026-10-24T06:08:57Z"
+    updated_at: "2026-10-24T06:08:57Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 Task 2.4b: args.json per launch, copied into MANIFEST once; resume argv = --resume --batch + root/cap/bins; episodes span a reboot via restore"
+    decision: "supervisor/args.json is written on every launch and copied into MANIFEST.json supervisor by write_manifest at a fresh start (the supervisor never rewrites the MANIFEST, an evidence record); the resume argv is --resume --batch <name> plus --results-root, --smoke, --max-usd, --concurrency, --self-check-log and the --*-bin flags, the MANIFEST supplying the rest; launch starts a new episode (prior record into history[], retries reset) and restore continues one so the retry cap counts across a reboot — no automatic restore at boot (a transient unit does not survive one); the flock cannot pass into a transient unit, so the launcher writes a launching record with the attempt id and the unit waits ≤ 120 s on the lock and checks the id; uncertain in-flight runs are recorded (request ids, micro-USD) before anything is killed — recording, not repair."
+    rationale: "Replaying the whole argv conflicts with the resume path (--registration, --allow-partial); rewriting the MANIFEST would alter evidence; a persistent user unit would write into the user's systemd configuration; the runner's resume already charges uncertain trials their cap."
+    alternatives_considered:
+      - option: "replay the whole launch argv on resume"
+        rejected_because: "the resume path rejects --registration and --allow-partial"
+      - option: "install a persistent user unit for automatic restore"
+        rejected_because: "writes into the user's systemd configuration; one documented command instead"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b252c234"
+    source: "grimoires/loa/a2a/sprint-273/reviewer-e.md § Judgment calls (Run-argument persistence; Resume argv; Episodes; systemd handover; Reconciling uncertain requests)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T06:08:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit b252c234f (batch-supervisor.sh cmd_run :382, cmd_restore :492, daemonise :164, reclaim :238; run-ablation.sh write_manifest :1258; BSV-1, 9, 11, 13)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0901"
+    created_at: "2026-10-24T06:09:00Z"
+    updated_at: "2026-10-24T06:09:00Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 Task 2.4b: STATUS.json.lock for both writers; linger = loginctl or system.slice (no logind → refused); containers removed by exact prefix"
+    decision: "A new STATUS.json.lock flock is taken by the runner's write_status and the supervisor (the rows lock is shared across batches); linger means loginctl linger or a system.slice cgroup and an absent loginctl is refused; the unit's environment carries PATH, HOME and LOA_*/EVAL_* names not matching KEY/TOKEN/SECRET/PASSWORD/CREDENTIAL (systemctl show exposes it); after a reboot nothing recorded is signalled and stale .lock/.jobs are removed, on the same boot the runner group is killed only when its start ticks match; containers are removed by docker name filter AND an exact loa-abl-<batch>- prefix match (docker's filter is a substring regex); --max-retries 0–9 default 3; --supervised exclusive with --detach and --dry-run with the checks at argument validation (the --detach re-exec precedes the block); exit codes run 0/1/2 per § 5.4; test knobs LOA_SUPERVISOR_* follow the LOA_ABLATION_WATCHDOG_S precedent."
+    rationale: "Two writers of STATUS.json need one lock; a user unit without linger dies at logout; the unit environment is readable; b1 would match b10 under docker's filter."
+    alternatives_considered:
+      - option: "reuse $ROWS.lock for STATUS"
+        rejected_because: "the rows file is shared across batches"
+      - option: "accept INVOCATION_ID as the lingering signal"
+        rejected_because: "a user unit without linger still dies at logout"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b252c234"
+    source: "grimoires/loa/a2a/sprint-273/reviewer-e.md § Judgment calls (Status lock; Lingering scope; systemd environment; PID reuse; Containers; --max-retries; Exclusivity; Exit codes; Test knobs)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T06:09:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit b252c234f (run-ablation.sh write_status :1508, usage checks :535-537; batch-supervisor.sh linger_ok :125, stop_containers :217; BSV-2, 3, 8, 10, 12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
