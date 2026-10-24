@@ -32107,3 +32107,41 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0953"
+    created_at: "2026-10-24T13:45:13Z"
+    updated_at: "2026-10-24T13:45:13Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 COMPLETED at a head carrying Sprint 274 commits: its own head could not go green, so the first green Shell Tests run (0d51dcf45) is its evidence."
+    decision: "Sprint 273 (review APPROVED round 2, audit APPROVED on 2026-10-24) is marked COMPLETED with CI run 40094040774 on 0d51dcf45 as the green evidence. Its own head c3b059cf3 was red on five eval tests (BSV-3/12 linger on system.slice, REG-4 egress escape, EGR-8/12 the host gateway — KF-058); the fixes landed in c31aad7cc, 874fc64a9, 9af4d44e8 (KF-059), 92aa210d6 (floor amendment) and 0d51dcf45 (runner smoke counts), all after Sprint 274 work had begun on the same branch. The marker records the overlap."
+    rationale: "Rewinding to a Sprint 273-only head for a green run would have meant reverting landed Sprint 274 work or an orphan branch for CI alone; the fixes were small, each named, and the green run covers the Sprint 273 code unchanged."
+    alternatives_considered:
+      - option: "an orphan CI branch holding only the Sprint 273 fixes"
+        rejected_because: "an artificial head nobody ships; the fixes are the same commits"
+      - option: "mark 273 complete without a green run"
+        rejected_because: "the sprint's own rule was CI green first"
+    consequences:
+      positive:
+        - "the marker names the exact run and head"
+      negative:
+        - "the sprint boundary in CI history is blurred"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "16f7a4e6"
+    source: "grimoires/loa/a2a/sprint-273/{engineer-feedback.md,auditor-sprint-feedback.md,COMPLETED}; CI runs 40074686664 (red) and 40094040774 (green)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T13:45:13Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "CI run 40094040774; 0d51dcf45"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
