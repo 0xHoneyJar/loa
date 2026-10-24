@@ -108,6 +108,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-058](#kf-058-an---internal-docker-network-still-reaches-the-hosts-bridge-gateway-address) | Fixed (874fc64a9) | evals/harness/lib/egress-proxy.sh egress block; evals/tests/egress-proxy.bats EGR-8/EGR-12; evals/harness/Dockerfile.proxy | 1 |
 | [KF-059](#kf-059-a-test-that-resolves-historical-commits-fails-on-cis-depth-1-checkout) | Fixed for evals/analysis/c132/tests/test_registration_v2.py (Cycle132ChainTest skips when the registered pin commits are absent); pattern to follow in any test that runs git rev-parse / cat-file on a recorded commit | .github/workflows/bats-tests.yml Shell Tests (actions/checkout depth 1); evals/analysis/c132/registration.py verify (analysis_tree REV:PATH via git rev-parse) | 1 |
 | [KF-060](#kf-060-home-scope-a-pr-that-changes-review-time-framework-files-exposes-their-later-version-through-the-sandbox-home-clause-f-pinned_bytes_read) | Open — design limit of C-10 home-scope; detected by took-effect clause (f), not prevented; fixture choice is the only mitigation until external fixtures (C-12) exist | evals/harness/lib/sandbox-mount.sh mount_home_scope; evals/harness/took-effect.sh oracle_closed clause (f); the Task 3.5 smoke | 1 |
+| [KF-061](#kf-061-home-scope-the-dissent-fails-inside-the-sandbox-project-root-resolved-under-home-headless-clis-refuse-to-prepare-a-run) | Fixed in 7d2119477 (s3-a3: LOA_PROJECT_ROOT wrapping R6-R8, R5 slash-only, persona.md surface); live confirmation = the Task 3.5 verification rerun | evals/harness/lib/sandbox-mount.sh mount_home_scope transform; evals/harness/pipeline-run.sh home-scope launch; adversarial-review.sh / cheval inside the sandbox | 1 |
 
 ---
 
@@ -2127,3 +2128,24 @@ Not a chain defect: the registration bytes are unchanged and verify everywhere t
 ### Reading guide
 
 Before a home-scope run, intersect the fixture's changed .claude/ paths with the review-time surface (the list in Workaround; grep the fixture's head.diff). Non-empty → the run will fail (f) or, worse, pass (f) while the exposure happened through Claude Code's own loading. Do not weaken (f) to pass a smoke. Prefer external fixtures.
+
+## KF-061: home-scope: the dissent fails inside the sandbox (project root resolved under HOME; headless CLIs refuse to prepare a run)
+
+**Status**: Fixed in 7d2119477 (s3-a3: LOA_PROJECT_ROOT wrapping R6-R8, R5 slash-only, persona.md surface); live confirmation = the Task 3.5 verification rerun
+**Feature**: evals/harness/lib/sandbox-mount.sh mount_home_scope transform; evals/harness/pipeline-run.sh home-scope launch; adversarial-review.sh / cheval inside the sandbox
+**Symptom**: sandbox/.run/adversarial-review-stderr.log: gpt-5.5-pro, gpt-5.5, gemini → 'model-invoke failed with exit code 2'; claude-headless → 'PROVIDER_UNAVAILABLE: claude -p could not prepare its run: [Errno 13…' (reported as EPERM/Errno 1 at first glance); took-effect dissent_present false; the reviewer re-ran adversarial-review.sh with CONFIG_FILE=/workspace/.loa.config.yaml after 'Config file not found, using defaults'
+**First observed**: 2026-10-24 cycle-133 Sprint 274 Task 3.5 smoke run 1 (batch smoke-c133-s274, pin 32a8d79cf)
+**Recurrence count**: 1
+**Current workaround**: none needed after the fix; before it, home-scope dissent could not run — do not run a home-scope measurement at a pin before 7d2119477
+**Upstream issue**: the redirected framework copy kept SCRIPT_DIR/../.. and Path(__file__).parents[N] climbs that land on HOME, and rule R5 rewrote a bare directory-name marker as a path
+**Related visions / lore**: DEC-0947 DEC-0948 DEC-0939 (the transform); KF-060 (the (f) exposure found in the same run); KF-050 (cheval in the sandbox)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-24 | s3-a3 (implementer A): depth-based root-climb wrapping to LOA_PROJECT_ROOT, R5 slash-only, persona surface, LOA_PROJECT_ROOT=/workspace in the session env; HS-14 red→green with the smoke's own error | fixed offline (stubs, 208/208 lead-side); live confirmation pending in the verification rerun | commit 7d2119477; a2a/sprint-274/reviewer-a.md § s3-a3; smoke-c133-s274 sandbox/.run/adversarial-review-stderr.log |
+
+### Reading guide
+
+Under home-scope two roots exist: LOA_FRAMEWORK_ROOT (HOME) for framework files and LOA_PROJECT_ROOT (/workspace) for config, grimoires and .run. A script that climbs to its own root gets the framework root unless wrapped. Check meta/mount-transform.json rule counts (R6-R8 > 0) and HS-14 before blaming credentials; a zero-denial trial with api_failure voices means the failure was before the network.

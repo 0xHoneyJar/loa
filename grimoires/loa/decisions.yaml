@@ -31959,3 +31959,39 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0949"
+    created_at: "2026-10-24T11:49:45Z"
+    updated_at: "2026-10-24T11:49:45Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Measurement pin moved to 7d2119477 (tree e98fcee86b74) after s3-a3 changed evals/harness; images and Claude Code unchanged; 32a8d79cf ran smoke run 1 only."
+    decision: "The measurement pin is 7d2119477 (tree e98fcee86b74): the commit landing s3-a3 (home-scope dissent fix) and the README pin paragraph. loa-ablation:259 (Claude Code 2.1.299) and loa-egress-proxy:259 (guard label) are unchanged. The verification rerun runs at this pin."
+    rationale: "A change under evals/harness invalidates a pipeline version by the README rule; the rerun must name the pin it runs at."
+    alternatives_considered:
+      - option: "keep 32a8d79cf as the pin and treat s3-a3 as a hotfix"
+        rejected_because: "the README rule says any evals/harness change moves the version"
+    consequences:
+      positive:
+        - "one pin for the rerun and the record"
+      negative:
+        - "two pin rows within one sprint"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "698da05b"
+    source: "evals/harness/README.md § Pipeline version (cycle-133 Sprint 274 pin); DEC-0942; sprint.md Task 3.5"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T11:49:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "7d2119477"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
