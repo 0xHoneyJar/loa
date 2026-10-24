@@ -2101,6 +2101,7 @@ Not a tinyproxy or allowlist defect: the sandbox never goes through the proxy to
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-10-24 | Cycle132ChainTest gains a pre-check: every REGISTRATION's analysis_tree revision must exist (git cat-file -e); otherwise skipTest naming the missing revisions; verified on a local depth-1 clone (skipped) and on the full clone (passes 18/18) | fixed; CI confirmation on the next push | test_registration_v2.py (commit follows db668858d); CI run 40085119661 |
+| 2026-10-24 | pushed 9af4d44e8 (the skip guard) and let CI run the Shell Tests job | confirmed: the pytest step passed (3741 passed, Cycle132ChainTest skipped on the depth-1 checkout); the job then failed on an unrelated floor test (FS-1, DEC-0946) | CI run 40085874207 |
 
 ### Reading guide
 

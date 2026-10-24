@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-24T09:23:32Z",
+  "generated": "2026-10-24T11:19:45Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -573,7 +573,7 @@
     ".claude/data/design-review-prompt.md": "5fb5c7f4d098360c142e9a2963fd66569ea8725aff7838b165747a24a71f75d5",
     ".claude/data/ecosystem-context.json": "2358595b3f6ba8e98aa3bf3707313d8962a174f65f41b1be6faeb72ae83c906c",
     ".claude/data/error-codes.json": "42dbc0d2f32b48405dab44f6a8d325aec48cff221deb22b50fb83ec2319005f1",
-    ".claude/data/floor.yaml": "bd1f22dce9b6f18a0fda36d5a65dacd8103075c66c8c649b21de04fffcc92587",
+    ".claude/data/floor.yaml": "1c998b5d3b0a9758b9a6ff60221b3d5563f7e9d2fd5f219104b48daa543dcf34",
     ".claude/data/glossary-allowlist.txt": "e956a9f77024c5cbd2c0e80cec0b090fa5208e7aa4083b353351001945890f8c",
     ".claude/data/golden-path.json": "736b78ea163a41964f2c23be25450984a28c5dc5c1b95738962af9761a233aea",
     ".claude/data/guard-origins.yaml": "88947b13ab8195a49fff53feeaa723c909779e40747f0a01f916a812838cfd27",
