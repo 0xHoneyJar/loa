@@ -128,12 +128,16 @@ resolves() {  # resolves "<evidence>" → 0 when at least one reference resolves
   return $ok
 }
 OPEN_IDS=""
+# rows this sweep already applied (append-only log): their beads are closed or labelled by the sweep itself, so the
+# still-open check below does not apply to them and a re-run stays valid
+DONE_IDS="$(jq -r '.id' "$APPLIED" 2>/dev/null || true)"
 if [[ ${#problems[@]} -eq 0 ]]; then
   OPEN_IDS="$("$BR" list --json --limit 5000 2>/dev/null | jq -r '(if type == "object" then (.issues // []) else . end) | map(select((.status // "open") != "closed")) | .[].id' 2>/dev/null || true)"
   while IFS=$'\t' read -r id cat ev; do
     case "$cat" in closed-implemented|closed-obsolete)
       resolves "$ev" || p "$id ($cat): evidence does not resolve to a commit, a PR number or a path at HEAD: ${ev:0:120}"
-      grep -qx -- "$id" <<<"$OPEN_IDS" || p "$id ($cat): not open in the tracker now (closed meanwhile?) — demote to kept or drop the row"
+      grep -qx -- "$id" <<<"$OPEN_IDS" || grep -qx -- "$id" <<<"$DONE_IDS" \
+        || p "$id ($cat): not open in the tracker now (closed meanwhile?) — demote to kept or drop the row"
       ;;
     esac
   done < <(jq -r '[.id, .category, .evidence] | @tsv' "$ROWS")
@@ -149,7 +153,6 @@ echo "sweep-apply: VALID — $N rows over ${#MFILES[@]} manifest(s) form a compl
 [[ "$MODE" == apply ]] || exit 0
 # 5. apply (idempotent through the applied log)
 touch "$APPLIED"
-DONE_IDS="$(jq -r '.id' "$APPLIED" 2>/dev/null || true)"
 # run <cmd…>: one tracker call; its stderr is kept in $RUN_ERR, its exit code returned (never aborts the loop)
 RUN_ERR=""
 run() {

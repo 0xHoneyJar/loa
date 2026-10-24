@@ -7,63 +7,63 @@
 > **Reference-weighted, NOT semantic.** Symbols are ranked by a fixed-iteration damped PageRank over a graph built from lexical word-boundary occurrences of symbol names across files (bash `name() {` defs + python `def`/`class` via `ast`). This is NOT a call graph or an import graph: a name inside a comment, a string, or an unrelated same-named local counts the same as a real call. Symbols sharing a name across files **collapse into one node** whose score aggregates every definition site (marked `collision`). Treat this as a navigation hint, not verified truth. Test/fixture directories (`tests`, `__tests__`, `fixtures`) are excluded from the scan, and definitions named after bash builtins / python keywords (test mocks like `exit()`) are skipped as unrankable noise.
 
 - **Generator:** `repo-map-gen.sh` v1.0.0
-- **Input content hash (sha256):** `5397f0841f18480927e3b5b4a5801c2708f2f4e10501b0fc2cc4cb6e4585642a`
+- **Input content hash (sha256):** `f1c74c4afd63314aaacfe5dea9e29e1b028513f0dcf366e0ed301f25f0880dae`
 - **Method:** damped PageRank, damping=0.85, 50 fixed iterations, ties lexicographic.
 
 ## Top 50 Overall
 
 | # | Symbol | Kind | Score | Xrefs | Def sites |
 |---|--------|------|-------|-------|-----------|
-| 1 | `run` | function | 0.062152 | 2773 | .claude/scripts/beads/sweep-apply.sh:155 |
-| 2 | `p` | function | 0.060432 | 1346 | .claude/scripts/beads/sweep-apply.sh:77 |
-| 3 | `get` | function | 0.043984 | 1824 | .claude/adapters/loa_cheval/credentials/providers.py:22, .claude/adapters/loa_cheval/credentials/providers.py:33, .claude/adapters/loa_cheval/credentials/providers.py:85 (+5 more) |
-| 4 | `name` | function | 0.042311 | 1588 | .claude/adapters/loa_cheval/credentials/providers.py:26, .claude/adapters/loa_cheval/credentials/providers.py:36, .claude/adapters/loa_cheval/credentials/providers.py:88 (+2 more) |
-| 5 | `log` | function | 0.038090 | 457 | .claude/hooks/hygiene/settings-cleanup.sh:96, .claude/scripts/adversarial-review.sh:143, .claude/scripts/beads-flatline-loop.sh:114 (+58 more) |
-| 6 | `validate` | function | 0.031741 | 410 | .claude/scripts/flatline-editor.sh:457, .claude/scripts/lib/endpoint-validator.py:1090, .claude/scripts/lib/finding_validate.py:110 (+1 more) |
-| 7 | `result` | function | 0.030710 | 1630 | .claude/scripts/lib/finding_validate.py:192 |
-| 8 | `check` | function | 0.022875 | 983 | .claude/adapters/loa_cheval/metering/rate_limiter.py:51, .claude/adapters/loa_cheval/routing/capability_gate.py:28 |
-| 9 | `strip` | function | 0.020467 | 248 | .claude/scripts/chart-unblock-probe.sh:79, .claude/scripts/red-test-check.sh:127 |
-| 10 | `g` | function | 0.019970 | 719 | .claude/scripts/red-test-check.sh:186 |
-| 11 | `has` | function | 0.019936 | 588 | .claude/scripts/lib/dec-write-lib.sh:90 |
-| 12 | `error` | function | 0.019473 | 1083 | .claude/commands/scripts/common.sh:14, .claude/scripts/adversarial-review.sh:144, .claude/scripts/beads/migrate-to-br.sh:63 (+30 more) |
-| 13 | `match` | function | 0.018134 | 519 | .claude/scripts/trace_analyzer/matcher.py:119 |
-| 14 | `providers` | function | 0.017875 | 444 | .claude/adapters/loa_cheval/credentials/providers.py:110 |
-| 15 | `EncryptedFileProvider` | class | 0.015593 | 3 | .claude/adapters/loa_cheval/credentials/store.py:133 |
-| 16 | `timestamp` | function | 0.015591 | 790 | .claude/scripts/post-pr-context-clear.sh:43, .claude/scripts/post-pr-e2e.sh:55, .claude/scripts/post-pr-state.sh:96 |
-| 17 | `py` | function | 0.015458 | 294 | .claude/scripts/record-branch.sh:460 |
-| 18 | `snapshot` | function | 0.015189 | 239 | .claude/scripts/chart-unblock-probe.sh:82, .claude/scripts/red-test-check.sh:299 |
-| 19 | `available` | function | 0.015184 | 422 | .claude/adapters/loa_cheval/jcs.py:25 |
-| 20 | `Usage` | class | 0.015151 | 751 | .claude/adapters/loa_cheval/types.py:68 |
-| 21 | `resolve` | function | 0.015146 | 221 | .claude/adapters/loa_cheval/config/advisor_strategy.py:149, .claude/adapters/loa_cheval/config/interpolation.py:67, .claude/adapters/loa_cheval/routing/chain_resolver.py:42 (+2 more) |
-| 22 | `tokens` | function | 0.013940 | 438 | .claude/scripts/lib/finding_validate.py:70 |
-| 23 | `err` | function | 0.013462 | 126 | .claude/scripts/loa-eject.sh:39, .claude/scripts/lore-promote.sh:123, .claude/scripts/migrate-state-layout.sh:42 (+8 more) |
-| 24 | `raw` | function | 0.011363 | 517 | .claude/adapters/loa_cheval/config/interpolation.py:95 |
-| 25 | `CredentialProvider` | class | 0.011076 | 6 | .claude/adapters/loa_cheval/credentials/providers.py:18 |
-| 26 | `marker` | function | 0.010496 | 483 | .claude/scripts/chart-ticket.sh:589 |
-| 27 | `parse` | function | 0.010129 | 422 | .claude/scripts/trace_analyzer/parser.py:54 |
-| 28 | `audit` | function | 0.009623 | 796 | .claude/scripts/red-team-retention.sh:76 |
-| 29 | `dumps` | function | 0.009543 | 125 | .claude/scripts/lib/finding_validate.py:197 |
-| 30 | `setup` | function | 0.008659 | 96 | .claude/scripts/qmd-context-query-tests.sh:73, .claude/scripts/test-flatline-autonomous.sh:62, .claude/scripts/test-post-pr-e2e.sh:36 (+2 more) |
-| 31 | `o` | function | 0.007715 | 332 | .claude/scripts/lib/dec-write-lib.sh:89 |
-| 32 | `canonical` | function | 0.007128 | 427 | .claude/adapters/loa_cheval/routing/types.py:86 |
-| 33 | `defaults` | function | 0.007085 | 246 | .claude/scripts/lib/model-overlay-hook.py:1252 |
-| 34 | `would` | function | 0.006995 | 428 | .claude/scripts/chart-ticket.sh:145 |
-| 35 | `sha256_portable` | function | 0.006802 | 110 | .claude/scripts/compat-lib.sh:507 |
-| 36 | `gate` | function | 0.006748 | 593 | .claude/adapters/loa_cheval/routing/ceiling.py:580 |
-| 37 | `record` | function | 0.006487 | 230 | .claude/adapters/loa_cheval/metering/rate_limiter.py:78, .claude/scripts/run-preflight.sh:105 |
-| 38 | `usage` | function | 0.006208 | 267 | .claude/scripts/agents-md-gen.sh:39, .claude/scripts/anonymize-proposal.sh:64, .claude/scripts/archive-cycle.sh:72 (+115 more) |
-| 39 | `report` | function | 0.006205 | 386 | .claude/scripts/check-installer-safety.sh:43, .claude/scripts/lint-invariants.sh:76 |
-| 40 | `fail` | function | 0.005884 | 421 | .claude/evals/flatline-3model.sh:27, .claude/scripts/check-loa.sh:36, .claude/scripts/qmd-context-integration-tests.sh:14 (+9 more) |
-| 41 | `info` | function | 0.004770 | 128 | .claude/scripts/loa-eject.sh:40, .claude/scripts/migrate-state-layout.sh:43, .claude/scripts/mount-loa.sh:119 (+8 more) |
-| 42 | `main` | function | 0.004371 | 97 | .claude/adapters/cheval.py:3272, .claude/adapters/loa_cheval/codegen/emit_endpoint_validator_ts.py:151, .claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py:165 (+185 more) |
-| 43 | `success` | function | 0.003677 | 262 | .claude/commands/scripts/common.sh:25, .claude/scripts/beads/migrate-to-br.sh:67, .claude/scripts/gh-label-handler.sh:25 |
-| 44 | `ConfigError` | class | 0.003535 | 163 | .claude/adapters/loa_cheval/config/advisor_strategy.py:212, .claude/adapters/loa_cheval/types.py:520 |
-| 45 | `clear` | function | 0.003471 | 116 | .claude/adapters/loa_cheval/metering/pricing.py:258 |
-| 46 | `skip` | function | 0.003446 | 308 | .claude/evals/flatline-3model.sh:28, .claude/scripts/test-flatline-autonomous.sh:59 |
-| 47 | `step` | function | 0.003242 | 136 | .claude/scripts/loa-eject.sh:41, .claude/scripts/mount-loa.sh:120, .claude/scripts/mount-submodule.sh:45 (+1 more) |
-| 48 | `surface` | function | 0.003174 | 234 | .claude/hooks/session-start/loa-run-state-surface.sh:46 |
-| 49 | `helper` | function | 0.003064 | 155 | .claude/scripts/run-preflight.sh:70 |
-| 50 | `wrapper` | function | 0.002993 | 108 | .claude/scripts/lib/model-resolver.py:240 |
+| 1 | `run` | function | 0.062247 | 2773 | .claude/scripts/beads/sweep-apply.sh:158 |
+| 2 | `p` | function | 0.060154 | 1346 | .claude/scripts/beads/sweep-apply.sh:77 |
+| 3 | `get` | function | 0.044338 | 1824 | .claude/adapters/loa_cheval/credentials/providers.py:22, .claude/adapters/loa_cheval/credentials/providers.py:33, .claude/adapters/loa_cheval/credentials/providers.py:85 (+5 more) |
+| 4 | `name` | function | 0.042165 | 1588 | .claude/adapters/loa_cheval/credentials/providers.py:26, .claude/adapters/loa_cheval/credentials/providers.py:36, .claude/adapters/loa_cheval/credentials/providers.py:88 (+2 more) |
+| 5 | `log` | function | 0.039480 | 458 | .claude/hooks/hygiene/settings-cleanup.sh:96, .claude/scripts/adversarial-review.sh:143, .claude/scripts/beads-flatline-loop.sh:114 (+58 more) |
+| 6 | `result` | function | 0.030667 | 1630 | .claude/scripts/lib/finding_validate.py:192 |
+| 7 | `validate` | function | 0.030052 | 410 | .claude/scripts/flatline-editor.sh:457, .claude/scripts/lib/endpoint-validator.py:1090, .claude/scripts/lib/finding_validate.py:110 (+1 more) |
+| 8 | `check` | function | 0.025918 | 984 | .claude/adapters/loa_cheval/metering/rate_limiter.py:51, .claude/adapters/loa_cheval/routing/capability_gate.py:28 |
+| 9 | `strip` | function | 0.020424 | 248 | .claude/scripts/chart-unblock-probe.sh:79, .claude/scripts/red-test-check.sh:127 |
+| 10 | `g` | function | 0.019681 | 719 | .claude/scripts/red-test-check.sh:186 |
+| 11 | `has` | function | 0.019642 | 588 | .claude/scripts/lib/dec-write-lib.sh:90 |
+| 12 | `error` | function | 0.019385 | 1083 | .claude/commands/scripts/common.sh:14, .claude/scripts/adversarial-review.sh:144, .claude/scripts/beads/migrate-to-br.sh:63 (+30 more) |
+| 13 | `providers` | function | 0.017898 | 444 | .claude/adapters/loa_cheval/credentials/providers.py:110 |
+| 14 | `match` | function | 0.017808 | 519 | .claude/scripts/trace_analyzer/matcher.py:119 |
+| 15 | `EncryptedFileProvider` | class | 0.015577 | 3 | .claude/adapters/loa_cheval/credentials/store.py:133 |
+| 16 | `timestamp` | function | 0.015575 | 790 | .claude/scripts/post-pr-context-clear.sh:43, .claude/scripts/post-pr-e2e.sh:55, .claude/scripts/post-pr-state.sh:96 |
+| 17 | `py` | function | 0.015448 | 294 | .claude/scripts/record-branch.sh:460 |
+| 18 | `available` | function | 0.015088 | 422 | .claude/adapters/loa_cheval/jcs.py:25 |
+| 19 | `Usage` | class | 0.014859 | 751 | .claude/adapters/loa_cheval/types.py:68 |
+| 20 | `resolve` | function | 0.014643 | 221 | .claude/adapters/loa_cheval/config/advisor_strategy.py:149, .claude/adapters/loa_cheval/config/interpolation.py:67, .claude/adapters/loa_cheval/routing/chain_resolver.py:42 (+2 more) |
+| 21 | `snapshot` | function | 0.014483 | 239 | .claude/scripts/chart-unblock-probe.sh:82, .claude/scripts/red-test-check.sh:299 |
+| 22 | `tokens` | function | 0.014125 | 438 | .claude/scripts/lib/finding_validate.py:70 |
+| 23 | `err` | function | 0.012692 | 126 | .claude/scripts/loa-eject.sh:39, .claude/scripts/lore-promote.sh:123, .claude/scripts/migrate-state-layout.sh:42 (+8 more) |
+| 24 | `raw` | function | 0.011465 | 517 | .claude/adapters/loa_cheval/config/interpolation.py:95 |
+| 25 | `CredentialProvider` | class | 0.011058 | 6 | .claude/adapters/loa_cheval/credentials/providers.py:18 |
+| 26 | `marker` | function | 0.010421 | 483 | .claude/scripts/chart-ticket.sh:589 |
+| 27 | `parse` | function | 0.010001 | 422 | .claude/scripts/trace_analyzer/parser.py:54 |
+| 28 | `audit` | function | 0.009633 | 796 | .claude/scripts/red-team-retention.sh:76 |
+| 29 | `dumps` | function | 0.009562 | 125 | .claude/scripts/lib/finding_validate.py:197 |
+| 30 | `setup` | function | 0.008532 | 96 | .claude/scripts/qmd-context-query-tests.sh:73, .claude/scripts/test-flatline-autonomous.sh:62, .claude/scripts/test-post-pr-e2e.sh:36 (+2 more) |
+| 31 | `o` | function | 0.007700 | 332 | .claude/scripts/lib/dec-write-lib.sh:89 |
+| 32 | `defaults` | function | 0.007249 | 246 | .claude/scripts/lib/model-overlay-hook.py:1252 |
+| 33 | `canonical` | function | 0.007134 | 427 | .claude/adapters/loa_cheval/routing/types.py:86 |
+| 34 | `would` | function | 0.006962 | 428 | .claude/scripts/chart-ticket.sh:145 |
+| 35 | `gate` | function | 0.006753 | 593 | .claude/adapters/loa_cheval/routing/ceiling.py:580 |
+| 36 | `sha256_portable` | function | 0.006541 | 110 | .claude/scripts/compat-lib.sh:507 |
+| 37 | `record` | function | 0.006528 | 230 | .claude/adapters/loa_cheval/metering/rate_limiter.py:78, .claude/scripts/run-preflight.sh:105 |
+| 38 | `usage` | function | 0.006271 | 267 | .claude/scripts/agents-md-gen.sh:39, .claude/scripts/anonymize-proposal.sh:64, .claude/scripts/archive-cycle.sh:72 (+115 more) |
+| 39 | `report` | function | 0.006206 | 386 | .claude/scripts/check-installer-safety.sh:43, .claude/scripts/lint-invariants.sh:76 |
+| 40 | `fail` | function | 0.005852 | 421 | .claude/evals/flatline-3model.sh:27, .claude/scripts/check-loa.sh:36, .claude/scripts/qmd-context-integration-tests.sh:14 (+9 more) |
+| 41 | `info` | function | 0.004839 | 128 | .claude/scripts/loa-eject.sh:40, .claude/scripts/migrate-state-layout.sh:43, .claude/scripts/mount-loa.sh:119 (+8 more) |
+| 42 | `main` | function | 0.004328 | 97 | .claude/adapters/cheval.py:3272, .claude/adapters/loa_cheval/codegen/emit_endpoint_validator_ts.py:151, .claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py:165 (+185 more) |
+| 43 | `success` | function | 0.003668 | 262 | .claude/commands/scripts/common.sh:25, .claude/scripts/beads/migrate-to-br.sh:67, .claude/scripts/gh-label-handler.sh:25 |
+| 44 | `ConfigError` | class | 0.003539 | 163 | .claude/adapters/loa_cheval/config/advisor_strategy.py:212, .claude/adapters/loa_cheval/types.py:520 |
+| 45 | `skip` | function | 0.003496 | 308 | .claude/evals/flatline-3model.sh:28, .claude/scripts/test-flatline-autonomous.sh:59 |
+| 46 | `clear` | function | 0.003458 | 116 | .claude/adapters/loa_cheval/metering/pricing.py:258 |
+| 47 | `step` | function | 0.003161 | 136 | .claude/scripts/loa-eject.sh:41, .claude/scripts/mount-loa.sh:120, .claude/scripts/mount-submodule.sh:45 (+1 more) |
+| 48 | `surface` | function | 0.003159 | 234 | .claude/hooks/session-start/loa-run-state-surface.sh:46 |
+| 49 | `helper` | function | 0.003040 | 155 | .claude/scripts/run-preflight.sh:70 |
+| 50 | `wrapper` | function | 0.002975 | 108 | .claude/scripts/lib/model-resolver.py:240 |
 
 ### `.claude/adapters/`
 
@@ -71,21 +71,21 @@ Top-15 slice of the global ranking with a definition under this directory.
 
 | # | Symbol | Kind | Score | Xrefs | Def sites |
 |---|--------|------|-------|-------|-----------|
-| 1 | `get` | function | 0.043984 | 1824 | .claude/adapters/loa_cheval/credentials/providers.py:22, .claude/adapters/loa_cheval/credentials/providers.py:33, .claude/adapters/loa_cheval/credentials/providers.py:85 (+5 more) |
-| 2 | `name` | function | 0.042311 | 1588 | .claude/adapters/loa_cheval/credentials/providers.py:26, .claude/adapters/loa_cheval/credentials/providers.py:36, .claude/adapters/loa_cheval/credentials/providers.py:88 (+2 more) |
-| 3 | `check` | function | 0.022875 | 983 | .claude/adapters/loa_cheval/metering/rate_limiter.py:51, .claude/adapters/loa_cheval/routing/capability_gate.py:28 |
-| 4 | `providers` | function | 0.017875 | 444 | .claude/adapters/loa_cheval/credentials/providers.py:110 |
-| 5 | `EncryptedFileProvider` | class | 0.015593 | 3 | .claude/adapters/loa_cheval/credentials/store.py:133 |
-| 6 | `available` | function | 0.015184 | 422 | .claude/adapters/loa_cheval/jcs.py:25 |
-| 7 | `Usage` | class | 0.015151 | 751 | .claude/adapters/loa_cheval/types.py:68 |
-| 8 | `resolve` | function | 0.015146 | 221 | .claude/adapters/loa_cheval/config/advisor_strategy.py:149, .claude/adapters/loa_cheval/config/interpolation.py:67, .claude/adapters/loa_cheval/routing/chain_resolver.py:42 (+2 more) |
-| 9 | `raw` | function | 0.011363 | 517 | .claude/adapters/loa_cheval/config/interpolation.py:95 |
-| 10 | `CredentialProvider` | class | 0.011076 | 6 | .claude/adapters/loa_cheval/credentials/providers.py:18 |
-| 11 | `canonical` | function | 0.007128 | 427 | .claude/adapters/loa_cheval/routing/types.py:86 |
-| 12 | `gate` | function | 0.006748 | 593 | .claude/adapters/loa_cheval/routing/ceiling.py:580 |
-| 13 | `record` | function | 0.006487 | 230 | .claude/adapters/loa_cheval/metering/rate_limiter.py:78, .claude/scripts/run-preflight.sh:105 |
-| 14 | `main` | function | 0.004371 | 97 | .claude/adapters/cheval.py:3272, .claude/adapters/loa_cheval/codegen/emit_endpoint_validator_ts.py:151, .claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py:165 (+185 more) |
-| 15 | `ConfigError` | class | 0.003535 | 163 | .claude/adapters/loa_cheval/config/advisor_strategy.py:212, .claude/adapters/loa_cheval/types.py:520 |
+| 1 | `get` | function | 0.044338 | 1824 | .claude/adapters/loa_cheval/credentials/providers.py:22, .claude/adapters/loa_cheval/credentials/providers.py:33, .claude/adapters/loa_cheval/credentials/providers.py:85 (+5 more) |
+| 2 | `name` | function | 0.042165 | 1588 | .claude/adapters/loa_cheval/credentials/providers.py:26, .claude/adapters/loa_cheval/credentials/providers.py:36, .claude/adapters/loa_cheval/credentials/providers.py:88 (+2 more) |
+| 3 | `check` | function | 0.025918 | 984 | .claude/adapters/loa_cheval/metering/rate_limiter.py:51, .claude/adapters/loa_cheval/routing/capability_gate.py:28 |
+| 4 | `providers` | function | 0.017898 | 444 | .claude/adapters/loa_cheval/credentials/providers.py:110 |
+| 5 | `EncryptedFileProvider` | class | 0.015577 | 3 | .claude/adapters/loa_cheval/credentials/store.py:133 |
+| 6 | `available` | function | 0.015088 | 422 | .claude/adapters/loa_cheval/jcs.py:25 |
+| 7 | `Usage` | class | 0.014859 | 751 | .claude/adapters/loa_cheval/types.py:68 |
+| 8 | `resolve` | function | 0.014643 | 221 | .claude/adapters/loa_cheval/config/advisor_strategy.py:149, .claude/adapters/loa_cheval/config/interpolation.py:67, .claude/adapters/loa_cheval/routing/chain_resolver.py:42 (+2 more) |
+| 9 | `raw` | function | 0.011465 | 517 | .claude/adapters/loa_cheval/config/interpolation.py:95 |
+| 10 | `CredentialProvider` | class | 0.011058 | 6 | .claude/adapters/loa_cheval/credentials/providers.py:18 |
+| 11 | `canonical` | function | 0.007134 | 427 | .claude/adapters/loa_cheval/routing/types.py:86 |
+| 12 | `gate` | function | 0.006753 | 593 | .claude/adapters/loa_cheval/routing/ceiling.py:580 |
+| 13 | `record` | function | 0.006528 | 230 | .claude/adapters/loa_cheval/metering/rate_limiter.py:78, .claude/scripts/run-preflight.sh:105 |
+| 14 | `main` | function | 0.004328 | 97 | .claude/adapters/cheval.py:3272, .claude/adapters/loa_cheval/codegen/emit_endpoint_validator_ts.py:151, .claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py:165 (+185 more) |
+| 15 | `ConfigError` | class | 0.003539 | 163 | .claude/adapters/loa_cheval/config/advisor_strategy.py:212, .claude/adapters/loa_cheval/types.py:520 |
 
 ### `.claude/commands/`
 
@@ -93,9 +93,9 @@ Top-15 slice of the global ranking with a definition under this directory.
 
 | # | Symbol | Kind | Score | Xrefs | Def sites |
 |---|--------|------|-------|-------|-----------|
-| 1 | `error` | function | 0.019473 | 1083 | .claude/commands/scripts/common.sh:14, .claude/scripts/adversarial-review.sh:144, .claude/scripts/beads/migrate-to-br.sh:63 (+30 more) |
-| 2 | `success` | function | 0.003677 | 262 | .claude/commands/scripts/common.sh:25, .claude/scripts/beads/migrate-to-br.sh:67, .claude/scripts/gh-label-handler.sh:25 |
-| 3 | `warn` | function | 0.001601 | 154 | .claude/commands/scripts/common.sh:20, .claude/scripts/beads/migrate-to-br.sh:59, .claude/scripts/branch-state.sh:37 (+35 more) |
+| 1 | `error` | function | 0.019385 | 1083 | .claude/commands/scripts/common.sh:14, .claude/scripts/adversarial-review.sh:144, .claude/scripts/beads/migrate-to-br.sh:63 (+30 more) |
+| 2 | `success` | function | 0.003668 | 262 | .claude/commands/scripts/common.sh:25, .claude/scripts/beads/migrate-to-br.sh:67, .claude/scripts/gh-label-handler.sh:25 |
+| 3 | `warn` | function | 0.001603 | 154 | .claude/commands/scripts/common.sh:20, .claude/scripts/beads/migrate-to-br.sh:59, .claude/scripts/branch-state.sh:37 (+35 more) |
 | 4 | `check_audit_prerequisites` | function | 0.000035 | 1 | .claude/commands/scripts/common.sh:148 |
 | 5 | `check_dir_exists` | function | 0.000035 | 0 | .claude/commands/scripts/common.sh:47 |
 | 6 | `check_file_exists` | function | 0.000035 | 0 | .claude/commands/scripts/common.sh:38, .claude/scripts/preflight.sh:14, .claude/scripts/suggest-next-step.sh:43 |
@@ -115,8 +115,8 @@ Top-15 slice of the global ranking with a definition under this directory.
 
 | # | Symbol | Kind | Score | Xrefs | Def sites |
 |---|--------|------|-------|-------|-----------|
-| 1 | `fail` | function | 0.005884 | 421 | .claude/evals/flatline-3model.sh:27, .claude/scripts/check-loa.sh:36, .claude/scripts/qmd-context-integration-tests.sh:14 (+9 more) |
-| 2 | `skip` | function | 0.003446 | 308 | .claude/evals/flatline-3model.sh:28, .claude/scripts/test-flatline-autonomous.sh:59 |
+| 1 | `fail` | function | 0.005852 | 421 | .claude/evals/flatline-3model.sh:27, .claude/scripts/check-loa.sh:36, .claude/scripts/qmd-context-integration-tests.sh:14 (+9 more) |
+| 2 | `skip` | function | 0.003496 | 308 | .claude/evals/flatline-3model.sh:28, .claude/scripts/test-flatline-autonomous.sh:59 |
 
 ### `.claude/hooks/`
 
@@ -124,8 +124,8 @@ Top-15 slice of the global ranking with a definition under this directory.
 
 | # | Symbol | Kind | Score | Xrefs | Def sites |
 |---|--------|------|-------|-------|-----------|
-| 1 | `log` | function | 0.038090 | 457 | .claude/hooks/hygiene/settings-cleanup.sh:96, .claude/scripts/adversarial-review.sh:143, .claude/scripts/beads-flatline-loop.sh:114 (+58 more) |
-| 2 | `surface` | function | 0.003174 | 234 | .claude/hooks/session-start/loa-run-state-surface.sh:46 |
+| 1 | `log` | function | 0.039480 | 458 | .claude/hooks/hygiene/settings-cleanup.sh:96, .claude/scripts/adversarial-review.sh:143, .claude/scripts/beads-flatline-loop.sh:114 (+58 more) |
+| 2 | `surface` | function | 0.003159 | 234 | .claude/hooks/session-start/loa-run-state-surface.sh:46 |
 | 3 | `audit_log` | function | 0.000078 | 5 | .claude/hooks/hygiene/settings-cleanup.sh:100 |
 | 4 | `emit_block` | function | 0.000075 | 7 | .claude/hooks/safety/block-destructive-bash.sh:1251 |
 | 5 | `heredoc_nonexec` | function | 0.000064 | 5 | .claude/hooks/safety/block-destructive-bash.sh:765, .claude/scripts/lib/heredoc-classifier.sh:31 |
@@ -146,7 +146,7 @@ Top-15 slice of the global ranking with a definition under this directory.
 
 | # | Symbol | Kind | Score | Xrefs | Def sites |
 |---|--------|------|-------|-------|-----------|
-| 1 | `cleanup` | function | 0.002184 | 129 | .claude/lib/persistence/run-persistence-tests.sh:27, .claude/scripts/beads/sync-and-commit.sh:44, .claude/scripts/chart-unblock-probe.sh:67 (+10 more) |
+| 1 | `cleanup` | function | 0.002189 | 129 | .claude/lib/persistence/run-persistence-tests.sh:27, .claude/scripts/beads/sync-and-commit.sh:44, .claude/scripts/chart-unblock-probe.sh:67 (+10 more) |
 
 ### `.claude/scripts/`
 
@@ -154,21 +154,21 @@ Top-15 slice of the global ranking with a definition under this directory.
 
 | # | Symbol | Kind | Score | Xrefs | Def sites |
 |---|--------|------|-------|-------|-----------|
-| 1 | `run` | function | 0.062152 | 2773 | .claude/scripts/beads/sweep-apply.sh:155 |
-| 2 | `p` | function | 0.060432 | 1346 | .claude/scripts/beads/sweep-apply.sh:77 |
-| 3 | `get` | function | 0.043984 | 1824 | .claude/adapters/loa_cheval/credentials/providers.py:22, .claude/adapters/loa_cheval/credentials/providers.py:33, .claude/adapters/loa_cheval/credentials/providers.py:85 (+5 more) |
-| 4 | `log` | function | 0.038090 | 457 | .claude/hooks/hygiene/settings-cleanup.sh:96, .claude/scripts/adversarial-review.sh:143, .claude/scripts/beads-flatline-loop.sh:114 (+58 more) |
-| 5 | `validate` | function | 0.031741 | 410 | .claude/scripts/flatline-editor.sh:457, .claude/scripts/lib/endpoint-validator.py:1090, .claude/scripts/lib/finding_validate.py:110 (+1 more) |
-| 6 | `result` | function | 0.030710 | 1630 | .claude/scripts/lib/finding_validate.py:192 |
-| 7 | `strip` | function | 0.020467 | 248 | .claude/scripts/chart-unblock-probe.sh:79, .claude/scripts/red-test-check.sh:127 |
-| 8 | `g` | function | 0.019970 | 719 | .claude/scripts/red-test-check.sh:186 |
-| 9 | `has` | function | 0.019936 | 588 | .claude/scripts/lib/dec-write-lib.sh:90 |
-| 10 | `error` | function | 0.019473 | 1083 | .claude/commands/scripts/common.sh:14, .claude/scripts/adversarial-review.sh:144, .claude/scripts/beads/migrate-to-br.sh:63 (+30 more) |
-| 11 | `match` | function | 0.018134 | 519 | .claude/scripts/trace_analyzer/matcher.py:119 |
-| 12 | `timestamp` | function | 0.015591 | 790 | .claude/scripts/post-pr-context-clear.sh:43, .claude/scripts/post-pr-e2e.sh:55, .claude/scripts/post-pr-state.sh:96 |
-| 13 | `py` | function | 0.015458 | 294 | .claude/scripts/record-branch.sh:460 |
-| 14 | `snapshot` | function | 0.015189 | 239 | .claude/scripts/chart-unblock-probe.sh:82, .claude/scripts/red-test-check.sh:299 |
-| 15 | `resolve` | function | 0.015146 | 221 | .claude/adapters/loa_cheval/config/advisor_strategy.py:149, .claude/adapters/loa_cheval/config/interpolation.py:67, .claude/adapters/loa_cheval/routing/chain_resolver.py:42 (+2 more) |
+| 1 | `run` | function | 0.062247 | 2773 | .claude/scripts/beads/sweep-apply.sh:158 |
+| 2 | `p` | function | 0.060154 | 1346 | .claude/scripts/beads/sweep-apply.sh:77 |
+| 3 | `get` | function | 0.044338 | 1824 | .claude/adapters/loa_cheval/credentials/providers.py:22, .claude/adapters/loa_cheval/credentials/providers.py:33, .claude/adapters/loa_cheval/credentials/providers.py:85 (+5 more) |
+| 4 | `log` | function | 0.039480 | 458 | .claude/hooks/hygiene/settings-cleanup.sh:96, .claude/scripts/adversarial-review.sh:143, .claude/scripts/beads-flatline-loop.sh:114 (+58 more) |
+| 5 | `result` | function | 0.030667 | 1630 | .claude/scripts/lib/finding_validate.py:192 |
+| 6 | `validate` | function | 0.030052 | 410 | .claude/scripts/flatline-editor.sh:457, .claude/scripts/lib/endpoint-validator.py:1090, .claude/scripts/lib/finding_validate.py:110 (+1 more) |
+| 7 | `strip` | function | 0.020424 | 248 | .claude/scripts/chart-unblock-probe.sh:79, .claude/scripts/red-test-check.sh:127 |
+| 8 | `g` | function | 0.019681 | 719 | .claude/scripts/red-test-check.sh:186 |
+| 9 | `has` | function | 0.019642 | 588 | .claude/scripts/lib/dec-write-lib.sh:90 |
+| 10 | `error` | function | 0.019385 | 1083 | .claude/commands/scripts/common.sh:14, .claude/scripts/adversarial-review.sh:144, .claude/scripts/beads/migrate-to-br.sh:63 (+30 more) |
+| 11 | `match` | function | 0.017808 | 519 | .claude/scripts/trace_analyzer/matcher.py:119 |
+| 12 | `timestamp` | function | 0.015575 | 790 | .claude/scripts/post-pr-context-clear.sh:43, .claude/scripts/post-pr-e2e.sh:55, .claude/scripts/post-pr-state.sh:96 |
+| 13 | `py` | function | 0.015448 | 294 | .claude/scripts/record-branch.sh:460 |
+| 14 | `resolve` | function | 0.014643 | 221 | .claude/adapters/loa_cheval/config/advisor_strategy.py:149, .claude/adapters/loa_cheval/config/interpolation.py:67, .claude/adapters/loa_cheval/routing/chain_resolver.py:42 (+2 more) |
+| 15 | `snapshot` | function | 0.014483 | 239 | .claude/scripts/chart-unblock-probe.sh:82, .claude/scripts/red-test-check.sh:299 |
 
 ### `.claude/skills/`
 
@@ -176,11 +176,11 @@ Top-15 slice of the global ranking with a definition under this directory.
 
 | # | Symbol | Kind | Score | Xrefs | Def sites |
 |---|--------|------|-------|-------|-----------|
-| 1 | `usage` | function | 0.006208 | 267 | .claude/scripts/agents-md-gen.sh:39, .claude/scripts/anonymize-proposal.sh:64, .claude/scripts/archive-cycle.sh:72 (+115 more) |
-| 2 | `main` | function | 0.004371 | 97 | .claude/adapters/cheval.py:3272, .claude/adapters/loa_cheval/codegen/emit_endpoint_validator_ts.py:151, .claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py:165 (+185 more) |
-| 3 | `emit` | function | 0.002223 | 254 | .claude/adapters/loa_cheval/codegen/emit_endpoint_validator_ts.py:143, .claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py:157, .claude/scripts/agents-md-gen.sh:72 (+2 more) |
-| 4 | `dry_run` | function | 0.002222 | 136 | .claude/skills/flatline-knowledge/resources/notebooklm-query.py:381 |
-| 5 | `__init__` | function | 0.000155 | 5 | .claude/adapters/loa_cheval/adapters/headless_concurrency.py:77, .claude/adapters/loa_cheval/adapters/headless_concurrency.py:99, .claude/adapters/loa_cheval/audit/modelinv.py:173 (+46 more) |
+| 1 | `usage` | function | 0.006271 | 267 | .claude/scripts/agents-md-gen.sh:39, .claude/scripts/anonymize-proposal.sh:64, .claude/scripts/archive-cycle.sh:72 (+115 more) |
+| 2 | `main` | function | 0.004328 | 97 | .claude/adapters/cheval.py:3272, .claude/adapters/loa_cheval/codegen/emit_endpoint_validator_ts.py:151, .claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py:165 (+185 more) |
+| 3 | `dry_run` | function | 0.002229 | 136 | .claude/skills/flatline-knowledge/resources/notebooklm-query.py:381 |
+| 4 | `emit` | function | 0.002221 | 254 | .claude/adapters/loa_cheval/codegen/emit_endpoint_validator_ts.py:143, .claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py:157, .claude/scripts/agents-md-gen.sh:72 (+2 more) |
+| 5 | `__init__` | function | 0.000154 | 5 | .claude/adapters/loa_cheval/adapters/headless_concurrency.py:77, .claude/adapters/loa_cheval/adapters/headless_concurrency.py:99, .claude/adapters/loa_cheval/audit/modelinv.py:173 (+46 more) |
 | 6 | `_sanitize` | function | 0.000040 | 2 | .claude/skills/scheduled-cycle-template/contracts/session-cap-bb/awaiter.sh:15, .claude/skills/scheduled-cycle-template/contracts/session-cap-bb/decider.sh:17, .claude/skills/scheduled-cycle-template/contracts/session-cap-bb/dispatcher.sh:27 (+2 more) |
 | 7 | `NotebookLMQueryResult` | class | 0.000035 | 0 | .claude/skills/flatline-knowledge/resources/notebooklm-query.py:29 |
 | 8 | `check_auth_session_valid` | function | 0.000035 | 0 | .claude/skills/flatline-knowledge/resources/notebooklm-query.py:67 |

@@ -113,6 +113,8 @@ write_manifests() {  # a complete, valid partition: one closure with a commit, o
   [ "$(wc -l < "$T/sw/applied.jsonl")" -eq 3 ]
   jq -e 'select(.id == "bd-aaa11") | .action == "close" and (.reason | startswith("implemented: "))' "$T/sw/applied.jsonl" >/dev/null
   : > "$T/br.log"
+  # the tracker now shows the closed beads closed: the re-run must still validate (they are in the applied log) and skip them
+  jq '(.issues[] | select(.id == "bd-aaa11" or .id == "bd-bbb22") | .status) = "closed"' "$T/beads.json" > "$T/b2.json" && mv "$T/b2.json" "$T/beads.json"
   run "$APPLY" --inventory "$T/sw" --manifests "$T/man" --apply --sprint 275 --review-by 2027-01-31
   [ "$status" -eq 0 ]; [[ "$output" == *"applied 0 row(s), skipped 3"* ]]
   [ ! -s "$T/br.log" ]
