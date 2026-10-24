@@ -61,7 +61,7 @@ Unless `--skip-deploy`, execute `/deploy-production`.
 
 ### 4. Archive
 
-Execute `/archive-cycle` to archive the completed development cycle.
+Execute `/archive-cycle` to archive the completed development cycle. Build the cycle's record branch first with `.claude/scripts/record-branch.sh` (see `/archive-cycle` § Record Branch); its push stays an ICE call.
 
 ### 5. Celebrate
 

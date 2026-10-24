@@ -69,7 +69,13 @@ rm -f -- "$gerr"
 hits=$(printf '%s\n' "$raw" \
   | grep -v -E '^(\./)?\.claude/scripts/lib/profile-lib\.sh:' \
   | grep -v -E '^(\./)?tools/check-knob-readers\.sh:' \
+  | grep -v -E '^(\./)?[^:]*/(__tests__|tests)/fixtures/[^:]*:' \
   | sed '/^$/d' || true)
+# Test fixtures (<dir>/__tests__/fixtures/, <dir>/tests/fixtures/) are DATA — recorded
+# payloads such as a posted review thread that quotes an offending read — never readers;
+# the positive-control cases in tests/unit/profile-lib.bats plant their readers under
+# .claude/hooks/ and stay caught (cycle-133 Sprint 272: the verbatim PR #1289 comment
+# fixtures under bridgebuilder-review/resources/__tests__/fixtures/ quote one).
 if [[ -n "$hits" ]]; then
   echo "check-knob-readers.sh: direct read(s) of a profile key; use loa_knob from .claude/scripts/lib/profile-lib.sh:" >&2
   printf '%s\n' "$hits" | cut -c1-240 >&2

@@ -166,7 +166,7 @@ Sprint audit: `grimoires/loa/a2a/sprint-N/` exists and its `engineer-feedback.md
 
 ## Phase 0.5: Scope Analysis
 
-Run `.claude/scripts/security-audit-scope.sh` before detailed analysis. It categorises the surface into Sources, Sinks, Auth and LLM/AI files.
+Run `.claude/scripts/security-audit-scope.sh` first: Sources, Sinks, Auth and LLM/AI file counts; a sprint audit adds `--paths F…` or `--files LIST`.
 
 ## Phase 1A: Recon Pass
 
