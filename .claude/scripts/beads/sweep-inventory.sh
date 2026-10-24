@@ -13,7 +13,8 @@
 #
 # Writes, in DIR:
 #   inventory.jsonl      one row per open bead, sorted by id: {id, title, type, priority, labels,
-#                        created, updated, description} — the frozen snapshot
+#                        created, updated} — the frozen snapshot (no description: the inventory travels on the
+#                        public record branch; agents read descriptions with `br show`)
 #   inventory.sha256     the sha256 of inventory.jsonl (what the manifests are validated against)
 #   batches/batch-<k>.jsonl   the inventory split in id order into batches of --batch-size
 #   INVENTORY.md         the counts (beads, batches, excluded, by type) and the sha256
@@ -62,8 +63,7 @@ ROWS="$(jq -c --argjson ex "$EXJ" '
   | map(select(.id as $i | ($ex | index($i)) == null))
   | sort_by(.id)
   | .[] | {id, title: (.title // ""), type: (.issue_type // .type // ""), priority: (.priority // null),
-           labels: (.labels // []), created: (.created_at // .created // ""), updated: (.updated_at // ""),
-           description: ((.description // "") | .[0:2000])}' <<<"$RAW")" || { echo "sweep-inventory: br list output did not parse" >&2; exit 1; }
+           labels: (.labels // []), created: (.created_at // .created // ""), updated: (.updated_at // "")}' <<<"$RAW")" || { echo "sweep-inventory: br list output did not parse" >&2; exit 1; }
 N="$(printf '%s\n' "$ROWS" | grep -c '^{' || true)"
 [[ "$N" -ge 1 ]] || { echo "sweep-inventory: no open bead to freeze" >&2; exit 2; }
 # the snapshot is assembled in a temporary directory and moved into place at the end, so a failure never leaves a

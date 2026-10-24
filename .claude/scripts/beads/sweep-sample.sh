@@ -4,14 +4,16 @@
 #
 # Usage:
 #   sweep-sample.sh --manifests DIR --out FILE [--seed 20261023] [--pct 10]
-#   sweep-sample.sh --check SAMPLE VERIFIED
+#   sweep-sample.sh --check SAMPLE VERIFIED [--manifests DIR]
 #
 #   draw:   collects every closure row (closed-implemented, closed-obsolete) across manifest-<k>.jsonl,
 #           sorts them by id, shuffles with the seed (python's random.Random(seed).shuffle) and writes the
 #           first ceil(pct %) rows to FILE as {id, category, evidence, batch} — deterministic for a seed
 #   check:  VERIFIED holds the second Explore's rows {id, agree: true|false, evidence}; exit 0 when every
-#           sampled id has a row and every row agrees; else lists the disagreements with their batches
-#           (the batch is re-swept before anything is applied) and exits 1
+#           sampled id has a row and every row agrees (several rows for one id: any disagreement counts); else
+#           lists the disagreements with their batches (the batch is re-swept before anything is applied) and
+#           exits 1. With --manifests DIR the manifests' digest now must equal the one the sample carries
+#           (manifests_sha256 on every row), so a sample drawn from older manifests cannot pass.
 #
 # Exit: 0 · 1 disagreement or missing verification · 2 usage.
 # =============================================================================
@@ -38,10 +40,21 @@ if [[ "$CHECK" == true ]]; then
   jq -e -s 'all(.[]; type == "object" and (.id | type) == "string")' "$VERIFIED" >/dev/null 2>&1 || { echo "sweep-sample: $VERIFIED does not parse as JSON Lines rows with ids" >&2; exit 1; }
   [[ "$(grep -c '^{' "$SAMPLE" || true)" -ge 1 ]] || { echo "sweep-sample: $SAMPLE holds no sampled closure — nothing was verified" >&2; exit 1; }
   bad=0
+  # the draw must be current: when --manifests is given, the manifests' digest now must equal the one the sample carries
+  if [[ -n "$MAN" ]]; then
+    shopt -s nullglob; MF=("$MAN"/manifest-*.jsonl); shopt -u nullglob
+    source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../compat-lib.sh"
+    now="$(for f in "${MF[@]}"; do basename "$f"; sha256_portable "$f" | cut -d' ' -f1; done | sha256_portable | cut -d' ' -f1)"
+    was="$(jq -r '.manifests_sha256 // empty' "$SAMPLE" | sort -u | head -1)"
+    [[ -n "$was" && "$was" == "$now" ]] || { echo "sweep-sample: the manifests changed since this sample was drawn (sample $was, now $now) — re-draw" >&2; exit 1; }
+  fi
   while IFS=$'\t' read -r id batch; do
-    v="$(jq -c --arg id "$id" 'select(.id == $id)' "$VERIFIED" | head -1)"
-    if [[ -z "$v" ]]; then echo "sweep-sample: $id (batch $batch): no verification row" >&2; bad=$((bad + 1)); continue; fi
-    if [[ "$(jq -r '.agree' <<<"$v")" != true ]]; then echo "sweep-sample: $id (batch $batch): DISAGREES — $(jq -r '.evidence // ""' <<<"$v" | cut -c1-160)" >&2; bad=$((bad + 1)); fi
+    n_rows="$(jq -c --arg id "$id" 'select(.id == $id)' "$VERIFIED" | wc -l)"
+    if [[ "$n_rows" -eq 0 ]]; then echo "sweep-sample: $id (batch $batch): no verification row" >&2; bad=$((bad + 1)); continue; fi
+    # several rows for one id: any row that does not agree counts as a disagreement (a later re-check wins over a first look)
+    if jq -e --arg id "$id" 'select(.id == $id) | select(.agree != true)' "$VERIFIED" >/dev/null 2>&1 && [[ -n "$(jq -c --arg id "$id" 'select(.id == $id) | select(.agree != true)' "$VERIFIED")" ]]; then
+      echo "sweep-sample: $id (batch $batch): DISAGREES — $(jq -r --arg id "$id" 'select(.id == $id) | select(.agree != true) | .evidence // ""' "$VERIFIED" | head -1 | cut -c1-160)" >&2; bad=$((bad + 1))
+    fi
   done < <(jq -r '[.id, (.batch // "?")] | @tsv' "$SAMPLE")
   n="$(grep -c '^{' "$SAMPLE" || true)"
   if [[ "$bad" -gt 0 ]]; then
@@ -54,8 +67,11 @@ fi
 [[ "$PCT" =~ ^[0-9]+$ && "$PCT" -ge 1 && "$PCT" -le 100 ]] || { echo "sweep-sample: --pct must be 1 … 100" >&2; exit 2; }
 shopt -s nullglob; MFILES=("$MAN"/manifest-*.jsonl); shopt -u nullglob
 [[ ${#MFILES[@]} -ge 1 ]] || { echo "sweep-sample: no manifest-<k>.jsonl under $MAN" >&2; exit 2; }
-ALLF="$(mktemp)"; trap 'rm -f "$ALLF"' EXIT
-for f in "${MFILES[@]}"; do b="$(basename "$f" .jsonl)"; jq -c --arg b "$b" 'select((.category // "") | IN("closed-implemented","closed-obsolete")) | {id, category, evidence, batch: $b}' "$f"; done > "$ALLF"
+# shellcheck source=../compat-lib.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../compat-lib.sh"
+MAN_DIGEST="$(for f in "${MFILES[@]}"; do basename "$f"; sha256_portable "$f" | cut -d' ' -f1; done | sha256_portable | cut -d' ' -f1)"
+ALLF="$(mktemp)"; trap 'unlink "$ALLF" 2>/dev/null' EXIT
+for f in "${MFILES[@]}"; do b="$(basename "$f" .jsonl)"; jq -c --arg b "$b" --arg d "$MAN_DIGEST" 'select((.category // "") | IN("closed-implemented","closed-obsolete")) | {id, category, evidence, batch: $b, manifests_sha256: $d}' "$f"; done > "$ALLF"
 python3 -I - "$SEED" "$PCT" "$OUT" "$ALLF" <<'PY'
 import json, math, random, sys
 seed, pct, out, src = int(sys.argv[1]), int(sys.argv[2]), sys.argv[3], sys.argv[4]

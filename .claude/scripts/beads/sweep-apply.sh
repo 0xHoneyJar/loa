@@ -5,7 +5,11 @@
 # Usage:
 #   sweep-apply.sh --inventory DIR --manifests DIR --validate
 #   sweep-apply.sh --inventory DIR --manifests DIR --apply --sprint N --review-by YYYY-MM-DD [--label backlog-2026-10]
-#                  [--applied FILE] [--br-bin BR] [--dry-run]
+#                  (--sample FILE | --no-sample-check REASON) [--applied FILE] [--br-bin BR] [--dry-run]
+#
+#   --sample FILE    the sample sweep-sample.sh drew and --check confirmed; its rows carry manifests_sha256, the digest of
+#                    the manifests at the draw — --apply refuses when the manifests changed since (a stale sample gates
+#                    nothing). --no-sample-check REASON skips the gate and logs the override as a row of the applied log.
 #
 #   --inventory DIR  the sweep directory holding inventory.jsonl + inventory.sha256 (sweep-inventory.sh)
 #   --manifests DIR  the Explore batches' manifest-<k>.jsonl files: one row per bead
@@ -46,7 +50,7 @@ set -euo pipefail
 export LC_ALL=C
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
-INV="" MAN="" MODE="" SPRINT="" REVIEW_BY="" LABEL="backlog-2026-10" APPLIED="" BR="${BR_BIN:-br}" DRY=false
+INV="" MAN="" MODE="" SPRINT="" REVIEW_BY="" LABEL="backlog-2026-10" APPLIED="" BR="${BR_BIN:-br}" DRY=false SAMPLE="" NOSAMPLE=""
 usage() { sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -60,6 +64,8 @@ while [[ $# -gt 0 ]]; do
     --applied) APPLIED="${2:-}"; shift 2 ;;
     --br-bin) BR="${2:-}"; shift 2 ;;
     --dry-run) DRY=true; shift ;;
+    --sample) SAMPLE="${2:-}"; shift 2 ;;
+    --no-sample-check) NOSAMPLE="${2:-}"; shift 2 ;;
     -h|--help) usage ;;
     *) echo "sweep-apply: unknown argument $1" >&2; usage ;;
   esac
@@ -71,6 +77,10 @@ if [[ "$MODE" == apply ]]; then
   [[ "$SPRINT" =~ ^[0-9]+$ ]] || { echo "sweep-apply: --apply needs --sprint N" >&2; exit 2; }
   [[ "$REVIEW_BY" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || { echo "sweep-apply: --apply needs --review-by YYYY-MM-DD" >&2; exit 2; }
   [[ "$LABEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$ ]] || { echo "sweep-apply: --label is not a label" >&2; exit 2; }
+  # the sample gate (audit round: a stale sample must not let an apply through): --apply needs the checked sample file,
+  # whose rows carry the manifests' digest at the draw, or an explicit --no-sample-check REASON that is logged
+  if [[ -z "$SAMPLE" && -z "$NOSAMPLE" ]]; then echo "sweep-apply: --apply needs --sample FILE (the drawn and checked sample) or --no-sample-check REASON" >&2; exit 2; fi
+  if [[ -n "$SAMPLE" && ! -f "$SAMPLE" ]]; then echo "sweep-apply: --sample $SAMPLE is not a file" >&2; exit 2; fi
 fi
 APPLIED="${APPLIED:-$INV/applied.jsonl}"
 command -v jq >/dev/null 2>&1 || { echo "sweep-apply: jq is required" >&2; exit 1; }
@@ -89,8 +99,8 @@ shopt -s nullglob
 MFILES=("$MAN"/manifest-*.jsonl)
 shopt -u nullglob
 [[ ${#MFILES[@]} -ge 1 ]] || p "no manifest-<k>.jsonl under $MAN"
-ROWS="$(mktemp)"; trap 'rm -f "$ROWS" "$ROWS.ids"' EXIT
-: > "$ROWS"
+TMPD="$(mktemp -d)"; trap 'find "$TMPD" -mindepth 1 -delete 2>/dev/null; rmdir "$TMPD" 2>/dev/null' EXIT
+ROWS="$TMPD/rows.jsonl"; : > "$ROWS"
 for f in ${MFILES[@]+"${MFILES[@]}"}; do
   n=0
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -99,7 +109,7 @@ for f in ${MFILES[@]+"${MFILES[@]}"}; do
     err="$(jq -r '
       [ (if (.id | type) != "string" or (.id | test("^[A-Za-z][A-Za-z0-9-]*-[a-z0-9]+$") | not) then "id" else empty end),
         (if (.category | type) != "string" or ((.category | IN("closed-implemented","closed-obsolete","kept","pulled-in")) | not) then "category" else empty end),
-        (if (.evidence | type) != "string" or (.evidence | test("\\S") | not) then "evidence" else empty end),
+        (if (.evidence | type) != "string" or (.evidence | test("\\S") | not) or (.evidence | explode | any(. < 32 or . == 127)) then "evidence" else empty end),
         (if (.confidence | type) != "string" or ((.confidence | IN("high","medium","low")) | not) then "confidence" else empty end) ]
       | join(",")' <<<"$line")"
     if [[ -n "$err" ]]; then p "$(basename "$f") line $n: invalid field(s) $err"; continue; fi
@@ -107,13 +117,14 @@ for f in ${MFILES[@]+"${MFILES[@]}"}; do
   done < "$f"
 done
 # 3. the partition
-jq -r '.id' "$INV/inventory.jsonl" | sort > "$ROWS.ids"
+jq -r '.id' "$INV/inventory.jsonl" | sort > "$TMPD/inv.ids"
 MIDS="$(jq -r '.id' "$ROWS" | sort)"
-dups="$(printf '%s\n' "$MIDS" | uniq -d | tr '\n' ' ')"
+trimlist() { tr '\n' ' ' | sed -E 's/^ +| +$//g'; }
+dups="$(printf '%s\n' "$MIDS" | grep -v '^$' | uniq -d | trimlist)"
 [[ -z "$dups" ]] || p "ids in more than one manifest row (duplicate or conflicting): $dups"
-unknown="$(comm -13 "$ROWS.ids" <(printf '%s\n' "$MIDS" | sort -u) | tr '\n' ' ')"
+unknown="$(comm -13 "$TMPD/inv.ids" <(printf '%s\n' "$MIDS" | grep -v '^$' | sort -u) | trimlist)"
 [[ -z "$unknown" ]] || p "ids not in the frozen inventory: $unknown"
-missing="$(comm -23 "$ROWS.ids" <(printf '%s\n' "$MIDS" | sort -u) | tr '\n' ' ')"
+missing="$(comm -23 "$TMPD/inv.ids" <(printf '%s\n' "$MIDS" | grep -v '^$' | sort -u) | trimlist)"
 [[ -z "$missing" ]] || p "inventory ids no manifest names (the partition is incomplete): $missing"
 # 4. closure evidence resolves; the bead is still open
 resolves() {  # resolves "<evidence>" → 0 when at least one reference resolves in this repository
@@ -125,8 +136,8 @@ resolves() {  # resolves "<evidence>" → 0 when at least one reference resolves
     elif [[ "$ref" =~ ^(#|PR[[:space:]]*#?)([0-9]{1,6})$ ]]; then
       local num="${BASH_REMATCH[2]}"
       git -C "$REPO_ROOT" log --all --oneline -E --grep="(^|[^0-9])#${num}([^0-9]|$)" -n 1 2>/dev/null | grep -q . && { ok=0; break; }
-    elif [[ "$ref" =~ ^[A-Za-z0-9_./-]+$ && "$ref" != *".."* ]]; then
-      git -C "$REPO_ROOT" cat-file -e "HEAD:$ref" 2>/dev/null && { ok=0; break; }
+    elif [[ "$ref" =~ ^[A-Za-z0-9_./-]+$ && "$ref" != *".."* && "$ref" != "." && "$ref" != "./" ]]; then
+      [[ "$(git -C "$REPO_ROOT" cat-file -t "HEAD:$ref" 2>/dev/null)" == blob ]] && { ok=0; break; }   # a file, not a directory
     fi
   done < <(printf '%s' "$ev" | tr ';,' '\n\n')
   return $ok
@@ -134,9 +145,17 @@ resolves() {  # resolves "<evidence>" → 0 when at least one reference resolves
 OPEN_IDS=""
 # rows this sweep already applied (append-only log): their beads are closed or labelled by the sweep itself, so the
 # still-open check below does not apply to them and a re-run stays valid
-DONE_IDS="$(jq -r '.id' "$APPLIED" 2>/dev/null || true)"
+DONE_IDS=""
+if [[ -s "$APPLIED" ]]; then
+  jq -e -c 'type == "object" and (.id | type) == "string"' "$APPLIED" >/dev/null 2>&1 \
+    || { echo "sweep-apply: $APPLIED does not parse as JSON Lines (a crash mid-row?) — repair the last line by hand before any apply" >&2; exit 1; }
+  DONE_IDS="$(jq -r '.id' "$APPLIED")"
+fi
 if [[ ${#problems[@]} -eq 0 ]]; then
-  OPEN_IDS="$("$BR" list --json --limit 5000 2>/dev/null | jq -r '(if type == "object" then (.issues // []) else . end) | map(select((.status // "open") != "closed")) | .[].id' 2>/dev/null || true)"
+  BRL="$TMPD/br-list.json"
+  "$BR" list --json --limit 5000 > "$BRL" 2> "$TMPD/br.err" || { echo "sweep-apply: br list failed — nothing validated, nothing applied: $(head -c 300 "$TMPD/br.err")" >&2; exit 1; }
+  OPEN_IDS="$(jq -r '(if type == "object" then (.issues // []) else . end) | map(select((.status // "open") != "closed")) | .[].id' "$BRL" 2>/dev/null)" \
+    || { echo "sweep-apply: br list output did not parse — nothing applied" >&2; exit 1; }
   while IFS=$'\t' read -r id cat ev; do
     case "$cat" in closed-implemented|closed-obsolete)
       resolves "$ev" || p "$id ($cat): evidence does not resolve to a commit, a PR number or a path at HEAD: ${ev:0:120}"
@@ -156,14 +175,26 @@ N="$(grep -c '^{' "$ROWS" || true)"
 jq -r '.category' "$ROWS" | sort | uniq -c | awk '{printf "sweep-apply: %s %s\n", $2, $1}' >&2
 echo "sweep-apply: VALID — $N rows over ${#MFILES[@]} manifest(s) form a complete partition of the frozen inventory (sha256 ${want:0:12})"
 [[ "$MODE" == apply ]] || exit 0
-# 5. apply (idempotent through the applied log)
+# 5. the sample gate: the checked sample must have been drawn from THESE manifests (digest match), else refuse
+MAN_DIGEST="$(for f in "${MFILES[@]}"; do basename "$f"; sha256_portable "$f" | cut -d' ' -f1; done | sha256_portable | cut -d' ' -f1)"
+if [[ -n "$SAMPLE" ]]; then
+  SD="$(jq -r '.manifests_sha256 // empty' "$SAMPLE" | sort -u | head -1)"
+  [[ -n "$SD" ]] || { echo "sweep-apply: $SAMPLE carries no manifests_sha256 — draw it with sweep-sample.sh (this version) and check it first" >&2; exit 1; }
+  [[ "$SD" == "$MAN_DIGEST" ]] || { echo "sweep-apply: the manifests changed since the sample was drawn ($SD vs now $MAN_DIGEST) — re-draw and re-verify the sample before applying" >&2; exit 1; }
+fi
+# 6. apply (idempotent through the applied log)
 touch "$APPLIED"
+if [[ -n "$NOSAMPLE" && "$DRY" != true ]]; then
+  jq -n -c --arg r "$NOSAMPLE" --arg d "$MAN_DIGEST" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '{id: "-", category: "lead", action: "no-sample-check", reason: $r, manifests_sha256: $d, ts: $ts}' >> "$APPLIED"
+fi
 # run <cmd…>: one tracker call; its stderr is kept in $RUN_ERR, its exit code returned (never aborts the loop)
 RUN_ERR=""
 run() {
   if [[ "$DRY" == true ]]; then printf 'DRY: %s\n' "$*"; return 0; fi
-  local out; out="$("$@" 2>&1)" && { RUN_ERR=""; return 0; }
-  RUN_ERR="$out"; return 1
+  local out; out="$("$@" 2>&1)" || { RUN_ERR="$out"; return 1; }
+  # a tracker that reports a skipped id with exit 0 did not do the work: treat it as the refusal it is
+  if grep -qiE 'skipped .*(blocked by|open children)' <<<"$out"; then RUN_ERR="$out"; return 1; fi
+  RUN_ERR=""; return 0
 }
 log_row() {  # log_row <id> <category> <action> <reason>
   [[ "$DRY" == true ]] && return 0
