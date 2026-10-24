@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-24T14:22:49Z",
+  "generated": "2026-10-24T14:29:47Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -798,7 +798,7 @@
     ".claude/lib/sync/wal-pruner.ts": "ac3c61dd1dc7aa709e1e7c0ad81b685a773abc3def22463c0def16cf947c223a",
     ".claude/lib/testing/consumer-harness.ts": "5fffe418f3694f6a768bb942b2ce2481de039311ca921e3563e383720a8dbe34",
     ".claude/lib/testing/fake-clock.ts": "1589920167f252b628c8c578fce4118287a5c906d4b2dc3bba2d4ed772470017",
-    ".claude/loa/CLAUDE.loa.md": "df550bc34df1294580c057137a58150cfad434ce9e263d496d36b7111632e123",
+    ".claude/loa/CLAUDE.loa.md": "b528dc31460dab6a55706e86cd0dd7a967cb0e56ec247e47dba0c048b7b60d79",
     ".claude/loa/GLOSSARY.md": "dd6ebcc484a14595707d0a0eb41208e4b779178837f770083b394ecca5d353ee",
     ".claude/loa/feedback-ontology.yaml": "1d9fb5eec23e1ab26dd2ca7df3b6000f1a568d2fc6167e384ab3f1a2a943d04c",
     ".claude/loa/learnings/additional-extraction.json": "5d86db035cc579efbea6e59f924a9558fc7df6b8a17f6fa4465547a82e0a3c8c",

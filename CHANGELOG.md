@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_(nothing yet — rc.8 was cut on 2026-10-25)_
+
+## [2.0.0-rc.8] — 2026-10-25 — The follow-through (release candidate)
+
+> The follow-through on rc.7: every cycle-132 carry-over, every framework defect that cycle exposed (Bridgebuilder paging and consensus, release publication, the public record branch, the harness's session library, reproduction, grader, egress and supervisor), Loa reviewing Loa, one finding contract at the four gates, external corpus seeding, and a tracker that tells the truth (329 → 155 open beads, every closure with evidence). The `home-scope` mount landed but is **not claimed**: both smoke launches showed a Loa reviewer consulting its installed Loa as the reference for a Loa PR, so FR-10 is deferred with the limit recorded (KF-060, DEC-0950). Release notes: `grimoires/loa/reports/release-notes-2.0.0-rc.8.md`. Still a pre-release; `2.0.0` is promoted on the rc.1 exit criteria.
+
 ### Added (cycle-133 Sprint 274 — the product, 2026-10-24)
 
 - **Harness documentation** (Sprint 274 Task 3.4; bead bd-vtikl). `evals/harness/README.md` is complete: mount modes (with `home-scope` marked as landing with Task 3.1), the egress block's threat model, layout, per-arm resolution, refusal and operating commands, the supervisor (precondition, daemon, durable identity, retry classes, reboot restore), the refusal policy and the three stacked denominator rules, the pipeline version table, an exit-code table for eleven scripts with `file:line` cites checked mechanically (divergences from § 5.4 named rather than papered over), and test health (`tests/QUARANTINE.tsv`, the validator and helper, the `-diff` frozen trees — read them with `git diff --text` or `git show <rev>:<path>`); `evals/README.md` gains the harness/analysis/test-health index. Lead follow-ups from the implementer's notes: the three container launchers (`run-ablation.sh`, `blind-session.sh`, `ablation-grade.sh`) default `--image` to the pinned `loa-ablation:259` instead of 258, pinned by `evals/tests/image-default.bats` against the README's pin row (the grader regression AG-c133-5 now ignores the environment field `image` beside `grader_version`); `pipeline-run.sh`'s egress record comment names `meta/egress.jsonl`, the file the code writes.
