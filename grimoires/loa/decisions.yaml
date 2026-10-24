@@ -29738,3 +29738,241 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0888"
+    created_at: "2026-10-24T05:27:46Z"
+    updated_at: "2026-10-24T05:27:46Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 Task 2.1: the meter is python3 -I, not jq; streaming snapshots merge by max per field; null counter = 0, non-integer = ERR"
+    decision: "price_for/price_events/unmetered_tail run one python3 -I stdlib program (half-up rounding like jq round); usage snapshots of one message id merge by the largest count per field (Claude Code repeats usage per content block and API message_delta usage is cumulative, so a sum double-counts); an absent or null token counter is 0 (the API historically sent null for 'no cache') while any present counter must be a non-negative JSON integer and a usage object with no token field is ERR; only a last line without a newline is skipped — any other unparseable line is ERR; an absent cache price derives (0.1×, 1.25×), a null one is ERR."
+    rationale: "jq cannot tell integer from float or a partial line from a complete one and rendered 0.30000000000000004; the merge rule matches the old last-wins result on 1,565 real transcripts byte for byte; C-6 names null as a refusal."
+    alternatives_considered:
+      - option: "keep the jq meter with a stricter filter"
+        rejected_because: "jq has no integer/float distinction and no partial-line detection, the two defects behind the fail-open 0 0 0"
+      - option: "sum streaming snapshots"
+        rejected_because: "double-counts cumulative usage; refuted on real data"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "500e6a05"
+    source: "grimoires/loa/a2a/sprint-273/reviewer-a.md § Judgment calls (Python for the meter; Streaming merge; Absent or null token counter; Partial last line; Cache prices)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T05:27:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 147b179bb (lib/session-exec.sh SESSION_METER_PY; session-exec.bats SE-1…16)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0889"
+    created_at: "2026-10-24T05:27:50Z"
+    updated_at: "2026-10-24T05:27:50Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 Task 2.1: unmetered_attempt as a metering field on existing rows; rerun turns priced at the session model; stop codes 2 (pipeline) / 1 (live)"
+    decision: "A session with activity but no usage event and no numeric result cost is unmetered_attempt, stored as a metering field on cost.json, the spend row and the phase record (no new row kind — spend.sh and ablation-row.sh read those rows as they are); rerun turns after a refusal are priced at the session model (a conservative estimate; the result cost stays authoritative); pipeline-run.sh prices every planned phase model including FIX before the first launch and stops on any ERR with its existing infrastructure_error code 2, mid-phase too; blind-session.sh refuses pre-launch with exit 2 and stops a live session with exit 1."
+    rationale: "FR-6 asks for coverage validated before launch and one infrastructure code per run; the § 5.4 'before any write' wording fits only the pre-launch case; a new row kind would break the two readers."
+    alternatives_considered:
+      - option: "a new unmetered row kind"
+        rejected_because: "spend.sh and ablation-row.sh would need parallel changes for a flag they can read on the existing rows"
+      - option: "price rerun turns per message.model"
+        rejected_because: "a second lookup inside the watchdog for a lower-cost model; the estimate is already conservative"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "500e6a05"
+    source: "grimoires/loa/a2a/sprint-273/reviewer-a.md § Judgment calls (unmetered_attempt; Refusal rerun pricing; pipeline-run exit code; pre-launch check)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T05:27:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 147b179bb (blind-session.sh :195-200, :328, :348, :484; pipeline-run.sh :559-568, :984, :999, :1150, :1190)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0890"
+    created_at: "2026-10-24T05:27:54Z"
+    updated_at: "2026-10-24T05:27:54Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 Task 2.1: ENV_SHIM reads /proc/self/fd with LOA_KEEP_FDS (malformed → exit 2); the fd-65535 test runs native, in the container, or skips"
+    decision: "ENV_SHIM closes every descriptor above 2 listed in /proc/self/fd except the listing handle and LOA_KEEP_FDS (comma-separated decimals; anything else exits 2 rather than being ignored), falling back to closerange(3, hard limit) split around the kept fds with an infinite, unreadable or ≤ 3 limit read as 1048576; SE-20 (a fd above 65535 reaching a child) runs natively when the hard limit allows, else inside loa-ablation:258 with --ulimit nofile=200000 --network none, else skips naming the reason, while SE-22 covers the logic with a simulated listing; the drift test BS-8 stays as a one-copy guard until Task 3.6; blind-session.bats gives its own transcripts zero-token usage instead of editing the shared claude-stub.sh; check-no-swallowed-jq walks evals/harness/lib/* by glob."
+    rationale: "The host's hard limit is 4,096 and GitHub's 65,536, so the real-descriptor case needs the container to be observable; a malformed keep-list silently ignored would reopen the leak; the shared stub's canned transcript has no usage and other suites depend on it."
+    alternatives_considered:
+      - option: "raise the host hard limit for the test"
+        rejected_because: "needs root on every host and CI runner"
+      - option: "edit claude-stub.sh to emit usage"
+        rejected_because: "shared by other suites whose expectations pin the canned transcript"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "500e6a05"
+    source: "grimoires/loa/a2a/sprint-273/reviewer-a.md § Judgment calls (LOA_KEEP_FDS; The 65535 test; Drift test kept; Default transcripts; Scanner glob)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T05:27:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 147b179bb (lib/session-exec.sh ENV_SHIM :64; session-exec.bats SE-17…22; tools/check-no-swallowed-jq.sh :282)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0891"
+    created_at: "2026-10-24T05:27:58Z"
+    updated_at: "2026-10-24T05:27:58Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 Task 2.2: analysis tree attested against REGISTRATION-17's analysis_tree, not the pipeline pin; REPRODUCE.md § 0 names a record worktree"
+    decision: "reproduce.sh diffs the pipeline paths against the pin fbd36a0c and the analysis paths plus the two analysis-side tools against ANALYSIS_PIN 6f01e57d (REGISTRATION-17's analysis_tree, which equals the record); the porcelain check covers untracked files but excepts __pycache__/, *.pyc and .pytest_cache/ (the engine writes them); on exit 2 the environment goes to stdout only; REPRODUCE.md § 0 says to run in a worktree of the record branch, whose pipeline is fbd36a0c."
+    rationale: "The literal SDD diff against fbd36a0c fails on every tree because that commit lacks the reproduction tooling; a bare fbd36a0c worktree cannot run the reproduction; only the operator's global gitignore hides the caches."
+    alternatives_considered:
+      - option: "diff everything against fbd36a0c as the SDD text said"
+        rejected_because: "always fails: the analysis tooling did not exist at the pin"
+      - option: "ignore the porcelain for untracked files"
+        rejected_because: "an untracked edited module would pass the attestation"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "500e6a05"
+    source: "grimoires/loa/a2a/sprint-273/reviewer-b.md § Judgment calls (Analysis reference; REPRODUCE.md § 0 wording; Bytecode caches; Refusals write nothing)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T05:27:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 500e6a05b (evals/analysis/c132/reproduce.sh :51, :79-86, :106; test_reproduce.py)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0892"
+    created_at: "2026-10-24T05:28:01Z"
+    updated_at: "2026-10-24T05:28:01Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 Task 2.2: engine failure exit 1, with --live-sample exit 3, no paid override; live range over valid rows; unsafe pr/ symlink = Mismatch"
+    decision: "An engine failure exits 1; with --live-sample it exits 3 per FR-7 (not bd-161zz's 2) and there is no --live-anyway because a paid override is not in the SDD; --dry-run with --live-sample skips the sample and keeps the engine exit; the live range uses common.build_cell on the row plus its recorded grade (the reads' own filter); the digest cache applies both bead options — verification bypasses it and the key is realpath plus a stat with ctime, and reconstruct hashes fixture pr/ files fresh; an unsafe pr/ symlink target is a Mismatch, never dropped, because the grader counts pr/ symlinks, and a strict safe_rel also refuses inside-pointing .. targets."
+    rationale: "A paid model call must never follow a broken reproduction; the two bead options are complementary, not alternatives; dropping a symlink would change the grader's count silently."
+    alternatives_considered:
+      - option: "--live-anyway override"
+        rejected_because: "a paid override the SDD does not name"
+      - option: "drop unsafe symlinks during reconstruction"
+        rejected_because: "changes the pr/ symlink count the grader reads"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "500e6a05"
+    source: "grimoires/loa/a2a/sprint-273/reviewer-b.md § Judgment calls (Exit codes; Live range; Digest cache; Unsafe symlinks)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T05:28:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 500e6a05b (reproduce.sh :130, :171; record_lite.py :92, :401, :504, :515, :523)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0893"
+    created_at: "2026-10-24T05:28:05Z"
+    updated_at: "2026-10-24T05:28:05Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 273 Task 2.2: tests/COUNT pins the unittest count; MV-1 drops the main: clause; power-mini head.diff fixtures generated after a byte-identity proof"
+    decision: "analysis-c132.bats AC-1 reads the expected case count from evals/analysis/c132/tests/COUNT (215 after this task) so a change that adds or drops a case updates it deliberately; MV-1 keeps the digest pins and drops the comparison with main's top-level manifests (v2 since Sprint 269); the four committed power-mini head.diff files (4,976 lines) are generated by synth.py power-mini-diffs --seed 20261023 — a test proved byte identity with the committed lines and git apply --check accepts the generated diffs — then removed; the lead pre-applied the AC-1 and MV-1 shapes in Sprint 272 as a CI fix with COUNT=176 and re-applied B's AC-4 hunk and count at landing."
+    rationale: "A literal count had been stale since Sprint 270 and only surfaced when Sprint 272's path trigger ran the suite in CI; the main: comparison failed on any checkout where main resolves; 4,976 lines of generated fixture bytes carried no information the generator does not."
+    alternatives_considered:
+      - option: "derive the expected count from the test files at run time"
+        rejected_because: "a silently lost test would pass; the point of the pin is a deliberate update"
+      - option: "keep the committed head.diff fixtures"
+        rejected_because: "4,976 reviewable lines that a seeded generator reproduces byte for byte"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "500e6a05"
+    source: "grimoires/loa/a2a/sprint-273/reviewer-b.md § What was built (evals/tests; tests/synth.py); the Sprint 272 CI fix eb029df47"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T05:28:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commits eb029df47 (lead, COUNT=176) and 500e6a05b (COUNT=215, synth.py, test_synth_power_mini.py)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0894"
+    created_at: "2026-10-24T05:28:09Z"
+    updated_at: "2026-10-24T05:28:09Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 273 Task 2.2 incident: B's red run of the old final.sh rewrote a tracked file in the lead's tree — restored; BASH_SOURCE roots are the fix"
+    decision: "The incident is recorded, not hidden: the old final.sh hard-coded cd /home/merlin/Documents/thj/code/loa and the test HOME held a valid registration.txt, so B's red run rewrote grimoires/loa/reports/ablation-2.0/c132-final/INPUTS.json's pin (f×40) in the lead's tree and rewrote rows.jsonl byte-identically; no model call ran; the lead restored the file from HEAD before any commit; the drivers now take their root from BASH_SOURCE and refuse shell code in registration.txt, which removes the class."
+    rationale: "A red run of a script that escapes its worktree is exactly the defect the task fixes; the honest record is the fix plus the restore, and the cycle rule 'implementers never touch the lead's tree' now has a mechanical guard in the drivers."
+    alternatives_considered:
+      - option: "treat the rewrite as noise and not record it"
+        rejected_because: "a tracked file in the lead's tree changed under a running sprint; the record is what lets the next lead trust the tree"
+      - option: "forbid implementers from running the old drivers at all"
+        rejected_because: "the red run is the required evidence that the old script escapes"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "500e6a05"
+    source: "grimoires/loa/a2a/sprint-273/reviewer-b.md § Incident; NOTES 2026-10-24T05:05Z"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T05:28:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "git restore of INPUTS.json at 2026-10-24T03:5xZ (lead); commit 500e6a05b (final.sh :15, run-judge-defects.sh :16)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

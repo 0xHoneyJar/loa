@@ -155,6 +155,10 @@
 #   row's + its own, its in-line retry only while that stays ≤ 3); a row already at 3 attempts is refused by
 #   --rerun (exit 2) and skipped by --rerun-status (one log line). ablation-row.sh --prior-spend gets the
 #   earlier attempts' spend (all_spend_usd).
+# Refusal policy (cycle-133 C-8, FR-8): each arm's suite refusal_policy (exclude | keep | rerun-once, default exclude)
+#   is checked at pre-flight and recorded in MANIFEST.json refusal_policy {<arm>: policy}; rerun-once relaunches a
+#   refused trial once (<arm>/<task>-t<n>.refusal-1.json records the kept first attempt). The rules sit in the block
+#   after the arm checks; the row fields are ablation-row.sh 1.6's; evals/harness/README.md § Refusal policy.
 #
 # Pre-flight (any refusal: exit 2, nothing written but <batch>/REFUSED.txt with the reason):
 #   1. hard gate, non-smoke batches only (DEC-0435): <suite-root>/MANIFEST.sha256 present,
@@ -669,6 +673,106 @@ for a in "${ARMS[@]}"; do
 done
 [[ "$(printf '%s\n' "${ARMS[@]}" | sort | uniq -d)" == "" ]] || die "--arms lists an arm twice"
 
+# --- cycle-133 C-8 (FR-8, bd-r9abp): the refusal policy ---------------------------------------------------------------
+# Every planned arm's suite key refusal_policy (exclude | keep | rerun-once; absent = exclude) is checked here (exit 2
+# naming the repair) and recorded in MANIFEST.json refusal_policy {arm: policy} before any trial runs; at run time it
+# is read from the MANIFEST only, so a batch whose MANIFEST predates the key runs exclude (cycle-132's behaviour). A
+# matched arm (bare_sessions: matched) takes exclude only: a session with a refusal fallback stays invalid.
+# rerun-once (trials): an attempt that ended completed, agent_error or cap_failure, without an override, and whose
+# pipeline record carries a refusal fallback (KF-051) is left untouched in its run dir and recorded once in
+# <batch>/<arm>/<task>-t<n>.refusal-1.json {schema_version, attempt: 1, run_id, run_dir (its basename), status,
+# attempts, cost_usd, refusal_fallbacks: [{label, refusal_fallbacks}]} — immutable: hard-linked into place, never
+# rewritten. The trial is then relaunched once at the same plan index into a fresh -r<k> run dir under the same
+# per-run cap and the D-7.3 attempt limit (no relaunch when its attempts would pass 3: the row reads rerun_not_run).
+# Both attempts are charged: the record's cost_usd goes to spent and the ledger when the trial is collected and into
+# the row's all_spend_usd (--prior-spend); its attempts count in the row's attempts. A second refusal is never
+# relaunched. A driver resumed after the first attempt finds the record and launches only the second attempt (an
+# attempt cut off before its record was written is relaunched from the first, like any interrupted trial). The
+# relaunch runs in its trial's slot without a second budget-gate check: in the worst case a batch passes --max-usd by
+# one run cap per concurrently refused trial. The second attempt's row gets --refusal-attempt 2 --refused-attempt
+# <first run dir>; the outcome and denominator rules are ablation-row.sh's (row writer 1.6).
+REF_ARMS_TSV="$(jq -r --arg arms "$ARMS_CSV" '($arms | split(",")) as $want | .arms // [] | .[] | select(.id as $i | $want | index($i))
+  | [.id, (if has("refusal_policy") then .refusal_policy | tostring else "exclude" end),
+     ((.toggles // {}).bare_sessions == "matched" | tostring)] | @tsv' <<<"$SUITE_JSON")" \
+  || die "suite arms unreadable for the refusal_policy check ($SUITE_FILE)"
+while IFS=$'\t' read -r a pol matched; do
+  [[ -n "$a" ]] || continue
+  case "$pol" in exclude|keep|rerun-once) ;; *) die "arm '$a': refusal_policy '$pol' is not exclude|keep|rerun-once (fix the arm in $SUITE_FILE)" ;; esac
+  [[ "$matched" != true || "$pol" == exclude ]] \
+    || die "arm '$a' is a matched arm (bare_sessions: matched): refusal_policy must be exclude, not '$pol' (fix the arm in $SUITE_FILE)"
+done <<<"$REF_ARMS_TSV"
+refusal_policy_of() {  # refusal_policy_of <arm> → the MANIFEST's policy (exclude when it predates the key)
+  jq -r --arg a "$1" '(.refusal_policy // {})[$a] // "exclude"' "$MAN_PATH" || die "MANIFEST.json unreadable: $MAN_PATH"
+}
+refusal_has_fallback() {  # refusal_has_fallback <run-dir> → 0 when a phase record carries a refusal fallback (KF-051)
+  jq -e '[.phases // [] | .[] | select((.refusal_fallbacks // []) | length > 0)] | length > 0' "$1/meta/pipeline.json" >/dev/null 2>&1
+}
+refusal_record_of() { printf '%s.refusal-1.json' "$1"; }   # <trial base dir> → the immutable first-attempt record
+REF_FRESH=0
+# refusal_pre <jid> <arm> <base> <prior> <prior_usd> <run_id> — a trial's start: with the first attempt's record present
+# (this job's relaunch, or a resume after the first attempt) the trial is the second attempt. REF_PRIOR and
+# REF_PRIOR_USD add the record's attempts and spend, and the spend is queued for the collect charge
+# (<jid>.refusal), except on a --rerun replacement of the second attempt's row, whose old row already counted them
+refusal_pre() {
+  REF_PRIOR="$4" REF_PRIOR_USD="$5"
+  local rec att usd; rec="$(refusal_record_of "$3")"
+  [[ -f "$rec" ]] || return 0
+  if [[ "$REF_FRESH" != 1 ]] && is_rerun "$6"; then return 0; fi
+  att="$(jq -r '.attempts | tostring' "$rec")" && usd="$(jq -r '.cost_usd | tostring' "$rec")" || die "refusal record unreadable: $rec"
+  REF_PRIOR=$((REF_PRIOR + att)) REF_PRIOR_USD="$(fadd "$REF_PRIOR_USD" "$usd")"
+  printf '%s\n' "$usd" > "$JOBS_DIR/$1.refusal"
+}
+# refusal_relaunch <arm> <base> <run-dir> <final status> <override> <prior> <attempts> <first_usd> <log> → 0 when the
+# first attempt was just recorded and the trial is to be relaunched once, 1 otherwise
+refusal_relaunch() {
+  local arm="$1" base="$2" rd="$3" st="$4" ov="$5" prior="$6" att="$7" first="$8" tlog="$9" rec tmp
+  [[ -z "$ov" ]] || return 1
+  case "$st" in completed|agent_error|cap_failure) ;; *) return 1 ;; esac
+  refusal_has_fallback "$rd" || return 1
+  [[ "$(refusal_policy_of "$arm")" == rerun-once ]] || return 1
+  rec="$(refusal_record_of "$base")"
+  [[ ! -e "$rec" ]] || return 1   # this is the second attempt (or an earlier driver's): never a third
+  if [[ $((prior + att)) -ge 3 ]]; then
+    printf '%s run-ablation: refusal fallback (KF-051) under refusal_policy rerun-once; not relaunched: %d attempts used, the limit is 3 (D-7.3)\n' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$((prior + att))" >> "$tlog"
+    return 1
+  fi
+  tmp="$rec.tmp.$$"
+  jq --arg rd "$(basename "$rd")" --arg st "$st" --argjson att "$att" --arg first "$first" '
+      {schema_version: 1, attempt: 1, run_id: (.run_id // null), run_dir: $rd, status: $st, attempts: $att,
+       cost_usd: ((.spent_usd // 0 | tonumber? // 0) + ($first | tonumber)),
+       refusal_fallbacks: [.phases // [] | .[] | select((.refusal_fallbacks // []) | length > 0)
+                           | {label: (.label // .name // null), refusal_fallbacks}]}' "$rd/meta/pipeline.json" > "$tmp" \
+    || { rm -f "$tmp"; die "refusal record for $rd could not be written"; }
+  if ! ln "$tmp" "$rec" 2>/dev/null; then   # another writer won, or no hard links here: never overwrite, no relaunch
+    rm -f "$tmp"
+    printf '%s run-ablation: refusal record %s not written (exists or no hard link); not relaunched\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rec" >> "$tlog"
+    return 1
+  fi
+  rm -f "$tmp"
+  printf '%s run-ablation: refusal fallback (KF-051) under refusal_policy rerun-once: attempt 1 kept in %s (%s); relaunching once\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$rd" "$rec" >> "$tlog"
+  REF_FRESH=1
+  return 0
+}
+refusal_row_args() {  # refusal_row_args <run-dir> → REF_ROW_ARGS: the second attempt's ablation-row.sh flags
+  REF_ROW_ARGS=()
+  local rd="$1" base="$1" rec first
+  [[ "$rd" =~ ^(.*)-r[0-9]+$ ]] && base="${BASH_REMATCH[1]}"
+  rec="$(refusal_record_of "$base")"
+  [[ -f "$rec" ]] || return 0
+  first="$(dirname "$base")/$(jq -r '.run_dir' "$rec")" || die "refusal record unreadable: $rec"
+  [[ "$first" != "$rd" ]] || return 0
+  REF_ROW_ARGS=(--refusal-attempt 2 --refused-attempt "$first")
+}
+refusal_collect() {  # refusal_collect <jid> — the queued first-attempt spend (rerun-once) to spent and the ledger
+  local f="$JOBS_DIR/$1.refusal" u
+  [[ -f "$f" ]] || return 0
+  u="$(cat "$f")"
+  SPENT="$(fadd "$SPENT" "$u")"; LEDGER_USD="$(fadd "$LEDGER_USD" "$u")"
+  log "refusal_policy rerun-once: the refused first attempt's USD $u charged to spent"
+}
+
 ALL_TASKS=()
 while IFS= read -r d; do ALL_TASKS+=("$d"); done < <(cd "$TDIR" && for d in */; do d="${d%/}"; [[ -f "$d/task.yaml" ]] && printf '%s\n' "$d"; done | LC_ALL=C sort)
 [[ ${#ALL_TASKS[@]} -gt 0 ]] || die "no tasks under $TDIR"
@@ -1168,6 +1272,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
        codex_token_exp: ($cpf // {}).token_exp, codex_preflight: $cpf,
        overshoot_bound_usd: ($conc * ($reserve | tonumber)), batch_context: $bctx,
        bare_sessions_by_task: (reduce ($p.plan[] | select(.bare_sessions != null)) as $e ({}; .[$e.arm][$e.task_id] = $e.bare_sessions)),
+       refusal_policy: (reduce ($s.arms // [] | .[] | select(.id as $i | $arms | index($i))) as $a ({}; .[$a.id] = ($a.refusal_policy // "exclude"))),
        registration_sha256: (if $reg_sha == "" then null else $reg_sha end),
        registration_path: (if $reg_sha == "" then null else $reg_path end),
        preregistration_sha256: (($reg // {}).preregistration_sha256 // null),
@@ -1406,6 +1511,7 @@ post_run() {
   local -a r=("$ROW_BIN" --run-dir "$rd" --task-yaml "$tyaml" --manifest "$MAN_PATH" --attempts "$attempts" --out "$row_out")
   [[ -n "$rr" ]] && r+=(--retry-reason "$rr")
   [[ -n "$PR_OVERRIDE" ]] && r+=(--status "$PR_OVERRIDE")
+  refusal_row_args "$rd"; r+=(${REF_ROW_ARGS[@]+"${REF_ROW_ARGS[@]}"})   # cycle-133 C-8: the second attempt of rerun-once
   awk -v p="${PR_PRIOR_SPEND:-0}" 'BEGIN { exit !(p > 0) }' && r+=(--prior-spend "$PR_PRIOR_SPEND")   # cycle-132: all_spend_usd
   "${r[@]}" >> "$plog" 2>&1 || PR_RRC=$?
   return 0
@@ -1464,6 +1570,7 @@ run_trial() {  # run_trial <jid> <arm> <task> <type> <kind> <trial> <run_id> <ta
   local attempt=0 rd="" st="" prc retry_reason="" first_usd=0 sig override="" pid
   local t0 t1
   mkdir -p "$BATCH_DIR/$arm"
+  refusal_pre "$jid" "$arm" "$base" "$prior" "$prior_usd" "$rid"; prior="$REF_PRIOR" prior_usd="$REF_PRIOR_USD"   # cycle-133 C-8
   t0="$(date +%s)"
   while [[ $attempt -lt 2 ]]; do
     attempt=$((attempt + 1))
@@ -1505,6 +1612,9 @@ run_trial() {  # run_trial <jid> <arm> <task> <type> <kind> <trial> <run_id> <ta
     fi
     break
   done
+  if refusal_relaunch "$arm" "$base" "$rd" "$st" "$override" "$prior" "$attempt" "$first_usd" "$tlog"; then   # cycle-133 C-8
+    run_trial "$jid" "$arm" "$task" "$type" "$kind" "$trial" "$rid" "$tyaml" "$wds" "$prior" "$prior_usd"; return 0
+  fi
   PR_PRIOR_SPEND="$(fadd "$prior_usd" "$first_usd")"
   post_run "$rd" "$rid" "$task" "$tyaml" "$((prior + attempt))" "$retry_reason" "$st" "$override" "$JOBS_DIR/$jid.row" "$tlog"
   t1="$(date +%s)"
@@ -1778,6 +1888,7 @@ outage_tick() {
 
 collect() {  # collect <jid> <plan-index>[:<session number>]
   if [[ "$2" == *:* ]]; then collect_session "$1" "${2%%:*}" "${2#*:}"; return 0; fi
+  refusal_collect "$1"   # cycle-133 C-8: a rerun-once trial's refused first attempt
   local jid="$1" k="$2" arm="${PL_ARM[$2]}" rid="${PL_RUN[$2]}" kind="${PL_KIND[$2]}" res="$JOBS_DIR/$1.result"
   if [[ ! -f "$res" ]]; then
     SPENT="$(fadd "$SPENT" "$(cap_for "$kind")")"; ASSUMED_CAP=$((ASSUMED_CAP + 1))

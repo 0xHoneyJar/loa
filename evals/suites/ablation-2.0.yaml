@@ -43,6 +43,16 @@
 # mount_cheval_ok (cycle-132 bd-56nn6): on every mounted arm whose gates run a dissent;
 #   pipeline-run.sh probes the sandbox's loa_cheval import before the first phase and refuses a
 #   broken mount on such an arm (KF-050).
+# refusal_policy (cycle-133 SDD C-8, PRD FR-8, bd-r9abp): exclude | keep | rerun-once per arm; absent = exclude
+#   (no arm sets it: every arm runs exclude, cycle-132's behaviour). What a row whose session fell back to another
+#   model on a safeguard refusal (KF-051) counts as: exclude — the row is invalid and leaves the denominator; keep —
+#   the row is valid, flagged and counted; rerun-once — the trial is relaunched once at the same plan index (both
+#   attempts kept and charged) and the second attempt's row is the cell when it has no fallback, else the cell is
+#   invalid. run-ablation.sh refuses another value, and any policy but exclude on a bare_sessions: matched arm, at
+#   pre-flight (exit 2) and records the policy per arm in MANIFEST.json refusal_policy before execution; ablation-row.sh
+#   (row writer 1.6) writes refusal_policy_applied, attempt, refusal_attempts, refusal_outcome, refusal_denominator
+#   and refusal_flagged, and --refusal-rate flags an arm whose refusal_rate is above 0.2. evals/harness/README.md
+#   § Refusal policy.
 # =============================================================================
 name: ablation-2.0
 version: 1

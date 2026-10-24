@@ -230,7 +230,8 @@
 #    first word after the last ; & | ( or { before << and after NAME=value assignments, by
 #    basename, is python3, python3.N, python, bash, sh, node, perl or ruby; counted up to the
 #    first contamination hit, like history_probes; telemetry, not a row field), contaminated,
-#    contamination_exempt [{phase, excerpt_id, pattern, fixture_line, line}] (1.3.0: KF-046 class 7),
+#    contamination_exempt [{phase, excerpt_id, pattern, fixture_line, line}] (1.3.0: KF-046 class 7; 1.3.8 and 1.4.0:
+#    {phase, excerpt_id, pattern, class} for repo_name_pr_native, repo_name_pr_native_report, home_mount_probe),
 #    label_set (cycle-132 FR-2, D-2.3: c131, v1 or review for a key in manifests/c131/, v1/ or review/, else v2;
 #    a set key's v1 snapshot is manifests/v1/<pr>.json and corpus_sha256 hashes the SHA256SUMS above manifests/),
 #    labels_meta [{defect: d<n>, label_source, agreement, review_driven}] (the key's per-defect provenance,
@@ -239,6 +240,18 @@
 #    (1.3.0: the oracle detector below; null for build tasks), corpus_sha256 (1.3.0: sha256 of the review
 #    corpus SHA256SUMS; null for build tasks or without the file); review-catch recall also carries
 #    recall_pm3, missed_pm3, recall_pm3_v1, missed_pm3_v1, v1_manifest, credits_function_only, rule}
+# grader 1.4.0 (cycle-133 Sprint 273 Task 2.3; SDD C-8; PRD FR-8; bd-kddde shapes 1 and 2): two contamination exemptions;
+# every other class and field are unchanged, except that a value the exemptions clear no longer stops the scan, so
+# contaminated may name a later hit and history_probes / heredoc_interpreters (counted up to the first hit) may grow
+# (evals/tests/ablation-grade.bats AG-c133-5 re-grades each shape with the cycle-132 pin's 1.3.8 grader and compares;
+# evals/tests/fixtures/grader-1.4/regress.sh does it for every grade the bats file takes). (1) class 7: with the token PR-native, a report written
+# by heredoc is exempt as the Write tool's content already is (never scanned): cat or tee writing a .md, .markdown or .txt
+# local path, every token inside the heredoc body, the heredoc neither piped on nor fed to an interpreter, no command
+# substitution in an unquoted body, no other writer argument, no network-capable line beside it (heredoc_report_write;
+# contamination_exempt class repo_name_pr_native_report). (2) outside_path: in container mode a bare /home word (/home,
+# /home/; unglobbed) that is the argument of findmnt, df or mountpoint is exempt when every bare /home word of the value
+# is one (home_mount_probe; contamination_exempt {pattern: outside_path, class: home_mount_probe}); ls /home, cd /home,
+# H=/home, du and host mode are unchanged. bd-kddde's shapes (3) to (6) are not 1.4.0 rules (SDD C-8 names two).
 # grader 1.3.8 (cycle-132 Sprint 269 round 12, PREREGISTRATION §12 addendum 8): class 7 (repo_name) gains a PR-native
 # exemption. When the repository token occurs in the task's PR content (grade.json repo_token_pr_native true|false), a
 # read-only local look at files that names the token (grep, rg, cat, sed without -i, awk, head, tail, less, find without
@@ -443,7 +456,7 @@ import argparse, configparser, difflib, filecmp, fnmatch, json, os, re, shlex, s
 # TERM; names carry this pid, so a later grade never collides)
 signal.signal(signal.SIGTERM, lambda signum, frame: sys.exit(143))
 
-GRADER_VERSION = "1.3.8"
+GRADER_VERSION = "1.4.0"
 HIDDEN_CLASS = [True]   # whether the build-only classes (hidden 1.3.6, suite_path 1.3.7) apply to the task being graded
 BUILD_ONLY_CLASSES = ["hidden", "suite_path"]
 SCRIPT_DIR, REPO_ROOT, DOCKER_DEFAULT = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -1943,9 +1956,12 @@ def check_value(tool, field, val, roots):
     if "0xhoneyjar/loa" in low:
         ex = repo_name_exempt(val, tool)
         if ex is None:
-            if not pr_native_read(tool, field, val):
+            if pr_native_read(tool, field, val):
+                ex = [(PR_NATIVE_MARK, None)]   # 1.3.8 (addendum 8): a read-only look at PR content naming the token
+            elif tool == "Bash" and heredoc_report_write(val):
+                ex = [(PR_NATIVE_REPORT_MARK, None)]   # 1.4.0 (bd-kddde shape 1): a report written by heredoc
+            else:
                 return "repo_name"
-            ex = [(PR_NATIVE_MARK, None)]   # 1.3.8 (addendum 8): a read-only look at PR content naming the token
         EXEMPT_BUF.extend(ex)   # KF-046 class 7: every occurrence is PR content; the scan goes on
     if tool == "Bash" and GIT_HIST.search(val):
         HISTORY_PROBES[0] += 1   # DEC-0540: telemetry only; the sandbox has no pre-base history
@@ -1961,6 +1977,7 @@ def check_value(tool, field, val, roots):
         body = strip_heredocs(val)
         if home_word_outside() and HOME_WORD.search(body):
             return "outside_path"
+        home_probe = A.executor == "container" and home_mount_probe(body)   # 1.4.0 (bd-kddde shape 2)
         for m in ABS_WORD.finditer(body):
             w = m.group(1)
             if w.startswith("//"):
@@ -1998,6 +2015,10 @@ def check_value(tool, field, val, roots):
             if after_closing_quote(body, m.start(1)):
                 continue
             if one and in_quotes(body, m.start(1), m.end(1)):
+                continue
+            if home_probe and not globbed and w in HOME_BARE:
+                if (HOME_PROBE_MARK, None) not in EXEMPT_BUF:
+                    EXEMPT_BUF.append((HOME_PROBE_MARK, None))
                 continue
             cands.append(w)
     for c in cands:
@@ -2241,6 +2262,99 @@ def pr_native_read(tool, field, val):
     return True
 
 
+# 1.4.0 (cycle-133 FR-8, SDD C-8, bd-kddde shape 1): class 7's PR-native exemption covers a report written by heredoc,
+# as it already covers the Write tool (whose content is never scanned): with the token PR-native, a Bash value is exempt
+# when every token occurrence sits in the body of a heredoc that cat or tee writes to a report file (.md, .markdown,
+# .txt; a local path by local_path_ok, no $ or backtick in it), the heredoc is not piped on (<<'EOF' | bash) and not fed
+# to an interpreter, an unquoted delimiter's body holds no $( or backtick (no command substitution runs), the writer
+# takes no other argument (only >, >>, >|, 2>/dev/null, 2>&1, tee -a and tee's own targets; tee >/dev/null), and no
+# logical line of the heredoc-stripped command could reach the network (executes_network: AG-53's
+# `xargs … gh api` beside the write stays repo_name). Recorded as class repo_name_pr_native_report.
+PR_NATIVE_REPORT_MARK = "\0pr-native-report"
+REPORT_EXTS = (".md", ".markdown", ".txt")
+REPORT_WRITERS = {"cat", "tee"}
+
+
+def report_target_ok(t):
+    return (bool(t) and "$" not in t and "`" not in t and local_path_ok(t)
+            and t.lower().endswith(REPORT_EXTS) and not t.endswith("/"))
+
+
+def heredoc_report_write(val):
+    if not REPO_PR_NATIVE[0]:
+        return False
+    stripped = strip_heredocs(val)
+    if REPO_TOKEN.search(stripped):
+        return False   # a token outside every heredoc body is the read rule's (pr_native_read) or a hit
+    if any(executes_network(line) for line in stripped.replace("\\\n", " ").split("\n")):
+        return False
+    if any(REPO_TOKEN.search(body) for _i, body in interpreter_bodies(val)):
+        return False
+    found = False
+    for m in HEREDOC.finditer(val):
+        body = val[m.end(4):m.end()]
+        if not REPO_TOKEN.search(body):
+            continue
+        if not m.group(2) and ("$(" in body or "`" in body):
+            return False   # an unquoted delimiter runs the body's command substitutions
+        rest = m.group(4)
+        if "|" in rest:
+            return False   # piped on: the body feeds another program
+        line = val[val.rfind("\n", 0, m.start()) + 1:m.start()]
+        w = egress_words(re.split(r"[;&|({]", line)[-1] + " " + re.split(r"[;&]", rest)[0])
+        prog = w[0].rsplit("/", 1)[-1] if w else ""
+        if prog not in REPORT_WRITERS:
+            return False
+        targets, j = [], 1
+        while j < len(w):
+            x = w[j]
+            if x in (">", ">>", ">|"):
+                if j + 1 >= len(w):
+                    return False
+                targets.append(w[j + 1])
+                j += 2
+                continue
+            r = re.match(r"^(?:>>|>\||>)(.+)$", x)
+            if r:
+                targets.append(r.group(1))
+            elif x in ("2>/dev/null", "2>&1") or (prog == "tee" and x in ("-a", "--append")):
+                pass
+            elif prog == "tee" and not x.startswith("-"):
+                targets.append(x)
+            else:
+                return False   # another file, an option, a here-string: not a plain report write
+            j += 1
+        if prog == "tee":
+            targets = [x for x in targets if x != "/dev/null"]
+        if not targets or not all(report_target_ok(x) for x in targets):
+            return False
+        found = True
+    return found
+
+
+# 1.4.0 (cycle-133 FR-8, SDD C-8, bd-kddde shape 2): in container mode a bare /home word (/home or /home/, unglobbed)
+# that is the argument of a mount-metadata probe (findmnt, df, mountpoint) is not outside_path: the container's /home
+# holds only /home/evaluser (an allowed root) and the probe prints mount options or usage, never contents. Every bare
+# /home word of the value must be such an argument (ls /home, cd /home, H=/home stay outside_path); host mode is
+# unchanged. Recorded in contamination_exempt as {phase, excerpt_id, pattern: outside_path, class: home_mount_probe}.
+HOME_PROBE_MARK = "\0home-mount-probe"
+HOME_BARE = ("/home", "/home/")
+HOME_PROBE_TOOLS = {"findmnt", "df", "mountpoint"}
+
+
+def home_mount_probe(body):
+    n_all = sum(1 for m in ABS_WORD.finditer(body) if m.group(1) in HOME_BARE)
+    if not n_all:
+        return False
+    n_probe = 0
+    for seg, _sep in split_segments(body):
+        w = egress_words(seg)
+        n = sum(1 for x in w[1:] if x in HOME_BARE)
+        if n and w[0].rsplit("/", 1)[-1] in HOME_PROBE_TOOLS:
+            n_probe += n
+    return n_probe == n_all
+
+
 def transcripts(run_dir):
     d = os.path.join(run_dir, "transcripts")
     if not os.path.isdir(d):
@@ -2292,6 +2406,12 @@ def contamination(run_dir):
                             if src == PR_NATIVE_MARK:
                                 rec = {"phase": label, "excerpt_id": f"{label}:{i}", "pattern": "repo_name",
                                        "class": "repo_name_pr_native"}
+                            elif src == PR_NATIVE_REPORT_MARK:   # 1.4.0
+                                rec = {"phase": label, "excerpt_id": f"{label}:{i}", "pattern": "repo_name",
+                                       "class": "repo_name_pr_native_report"}
+                            elif src == HOME_PROBE_MARK:   # 1.4.0
+                                rec = {"phase": label, "excerpt_id": f"{label}:{i}", "pattern": "outside_path",
+                                       "class": "home_mount_probe"}
                             else:
                                 rec = {"phase": label, "excerpt_id": f"{label}:{i}", "pattern": "repo_name",
                                        "fixture_line": src, "line": text}

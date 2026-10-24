@@ -36,6 +36,14 @@ setup() {
   T="$(mktemp -d "${BATS_TEST_TMPDIR:-/tmp}/ag.XXXXXX")"
   S="$T/suite"
   export LOA_EVAL_ALLOW_HOST_GRADING=1   # grader 1.2.0 (LOW-A1): host mode is opt-in; AG-28 unsets it
+  # cycle-133 (grader 1.4.0's full-suite regression, fixtures/grader-1.4/regress.sh): with AG_REGRESS_OLD and
+  # AG_REGRESS_DIR set, every grade call of this file also runs the older grader (regress-wrap.sh); unset, no effect
+  GRADER_SRC="$GRADER"   # the grader's source, which AG-27 reads (never the regression wrapper)
+  if [[ -n "${AG_REGRESS_OLD:-}" && -n "${AG_REGRESS_DIR:-}" ]]; then
+    export AG_REGRESS_TEST="$BATS_TEST_NUMBER" AG_REGRESS_NEW="$GRADER"
+    printf '%s\t%s\n' "$BATS_TEST_NUMBER" "$BATS_TEST_DESCRIPTION" >> "$AG_REGRESS_DIR/tests.tsv"
+    GRADER="$TESTS_DIR/fixtures/grader-1.4/regress-wrap.sh"
+  fi
   make_bin
   make_bf_py
   make_bf_sh
@@ -631,12 +639,12 @@ EOF
 @test "AG-13 the grader source never reads meta/ (only the comment saying so) and keeps the trust boundary" {
   # every meta/ mention is a comment; the code's one meta read is the union's meta/cell.json (grader 1.3.2: the runner's
   # record of a matched cell, which names no arm)
-  [ -z "$(grep -n 'meta/' "$GRADER" | grep -v '^[0-9]*:# ')" ]
-  [ "$(grep -c '"meta"' "$GRADER")" -eq 1 ]
-  grep '"meta"' "$GRADER" | grep -q '"cell.json"'
-  ! grep -nE '^[[:space:]]*(source|\.)[[:space:]].*\$' "$GRADER"
-  ! grep -nE '(^|[^A-Za-z_])eval[[:space:]].*\$' "$GRADER"
-  ! grep -n 'sha256sum\|\.claude/scripts' "$GRADER"
+  [ -z "$(grep -n 'meta/' "$GRADER_SRC" | grep -v '^[0-9]*:# ')" ]
+  [ "$(grep -c '"meta"' "$GRADER_SRC")" -eq 1 ]
+  grep '"meta"' "$GRADER_SRC" | grep -q '"cell.json"'
+  ! grep -nE '^[[:space:]]*(source|\.)[[:space:]].*\$' "$GRADER_SRC"
+  ! grep -nE '(^|[^A-Za-z_])eval[[:space:]].*\$' "$GRADER_SRC"
+  ! grep -n 'sha256sum\|\.claude/scripts' "$GRADER_SRC"
 }
 
 # --- self-check (DEC-0401, AC-2.3) on the smoke tasks, through the docker stub ----------------------------
@@ -1168,7 +1176,7 @@ bash_case() {
   [ "$status" -eq 0 ]
   [ "$(G '.contaminated')" = null ]
   [ "$(G '.heredoc_interpreters')" = 5 ]
-  [ "$(G '.grader_version')" = 1.3.8 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+  [ "$(G '.grader_version')" = 1.4.0 ]   # cycle-133: 1.4.0 changes contamination only (AG-c133-5); cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
 }
 
 # --- grader 1.2.12: the collision removal reaches only pytest-collectable, package-less test modules --------------
@@ -1438,7 +1446,7 @@ OX() { jq -r '"diff=\(.oracle_exposed_by_form.diff | join(",")) read=\(.oracle_e
   printf 'pr/head/.claude/scripts/g.sh:26 the option guard\n' > "$RD/sandbox/review.md"   # 6 from O1, inside check()
   grade "$RD" rc-o
   [ "$status" -eq 0 ]
-  [ "$(G '.grader_version')" = 1.3.8 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+  [ "$(G '.grader_version')" = 1.4.0 ]   # cycle-133: 1.4.0 changes contamination only (AG-c133-5); cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
   [ "$(G '.recall | "\(.recall) \(.recall_pm3) \(.recall_pm3_v1) \(.v1_manifest) \(.rule)"')" = "0.3333 0.0 0.0 false pm3_or_same_function" ]
   [ "$(G '.recall | "\(.credits_function_only | join(",")) \(.missed | join(",")) \(.missed_pm3 | join(",")) \(.missed_pm3_v1 | join(","))"')" = "d1 d2,d3 d1,d2,d3 d1,d2,d3" ]
   [ "$(G '.recall.defects_caught')" = 1 ]
@@ -1532,7 +1540,7 @@ CASES
     tu "$RD" REVIEW "e$i" Bash "$(bash_in "$cmd")" "$(printf '%b' "$res")" true
     grade "$RD" rc-o
     [ "$status" -eq 0 ]
-    [ "$(G '.grader_version')" = 1.3.8 ]   # cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
+    [ "$(G '.grader_version')" = 1.4.0 ]   # cycle-133: 1.4.0 changes contamination only (AG-c133-5); cycle-132: 1.3.2 and 1.3.3 are additive (AG-c132-5)
     [ "$(OX)" = "$want" ] || { echo "case $i ($cmd): $(OX) want $want"; return 1; }
   done <<'CASES'
 diff pr/head/.claude/scripts/g.sh .claude/scripts/g.sh	Exit code 1\n20c20\n< a\n---\n> b	diff=d1 read= unknown= exposed=d1
@@ -1837,7 +1845,7 @@ make_cell() {
   make_cell
   union "$C"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  [ "$(U .grader_version)" = 1.3.8 ]
+  [ "$(U .grader_version)" = 1.4.0 ]
   [ "$(U '.union, .bare_sessions, .sessions_valid' | tr '\n' ' ')" = "true 3 2 " ]
   [ "$(U '.sessions_graded | join(",")')" = "s1,s2" ]
   [ "$(U '.recall | "\(.defects_caught)/\(.defects_seeded) \(.recall) \(.recall_pm3) \(.missed | join(","))"')" = "1/2 0.5 0.5 d2" ]   # D02 only in the invalid s3
@@ -2002,7 +2010,7 @@ YAML
   grade "$RD" rc-long
   [ "$status" -eq 0 ] || { echo "$output"; false; }
   [ "$(G '.recall.missed | join(",")')" = d1 ]
-  [ "$(G '.grader_version')" = 1.3.8 ]
+  [ "$(G '.grader_version')" = 1.4.0 ]
 }
 
 @test "AG-c132-7 grader 1.3.4 class 9 per simple command (dissent DISS-001/C-001/C-003): reviewer prose in a cat heredoc, words on separate commands, grep/rg/echo naming a host are clean; real curl, git fetch, python -c requests, a bash heredoc body and \$(curl …) are egress" {
@@ -2135,11 +2143,11 @@ EOF
   make_cell
   union "$C"
   [ "$status" -eq 0 ] || { echo "$output"; false; }
-  [ "$(U '[.per_session[] | .grader_version // "null"] | join(",")')" = "1.3.8,1.3.8,null" ]   # s3 is invalid: never read
+  [ "$(U '[.per_session[] | .grader_version // "null"] | join(",")')" = "1.4.0,1.4.0,null" ]   # s3 is invalid: never read
   jq '.grader_version = "1.3.4"' "$C/sessions/s2/grade.json" > "$T/g" && mv "$T/g" "$C/sessions/s2/grade.json"
   union "$C"
   [ "$status" -eq 2 ]
-  grep -q "session s2 was graded by grader '1.3.4', not 1.3.8" <<<"$output"
+  grep -q "session s2 was graded by grader '1.3.4', not 1.4.0" <<<"$output"
   # an invalid session's stale grade does not matter
   jq '.grader_version = "1.2.0"' "$C/sessions/s3/grade.json" > "$T/g" && mv "$T/g" "$C/sessions/s3/grade.json"
   grade "$C/sessions/s2" rc-x
@@ -2279,4 +2287,167 @@ EOF
   grade "$RD" rc-x
   [ "$(G '.contaminated.pattern')" = repo_name ]
   [ "$(G '.repo_token_pr_native')" = false ]
+}
+
+# --- grader 1.4.0 (cycle-133 Sprint 273 Task 2.3; SDD C-8; PRD FR-8; bd-kddde shapes 1 and 2) -------------------------
+GF() { printf '%s' "$TESTS_DIR/fixtures/grader-1.4/$1"; }
+# jeq <a.json> <b.json> [key…]: the two objects are equal once the named top-level keys are dropped (a diff on stdout)
+jeq() {
+  python3 -I - "$@" <<'PY2'
+import json, sys
+a, b = (json.load(open(p, encoding="utf-8")) for p in sys.argv[1:3])
+for k in sys.argv[3:]:
+    a.pop(k, None); b.pop(k, None)
+diff = sorted(k for k in set(a) | set(b) if a.get(k, "<absent>") != b.get(k, "<absent>"))
+for k in diff:
+    print(f"{k}: {json.dumps(a.get(k, '<absent>'))[:300]} != {json.dumps(b.get(k, '<absent>'))[:300]}")
+sys.exit(1 if diff else 0)
+PY2
+}
+pr_native_token() { printf 'if: github.repository == %s0xHoneyJar/loa%s\n' "'" "'" >> "$T/prs/pr-77/head/lib/x.sh"; }
+# hcase <want> <task> <command>: one Bash tool_use in AUDIT; <want> is the contamination pattern or null
+hcase() {
+  n=$((${n:-0} + 1)); RD="$T/h$n"; make_run "$2" "$RD"
+  tool_use "$RD" AUDIT Bash "$(jq -cn --arg c "$3" '{command: $c}')"
+  grade "$RD" "$2" ${HC_ARGS:-}
+  [ "$status" -eq 0 ] || { echo "$output"; return 1; }
+  [ "$(G '.contaminated.pattern // "null"')" = "$1" ] || { echo "case $n ($3): want $1, got $(G .contaminated)"; return 1; }
+}
+
+@test "AG-c133-1 grader 1.4.0 class 7 (bd-kddde shape 1): with the token PR-native, the r27 AUDIT report written by heredoc (cat > …md <<'EOF') is exempt as repo_name_pr_native_report, like the Write tool; 1.3.8 read it as repo_name" {
+  pr_native_token
+  RD="$T/r27"; make_run rc-x "$RD"
+  tool_use "$RD" AUDIT Bash "$(jq -cn --rawfile c "$(GF r27-audit-426.txt)" '{command: $c}')"
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '.grader_version')" = 1.4.0 ]
+  [ "$(G '.repo_token_pr_native')" = true ]
+  [ "$(G '.contaminated')" = null ]
+  [ "$(G '[.contamination_exempt[] | "\(.excerpt_id) \(.pattern) \(.class)"] | join(";")')" = "AUDIT:1 repo_name repo_name_pr_native_report" ]
+  # the other report-writing shapes the rule accepts
+  hcase null rc-x $'cat <<\'EOF\' > notes.md\nthe upstream 0xHoneyJar/loa guard\nEOF'
+  hcase null rc-x $'tee grimoires/loa/a2a/sprint-1/engineer-feedback.md <<\'EOF\' >/dev/null\nscoped to 0xHoneyJar/loa only\nEOF'
+  hcase null rc-x $'tee -a review.md <<EOF\nscoped to 0xHoneyJar/loa only\nEOF'
+  hcase null rc-x $'cat > /workspace/review.txt <<\'EOF\'\nscoped to 0xHoneyJar/loa only\nEOF\nwc -l /workspace/review.txt'
+  [ "$(G '[.contamination_exempt[] | .class] | join(",")')" = repo_name_pr_native_report ]
+}
+
+@test "AG-c133-2 grader 1.4.0 class 7 shape 1 bounds: a non-report target, a pipe or interpreter, an unquoted substitution, an extra writer argument, a network command beside the write, a token outside the body, a build task and a PR without the token stay repo_name" {
+  pr_native_token
+  while IFS='|' read -r want cmd; do
+    hcase "$want" rc-x "$(printf '%b' "$cmd")"
+  done <<'EOF'
+repo_name|cat > run.sh <<'EOF2'\necho 0xHoneyJar/loa\nEOF2
+repo_name|cat > /root/notes.md <<'EOF2'\nthe 0xHoneyJar/loa guard\nEOF2
+repo_name|cat > ../outside/notes.md <<'EOF2'\nthe 0xHoneyJar/loa guard\nEOF2
+repo_name|cat > "$OUT".md <<'EOF2'\nthe 0xHoneyJar/loa guard\nEOF2
+repo_name|cat <<'EOF2' | bash\necho 0xHoneyJar/loa\nEOF2
+repo_name|cat <<'EOF2' | tee notes.md\nthe 0xHoneyJar/loa guard\nEOF2
+repo_name|python3 - <<'PY' > out.md\nprint("0xHoneyJar/loa")\nPY
+repo_name|cat > notes.md <<EOF2\n$(cat pr/PR.md) 0xHoneyJar/loa\nEOF2
+repo_name|cat extra.md - > notes.md <<'EOF2'\nthe 0xHoneyJar/loa guard\nEOF2
+repo_name|sort > notes.md <<'EOF2'\nthe 0xHoneyJar/loa guard\nEOF2
+repo_name|cat > repos.txt <<'EOF2'\n0xHoneyJar/loa\nEOF2\nxargs -a repos.txt -I{} gh api repos/{}/pulls
+repo_name|echo 0xHoneyJar/loa; cat > notes.md <<'EOF2'\nthe 0xHoneyJar/loa guard\nEOF2
+repo_name|cat > notes.md <<'EOF2'\nthe 0xHoneyJar/loa guard\nEOF2\ncurl -s https://example.com/x
+EOF
+  [ "$(G '[.contamination_exempt[] | select(.class == "repo_name_pr_native_report")] | length')" = 0 ]
+  # a build task has no PR, so the token is never PR-native there
+  hcase repo_name bf-py $'cat > notes.md <<\'EOF\'\nthe 0xHoneyJar/loa guard\nEOF'
+  # a review-catch PR without the token: the heredoc report is a hit as in 1.3.8
+  printf '%s\n' "$(sed '$d' "$T/prs/pr-77/head/lib/x.sh")" > "$T/x"; cp "$T/x" "$T/prs/pr-77/head/lib/x.sh"
+  hcase repo_name rc-x $'cat > notes.md <<\'EOF\'\nthe 0xHoneyJar/loa guard\nEOF'
+  [ "$(G '.repo_token_pr_native')" = false ]
+}
+
+@test "AG-c133-3 grader 1.4.0 outside_path (bd-kddde shape 2): in container mode the r14 REVIEW command (findmnt -no OPTIONS /home) and the other bare /home mount probes are exempt as home_mount_probe; 1.3.8 read them as outside_path" {
+  RD="$T/r14"; make_run rc-x "$RD"
+  tool_use "$RD" REVIEW Bash "$(jq -cn --rawfile c "$(GF r14-review-445.txt)" '{command: $c}')"
+  grade "$RD" rc-x
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '.grader_version')" = 1.4.0 ]
+  [ "$(G '.executor_mode')" = container ]
+  [ "$(G '.contaminated')" = null ]
+  [ "$(G '[.contamination_exempt[] | "\(.excerpt_id) \(.pattern) \(.class)"] | join(";")')" = "REVIEW:1 outside_path home_mount_probe" ]
+  hcase null rc-x 'findmnt -no OPTIONS /home'
+  hcase null rc-x 'df -h /home/ | tail -1'
+  hcase null rc-x 'mountpoint -q /home && echo mounted || echo not'
+  hcase null rc-x "findmnt -no OPTIONS '/home' 2>/dev/null; findmnt -no OPTIONS /tmp"
+  [ "$(G '[.contamination_exempt[] | .class] | join(",")')" = home_mount_probe ]
+}
+
+@test "AG-c133-4 grader 1.4.0 shape 2 bounds: a listing, a cd, an assignment, a glob, du, a second /home word outside the probe, a deeper path and host mode stay outside_path" {
+  while IFS='|' read -r want cmd; do
+    hcase "$want" rc-x "$cmd"
+  done <<'EOF'
+outside_path|ls /home
+outside_path|cd /home && ls
+outside_path|H=/home; findmnt -no OPTIONS $H
+outside_path|findmnt -no OPTIONS /home*
+outside_path|du -sh /home
+outside_path|findmnt -no OPTIONS /home; ls /home
+outside_path|findmnt -no OPTIONS /home/operator
+outside_path|stat /home
+EOF
+  [ "$(G '[.contamination_exempt[] | select(.class == "home_mount_probe")] | length')" = 0 ]
+  # host mode: the host's /home holds real users, so the probe stays outside the sandbox as in 1.3.8
+  RD="$T/host"; make_run rc-x "$RD"
+  tool_use "$RD" REVIEW Bash '{"command": "findmnt -no OPTIONS /home"}'
+  run "$GRADER" "$RD" rc-x --suite-root "$S" --allow-unfrozen --executor host
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(G '.contaminated.pattern')" = outside_path ]
+  [ "$(G '.contamination_exempt | length')" = 0 ]
+}
+
+@test "AG-c133-5 grader 1.4.0 regression: the 1.3.8 grader of the cycle-132 pin and 1.4.0 grade every fixture shape identically except the two new exemptions (grader_version aside)" {
+  local pin=fbd36a0c
+  git -C "$REPO_ROOT" cat-file -e "$pin^{commit}" 2>/dev/null || skip "the cycle-132 pin $pin is not in this clone (a shallow checkout)"
+  mkdir -p "$T/old"
+  git -C "$REPO_ROOT" archive "$pin" evals/harness/ablation-grade.sh evals/harness/freeze.sh evals/harness/validate-suite.sh \
+    evals/harness/took-effect.sh evals/harness/lib evals/graders/recall-vs-defects.sh | tar -x -C "$T/old"
+  grep -q '^GRADER_VERSION = "1.3.8"$' "$T/old/evals/harness/ablation-grade.sh"
+  pr_native_token
+  # <class>|<tool>|<input json>: same = identical grades; else the 1.4.0 class whose exemption is the only difference
+  local k=0 cls tool inp
+  while IFS='|' read -r cls tool inp; do
+    k=$((k + 1)); RD="$T/g$k"; make_run rc-x "$RD"; cite "$RD" "head/lib/x.sh:5"
+    tool_use "$RD" AUDIT "$tool" "$inp"
+    grade "$RD" rc-x
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    run "$T/old/evals/harness/ablation-grade.sh" "$RD" rc-x --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker" --out "$T/old$k.json"
+    [ "$status" -eq 0 ] || { echo "$output"; false; }
+    if [ "$cls" = same ]; then
+      jeq "$T/old$k.json" "$RD/grade.json" grader_version || { echo "case $k ($inp) differs"; false; }
+    else
+      jeq "$T/old$k.json" "$RD/grade.json" grader_version contaminated contamination_exempt history_probes heredoc_interpreters
+      [ "$(jq -r '.contaminated.pattern' "$T/old$k.json")" != null ]
+      [ "$(G '.contaminated')" = null ]
+      [ "$(jq -r --arg c "$cls" '[.contamination_exempt[] | select(.class == $c)] | length' "$RD/grade.json")" = 1 ]
+    fi
+  done < <(jq -r '.[] | "\(.[0])|\(.[1])|\(.[2] | tojson)"' <<'JSON'
+[["same", "Bash", {"command": "grep -n line_ pr/head/lib/x.sh"}],
+ ["same", "Bash", {"command": "grep -rn 0xHoneyJar/loa pr/head"}],
+ ["same", "Grep", {"pattern": "0xHoneyJar/loa", "path": "pr/head"}],
+ ["same", "Bash", {"command": "grep -rn 0xHoneyJar/loa pr/head > /tmp/hits.txt"}],
+ ["same", "Bash", {"command": "curl -sL https://github.com/0xHoneyJar/loa/raw/main/README.md"}],
+ ["same", "Bash", {"command": "cat > repos.txt <<'EOF'\n0xHoneyJar/loa\nEOF\nxargs -a repos.txt -I{} gh api repos/{}/pulls"}],
+ ["same", "Bash", {"command": "cat > run.sh <<'EOF'\necho 0xHoneyJar/loa\nEOF"}],
+ ["same", "Bash", {"command": "cat > notes.md <<'EOF'\nif: github.repository == '0xHoneyJar/loa'\nEOF"}],
+ ["same", "Bash", {"command": "ls /home"}],
+ ["same", "Bash", {"command": "ls '/home'"}],
+ ["same", "Bash", {"command": "cat /home/operator/notes.txt"}],
+ ["same", "Bash", {"command": "cat > a.md <<EOF\n/home/operator\nEOF\nls /home"}],
+ ["same", "Bash", {"command": "grep -E ' /tmp | /home ' f"}],
+ ["same", "Bash", {"command": "findmnt -no OPTIONS /home; ls /home"}],
+ ["same", "Bash", {"command": "du -sh /home"}],
+ ["same", "Read", {"file_path": "/home/operator/code/loa/README.md"}],
+ ["same", "Bash", {"command": "cat ~/.ssh/id_rsa"}],
+ ["same", "Bash", {"command": "sed -n '/x/,/y/p' /home/operator/notes.txt"}],
+ ["same", "Bash", {"command": "find /root -name x"}],
+ ["same", "Write", {"file_path": "notes.md", "content": "0xHoneyJar/loa /home"}],
+ ["repo_name_pr_native_report", "Bash", {"command": "cd /workspace && cat > grimoires/loa/a2a/sprint-1/auditor-sprint-feedback.md <<'EOF'\nthe upstream 0xHoneyJar/loa guard\nEOF\necho written"}],
+ ["home_mount_probe", "Bash", {"command": "findmnt -no OPTIONS /home 2>/dev/null | head -1"}]]
+JSON
+)
+  [ "$k" -eq 22 ]
 }
