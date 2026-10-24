@@ -36,3 +36,26 @@ One limit is accepted. The relaunch runs in its trial's slot without a second bu
 `refusal_denominator` is the refusal policy's verdict alone. Every other exclusion rule of the pre-registration still applies to the row.
 
 **The rate.** `ablation-row.sh --refusal-rate runs.jsonl` prints, per arm, the rows, the refused rows and `refusal_rate = refused / rows`. A refused row is one whose `refusal_outcome` is not `none`, so a clean relaunch still counts as a refusal. Rows from before 1.6 count by their phase records. An arm above 0.2 is flagged with one stderr line.
+
+## Pipeline version (cycle-133 Sprint 273 pin)
+
+The intermediate pipeline version after Sprint 273 (sdd.md § 7.3; sprint.md Task 2.5) is **the commit that lands this
+section** — recorded with its tree hash in `grimoires/loa/decisions.yaml` (DEC-0906) and named by the Sprint 274 smoke
+and by `evals/analysis/c132/reproduce.sh --pin` for runs made at it. Later docs-only commits do not invalidate it; a
+change under `evals/harness`, `evals/suites`, `evals/graders`, `evals/fixtures` or `evals/analysis` does.
+
+| Component | Value |
+|---|---|
+| sandbox image | `loa-ablation:259` — `sha256:61e88d02d78519f3ecf20fc3bc162cc1b7a56cd927673ce9d94a7fdb78246dbb` (built from `evals/harness/Dockerfile.ablation` on 2026-10-24) |
+| proxy image | `loa-egress-proxy:259` — `sha256:10fc90b6e85ace444896ed01985a1c6c04b57c1cd8f162f99558a60151bba274` (`evals/harness/Dockerfile.proxy`) |
+| Claude Code in the image | `2.1.299` (label `org.loa.claude_code_version`, `/etc/loa-claude-code-version`) |
+| grader | 1.4.0 (`ablation-grade.sh`) · row writer 1.6 (`ablation-row.sh`) · session library `lib/session-exec.sh` (one copy) |
+| egress block | `lib/egress-proxy.sh` + the suite's `egress` key (every arm `blocked`); allowlist from `.claude/defaults/model-config.yaml` `egress_hosts[]` (10 hosts for the default providers and region) |
+| self-check | `grimoires/loa/reports/ablation-2.0/self-check-c133.txt` — 49 checks PASS, 0 FAIL: a CONNECT probe per allowlisted host (no credential, no completion token) and every denial case, attribution and the sidecar's netfilter, run on 2026-10-24 against the two images above |
+| egress suite | `evals/tests/egress-proxy.bats` EP-1 … 8, EGR-1 … 12 — 20/20 on this host (`~/.cache/loa/cycle-133/tests/s2d2-egress-bats.log`); the release gate for the Sprint 274 smoke |
+| supervisor | `lib/batch-supervisor.sh` (`run-ablation.sh --supervised`) |
+
+A live batch at this pin: `egress-proxy.sh allowlist > hosts; egress-proxy.sh up <batch> hosts; egress-proxy.sh
+self-check <batch> --image loa-ablation:259; LOA_EVAL_EGRESS_NETWORK=loa-egress-<batch> run-ablation.sh … --image
+loa-ablation:259 [--supervised]`; `egress-proxy.sh down <batch> --log-dir <dir>` afterwards. Sprint 274 Task 3.4
+completes this README (mount modes, the egress threat model, batch operations, exit codes).
