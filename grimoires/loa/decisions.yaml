@@ -30455,3 +30455,713 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0909"
+    created_at: "2026-10-24T09:45:23Z"
+    updated_at: "2026-10-24T09:45:23Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "External fixture: base/ is the PR merge base, head/ the PR head, the fix diff is fix^..fix; head (or its merge commit) must be an ancestor of fix^."
+    decision: "seed-corpus-from-external.sh builds base/ from the PR merge base and head/ from the PR head; the fix diff is fix^..fix (for a range, first^..last inclusive); the relation checked is that the PR head, or the merge commit for squash merges, is an ancestor of fix^ or equal to it."
+    rationale: "PRD FR-12 says head.diff is the PR. Reading base/ as fix^ literally would make head.diff something other than the PR, so the merge base is the only base that keeps the fixture a PR fixture."
+    alternatives_considered:
+      - option: "base/ = fix^ literally, as the sprint text can be read"
+        rejected_because: "head.diff would then not be the PR diff, contradicting FR-12"
+    consequences:
+      positive:
+        - "an external fixture has the same shape as a record fixture (PR base, PR head, fix)"
+      negative:
+        - "a fix far from the PR head carries hunks through the head-to-fix^ diff; homeless hunks are listed as dropped"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-c.md § Judgment calls (base/ and fix^)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:45:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "08843c515"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0910"
+    created_at: "2026-10-24T09:45:26Z"
+    updated_at: "2026-10-24T09:45:26Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Every external-seeder refusal exits 2 with a distinct named reason (sdd § 5.4); no per-reason exit codes."
+    decision: "All refusals of seed-corpus-from-external.sh exit 2 and print one named reason; the sdd § 5.2 row that says 1 for refused is overridden by § 5.4."
+    rationale: "sdd § 5.4 forbids distinct exit codes per reason so callers branch on the reason text, not a code table that drifts."
+    alternatives_considered:
+      - option: "distinct exit codes per refusal class"
+        rejected_because: "forbidden by sdd § 5.4"
+      - option: "exit 1 per the § 5.2 row"
+        rejected_because: "§ 5.4 overrides § 5.2 for refusals"
+    consequences:
+      positive:
+        - "one contract for every caller"
+      negative:
+        - "callers that need the class must parse the reason text"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-c.md § Judgment calls (One exit code for all refusals)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:45:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "08843c515"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0911"
+    created_at: "2026-10-24T09:45:29Z"
+    updated_at: "2026-10-24T09:45:29Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The C-4 credential classes live in .claude/scripts/lib/secret-classes.sh, shared by record-branch.sh and the external seeder; Python callers use its CLI mode."
+    decision: "The eight credential classes, the placeholder filter and the password-assignment parser moved verbatim out of record-branch.sh into .claude/scripts/lib/secret-classes.sh; record-branch.sh and seed-corpus-from-external.sh source it, and Python callers invoke its CLI mode. Golden hit lists pin the behaviour."
+    rationale: "A mounted install has no evals/ directory, so a library under evals/ could not serve record-branch.sh; one home avoids two drifting copies."
+    alternatives_considered:
+      - option: "a copy of the classes under evals/harness/lib"
+        rejected_because: "mounted installs have no evals/, and two copies drift"
+      - option: "leave the classes inline in record-branch.sh and duplicate them in the seeder"
+        rejected_because: "drift between the two scanners"
+    consequences:
+      positive:
+        - "one scanner for public branches and external fixtures"
+      negative:
+        - "record-branch.sh was edited outside implementer C's named file list (lead-approved)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-c.md § Judgment calls (Shared scanner home)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:45:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "08843c515"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0912"
+    created_at: "2026-10-24T09:45:32Z"
+    updated_at: "2026-10-24T09:45:32Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "lib/corpus-seed.sh carries its Python as shell-variable source fed to python3 -I - per entry point, not a .py module."
+    decision: "The shared seeding library is a sourceable shell file holding the Python source in a variable; each main is fed to python3 -I on stdin. A transcript-golden test proves seed-corpus-from-record.sh byte-identical in every mode."
+    rationale: "The sdd names lib/corpus-seed.sh, and python3 -I blocks module imports from the script directory, so a .py module would need an import path the harness forbids."
+    alternatives_considered:
+      - option: "a Python module imported by both seeders"
+        rejected_because: "python3 -I blocks the import path and the sdd names a shell library"
+    consequences:
+      positive:
+        - "the record seeder is unchanged byte for byte"
+      negative:
+        - "Python inside a shell variable is harder to lint"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-c.md § Judgment calls (Library shape)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:45:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "08843c515"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0913"
+    created_at: "2026-10-24T09:45:35Z"
+    updated_at: "2026-10-24T09:45:35Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "External seeder: blob sizes from the GitHub trees API matched to the clone's oids; archive from a synthesized tree of exactly the checked entries."
+    decision: "Sizes are read from the git/trees API before any blob fetch; every entry must match the blobless clone's oid and mode and a truncated listing refuses. Blobs are fetched in one promisor batch with fetch.negotiationAlgorithm=noop. The fixture tree is archived from a tree built in a temporary index from exactly the checked entries, so git archive reads nothing outside them; every member is verified by blob id."
+    rationale: "GIT_NO_LAZY_FETCH=1 git ls-tree -l prints BAD for missing blobs in a blobless clone; git archive with a pathspec still reads blobs outside it; default negotiation fails GitHub's connectivity check for promisor fetches."
+    alternatives_considered:
+      - option: "git ls-tree -l on the blobless clone for sizes"
+        rejected_because: "prints BAD for blobs not yet fetched"
+      - option: "git archive <commit> -- <paths>"
+        rejected_because: "reads blobs outside the pathspec and applies export-subst"
+    consequences:
+      positive:
+        - "no oversized or unexpected blob is ever fetched"
+      negative:
+        - "depends on the trees API being reachable"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-c.md § Judgment calls (Sizes from the GitHub trees API; Archive a synthesized tree; Batch fetch)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:45:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "08843c515"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0914"
+    created_at: "2026-10-24T09:45:38Z"
+    updated_at: "2026-10-24T09:45:38Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "External fixture size limits cover only the fetched blobs (PR files at base/head, fix files at fix^/fix, root licence/manifest), not the whole tree."
+    decision: "Limits are checked over the fetched set only. A fix that touches no PR file refuses; fix hunks are carried to head/ lines through the head-to-fix^ diff and hunks with no head place are listed as dropped."
+    rationale: "Applying the limits to the whole repository tree would refuse every large repository with a small PR, which is most public candidates."
+    alternatives_considered:
+      - option: "limits over the whole repository tree"
+        rejected_because: "refuses every large repository with a small PR"
+      - option: "accept a fix touching no PR file"
+        rejected_because: "the fixture would seed defects the PR cannot contain"
+    consequences:
+      positive:
+        - "large public repositories are usable as fixtures"
+      negative:
+        - "a fixture never sees files outside the PR and fix"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-c.md § Judgment calls (Limits scope; Fix must touch the PR)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:45:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "08843c515"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0915"
+    created_at: "2026-10-24T09:45:40Z"
+    updated_at: "2026-10-24T09:45:40Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Licence: outside the SPDX allowlist refuses; without --commit-trees an allowlisted licence yields a fetch manifest only; conflicts are judged by licence family."
+    decision: "The licence comes from the GitHub license API and is matched against the SPDX allowlist. Outside the allowlist always refuses. Without --commit-trees an allowlisted licence yields a fetch manifest with hashes and no third-party bytes; with it LICENSE and NOTICE and a THIRD-PARTY.tsv attribution row are committed. A manifest-vs-API conflict is judged by licence family."
+    rationale: "The PRD offered refusal for non-allowlisted licences and that is the safer reading; exact SPDX matching would falsely conflict on keras' pyproject text 'Apache License 2.0'."
+    alternatives_considered:
+      - option: "keep a fetch-only fixture for a non-allowlisted licence"
+        rejected_because: "the PRD's refused option was taken; no third-party bytes of unknown licence enter the repo"
+      - option: "exact SPDX string matching for conflicts"
+        rejected_because: "false conflicts on free-text licence names"
+    consequences:
+      positive:
+        - "no third-party bytes land without an allowlisted licence and attribution"
+      negative:
+        - "candidates with unusual licences are unusable"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-c.md § Judgment calls (Licence policy)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:45:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "08843c515"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0916"
+    created_at: "2026-10-24T09:45:43Z"
+    updated_at: "2026-10-24T09:45:43Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Any C-4 scanner hit, password class included, refuses an external fixture; external code is never redacted."
+    decision: "The external seeder refuses on any scanner hit instead of redacting as the record seeder does."
+    rationale: "External code is not ours to rewrite; a redacted third-party file would misrepresent the upstream PR."
+    alternatives_considered:
+      - option: "redact hits as the record seeder does"
+        rejected_because: "rewrites third-party code and misrepresents the upstream PR"
+    consequences:
+      positive:
+        - "no credential-shaped string from a public repository enters the fixture"
+      negative:
+        - "a candidate with a test-fixture password string is unusable"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-c.md § Judgment calls (What the scan does)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:45:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "08843c515"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0917"
+    created_at: "2026-10-24T09:45:46Z"
+    updated_at: "2026-10-24T09:45:46Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "registration v2 looks_seen: inventory-id looks, strictly ordered; every committed look listed at build; self/successor refs refused; v2 only with the flag."
+    decision: "registration.py build --looks-seen writes schema_version 2 with looks_root and looks_seen. A look is the inventory id c<N>-looks/<dir>, ordered by (N, index, suffix last). An unlisted committed look is allowed only if it was read under this registration or a successor, and at build time every committed look must be listed; a look is committed when git ls-files tracks it and its inputs.rows_sha256 matches. Self or successor references are refused. Without the flag the build is v1 byte for byte."
+    rationale: "look-1 and look-1-amended share index 1, so the index alone cannot name a look; completeness at build time is what makes looks_seen a pre-registration rather than a recollection; v1 identity keeps the eighteen cycle-132 registrations verifying unchanged."
+    alternatives_considered:
+      - option: "look ids by index only"
+        rejected_because: "look-1 and look-1-amended collide"
+      - option: "always write v2"
+        rejected_because: "the eighteen cycle-132 registrations would no longer verify byte for byte"
+    consequences:
+      positive:
+        - "a registration names every look its author had seen"
+      negative:
+        - "a forgotten committed look fails the build until listed"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-c.md § Judgment calls (What look is; Completeness rule; Schema bump; Self-reference)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:45:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "08843c515"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0918"
+    created_at: "2026-10-24T09:45:49Z"
+    updated_at: "2026-10-24T09:45:49Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Generated external labels hold only fix rows with approved-by pending; corpus.tsv kind is external or external-fetch; provenance in external/pr-NN.json."
+    decision: "Labels for an external fixture carry only fix rows marked approved-by: pending because the defects come from blind annotation later; corpus.tsv records kind external, or external-fetch when trees are not committed; provenance goes to external/pr-NN.json and attribution to THIRD-PARTY.tsv."
+    rationale: "No defect may be asserted before blind annotation; the kind column lets the grader and reads tell fetched fixtures from committed ones."
+    alternatives_considered:
+      - option: "derive defect labels from the fix diff automatically"
+        rejected_because: "defects must come from blind annotation, not the fix"
+    consequences:
+      positive:
+        - "external fixtures enter the corpus with the same approval path as record fixtures"
+      negative:
+        - "an external fixture is unusable for grading until annotated"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-c.md § Judgment calls (Generated outputs)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:45:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "08843c515"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0919"
+    created_at: "2026-10-24T09:45:52Z"
+    updated_at: "2026-10-24T09:45:52Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Canonical finding contract v1: four agreeing validators (python, jq, zod, verdict-derive markdown grammar); the dissent validator keeps its own vocabulary."
+    decision: ".claude/schemas/finding.schema.json v1 states every C-11 rule, with rules JSON Schema cannot express in x-loa-rules with error codes; 47 vectors are run by lib/finding_validate.py, lib/finding-validate.sh (jq), bridgebuilder core/finding-schema.ts (zod) and verdict-derive.sh's bullet grammar. The dissent validator normalises aliases and conflicts but is not run on the canonical vectors."
+    rationale: "The dissent BLOCKING/ADVISORY vocabulary is not canonical; mapping it onto the vectors would assert an equivalence that does not hold."
+    alternatives_considered:
+      - option: "map the dissent vocabulary onto the canonical vectors as a fifth validator"
+        rejected_because: "BLOCKING/ADVISORY is not the canonical severity set"
+    consequences:
+      positive:
+        - "one contract checked identically in four languages"
+      negative:
+        - "dissent envelopes are validated by their own schema until the wire moves"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-b.md § Judgment calls (Four validators)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:45:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "9462a4016"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0920"
+    created_at: "2026-10-24T09:45:55Z"
+    updated_at: "2026-10-24T09:45:55Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "alias_conflict covers only failure_scenario vs failure_mode; description is the lowest fallback; unknown finding properties pass through (no strict mode)."
+    decision: "A finding with differing failure_scenario and failure_mode is refused (alias-conflict-failure_scenario-failure_mode); description never conflicts and fills the scenario only when both are absent. Unknown properties pass through and the normalised view keeps only named fields."
+    rationale: "Dissent and Bridgebuilder findings carry description beside the scenario and many extra fields; an any-two-differ rule or strict mode would refuse every one of them."
+    alternatives_considered:
+      - option: "any two of the three fields differing is a conflict"
+        rejected_because: "refuses every dissent finding"
+      - option: "strict mode, unknown properties refused"
+        rejected_because: "refuses every dissent and Bridgebuilder finding"
+    consequences:
+      positive:
+        - "existing producers keep working; a real contradiction is still refused"
+      negative:
+        - "a stale description beside a fresh scenario is not caught"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-b.md § Judgment calls (alias_conflict; Unknown properties)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:45:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "9462a4016"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0921"
+    created_at: "2026-10-24T09:45:59Z"
+    updated_at: "2026-10-24T09:45:59Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "file/anchor_line required only for defect severities; severity exact upper case; integral anchors to 10^7; whole-word ASCII denylist; when-then by token."
+    decision: "Praise, speculation, reframe and info findings need no location; CRITICAL/HIGH/MEDIUM/LOW require file and anchor_line. Severity must be exact upper case. confidence is optional in JSON but required by the markdown grammar. For identity across python, jq and zod: anchors are integral numbers (12.0 accepted) up to 10^7, whitespace is the ASCII set, the denylist matches whole words ASCII case-insensitively, and when-then is decided on tokens."
+    rationale: "Non-defect findings have no code location; the identity rules are the ones all three languages can state identically."
+    alternatives_considered:
+      - option: "require file and anchor_line for every finding"
+        rejected_because: "praise and speculation have no location"
+      - option: "Unicode-aware whitespace and case folding"
+        rejected_because: "jq, python and zod disagree at the edges"
+    consequences:
+      positive:
+        - "the 47 vectors agree in all four validators"
+      negative:
+        - "a defect bullet with a non-ASCII severity word is not a finding"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-b.md § Judgment calls (file and anchor_line; cross-language identity)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:45:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "9462a4016"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0922"
+    created_at: "2026-10-24T09:46:02Z"
+    updated_at: "2026-10-24T09:46:02Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "verdict-derive judges finding bullets everywhere except code fences and Rejected dissent payloads; a bullet is a finding when a severity token leads it."
+    decision: "A bullet is a finding when written **SEV**, **[SEV]**, [SEV] (any case) or bare upper-case SEV followed by a blank, a parenthesis or end of line, so '- **Critical**: 0' and 'HIGH-1' are not findings. Bullets are judged in every section except fenced code and '## Rejected dissent payloads', with or without a trailer. Parenthesised items are comma-separated in any order: exactly one confidence plus optional speculative and blocking; anything else is a grammar violation. A defect bullet without a valid Failure clause is a violation on every path."
+    rationale: "Findings leak into Observations and summary sections; scanning only one heading would miss them. The count lines and KF-style ids must not be read as findings."
+    alternatives_considered:
+      - option: "judge bullets only under ## Findings"
+        rejected_because: "findings written under other headings would escape the grammar"
+      - option: "any upper-case severity word anywhere in a bullet"
+        rejected_because: "count lines such as '**Critical**: 0' would become findings"
+    consequences:
+      positive:
+        - "no finding escapes the clause requirement by placement"
+      negative:
+        - "fixtures in four suites had to move to the grammar"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-b.md § Judgment calls (A bullet counts as a finding; Bullets are judged everywhere; Paren items)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:46:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "9462a4016"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0923"
+    created_at: "2026-10-24T09:46:05Z"
+    updated_at: "2026-10-24T09:46:05Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Blocking tally (CRITICAL, HIGH or blocking bullets) forbids APPROVED, excepting FR-9 speculative low-confidence HIGH under Observations; no trailer cross-check."
+    decision: "verdict-derive adds a CRITICAL, HIGH or blocking bullet to blocking_tally; tally > 0 with APPROVED is a violation. The FR-9 speculative low-confidence HIGH under Observations is excepted. The tally is not compared against the trailer counts."
+    rationale: "Comparing tally and trailer would let a zero trailer argue for approval, which the one-way rule forbids; the tally only ever adds blocking evidence."
+    alternatives_considered:
+      - option: "cross-check the tally against the trailer counts"
+        rejected_because: "would weaken the one-way rule by letting zero counts force agreement"
+    consequences:
+      positive:
+        - "a malformed CRITICAL can never approve"
+      negative:
+        - "a trailer that overcounts is not flagged"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-b.md § Judgment calls (The blocking tally)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:46:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "9462a4016"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0924"
+    created_at: "2026-10-24T09:46:07Z"
+    updated_at: "2026-10-24T09:46:07Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "lib/finding-validate.sh is sourced only when the file has list items; a missing lib with bullets is a named violation; the --json key set is unchanged."
+    decision: "verdict-derive sources the finding lib lazily so a copy of verdict-derive.sh alone still works on bullet-free files; with bullets and no lib it reports a named violation. Error codes ride inside the violation text and the --json keys do not change."
+    rationale: "Tests and consumers copy verdict-derive.sh into temp trees; existing --json consumers key on the current fields."
+    alternatives_considered:
+      - option: "always source the lib"
+        rejected_because: "a verdict-derive copied alone would fail on every file"
+      - option: "new --json keys for error codes"
+        rejected_because: "breaks existing consumers of the JSON"
+    consequences:
+      positive:
+        - "no consumer change"
+      negative:
+        - "golden-path-c8 fixture copies the lib into its temp tree"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-b.md § Judgment calls (lib sourced only when; --json key set)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:46:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "9462a4016"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0925"
+    created_at: "2026-10-24T09:46:10Z"
+    updated_at: "2026-10-24T09:46:10Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Dissent envelopes keep failure_mode and gain failure_scenario (one WARN per alias per run); the wire schema and prompt keep failure_mode until 2.1.0."
+    decision: "adversarial-review.sh fills failure_mode from a lone failure_scenario and vice versa, gives every accepted finding failure_scenario, and warns once per alias per run. The wire schema and the dissent prompt are unchanged, so every dissent run warns until the wire moves; a bead tracks the removal before 2.1.0."
+    rationale: "Changing the wire mid-cycle would re-prompt every dissent voice and invalidate the replay of the four cycle-132 envelopes (22 findings, alias fields byte-identical)."
+    alternatives_considered:
+      - option: "switch the wire schema and prompt to failure_scenario now"
+        rejected_because: "re-prompts every voice mid-cycle and breaks the cycle-132 envelope replay"
+    consequences:
+      positive:
+        - "cycle-132 envelopes replay unchanged"
+      negative:
+        - "every dissent run warns until 2.1.0"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-b.md § Judgment calls (Envelopes keep failure_mode)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:46:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "9462a4016"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0926"
+    created_at: "2026-10-24T09:46:14Z"
+    updated_at: "2026-10-24T09:46:14Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Grader 1.5 --judge-verdicts: pm3 credit rule, citation-reference identity, run_id per row, supersedes = sha256 of the RFC 8785 row, stale rows refuse."
+    decision: "ablation-grade.sh 1.5.0 reads judge verdicts per pair. Credited pairs use the pm3 decision rule (DEC-0638). A pair's finding is the citation reference {id, file, anchor_line[, end]} with the id derived from an empty title; the same file and line are one finding. Every row carries run_id, defaulting to the directory name with --run-id overriding. supersedes is the sha256 of the superseded row's RFC 8785 text, must name an earlier row of the same pair, and a row is superseded at most once; unknown keys are refused. A stale row of this run refuses the whole grade (exit 2) even when superseded. The grader carries its own RFC 8785 serialiser."
+    rationale: "The grader may not source .claude/ code and the rfc8785 package may be absent under python -I; the pm3 rule is the registered decision rule, not the same-function rule; the sprint's pair key needs run_id although the sdd field list omits it."
+    alternatives_considered:
+      - option: "same-function rule for credited pairs"
+        rejected_because: "pm3 is the registered decision rule"
+      - option: "import the rfc8785 package"
+        rejected_because: "absent under python -I and the grader may not source .claude/"
+      - option: "ignore superseded stale rows"
+        rejected_because: "a stale verdict in this run means the judge saw another grade"
+    consequences:
+      positive:
+        - "a judged grade is reproducible from the rows alone"
+      negative:
+        - "a single stale row blocks the whole grade until re-judged"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-b.md § Judgment calls (Grader credited pairs; A pair's finding; Every row carries run_id; supersedes; A stale row; own RFC 8785 serialiser)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:46:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "9462a4016"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0927"
+    created_at: "2026-10-24T09:46:17Z"
+    updated_at: "2026-10-24T09:46:17Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "recall_judged = blind-described defects / seeded; unblind verdicts in judged_pairs_unblind; --judge-defects needs a v2 registration and fully judged cells."
+    decision: "reads.py --judge-defects exits 1 on a v1 registration; a pair enters only when both cells are fully judged 1.5.0 grades and the rest are listed. recall_judged counts defects with a blind describes verdict over defects_seeded; unblind verdicts are counted in judged_pairs_unblind, never as unjudged."
+    rationale: "v2 is the registration that names the looks seen, so the judged read is pre-registered rather than post hoc; unblind verdicts must be visible but cannot count as blind evidence."
+    alternatives_considered:
+      - option: "accept v1 registrations"
+        rejected_because: "the read would not be pre-registered against the looks seen"
+      - option: "count unblind verdicts as judged"
+        rejected_because: "contaminates the blind recall"
+    consequences:
+      positive:
+        - "the judged read is a registered read"
+      negative:
+        - "no judged read exists until a v2 registration is built"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9462a401"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-b.md § Judgment calls (recall_judged; --judge-defects)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T09:46:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "9462a4016"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
