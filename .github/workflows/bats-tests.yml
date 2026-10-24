@@ -204,8 +204,11 @@ jobs:
           bash tools/check-quarantine-expiry.sh || rc=$?
           if [ "$rc" -eq 3 ]; then
             echo "::warning::quarantine rows valid; bead status not verifiable on the runner (no beads workspace)"
+          elif [ "$rc" -eq 1 ]; then
+            echo "::error::tests/QUARANTINE.tsv rows invalid or expired — the rows are named above; see tools/check-quarantine-expiry.sh --help"
+            exit 1
           elif [ "$rc" -ne 0 ]; then
-            echo "::error::tests/QUARANTINE.tsv invalid or expired — see tools/check-quarantine-expiry.sh --help"
+            echo "::error::check-quarantine-expiry.sh usage or setup failure (exit $rc: missing file, bad header or helper not sourceable) — see stderr above"
             exit "$rc"
           fi
 

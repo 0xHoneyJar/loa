@@ -19,13 +19,19 @@
 #     the helper: egress, mount-home-scope, sandbox-mount, mount-provenance,
 #     batch-supervisor, verdict-derive-failure-clause);
 #   - the id is not listed twice;
-#   - expiry is a real ISO date equal to the row's quarantine date + 30 days
-#     (the AUTHOR date of the commit that last wrote the line, per git blame;
-#     an uncommitted line is dated --today; in a shallow clone a line blamed
-#     on the boundary commit only needs expiry <= boundary date + 30), never
-#     more than 60 days after today, and not before today (expired);
+#   - expiry is a real ISO date 30 or 31 days after the row's quarantine date
+#     (the COMMITTER date, UTC, of the commit that last wrote the line, per
+#     git blame — the commit that put the row on the branch, so a rebase,
+#     cherry-pick or squash re-dates it; the extra day absorbs a commit made
+#     the day after the row was written; an uncommitted line is dated
+#     --today; in a shallow clone the boundary commit's date says nothing
+#     about the row, so a line blamed on it only needs expiry <= today + 31),
+#     never more than 60 days after today, and not before today (expired);
 #   - the bead exists and is open (status open or in_progress), checked with
-#     `br show <bead> --json` from the repository root.
+#     `br show <bead> --json` from the repository root. Only br's structured
+#     ISSUE_NOT_FOUND answer (exit 3, `{"error":{"code":"ISSUE_NOT_FOUND"}}`
+#     on stderr) counts as a missing bead; no `.beads/` directory, no br, or
+#     any other br failure leaves the bead unverified (exit 3).
 #
 # Usage:
 #   tools/check-quarantine-expiry.sh [--repo DIR] [--file PATH] [--today YYYY-MM-DD]
@@ -46,7 +52,8 @@
 # Exit codes (sdd.md § 5.4):
 #   0  every row valid
 #   1  at least one invalid or expired row (named on stderr)
-#   2  usage error, missing or unreadable file, bad header
+#   2  usage error, missing or unreadable file, bad header, or a --tap file
+#      with no TAP test lines
 #   3  rows are otherwise valid but a bead's status could not be verified
 #      (no beads CLI or no beads workspace — the CI runner); named reason
 #
@@ -105,8 +112,9 @@ _epoch_day() {
 [[ -n "$TODAY" ]] || TODAY="$(date -u +%Y-%m-%d)"
 _iso_ok "$TODAY" || die2 "--today must be an ISO date YYYY-MM-DD (got $TODAY)"
 MAX_EXPIRY="$(_add_days "$TODAY" 60)"
+SHALLOW_MAX="$(_add_days "$TODAY" 31)"
 
-# Quarantine date of line N: author date of the commit that last wrote it.
+# Quarantine date of line N: committer date (UTC) of the commit that last wrote it.
 # Prints `<YYYY-MM-DD> <exact|boundary>`.
 QDIR="$(cd "$(dirname "$FILE")" && pwd -P)"; QBASE="$(basename "$FILE")"
 SHALLOW="false"
@@ -116,18 +124,18 @@ if git -C "$QDIR" ls-files --error-unmatch -- "$QBASE" >/dev/null 2>&1; then
     SHALLOW="$(git -C "$QDIR" rev-parse --is-shallow-repository)"
 fi
 _line_date() {
-    local n="$1" porcelain sha atime
+    local n="$1" porcelain sha ctime
     if [[ "$IN_GIT" -eq 0 ]]; then printf '%s exact\n' "$TODAY"; return 0; fi
     porcelain="$(git -C "$QDIR" blame --porcelain -L "$n,$n" -- "$QBASE")" \
         || { printf 'check-quarantine-expiry: git blame failed on %s line %s\n' "$FILE" "$n" >&2; return 1; }
     sha="${porcelain%% *}"
     if [[ "$sha" =~ ^0+$ ]]; then printf '%s exact\n' "$TODAY"; return 0; fi
-    atime="$(printf '%s\n' "$porcelain" | sed -n 's/^author-time \([0-9][0-9]*\)$/\1/p' | head -1)"
-    [[ -n "$atime" ]] || { printf 'check-quarantine-expiry: no author-time in git blame of %s line %s\n' "$FILE" "$n" >&2; return 1; }
+    ctime="$(printf '%s\n' "$porcelain" | sed -n 's/^committer-time \([0-9][0-9]*\)$/\1/p' | head -1)"
+    [[ -n "$ctime" ]] || { printf 'check-quarantine-expiry: no committer-time in git blame of %s line %s\n' "$FILE" "$n" >&2; return 1; }
     if [[ "$SHALLOW" == "true" ]] && printf '%s\n' "$porcelain" | grep -qx 'boundary'; then
-        printf '%s boundary\n' "$(_epoch_day "$atime")"
+        printf '%s boundary\n' "$(_epoch_day "$ctime")"
     else
-        printf '%s exact\n' "$(_epoch_day "$atime")"
+        printf '%s exact\n' "$(_epoch_day "$ctime")"
     fi
 }
 
@@ -135,6 +143,8 @@ HEADER=$'test_id\towner\texpiry\tbead\treason'
 first="$(head -1 "$FILE" | tr -d '\r')"
 [[ "$first" == "$HEADER" ]] || die2 "$FILE: first line must be the header test_id<TAB>owner<TAB>expiry<TAB>bead<TAB>reason"
 
+BR_ERR="$(mktemp)"
+trap 'rm -f "$BR_ERR"' EXIT
 problems=0
 unverified=0
 rows=0
@@ -152,7 +162,9 @@ while IFS= read -r line || [[ -n "$line" ]]; do
         problem "$n" "expected 5 tab-separated columns, got $(( ${#tabs} + 1 ))"
         continue
     fi
-    IFS=$'\t' read -r id owner expiry bead reason <<< "$line"
+    # Split on a non-whitespace separator: IFS=$'\t' would merge consecutive
+    # tabs and shift every column after an empty field.
+    IFS=$'\x1f' read -r id owner expiry bead reason <<< "${line//$'\t'/$'\x1f'}"
 
     # test id: <bats path>::<description>, the test exists, the file calls the helper
     if [[ "$id" != *"::"* ]]; then
@@ -193,11 +205,13 @@ while IFS= read -r line || [[ -n "$line" ]]; do
         fi
         if ld="$(_line_date "$n")"; then
             qday="${ld% *}"; kind="${ld#* }"
-            want="$(_add_days "$qday" 30)"
-            if [[ "$kind" == "exact" && "$expiry" != "$want" ]]; then
-                problem "$n" "expiry $expiry must be the quarantine date $qday + 30 days = $want"
-            elif [[ "$kind" == "boundary" && "$expiry" > "$want" ]]; then
-                problem "$n" "expiry $expiry is later than the shallow-clone boundary date $qday + 30 days = $want"
+            if [[ "$kind" == "exact" ]]; then
+                want="$(_add_days "$qday" 30)"; want1="$(_add_days "$qday" 31)"
+                if [[ "$expiry" < "$want" || "$expiry" > "$want1" ]]; then
+                    problem "$n" "expiry $expiry must be the quarantine date $qday + 30 days = $want (or one day later, $want1)"
+                fi
+            elif [[ "$expiry" > "$SHALLOW_MAX" ]]; then
+                problem "$n" "expiry $expiry is later than today + 31 days ($SHALLOW_MAX); in a shallow clone the row's commit date is unknown"
             fi
         else
             problems=$((problems + 1))
@@ -207,23 +221,28 @@ while IFS= read -r line || [[ -n "$line" ]]; do
     # bead: exists and open
     if [[ ! "$bead" =~ ^bd-[a-z0-9]+$ ]]; then
         problem "$n" "bead \"$bead\" is not a bead id (bd-…)"
+    elif [[ ! -d "$REPO/.beads" ]]; then
+        printf 'check-quarantine-expiry: %s:%s: bead %s status unverified — no beads workspace (%s/.beads absent)\n' "$FILE" "$n" "$bead" "$REPO" >&2
+        unverified=$((unverified + 1))
     elif ! command -v "$BR" >/dev/null 2>&1; then
         printf 'check-quarantine-expiry: %s:%s: bead %s status unverified — beads CLI "%s" not available\n' "$FILE" "$n" "$bead" "$BR" >&2
         unverified=$((unverified + 1))
     else
         brc=0
-        bout="$(cd "$REPO" && "$BR" show "$bead" --json 2>&1)" || brc=$?
+        # stdout and stderr apart (a stderr warning must not break the parse);
+        # </dev/null so br cannot read the row loop's input
+        bout="$(cd "$REPO" && "$BR" show "$bead" --json 2>"$BR_ERR" </dev/null)" || brc=$?
         if [[ "$brc" -eq 0 ]]; then
-            bstatus="$(printf '%s\n' "$bout" | jq -r '.[0].status')" \
+            bstatus="$(printf '%s\n' "$bout" | jq -r 'if type == "array" then .[0].status else .status end')" \
                 || { problem "$n" "bead $bead: unparseable br show output"; continue; }
             case "$bstatus" in
                 open|in_progress) ;;
                 *) problem "$n" "bead $bead is $bstatus, not open: close the quarantine or reopen the bead" ;;
             esac
-        elif printf '%s\n' "$bout" | grep -Eqi 'ISSUE_NOT_FOUND|not found'; then
+        elif [[ "$brc" -eq 3 ]] && jq -e '.error.code == "ISSUE_NOT_FOUND"' "$BR_ERR" >/dev/null 2>&1; then
             problem "$n" "bead $bead not found"
         else
-            printf 'check-quarantine-expiry: %s:%s: bead %s status unverified — br show failed (%s)\n' "$FILE" "$n" "$bead" "$(printf '%s' "$bout" | tr '\n' ' ' | cut -c1-160)" >&2
+            printf 'check-quarantine-expiry: %s:%s: bead %s status unverified — br show failed (exit %s: %s)\n' "$FILE" "$n" "$bead" "$brc" "$(tr '\n' ' ' < "$BR_ERR" | cut -c1-160)" >&2
             unverified=$((unverified + 1))
         fi
     fi
@@ -232,6 +251,7 @@ done < <(tail -n +2 "$FILE")
 executed="-"; skipped="-"; quarantined="$rows"
 if [[ -n "$TAP" ]]; then
     total="$(grep -Ec '^(ok|not ok) [0-9]+' "$TAP" || true)"
+    [[ "$total" -gt 0 ]] || die2 "$TAP: no TAP test lines found"
     skip_all="$(grep -Eic '^ok [0-9]+ .* # skip' "$TAP" || true)"
     quarantined="$(grep -Eic '^ok [0-9]+ .* # skip quarantined:' "$TAP" || true)"
     executed=$((total - skip_all))
