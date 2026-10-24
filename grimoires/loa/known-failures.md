@@ -104,6 +104,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-054](#kf-054-bridgebuilder-aborts-on-a-large-pr-gh-api-pullsnfiles-exceeds-the-adapters-fixed-10-mib-maxbuffer-err_child_process_stdio_maxbuffer-before-any-exclude-or-truncation-applies) | OPEN — upstream fix filed as bead bd-ra4im; cycle-132 ran a patched copy from the cache (no .claude/ edit) | .claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts gh() maxBuffer: 10 * 1024 * 1024; getPRFiles() /pulls/N/files?per_page=100 (patch field included) | 1 |
 | [KF-055](#kf-055-bridgebuilder-consensus-enrichment-posts-a-tool-call-transcript-instead-of-the-review-the-body-derived-verdict-reads-unknown-and-mergeblocked-true-even-when-the-consensus-json-says-comment) | OPEN — upstream fix filed as bead bd-cpvc6; cycle-132 read the per-voice JSON blocks and the round-1 consensus JSON directly | .claude/skills/bridgebuilder-review (multi-model enrichment writer anthropic/claude-headless; body-derived verdict in the summary JSON) | 1 |
 | [KF-056](#kf-056-dec-rows-written-during-planning-carry-the-previous-cycles-id) | Open (fix candidate on bead bd-d7dwt; Sprint 4 sweep) | dec-write-lib.sh default_cycle / decisions.yaml cycle field | 1 |
+| [KF-057](#kf-057-bats-tests-that-spawn-a-nested-bats-via-npx-pass-locally-and-fail-in-ci) | Fixed for tests/unit/quarantine-expiry.bats (a0624b285); pattern to follow in any test that runs a nested bats | tests/unit/*.bats nested bats runs; .github/workflows/bats-tests.yml (bats-core v1.13.0 installed on PATH) | 1 |
 
 ---
 
@@ -2033,3 +2034,24 @@ Do not read UNKNOWN as a verdict: open the per-voice JSON blocks (schema_version
 ### Reading guide
 
 Cause: default_cycle() reads .run/sprint-plan-state.json then .run/state.json cycle_id BEFORE ledger.json active_cycle; between /archive-cycle and the next /run the run state still holds the archived cycle (state JACKED_OUT), so every planning-phase row inherits it. Do not retry by editing rows (append-only ledger); do not supersede 41 rows. Fix the precedence in the lib (Sprint 4 sweep) and pass --cycle until then.
+
+## KF-057: bats tests that spawn a nested bats via npx pass locally and fail in CI
+
+**Status**: Fixed for tests/unit/quarantine-expiry.bats (a0624b285); pattern to follow in any test that runs a nested bats
+**Feature**: tests/unit/*.bats nested bats runs; .github/workflows/bats-tests.yml (bats-core v1.13.0 installed on PATH)
+**Symptom**: CI 'Shell Tests' step: not ok QX-12 … QX-15 with 'npm error npx canceled due to missing packages and no YES option: ["bats@1.13.0"]' while the same tests pass locally under npx --no-install bats
+**First observed**: 2026-10-24 cycle-133 Sprint 272, CI run 40049499175 on 5e157326c
+**Recurrence count**: 1
+**Current workaround**: resolve the nested bats as $BATS_ROOT/bin/bats (exists in both the bats-core and the npm layouts), then command -v bats, then npx; see tests/unit/red-test-check.bats RTC-5 for the precedent
+**Upstream issue**: none — a test-environment coupling; the CI runner has no npm bats package
+**Related visions / lore**: tests/unit/quarantine-expiry.bats _bats(); tests/unit/red-test-check.bats
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-24 | quarantine-expiry.bats _bats() resolver ($BATS_ROOT/bin/bats → PATH bats → npx); verified with an npx stub + PATH bats (27/27) and the npx bats (27/27) | fixed; CI confirmation on a0624b285 pending at the time of writing | commit a0624b285 on feature/cycle-133-follow-through; CI run 40049499175 (the failure) |
+
+### Reading guide
+
+Not a bats or test defect: the test's choice of launcher. Locally bats comes from npx (no system bats on this host), in CI from a bats-core install on PATH. Any test that runs a nested bats must resolve the running installation ($BATS_ROOT/bin/bats) and only fall back to npx. Prove the fix with an npx stub that exits 1 placed first on PATH and a PATH bats symlink.
