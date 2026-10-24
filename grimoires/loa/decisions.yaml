@@ -30416,3 +30416,42 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0908"
+    created_at: "2026-10-24T07:56:52Z"
+    updated_at: "2026-10-24T07:56:52Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Sprint 274 Task 3.0 spike: design (a′) confirmed — under --setting-sources user nothing project-scope loads (Claude Code 2.1.299); mounted arms use user"
+    decision: "Measured in loa-ablation:259 (Claude Code 2.1.299) under the egress block with a canary per surface item: with --setting-sources user the user scope loads fully (CLAUDE.md, hooks, commands, skills, agents under /home/evaluser/.claude) and nothing from the project scope loads or executes (no project hook, no .mcp.json server process, no project skill/command/agent/output style in the init event, no root/.claude/rules/@import instruction); the positive control user,project fires every project canary; the local source governs CLAUDE.local.md and settings.local.json; a project .claude/plugins/ directory is not a load location. The run continues: implementer A lands the home-scope mount with the mounted arms launched under --setting-sources user (the bare arms keep \"\"), the executable/prompt surface still removed from the workspace root as defence in depth and for the addendum-9 read-exposure threat, and the setting-sources value plus the Claude Code version recorded in meta/mount.json."
+    rationale: "D-3.6 (DEC-0858) made the spike the gate for the mount mode and named HALT for the operator if project items still loaded; they do not, so fallback (c) is not needed; the cycle-132 launch used \"\" (nothing loads — the bare arm), which is why the mounted arms must name user."
+    alternatives_considered:
+      - option: "HALT for the operator's fallback decision"
+        rejected_because: "the spike's HALT condition — project items loading under the user-only sources — did not occur; the positive control proves the canaries detect loading"
+      - option: "rely on the overlay's removal alone and keep --setting-sources \"\""
+        rejected_because: "with \"\" the framework under HOME would not load either; user is the only value that loads the framework and not the project"
+    consequences:
+      positive:
+        - "three arms cost USD 0.027 of the ≤ 2 spike allowance"
+        - "the Bedrock route works through the egress sidecar (0 denials)"
+      negative:
+        - "the facts are pinned to Claude Code 2.1.299; a version change re-runs spike-3.0/driver.sh"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "de366cc6"
+    source: "grimoires/loa/a2a/sprint-274/spike-3.0.md (three arms, init events, canary markers, process samples, egress denials)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T07:56:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "a2a/sprint-274/spike-3.0.md; spike-3.0/{none,user,both}/init.json, canaries.txt, ps-samples.txt; image sha256:61e88d02…"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
