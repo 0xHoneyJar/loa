@@ -109,6 +109,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-059](#kf-059-a-test-that-resolves-historical-commits-fails-on-cis-depth-1-checkout) | Fixed for evals/analysis/c132/tests/test_registration_v2.py (Cycle132ChainTest skips when the registered pin commits are absent); pattern to follow in any test that runs git rev-parse / cat-file on a recorded commit | .github/workflows/bats-tests.yml Shell Tests (actions/checkout depth 1); evals/analysis/c132/registration.py verify (analysis_tree REV:PATH via git rev-parse) | 1 |
 | [KF-060](#kf-060-home-scope-a-pr-that-changes-review-time-framework-files-exposes-their-later-version-through-the-sandbox-home-clause-f-pinned_bytes_read) | Open — design limit of C-10 home-scope; detected by took-effect clause (f), not prevented; fixture choice is the only mitigation until external fixtures (C-12) exist | evals/harness/lib/sandbox-mount.sh mount_home_scope; evals/harness/took-effect.sh oracle_closed clause (f); the Task 3.5 smoke | 2 |
 | [KF-061](#kf-061-home-scope-the-dissent-fails-inside-the-sandbox-project-root-resolved-under-home-headless-clis-refuse-to-prepare-a-run) | Fixed in 7d2119477 (s3-a3: LOA_PROJECT_ROOT wrapping R6-R8, R5 slash-only, persona.md surface); live confirmation = the Task 3.5 verification rerun | evals/harness/lib/sandbox-mount.sh mount_home_scope transform; evals/harness/pipeline-run.sh home-scope launch; adversarial-review.sh / cheval inside the sandbox | 1 |
+| [KF-062](#kf-062-bridgebuilders-claude-headless-voice-is-refused-by-the-models-safeguards-on-a-security-heavy-review-prompt-degrading-the-round) | Open — mitigation under test: exclude generated, fixture and evidence files from the review diff (round 2); if the voice still refuses, G-2 is recorded as not met and the operator decides on a split or a different voice model | .claude/skills/bridgebuilder-review (multi-model voice anthropic/claude-headless → claude -p, cli_model fable); .claude/adapters/loa_cheval/providers/claude_headless_adapter.py | 1 |
 
 ---
 
@@ -2150,3 +2151,24 @@ Before a home-scope run, intersect the fixture's changed .claude/ paths with the
 ### Reading guide
 
 Under home-scope two roots exist: LOA_FRAMEWORK_ROOT (HOME) for framework files and LOA_PROJECT_ROOT (/workspace) for config, grimoires and .run. A script that climbs to its own root gets the framework root unless wrapped. Check meta/mount-transform.json rule counts (R6-R8 > 0) and HS-14 before blaming credentials; a zero-denial trial with api_failure voices means the failure was before the network.
+
+## KF-062: Bridgebuilder's claude-headless voice is refused by the model's safeguards on a security-heavy review prompt, degrading the round
+
+**Status**: Open — mitigation under test: exclude generated, fixture and evidence files from the review diff (round 2); if the voice still refuses, G-2 is recorded as not met and the operator decides on a split or a different voice model
+**Feature**: .claude/skills/bridgebuilder-review (multi-model voice anthropic/claude-headless → claude -p, cli_model fable); .claude/adapters/loa_cheval/providers/claude_headless_adapter.py
+**Symptom**: [multi-model:anthropic] Review failed: cheval-delegate RETRIES_EXHAUSTED … PROVIDER_UNAVAILABLE: claude -p failed (exit 1): API Error: Fable 5.1's safeguards flagged this message … Details: [cyber]; the openai voice completes (602k input tokens); the round ends DEGRADED (1/2 voices, incomplete_coverage, exit 3); nothing posted
+**First observed**: 2026-10-24 cycle-133 Sprint 275 Task 4.5, Bridgebuilder round 1 on PR #1292 (374 files: secret classes, netfilter egress guard, credential-handling tests)
+**Recurrence count**: 1
+**Current workaround**: re-run with --exclude for generated/fixture/evidence paths to shrink and de-weight the prompt; or route the anthropic voice through a different CLI model (a catalog entry with cli_model opus — none exists today); never weaken the voice-participation gate
+**Upstream issue**: a model-side safeguard classifier on the aggregated diff text, not a cheval or Bridgebuilder defect; the dissent's claude-headless companion (smaller, exec-only diffs) succeeded the same day
+**Related visions / lore**: KF-037 (companion unavailable), KF-051 (refusal fallbacks in the harness), KF-054 (large-PR fetch), G-2 of cycle-133
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-24 | round 2 with --exclude for dist, finding vectors, reports, fixtures, decisions.yaml, REPO-MAP, checksums.json, CHANGELOG, the suite root | pending | ~/.cache/loa/cycle-133/bb/round1.log (line 77), round2.log; PR #1292 |
+
+### Reading guide
+
+Read the voice's error text in the BB log before assuming a timeout or an auth problem: a safeguard refusal names the model and the classifier tag. A degraded round posts nothing (exit_on_degraded 3); re-run with excludes first; a split PR does not help when the refusal is about content rather than size.
