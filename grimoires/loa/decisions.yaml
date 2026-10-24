@@ -31689,3 +31689,79 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0942"
+    created_at: "2026-10-24T10:35:08Z"
+    updated_at: "2026-10-24T10:35:08Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Measurement pin after Sprint 274: commit 32a8d79cf (tree 74340386d47c), loa-ablation:259 sha256:61e88d02…, loa-egress-proxy:259 sha256:95c4c379…, CC 2.1.299."
+    decision: "The measurement pin for every cycle-133 measurement is the commit after the integrated self-check: 32a8d79cf. Its components: grader 1.5.0, registration v2, the four finding validators, the home-scope mount mode with clause (f) widened, the seeding library, the egress guard namespace; the sandbox image loa-ablation:259 (Claude Code 2.1.299) and the rebuilt proxy image loa-egress-proxy:259 carrying the guard label. The egress suite (22/22 with real containers) and the pin self-check (62 PASS, 0 FAIL) passed on the actual image and network before the pin was recorded."
+    rationale: "sprint.md Task 3.5 makes the pin the commit after the integrated self-check and the egress precondition; recording it in the README and a DEC row is what lets reproduce.sh --pin and the registrations name it."
+    alternatives_considered:
+      - option: "pin the Sprint 273 intermediate version (50881e6f4) and run the smoke there"
+        rejected_because: "the home-scope mode, grader 1.5 and the KF-058 fix are not in it"
+      - option: "pin after the smoke"
+        rejected_because: "the smoke must run at the pin it reports"
+    consequences:
+      positive:
+        - "one named commit for the smoke, the record and later cycles"
+      negative:
+        - "any later harness change needs a new pin row"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "32a8d79c"
+    source: "grimoires/loa/sprint.md Task 3.5; evals/harness/README.md § Pipeline version (cycle-133 Sprint 274 pin); ~/.cache/loa/cycle-133/tests/s3a2-lead-*.log; grimoires/loa/reports/ablation-2.0/self-check-c133-s274.txt"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:35:08Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "32a8d79cf"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0943"
+    created_at: "2026-10-24T10:35:11Z"
+    updated_at: "2026-10-24T10:35:11Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The Task 3.5 smoke runs a1_full on pr-20 under home-scope (A's range check: in range, no refusal, 44 .claude/ paths across hooks, rules, skills, data, scripts)."
+    decision: "The smoke trial is a1_full × smoke-review-c133 (pr-20, label set v2, 10 defects) with mount_mode home-scope on the suite copy grimoires/loa/reports/ablation-2.0/c133-smoke/suite.yaml, under the egress guard, --max-usd 20 for the first launch (one verification rerun reserved inside the USD 40 share). pr-16 stays the fallback."
+    rationale: "A's overlay + check_mount_closed dry run on both fixtures: pr-20 is in the tested range (every path class exercised by HS-1/2/3/7), refuses nothing and exercises more of the surface than pr-16, whose distinctive classes (settings.json, commands) the HS tests already cover. pr-20 also changes the root .loa.config.yaml, a residual exposure outside .claude/ that the grader's scan cannot see; it is noted, not a C-10 refusal."
+    alternatives_considered:
+      - option: "pr-16"
+        rejected_because: "fewer surface classes; nothing pr-20 lacks"
+      - option: "both fixtures"
+        rejected_because: "two launches would spend the verification rerun before any fix"
+    consequences:
+      positive:
+        - "the richest in-range fixture for one launch"
+      negative:
+        - "the root .loa.config.yaml exposure is not measured by clause (f)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "32a8d79c"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-a.md § Smoke fixture range check; sprint.md Task 3.5"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:35:11Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "32a8d79cf"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
