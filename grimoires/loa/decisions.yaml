@@ -30246,3 +30246,105 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0903"
+    created_at: "2026-10-24T06:53:26Z"
+    updated_at: "2026-10-24T06:53:26Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 Task 2.4a: sandboxes on an internal network with --dns 0.0.0.1 and HTTPS_PROXY to the sidecar; the image's proxy default is unresolvable"
+    decision: "Each batch gets an --internal docker network (no route out, no reachable gateway) the sandboxes join with --dns 0.0.0.1 (container names still resolve through Docker's embedded DNS, nothing else does) and HTTPS_PROXY/HTTP_PROXY=the sidecar loa-proxy-<batch> on port 8888, NO_PROXY empty; the sidecar sits on that network and on an ordinary bridge; loa-ablation:259 defaults its proxy variables to an unresolvable .invalid proxy host so a process inheriting the image environment outside the block fails closed instead of going direct, points every TLS client at the system CA bundle, and pins and prints the Claude Code version (label, /etc/loa-claude-code-version); pipeline-run.sh records the decision in meta/egress.json and a background record-address watcher writes the container's address and its denials without ever failing the caller."
+    rationale: "An internal network removes the default route so even a process that ignores the proxy variables cannot reach out; the DNS sinkhole removes name resolution as a side channel; a resolvable default proxy would make 'forgot to set the block' silently permissive."
+    alternatives_considered:
+      - option: "--network none with a socket proxy"
+        rejected_because: "the model CLI needs TCP to the sidecar; an internal network gives exactly that and nothing more"
+      - option: "default proxy variables unset in the image"
+        rejected_because: "a process that inherits the image environment outside the block would go direct"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f5a60399"
+    source: "evals/harness/lib/egress-proxy.sh header (Layout per batch); evals/harness/Dockerfile.ablation 259 header; pipeline-run.sh and blind-session.sh network blocks"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T06:53:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit d6a4b2349 (egress-proxy.sh cmd_up :146, cmd_record_address :319; Dockerfile.ablation ENV block; pipeline-run.sh / blind-session.sh NETARGS blocks; EGR-7, 8, 10, 11; EP-5, 7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0904"
+    created_at: "2026-10-24T06:53:29Z"
+    updated_at: "2026-10-24T06:53:29Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 273 Task 2.4a: egress default blocked for every arm; a container batch without the block is refused; the bats escape needs test mode AND bats"
+    decision: "The suite's egress key defaults every arm to blocked (arms[].egress, else egress.arms.<id>, else egress.default, else blocked; bridge allowed only as a recorded factor); run-ablation.sh refuses a container batch with a blocked arm before any write unless LOA_EVAL_EGRESS_NETWORK names a live block (an --internal network and a running sidecar, both inspected), or --dry-run, or the test-mode escape LOA_EGRESS_TEST_MODE=1 AND BATS_TEST_FILENAME (recorded as enforced: false); MANIFEST carries egress {arms, network, proxy, enforced}. The lead exported the escape in run-ablation.bats, refusal-policy.bats and batch-supervisor.bats, which drive the runner with a stub docker (the implementer's patch, taken from its worktree after it stalled, had not updated them: 46 pre-flight refusals)."
+    rationale: "FR-9 'egress blocked at the container' is only true if the runner cannot start a blocked arm outside the block; the escape follows the agent-network invariant (two conditions, one of them bats-only) so a production run can never take it."
+    alternatives_considered:
+      - option: "default egress bridge, blocked opt-in"
+        rejected_because: "the cycle-132 bare sessions reached github.com under exactly that default (bd-ijxuk)"
+      - option: "skip the refusal when the docker bin is a stub"
+        rejected_because: "a heuristic on the binary name; the explicit two-condition escape is auditable"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f5a60399"
+    source: "evals/harness/run-ablation.sh egress pre-flight block; evals/suites/ablation-2.0.yaml egress key; the lead's landing (the three runner suites export the escape)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T06:53:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit d6a4b2349 (run-ablation.sh pre-flight block; ablation-2.0.yaml egress; EP-6, EP-8; run-ablation/refusal-policy/batch-supervisor 84/84 with the escape)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0905"
+    created_at: "2026-10-24T06:53:32Z"
+    updated_at: "2026-10-24T06:53:32Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Sprint 273 Task 2.4a lead decision: the stalled implementer's work taken from its worktree, conflict-merged with the supervisor block, reviewed by the lead"
+    decision: "After the second egress implementer (D2) went silent for ~70 minutes with the suite already run (cases.log EGR-1 … 12 status 0, self-check 40/40 PASS at 05:21Z) and did not answer two messages, the lead stopped it at 06:33Z, extracted the patch from its worktree (9 files, +1,287), applied it three-way over the landed supervisor patch (two conflicts in write_manifest's jq — both fields kept), added the test-mode export to the three runner suites, re-ran the runner suites (84/84) and the container egress suite on this host, regenerated the integrity manifest for model-config.yaml, and wrote the implementer report from the code and logs."
+    rationale: "The work was complete and evidenced in the logs; re-dispatching a third implementer would have cost another hour for a report; the lead's review of the code stands in for the missing report and the dissent runs see the final code."
+    alternatives_considered:
+      - option: "re-dispatch a third implementer to finish and report"
+        rejected_because: "the code and its suite were done; only the report was missing"
+      - option: "drop the egress half to Sprint 3"
+        rejected_because: "the egress suite is the release gate for Sprint 274's smoke (sdd.md § 7.3)"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f5a60399"
+    source: "NOTES 2026-10-24T06:3xZ; ~/.cache/loa/cycle-133/reports/s2-d2-egress-logs/ (cases.log, self-check.log, denied.jsonl, images.txt)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T06:53:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit d6a4b2349; patches/s2-d2.patch extracted at 06:33Z; tests/s2d2-egress-bats.log"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
