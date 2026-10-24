@@ -31349,3 +31349,343 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0933"
+    created_at: "2026-10-24T10:12:07Z"
+    updated_at: "2026-10-24T10:12:07Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "home-scope surface exceeds the SDD list: nested CLAUDE.md / CLAUDE.local.md and nested .claude/ trees; @-imports walked from the PR head (5 hops)."
+    decision: "surface() derives the PR's prompt surface for Claude Code 2.1.299 from the SDD list plus nested memory files and nested .claude/ trees; @-imports are walked from the PR head's memory files, five hops, relative paths only, code ignored, changed paths only."
+    rationale: "Nested memory loads on file access, so a PR that adds a nested CLAUDE.md reaches the reviewer's context; base versions of imports are not what the reviewer would load."
+    alternatives_considered:
+      - option: "the SDD list verbatim"
+        rejected_because: "misses nested memory and imports a PR can add"
+      - option: "walk imports from the base versions"
+        rejected_because: "the reviewer loads the head"
+    consequences:
+      positive:
+        - "the overlay covers every path 2.1.299 would load from the PR"
+      negative:
+        - "the surface is version-pinned (SM_SURFACE_DERIVED_FOR = 2.1.299)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1e54af93"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-a.md § Judgment calls 1-2"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:12:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "1e54af937"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0934"
+    created_at: "2026-10-24T10:12:10Z"
+    updated_at: "2026-10-24T10:12:10Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "home-scope accepts overlay mode head only, so the workspace root holds the PR's bytes; fix-commit paths outside the PR keep the cycle-131 head_commit rule."
+    decision: "Under home-scope the root overlay is the PR head; base mode is refused. Clause (e) of check_mount_closed also checks the fixed load paths and that the root .claude/ holds only the PR's data."
+    rationale: "The design is that the PR's .claude/ changes are data at the root and the framework lives in HOME; a base overlay would put non-PR framework bytes at the root."
+    alternatives_considered:
+      - option: "base overlay under home-scope"
+        rejected_because: "the root would hold framework bytes that are not the PR's"
+      - option: "check only the PR's surface in clause (e)"
+        rejected_because: "a stray pinned file at the root would pass"
+    consequences:
+      positive:
+        - "the root is PR data only, mechanically checked"
+      negative:
+        - "a7-class arms that read sandbox/.claude are not adapted"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1e54af93"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-a.md § Judgment calls 3-5"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:12:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "1e54af937"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0935"
+    created_at: "2026-10-24T10:12:13Z"
+    updated_at: "2026-10-24T10:12:13Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "pinned-root output is byte-identical to cycle-132: no new evidence key, no mount.json, still --setting-sources project."
+    decision: "Every home-scope addition is gated on mount_mode; pinned-root runs produce the same files and flags as before (HS-4 invariance)."
+    rationale: "The cycle-132 record must stay reproducible at its pin; the default mode cannot change shape."
+    alternatives_considered:
+      - option: "always write meta/mount.json"
+        rejected_because: "changes the pinned-root record shape"
+    consequences:
+      positive:
+        - "reproduce.sh at the cycle-132 pin is unaffected"
+      negative:
+        - "two code paths in pipeline-run.sh"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1e54af93"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-a.md § Judgment call 6"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:12:13Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "1e54af937"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0936"
+    created_at: "2026-10-24T10:12:16Z"
+    updated_at: "2026-10-24T10:12:16Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Clause (f) credits reads of <path> or pr/head/<path> by content, merged across phases, coverage ceil(60 %); a non-PR line voids the read; pinned reads fail."
+    decision: "took-effect oracle_closed clause (f) passes when the reviewer's reads cover at least ceil(60 %) of each changed .claude/ file's lines, from the root path or pr/head/, judged by content; a window containing a line that is not the PR's voids it; a read of the pinned bytes from HOME fails (f) because the grader's oracle_scan cannot see a HOME read. Findings means review.md and the gate feedback files, not dissent envelopes."
+    rationale: "Content, not path, proves what the reviewer saw; a HOME read is invisible to the grader so it cannot be credited; fail-closed keeps the smoke honest."
+    alternatives_considered:
+      - option: "credit root reads only"
+        rejected_because: "pr/head/<path> is the same bytes"
+      - option: "treat pinned_bytes_read as evidence only"
+        rejected_because: "the grader cannot see the HOME read, so the trial would pass on nothing"
+    consequences:
+      positive:
+        - "(f) is decidable from the transcript alone"
+      negative:
+        - "a reviewer who skims under 60 % fails the smoke"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1e54af93"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-a.md § Judgment calls 7-10"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:12:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "1e54af937"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0937"
+    created_at: "2026-10-24T10:12:19Z"
+    updated_at: "2026-10-24T10:12:19Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Clause (g) flags the reviewer running a PR .claude/ path, bounds hook_started by the pinned counts, needs a ps sample per phase; canaries ignore tool results."
+    decision: "Clause (g) is a lower bound: it flags a PR .claude/ script run by the reviewer, hook_started counts above the pinned settings' declared counts, and a phase without a process sample. Canary tokens count in ps lines, hook output and init names, never in tool results, because PR files are readable data. The ps sampler is host-side docker top."
+    rationale: "Copies of a PR script run elsewhere are invisible, so (g) cannot claim completeness; a reviewer reading a PR file that contains a canary is correct behaviour; the container cannot write the sampler's output."
+    alternatives_considered:
+      - option: "count canaries in tool results"
+        rejected_because: "reading PR data is the reviewer's job"
+      - option: "an in-container ps sampler"
+        rejected_because: "the read-only sandbox cannot write it and the sandbox could tamper"
+    consequences:
+      positive:
+        - "a PR hook or MCP server that ran is caught"
+      negative:
+        - "(g) under-reports by design"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1e54af93"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-a.md § Judgment calls 11-13, 21"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:12:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "1e54af937"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0938"
+    created_at: "2026-10-24T10:12:23Z"
+    updated_at: "2026-10-24T10:12:23Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "mount_mode mirrors the egress key (suite default, arms[].mount_mode); home-scope refuses the host executor and build tasks; the image must be 2.1.299."
+    decision: "evals/suites/ablation-2.0.yaml gains mount_mode.default = pinned-root, overridable per arm. home-scope runs a mounted review-catch arm in the container executor only; an unmounted arm ignores the mode; a version drift is infrastructure_error before any phase."
+    rationale: "The spike facts are version-pinned; the host executor has no HOME isolation; build tasks have no review surface."
+    alternatives_considered:
+      - option: "allow home-scope on the host executor"
+        rejected_because: "no HOME isolation"
+      - option: "accept any image version"
+        rejected_because: "the --setting-sources facts hold for 2.1.299 only"
+    consequences:
+      positive:
+        - "a wrong image or executor fails before spend"
+      negative:
+        - "a Claude Code bump re-opens the spike"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1e54af93"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-a.md § Judgment calls 14, 20"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:12:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "1e54af937"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0939"
+    created_at: "2026-10-24T10:12:26Z"
+    updated_at: "2026-10-24T10:12:26Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The framework root is a reversible mount-time transform of the HOME copy only (rules R1-R5 via LOA_FRAMEWORK_ROOT); a residual refuses; verify proves reversal."
+    decision: "mount_home_scope copies the pinned framework into HOME/.claude and redirects it through LOA_FRAMEWORK_ROOT by five reversible rules (hook toplevel prefix, shell root vars, markdown relative paths made absolute, Python root joins, Python path literals); the Python residual scan is general; cwd-relative .claude/ strings in shell (521) are not rewritten. The real tree redirects 304 of 1,718 files with 0 residuals."
+    rationale: "Editing the repo's framework is the PRD's deferred framework-root option; a transform on the copy keeps the repo untouched and provable by reversal."
+    alternatives_considered:
+      - option: "edit the repo's framework to honour a root variable"
+        rejected_because: "the PRD defers the framework-root option"
+      - option: "rewrite cwd-relative case patterns in shell"
+        rejected_because: "they are tooling and path classification, not load paths"
+    consequences:
+      positive:
+        - "the mounted framework is the pinned bytes modulo a provable transform"
+      negative:
+        - "a new framework path idiom is a residual until a rule covers it"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1e54af93"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-a.md § Judgment calls 15-17"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:12:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "1e54af937"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0940"
+    created_at: "2026-10-24T10:12:29Z"
+    updated_at: "2026-10-24T10:12:29Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Rules are @-imported by absolute path (paths: filters inert); .loa.config.yaml stays at the workspace root; integrity hashes the HOME copy before deleting it."
+    decision: "The user CLAUDE.md imports CLAUDE.loa.md and the rules by absolute path (after the rule_files toggle the imports dangle); the project config stays at the workspace root; the HOME copy is hashed into meta/home-integrity.json and then deleted."
+    rationale: "Path-filtered rules cannot be scoped from HOME; the project config is project scope; the HOME may hold session or shell state and must not persist."
+    alternatives_considered:
+      - option: "keep the HOME copy as an artefact"
+        rejected_because: "may hold session or shell state"
+      - option: "put .loa.config.yaml in HOME"
+        rejected_because: "it is project configuration"
+    consequences:
+      positive:
+        - "integrity is provable from meta/ alone"
+      negative:
+        - "rule paths: filters are inert under home-scope"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1e54af93"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-a.md § Judgment calls 18-19, 22"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:12:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "1e54af937"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0941"
+    created_at: "2026-10-24T10:12:32Z"
+    updated_at: "2026-10-24T10:12:32Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Lead decision: clause (f) is widened to single-file Bash reads (cat, head, tail, sed -n ranges, nl) judged by content; the phase prompt is not changed."
+    decision: "A single-file Bash read with exactly one path argument and no pipe, redirect, glob or command list is credited like a Read-tool window (same coverage and fail-closed rules); the evidence names the tool per window. Implemented as follow-up patch s3-a2."
+    rationale: "A recorded 2.1.299 review transcript used 52 Bash calls and 0 Read calls; failing (f) on tool choice would fail the smoke for a reason unrelated to the mount design, while a prompt nudge would change the arm's measured behaviour."
+    alternatives_considered:
+      - option: "the phase prompt asks for the Read tool on .claude/ files"
+        rejected_because: "changes the arm's prompt, the measured behaviour"
+      - option: "accept the risk"
+        rejected_because: "the smoke would likely fail on tool choice"
+    consequences:
+      positive:
+        - "the smoke judges what was read, not how"
+      negative:
+        - "a grep or diff over the file is still not a read"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "1e54af93"
+    source: "grimoires/loa/a2a/sprint-274/reviewer-a.md § What the lead must do (smoke risk); lead message to implementer A"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T10:12:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "1e54af937"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
