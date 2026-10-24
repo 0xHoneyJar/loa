@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-133-follow-through",
+  "active_cycle": null,
   "cycles": [
     {
       "id": "cycle-036",
@@ -2719,10 +2719,10 @@
     {
       "id": "cycle-133-follow-through",
       "label": "cycle-133 — the follow-through: every cycle-132 carry-over, every framework defect the cycle exposed, Loa reviewing Loa, the finding contract, external corpus seeding, beads hygiene; release 2.0.0-rc.8",
-      "status": "active",
+      "status": "archived",
       "created": "2026-10-23T21:25:35Z",
-      "archived": null,
-      "archive_path": null,
+      "archived": "2026-10-24T16:35:16Z",
+      "archive_path": "grimoires/loa/archive/cycle-133-follow-through",
       "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprints": [
@@ -2754,7 +2754,8 @@
           "created": "2026-10-23T22:15:22Z",
           "completed": "2026-10-24T14:55:34Z"
         }
-      ]
+      ],
+      "archived_at": "2026-10-24T16:25:57Z"
     }
   ],
   "global_sprint_counter": 268,
@@ -3201,5 +3202,5 @@
     }
   ],
   "next_sprint_number": 276,
-  "last_updated": "2026-10-24T14:55:34Z"
+  "last_updated": "2026-10-24T16:35:16Z"
 }

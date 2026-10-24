@@ -22,7 +22,7 @@ Written at the review point (before Task 4.5); the G-2 and G-3 rows are complete
 
 | Check | Evidence | Result |
 |---|---|---|
-| `git fetch origin main && git branch -r --contains v2.0.0-rc.8` names `origin/main`; the remote tag and the pre-release exist | after Task 4.5 | pending |
+| `git fetch origin main && git branch -r --contains v2.0.0-rc.8` names `origin/main`; the remote tag and the pre-release exist | merge 3e5b9d368857630c1ec94ddbb78e15aa9d7d0453 (PR #1292, admin merge with a merge commit after all required checks on 37547f3a4); record stage 1 603732b95af5945b0bb089df22a2f540b6df1b91 (parents b4b57cac6 ← cycle-132 record, 3e5b9d368; 263 files; scan_tree 87953d536, 4 accepted prose hits); post-merge run 40111490911 → candidate schema 2, digest ae442ae7…93e0, recovered in an isolated full clone (origin set to the candidate's URL form), `--publish --approve-sha256` rc=0: annotated tag v2.0.0-rc.8 (object 6560ac03) on the merge, release 422847479 pre-release with the curated notes, ledger commit 928b3b9e fast-forwarded onto main (expected_old = merge); `git branch -r --contains v2.0.0-rc.8` lists origin/main | **MET** |
 
 ## G-2 — the cycle PR's non-degraded Bridgebuilder verdict
 

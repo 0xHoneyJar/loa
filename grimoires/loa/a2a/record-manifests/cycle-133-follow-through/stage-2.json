@@ -22,7 +22,7 @@
     }
   ],
   "cycle": "cycle-133-follow-through",
-  "head": "3e5b9d368857630c1ec94ddbb78e15aa9d7d0453",
+  "head": "2d1d5da14d8093474f91384ae64a2a22216e23d8",
   "lite_tree": null,
   "paths": [
     "grimoires/loa/a2a/sprint-272",
@@ -36,8 +36,8 @@
     "grimoires/loa/NOTES.md",
     "grimoires/loa/archive/notes"
   ],
-  "prev": "b4b57cac62046cbf75658879c19f177cdb2e3eec",
+  "prev": "603732b95af5945b0bb089df22a2f540b6df1b91",
   "results_roots": [],
-  "scan_tree": "87953d53689a585c1f1be1819efa1b151f8ad038",
-  "stage": "stage 1"
+  "scan_tree": "3ceeb04bfd25df3e10e4e023b2d2558758e712d5",
+  "stage": "stage 2"
 }
