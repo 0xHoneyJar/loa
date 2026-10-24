@@ -29017,3 +29017,380 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0867"
+    created_at: "2026-10-24T00:06:02Z"
+    updated_at: "2026-10-24T00:06:02Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.3: generated non-ledger changes stay local, sealed as unpublished_paths and warned; the ledger patch is restricted to ledger.json"
+    decision: "A CHANGELOG fill, version markers and regenerated ground truth produced by --generate stay local; the candidate seals them as unpublished_paths and both --generate and --publish warn about them; the ledger patch validated and pushed by the publisher is the one text diff of grimoires/loa/ledger.json."
+    rationale: "sdd.md C-3 restricts the fast-forward to the ledger so the published main differs from the reviewed merge by one deterministic archive commit; the generated files ride the next pull request under review."
+    alternatives_considered:
+      - option: "refuse to publish while generated non-ledger changes exist"
+        rejected_because: "it broke 13 cases in suites outside the task's ownership and contradicts the AC 'keep the existing --generate behaviour'"
+      - option: "fold the generated files into the ledger patch"
+        rejected_because: "C-3 restricts the patch to ledger.json; unreviewed CHANGELOG and ground-truth bytes would reach main"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b1bab8f1"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-b.md § Judgment calls (Generated non-ledger changes)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T00:06:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit b1bab8f16 (post-merge-orchestrator.sh prepare_candidate, validate_ledger_patch)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0868"
+    created_at: "2026-10-24T00:06:05Z"
+    updated_at: "2026-10-24T00:06:05Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.3: --publish pushes only the sealed commit (expected_old = merge); any other main defers (exit 3); --ledger-only is the explicit re-apply"
+    decision: "The leased fast-forward runs only while main equals the merge (expected_old = merge); a descendant main, a moved main (lease_failed) or a rejected push with main unchanged (push_rejected) defer with .run/post-merge-ledger-deferred.{json,patch} and exit 3; --ledger-only re-applies the sealed patch onto the then-current main under the same lease; deferral is exit 3 in both modes, a conflicting tag exit 2, ancestry failure exit 2 at preflight and 1 mid-run, a release mismatch after the tag exit 1."
+    rationale: "A re-applied commit on a different parent is not the commit the candidate named; publishing it silently would break the seal; the deferral keeps the tag and release published and makes the ledger step an explicit, inspectable second action."
+    alternatives_considered:
+      - option: "re-apply onto a descendant main automatically during --publish"
+        rejected_because: "the resulting commit is not sealed in the candidate; the operator would publish bytes nobody inspected"
+      - option: "exit 1 on a rejected push"
+        rejected_because: "the tag and release did publish; exit 1 reads as a failed run and would prompt a retry of published steps"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b1bab8f1"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-b.md § Judgment calls (--publish pushes only the approved commit; push rejected while main unchanged; Exit codes)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T00:06:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit b1bab8f16 (phase_ledger, publish_ledger_only, exit table in the header)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0869"
+    created_at: "2026-10-24T00:06:09Z"
+    updated_at: "2026-10-24T00:06:09Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.3: ledger commit built in a temporary index with the operator's identity at the merge's committer time, so its id is deterministic"
+    decision: "build_ledger_commit applies the sealed patch in a temporary index (no checkout, no worktree) and commits with the operator's git user.name/user.email dated at the merge's committer time +0000, message 'chore(ledger): archive <cycle> after merge', --no-gpg-sign, UTF-8 pinned; validate_candidate_v2 rebuilds it and requires equality with the sealed new."
+    rationale: "The publisher must be able to prove the commit it pushes is the one the candidate sealed; a generation-time date or a bot identity would make the id unreproducible; a temporary index leaves the operator's checkout untouched and no debris after a crash."
+    alternatives_considered:
+      - option: "a detached worktree for the ledger commit"
+        rejected_because: "checkout I/O and debris after a crash for the same tree and commit"
+      - option: "a bot identity and the generation time"
+        rejected_because: "the commit id would differ on every rebuild, defeating the seal"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b1bab8f1"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-b.md § Judgment calls (temporary index; Ledger commit identity)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T00:06:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit b1bab8f16 (build_ledger_commit, validate_candidate_v2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0870"
+    created_at: "2026-10-24T00:06:13Z"
+    updated_at: "2026-10-24T00:06:13Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.3: the candidate is its own RFC 8785 form (digest = sha256 of its bytes); stdlib canonicaliser fallback that can only refuse"
+    decision: "prepare_candidate writes the candidate already canonicalised; --publish requires byte equality with re-canonicalisation; jcs_file uses lib/jcs.sh when the rfc8785 package is present and otherwise an exact stdlib form for the candidate's value domain, refusing floats, big integers and lone surrogates; a conformance case compares the two and a disagreement can only refuse."
+    rationale: "--approve-sha256 and the workflow's sha256sum keep working on the bytes the operator inspected; the post-merge.yml runner, downstream mounts and the other suites' fixtures have neither lib/jcs.sh's dependency nor rfc8785, so a fallback that can only refuse keeps the gate closed rather than silently skipping canonicalisation."
+    alternatives_considered:
+      - option: "digest a jq -S rendering"
+        rejected_because: "the agent-network invariant forbids jq -S as canonical form; jq's number rendering is not JCS"
+      - option: "require rfc8785 everywhere"
+        rejected_because: "the CI runner and mounts do not have it; publication would be impossible from the documented environments"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b1bab8f1"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-b.md § Judgment calls (The candidate file is its own JCS form; Stdlib canonicaliser fallback)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T00:06:13Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit b1bab8f16 (jcs_file, the conformance case in post-merge-publication.bats)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0871"
+    created_at: "2026-10-24T00:06:16Z"
+    updated_at: "2026-10-24T00:06:16Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.3: an existing tag is accepted only if annotated on the merge with subject 'Release <tag>'; v2 release read-back matches the title"
+    decision: "phase_tag accepts a pre-existing tag only when it is annotated, points at the merge, carries the tag name and the subject 'Release <tag>' (a signature tolerated, a lightweight tag refused), else exit 2; the release read-back in v2 also matches the sealed title; remote reads fetch the approved push URL into refs/loa/post-merge/observed-{main,tag} rather than FETCH_HEAD; HEAD must be the merge, generated_head or new with tree = target_tree; main_ref is sealed as refs/heads/main and other default branches refuse at preflight."
+    rationale: "A tag of the right name on the wrong object is exactly the rc.6/rc.7 failure (tags on a generated commit nobody merged); identity by object, kind and subject lets a crashed run resume without re-tagging while refusing a foreign tag; the title match keeps v1 subtitled releases valid."
+    alternatives_considered:
+      - option: "accept any existing tag of that name"
+        rejected_because: "a tag on the wrong commit would be reported as published"
+      - option: "delete and re-create a conflicting tag"
+        rejected_because: "the cycle's refusal list forbids deleting tags; a conflict is the operator's call"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b1bab8f1"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-b.md § Judgment calls (Tag identity; Release identity; Remote reads; Checkout binding; main_ref)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T00:06:16Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit b1bab8f16 (phase_tag, verify_main_ancestry, publish_gate, publish_candidate)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0872"
+    created_at: "2026-10-24T00:15:30Z"
+    updated_at: "2026-10-24T00:15:30Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.4: record-branch.sh adds eight never-bypassable credential classes beside the shared bypassable password class; placeholder filter"
+    decision: "The shared audit scanner knows only the password-assignment pattern, reported as the bypassable class audit-key-password-assignment; record-branch.sh adds private-key, anthropic-key, openai-key, github-token, aws-access-key, google-api-key, slack-token and bearer-token as classes that --accept-scan can never bypass; a match body with fewer than 6 distinct characters is skipped and the generic shapes (sk-, xox, Bearer) also need a digit and a letter; hits print path:line:class only."
+    rationale: "A public record branch is the highest-exposure write the framework performs; a real key must stop the build regardless of operator acceptance, while redacted placeholders (XXXX, <token>) would otherwise cause unbypassable stops on every record."
+    alternatives_considered:
+      - option: "extend the shared scanner with the eight classes"
+        rejected_because: "the shared scanner's hits are bypassable by design (audit prose quotes key shapes); changing its contract would alter every existing consumer"
+      - option: "no placeholder filter"
+        rejected_because: "redacted placeholders in a2a prose would trip unbypassable stops and block every record"
+    consequences:
+      positive:
+        - "the C-12 external seeder reuses the same classes once extracted to a lib (Sprint 3 brief C)"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "6c3929f7"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-c.md § Judgment calls (Credential classes live in record-branch.sh; Placeholder filter)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T00:15:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 6c3929f70 (record-branch.sh scan helper; record-branch.bats cases 6, 7)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0873"
+    created_at: "2026-10-24T00:15:33Z"
+    updated_at: "2026-10-24T00:15:33Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.4: a symlink is accepted only when relative with a recorded in-tree target; gitlinks, nested .git and escaping --add paths refused"
+    decision: "A symlink in the final tree is accepted only if it is relative and its target is itself in the recorded final tree; absolute, escaping or unrecorded targets, gitlinks and a nested git repository under a results root are refused before staging (exit 2, no ref, no objects); explicit --manifest paths that are missing are refused, ledger-derived missing paths are skipped."
+    rationale: "Refusing every symlink was not viable (the head tracks 10 fixture symlinks and every default manifest carries the flatline *-final_consensus.json links); a relative in-tree target cannot read outside the record on any clone."
+    alternatives_considered:
+      - option: "refuse every symlink"
+        rejected_because: "the tracked fixture symlinks and the flatline consensus links would make every default manifest fail"
+      - option: "materialise symlinks as copies"
+        rejected_because: "the record would no longer be the bytes the cycle produced"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "6c3929f7"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-c.md § Judgment calls (Symlink rule; Other record-branch defaults)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T00:15:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 6c3929f70 (record-branch.sh symlink validation; record-branch.bats cases 3, 4, 5, 14)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0874"
+    created_at: "2026-10-24T00:15:36Z"
+    updated_at: "2026-10-24T00:15:36Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.4: scan hit exits 2 (§5.4 rules); CAS failure exits 2 with no ref; 'on origin' means a local refs/remotes/origin/* contains the commit"
+    decision: "A scan hit exits 2 (sdd.md § 5.4 is authoritative over the § 5.2 row that said 3); the record ref must be absent or equal --prev and update-ref receives the observed old value, a move during the build exits 2 without a ref; 'parents on origin' means some local refs/remotes/origin/* contains the commit (no network); --dry-run keeps path and symlink refusals at exit 2 but downgrades the parent and CAS checks to warnings so the size table works before the push."
+    rationale: "One exit table for every script this cycle touches is the SDD's rule; nothing externally visible happens on a CAS failure so it is a refusal, not a failure; ls-remote would need the network and would not work in the test harness."
+    alternatives_considered:
+      - option: "exit 1 on a CAS failure"
+        rejected_because: "exit 1 is reserved for a failure after an externally visible step; nothing was written"
+      - option: "git ls-remote for the on-origin check"
+        rejected_because: "network dependency in a pre-write check; the tests run offline"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "6c3929f7"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-c.md § Judgment calls (Scan hit exit code; CAS; On-origin check; Dry run)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T00:15:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 6c3929f70 (record-branch.sh header exit table; record-branch.bats cases 8, 10, 11)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0875"
+    created_at: "2026-10-24T00:15:39Z"
+    updated_at: "2026-10-24T00:15:39Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.4: manifest under a2a/record-manifests/<cycle>/<stage>.json as sorted-key JSON, not jcs.sh; default manifest adds bug micro-sprints"
+    decision: "The manifest is written with Python json.dumps(sort_keys) to grimoires/loa/a2a/record-manifests/<cycle id>/<stage slug>.json; scan_tree names the tree before the manifest is added; the default manifest includes the bug-*/ and sprint-bug-* directories of ledger bugfix entries created in the cycle's whole-day UTC window (created → archived, or today while active); report directories are added with --add."
+    rationale: "No digest consumes the manifest, so RFC 8785 canonical form buys nothing and lib/jcs.sh's helper needs the non-stdlib rfc8785 package; the micro-sprints are part of the cycle's record and the ledger already dates them."
+    alternatives_considered:
+      - option: "canonicalise the manifest with lib/jcs.sh"
+        rejected_because: "a non-stdlib dependency for a file whose bytes nothing hashes"
+      - option: "leave bug micro-sprints out of the default manifest"
+        rejected_because: "the cycle-132 record needed them and every record would need --add by hand"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "6c3929f7"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-c.md § Judgment calls (Manifest placement; Bug micro-sprints in the default manifest)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T00:15:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 6c3929f70 (record-branch.sh default manifest; record-branch.bats cases 1, 2, 12)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0876"
+    created_at: "2026-10-24T00:15:42Z"
+    updated_at: "2026-10-24T00:15:42Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.5: rotate keeps Blockers and Sub-Goals whole, newest Continuity, three Decision Logs in 69,632 B, 20 Session Log entries, SDD order"
+    decision: "cmd_rotate emits Blockers, Active Sub-Goals, Session Continuity, Decision Log, Session Log, Archive pointers in that order; the whole-kept sections are never cut; the three newest Decision Logs receive what remains of the 69,632-byte budget with their headings kept and a truncation line naming the archive; a Session Log entry is a table row or a list item, newest last; old archive pointers are not carried; a WARN fires when the whole-kept sections alone reach 100 KiB."
+    rationale: "The cycle-132 rotation dropped live blockers and sub-goals (the defect behind bd-rz5ks); NG-7 and NG-9 (check-loa section checks) must stay green; the template's section order differs from the SDD's list and the SDD is the contract."
+    alternatives_considered:
+      - option: "keep the template order (Session Log first)"
+        rejected_because: "the SDD lists the order and the post-rotation reader needs blockers first"
+      - option: "cut the whole-kept sections proportionally when over budget"
+        rejected_because: "losing a blocker to a byte budget is the defect being fixed; the WARN surfaces the growth instead"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "6c3929f7"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-c.md § Judgment calls (Rotate order; Rotate budget; Session Log entries)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T00:15:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 6c3929f70 (notes-guard.sh build_retained, session_log_part; notes-guard-rotate.bats 4)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0877"
+    created_at: "2026-10-24T00:15:45Z"
+    updated_at: "2026-10-24T00:15:45Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Sprint 272 Task 1.5: hook liveness — AWAITING_HITL is awaiting_resume; state-less simstim files use the cycle-122 rule; bad window falls back to 7 days"
+    decision: "pre-compact-marker.sh: COMPLETED/JACKED_OUT silent, RUNNING active, HALTED and simstim AWAITING_HITL awaiting_resume (active: true plus liveness); a simstim file without .state uses the cycle-122 phase rule so post-compact-active-skill.bats stays green; no last_activity means no age gate, an unparseable one is silent, a bad LOA_HOOK_LIVE_WINDOW_DAYS falls back to 7. dec-write keeps the pinned phrase 'over 160 characters' while adding the measured length. security-audit-scope.sh: unknown option exits 2, --max-depth validated, empty --files gives zero counts, --files and --paths combine. validate_ledger requires a positive integer schema_version (alias version); the restore check and init_ledger are follow-up beads. The auditing-security SKILL.md edit is one sentence (budget at 16,384 exactly); ship.md gains one sentence because the AC names both command texts."
+    rationale: "Liveness must distinguish a run waiting for the operator from a dead one without breaking the existing hook contract; the existing tests pin the wording and the fixtures; the prompt budget is a hard CI gate."
+    alternatives_considered:
+      - option: "treat every non-RUNNING state as silent"
+        rejected_because: "a HALTED run awaiting /run-resume would vanish from the post-compaction reminder, the cycle-132 failure"
+      - option: "update post-compact-active-skill.bats fixtures now and drop the fallback"
+        rejected_because: "outside Task 1.5's ownership; filed as a bead"
+    consequences: null
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "6c3929f7"
+    source: "grimoires/loa/a2a/sprint-272/reviewer-c.md § Judgment calls (Hook states; dec-write wording; Scope options; SKILL.md edit; validate_ledger; ship.md)"
+    cycle: "cycle-133-follow-through"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-24T00:15:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "commit 6c3929f70 (pre-compact-marker.sh; pre-compact-liveness.bats 7; security-audit-scope.bats 5; ledger-validate.bats 4; dec-write-length.bats 2)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
