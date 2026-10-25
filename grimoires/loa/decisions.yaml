@@ -33086,7 +33086,7 @@ decisions:
     prior_requests: []
   - id: "DEC-0960"
     created_at: "2026-10-25T02:52:22Z"
-    updated_at: "2026-10-25T02:52:22Z"
+    updated_at: "2026-10-25T23:42:07Z"
     phase: "implementation"
     category: "release"
     summary: "Next cycles ship per-sprint PRs (run-mode --no-consolidate); evidence trees and dist rebuilds go in checksum-reviewed follow-ups so the BB verdict holds."
@@ -33107,8 +33107,8 @@ decisions:
         - "more PRs and CI runs per cycle"
         - "the record branch stages per sprint merge rather than once"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "1fc6d150"
@@ -33116,19 +33116,24 @@ decisions:
     cycle: "cycle-133-follow-through"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T02:52:22Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "PR #1292 comment 6386303901 (coverage 23/374); DEC-0957"
+      - at: "2026-10-25T23:42:07Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0961"
     created_at: "2026-10-25T03:03:15Z"
-    updated_at: "2026-10-25T03:03:15Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "discovery"
     category: "scope"
     summary: "cycle-134 scope: the nine Bridgebuilder/ship follow-up beads of cycle-133; the eleven carry-overs and bd-oik13 stay out (a later cycle)."
@@ -33146,8 +33151,8 @@ decisions:
       negative:
         - "the carry-overs wait another cycle"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33155,19 +33160,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:03:15Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "brief § Scope"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0962"
     created_at: "2026-10-25T03:03:19Z"
-    updated_at: "2026-10-25T03:03:19Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "discovery"
     category: "release"
     summary: "No new release candidate this cycle: the rc.8 soak continues; the fixes ride main into rc.9 or 2.0.0 when the exit criteria hold."
@@ -33184,8 +33194,8 @@ decisions:
       negative:
         - "the fixes reach consumers only with the next rc"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33193,19 +33203,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:03:19Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "brief § Release"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0963"
     created_at: "2026-10-25T03:03:22Z"
-    updated_at: "2026-10-25T03:03:22Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "discovery"
     category: "process"
     summary: "Brownfield grounding by direct file:line reads of the nine defect sites; no /ride (reality files date from 2026-05-04; unattended run)."
@@ -33222,8 +33237,8 @@ decisions:
       negative:
         - "reality files stay stale"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33231,19 +33246,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:03:22Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "brief § Scope"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0964"
     created_at: "2026-10-25T03:03:26Z"
-    updated_at: "2026-10-25T03:03:26Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "discovery"
     category: "budget"
     summary: "Spend cap USD 20 for cycle-134: Bridgebuilder round(s) only; Flatline and dissent run on subscription routes at USD 0; no smoke, no measurement."
@@ -33260,8 +33280,8 @@ decisions:
       negative:
         - "a third Bridgebuilder round would need an operator decision"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33269,19 +33289,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:03:26Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "brief § Standing rules"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0965"
     created_at: "2026-10-25T03:03:30Z"
-    updated_at: "2026-10-25T03:03:30Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "discovery"
     category: "quality"
     summary: "took-effect acceptance: the recorded c133-smoke run-1/run-2 evidence re-validates to the same verdicts, plus fixture tests for both failure directions."
@@ -33298,8 +33323,8 @@ decisions:
       negative:
         - "the recorded runs are short sessions; the recurring-hook case rests on the fixtures"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33307,19 +33332,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:03:30Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "smoke evidence trees"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0966"
     created_at: "2026-10-25T03:09:01Z"
-    updated_at: "2026-10-25T03:09:01Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "discovery"
     category: "scope"
     summary: "cycle-134 scope: the nine Bridgebuilder/ship follow-up beads of cycle-133; the eleven carry-overs and bd-oik13 stay out (a later cycle)."
@@ -33337,8 +33367,8 @@ decisions:
       negative:
         - "the carry-overs wait another cycle"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33346,19 +33376,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:09:01Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "brief § Scope"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0967"
     created_at: "2026-10-25T03:09:05Z"
-    updated_at: "2026-10-25T03:09:05Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "discovery"
     category: "release"
     summary: "No new release candidate this cycle: the rc.8 soak continues; the fixes ride main into rc.9 or 2.0.0 when the exit criteria hold."
@@ -33375,8 +33410,8 @@ decisions:
       negative:
         - "the fixes reach consumers only with the next rc"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33384,19 +33419,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:09:05Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "brief § Release"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0968"
     created_at: "2026-10-25T03:09:09Z"
-    updated_at: "2026-10-25T03:09:09Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "discovery"
     category: "process"
     summary: "Brownfield grounding by direct file:line reads of the nine defect sites; no /ride (reality files date from 2026-05-04; unattended run)."
@@ -33413,8 +33453,8 @@ decisions:
       negative:
         - "reality files stay stale"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33422,19 +33462,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:09:09Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "brief § Scope"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0969"
     created_at: "2026-10-25T03:09:12Z"
-    updated_at: "2026-10-25T03:09:12Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "discovery"
     category: "budget"
     summary: "Spend cap USD 20 for cycle-134: Bridgebuilder round(s) only; Flatline and dissent run on subscription routes at USD 0; no smoke, no measurement."
@@ -33451,8 +33496,8 @@ decisions:
       negative:
         - "a third Bridgebuilder round would need an operator decision"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33460,19 +33505,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:09:12Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "brief § Standing rules"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0970"
     created_at: "2026-10-25T03:09:16Z"
-    updated_at: "2026-10-25T03:09:16Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "discovery"
     category: "quality"
     summary: "took-effect acceptance: the recorded c133-smoke run-1/run-2 evidence re-validates to the same verdicts, plus fixture tests for both failure directions."
@@ -33489,8 +33539,8 @@ decisions:
       negative:
         - "the recorded runs are short sessions; the recurring-hook case rests on the fixtures"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33498,19 +33548,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:09:16Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "smoke evidence trees"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0971"
     created_at: "2026-10-25T03:15:33Z"
-    updated_at: "2026-10-25T03:15:33Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "architecture"
     summary: "FR-1 hook rule: hook_name (<event>[:<matcher>]) must name a pinned group; per-group counts are whole multiples bounded by the transcript triggers."
@@ -33530,8 +33585,8 @@ decisions:
       negative:
         - "trigger counts are undefined for rare events (PreCompact, Setup, Notification): (a)+(b) only there"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33539,19 +33594,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:15:33Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "took-effect.sh:1102-1113; sandbox-mount.sh:1733-1743"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0972"
     created_at: "2026-10-25T03:15:37Z"
-    updated_at: "2026-10-25T03:15:37Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "architecture"
     summary: "FR-2: every executed phase needs a regular non-empty transcript with an init event and a final result event; less fails clause (g) by phase."
@@ -33568,8 +33628,8 @@ decisions:
       negative:
         - "a session killed by the harness timeout has no result event and now fails (g) — correct, it is unexamined"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33577,19 +33637,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:15:37Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "took-effect.sh:865-871"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0973"
     created_at: "2026-10-25T03:15:42Z"
-    updated_at: "2026-10-25T03:15:42Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "architecture"
     summary: "FR-4: recompute the pinned manifest digest from the pin and cross-check record, arm_evidence and entry count; walk a retained HOME when present."
@@ -33606,8 +33671,8 @@ decisions:
       negative:
         - "per-file tampering after the driver's check is still only the driver's word unless the HOME is retained"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33615,19 +33680,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:15:42Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "took-effect.sh:373-380"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0974"
     created_at: "2026-10-25T03:15:46Z"
-    updated_at: "2026-10-25T03:15:46Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "architecture"
     summary: "FR-5: verify already round-trips R5 (reverse applies R5_REV); the work is a corpus table narrowing R3/R5; the finding's verify claim is corrected."
@@ -33644,8 +33714,8 @@ decisions:
       negative:
         - "the corpus table is manual work for implementer B"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33653,19 +33723,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:15:46Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "sandbox-mount.sh:1707-1731"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0975"
     created_at: "2026-10-25T03:15:52Z"
-    updated_at: "2026-10-25T03:15:52Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "architecture"
     summary: "FR-6: proxy --pids-limit 256 (MaxClients 200 plus tinyproxy threads); Dockerfile run line follows; a bats test asserts the pair from the files."
@@ -33682,8 +33757,8 @@ decisions:
       negative:
         - "none"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33691,19 +33766,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:15:52Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "egress-proxy.sh:205; Dockerfile.proxy:101"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0976"
     created_at: "2026-10-25T03:15:56Z"
-    updated_at: "2026-10-25T03:15:56Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "architecture"
     summary: "FR-7: each .jobs record gains an .ident (leader start_ticks + cmdline sha256); reclaim signals only on a match, else removes the stale record."
@@ -33720,8 +33800,8 @@ decisions:
       negative:
         - "old records are not reclaimed by signal (removed as stale)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33729,19 +33809,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:15:56Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "batch-supervisor.sh:237-260"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0977"
     created_at: "2026-10-25T03:16:00Z"
-    updated_at: "2026-10-25T03:16:00Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "architecture"
     summary: "FR-8: fix-diff paths come from the trees first and their blobs join the bounded fetch; out-of-bounds refuses by name; the diff is computed after."
@@ -33758,8 +33843,8 @@ decisions:
       negative:
         - "larger fixes may hit --max-bytes sooner"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33767,19 +33852,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:16:00Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "seed-corpus-from-external.sh:562"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0978"
     created_at: "2026-10-25T03:16:04Z"
-    updated_at: "2026-10-25T03:16:04Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "architecture"
     summary: "FR-3: an empty PR number classifies as other regardless of subject; the cycle job is guarded on pr_number != empty; [skip ci] rejected."
@@ -33796,8 +33886,8 @@ decisions:
       negative:
         - "a maintainer who pushes a cycle commit directly to main (not a merge) gets no candidate — intended"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33805,19 +33895,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:16:04Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "post-merge.yml:182"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0979"
     created_at: "2026-10-25T03:16:08Z"
-    updated_at: "2026-10-25T03:16:08Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "architecture"
     summary: "FR-9: tag identity check moves pre-write (exit 2 before PUBLISHING); remote mismatch returns 1; --generate refuses non-integer numbers."
@@ -33835,8 +33930,8 @@ decisions:
       negative:
         - "a future metric with a float must be an integer (ms, micro-USD)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33844,19 +33939,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:16:08Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "post-merge-orchestrator.sh:1091-1100"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0980"
     created_at: "2026-10-25T03:16:12Z"
-    updated_at: "2026-10-25T03:16:12Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "quality"
     summary: "took-effect regression runs on the lead host over the retained smoke batches (transcripts kept), not the report trees; CI gets fixtures. Amends DEC-0970."
@@ -33873,8 +33973,8 @@ decisions:
       negative:
         - "host-local; not reproducible in CI"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33882,19 +33982,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:16:12Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "find evals/results/ablation-2.0/smoke-c133-s274* -name 'events-*.jsonl' → 3 files"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0981"
     created_at: "2026-10-25T03:23:10Z"
-    updated_at: "2026-10-25T03:23:10Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "architecture"
     summary: "FR-9 amendment (Flatline IMP-014): the remote tag identity check also runs pre-write via ls-remote; phase_tag re-checks for the race and returns 1."
@@ -33911,8 +34016,8 @@ decisions:
       negative:
         - "one more remote round-trip during validation"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33920,19 +34025,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:23:10Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "post-merge-orchestrator.sh:1095-1104"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0982"
     created_at: "2026-10-25T03:37:05Z"
-    updated_at: "2026-10-25T03:37:05Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "architecture"
     summary: "FR-1 equation: count = k·n, 0 ≤ k ≤ triggers; k = 0 allowed (clause (g) asks whether a PR hook ran); groups merge; hex group evidence; grammar is a gate."
@@ -33949,8 +34059,8 @@ decisions:
       negative:
         - "a pinned hook that silently stopped firing is invisible to this clause (it is a hook-health question, not an exposure)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33958,19 +34068,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:37:05Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "retained transcripts; sandbox-mount.sh:1733-1743"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0983"
     created_at: "2026-10-25T03:37:10Z"
-    updated_at: "2026-10-25T03:37:10Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "architecture"
     summary: "FR-2 JSONL policy: every non-empty line parses, init precedes the unique result, the result is the final line; a malformed line or no result fails (g) by phase."
@@ -33987,8 +34102,8 @@ decisions:
       negative:
         - "timed-out sessions now fail (g) — correct and visible"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -33996,19 +34111,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:37:10Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "took-effect.sh:590-640, 865-871"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0984"
     created_at: "2026-10-25T03:37:15Z"
-    updated_at: "2026-10-25T03:37:15Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "process"
     summary: "Implementer B owns every sandbox-mount.sh change incl. the hook-group emitter to A's spec; the validator accepts both grammars; the lead lands B after A."
@@ -34025,8 +34145,8 @@ decisions:
       negative:
         - "B's scope grows by one small function"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -34034,19 +34154,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:37:15Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "sandbox-mount.sh:1733-1743"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0985"
     created_at: "2026-10-25T03:37:20Z"
-    updated_at: "2026-10-25T03:37:20Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "architecture"
     summary: "FR-9/FR-3 precision: --generate refusal exits 2; integer domain at generate and publish; ls-remote failure exits 2; annotated-tag identity; trailing (#NNN)."
@@ -34065,8 +34190,8 @@ decisions:
       negative:
         - "one more remote failure mode for the runbook"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -34074,19 +34199,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:37:20Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "post-merge-orchestrator.sh:1621-1630; the rc.8 candidate"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0986"
     created_at: "2026-10-25T03:37:24Z"
-    updated_at: "2026-10-25T03:37:24Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "architecture"
     category: "quality"
     summary: "Regression baseline: both retained smoke runs FAIL oracle_closed on (f) (KF-060), integrity_clean passes; after: same sets plus a (g) no-result finding on s274."
@@ -34101,8 +34231,8 @@ decisions:
       negative:
         - "host-local"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "5e7219a3"
@@ -34110,19 +34240,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T03:37:24Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "took-effect re-runs 2026-10-25 (lead host)"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0987"
     created_at: "2026-10-25T05:11:41Z"
-    updated_at: "2026-10-25T05:11:41Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "implementation"
     category: "implementation"
     summary: "took-effect hooks: the hook_name suffix is the trigger query → sha(query) + the matcher-less group; regex-only groups fail closed until a real event exists."
@@ -34139,8 +34274,8 @@ decisions:
       negative:
         - "a future PreToolUse:Write event under a regex-only group would false-fail until the emitter expands alternatives"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "f17bfe0e"
@@ -34148,19 +34283,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T05:11:41Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "took-effect-hooks.bats TEH-3, TEH-6, TEH-9"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0988"
     created_at: "2026-10-25T05:11:45Z"
-    updated_at: "2026-10-25T05:11:45Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "implementation"
     category: "implementation"
     summary: "took-effect trigger counts compare tool names as text (equal to the query or one of its |-alternatives); transcript strings are never compiled as regex."
@@ -34175,8 +34315,8 @@ decisions:
       negative:
         - "a regex matcher with character classes would not be understood (none exists in the pinned settings)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "f17bfe0e"
@@ -34184,19 +34324,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T05:11:45Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "took-effect-hooks.bats TEH-1, TEH-5"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0989"
     created_at: "2026-10-25T05:11:48Z"
-    updated_at: "2026-10-25T05:11:48Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "implementation"
     category: "implementation"
     summary: "took-effect phases: a stopped run may hold a prefix of the suite phases; one reason per transcript in a fixed order keeps the +N count stable."
@@ -34211,8 +34356,8 @@ decisions:
       negative:
         - "a second defect in the same transcript surfaces only after the first is fixed"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "f17bfe0e"
@@ -34220,19 +34365,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T05:11:48Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "took-effect-transcripts.bats TET-11, TET-13"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0990"
     created_at: "2026-10-25T05:11:52Z"
-    updated_at: "2026-10-25T05:11:52Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "implementation"
     category: "architecture"
     summary: "integrity_clean binding amended: the HOME manifest is regenerated with a timestamp → bind by coverage, arm_evidence equality and the pin match. Amends DEC-0973."
@@ -34249,8 +34399,8 @@ decisions:
       negative:
         - "per-file tampering after the driver's check stays unprovable without a retained HOME (unchanged)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "f17bfe0e"
@@ -34258,19 +34408,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T05:11:52Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "took-effect-integrity.bats TEI-1 … TEI-8; regression After"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0991"
     created_at: "2026-10-25T05:11:57Z"
-    updated_at: "2026-10-25T05:11:57Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "implementation"
     category: "process"
     summary: "Home-scope bats fixtures updated by a lead-landed companion patch (result events, AUDIT record, hex pin) to satisfy the new validator rules."
@@ -34285,8 +34440,8 @@ decisions:
       negative:
         - "none"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "f17bfe0e"
@@ -34294,19 +34449,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T05:11:57Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "landing.md; home-scope + took-effect existing bats 53/53"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0992"
     created_at: "2026-10-25T05:12:01Z"
-    updated_at: "2026-10-25T05:12:01Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "implementation"
     category: "architecture"
     summary: "Mount rules: narrowing = existence guard; zone names, headings, comments stay rewritten; absent paths and fixtures drop; R5 unchanged; 21-row § 11.F over a TSV."
@@ -34325,8 +34485,8 @@ decisions:
       negative:
         - "MR-24 is pinned to one commit and skips on a shallow clone"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "f17bfe0e"
@@ -34334,19 +34494,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T05:12:01Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "sandbox-mount-rules.bats MR-01 … MR-24, HK-1 … HK-4"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0993"
     created_at: "2026-10-25T05:12:05Z"
-    updated_at: "2026-10-25T05:12:05Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "implementation"
     category: "architecture"
     summary: "Classifier: PR number = trailing (#NNN) or the anchored Merge pull request #N prefix (merge-commit repo); empty → other. Amends DEC-0985 item 6."
@@ -34363,8 +34528,8 @@ decisions:
       negative:
         - "a hand-written subject 'Merge pull request #7 …' on a direct push would be treated as a merge"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "f17bfe0e"
@@ -34372,19 +34537,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T05:12:05Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "classify-merge-pr.bats KF063-T1 … T13, R-005"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0994"
     created_at: "2026-10-25T05:12:09Z"
-    updated_at: "2026-10-25T05:12:09Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "implementation"
     category: "implementation"
     summary: "Publish contract: number tokens via json parse hooks; --generate scans the run state; pre-write excludes refs/loa/post-merge/*; --allow-v1 gets the tag check."
@@ -34403,8 +34573,8 @@ decisions:
       negative:
         - "an older jq that turns 1.0 into 1 hands on a real integer (both canonicalisers agree)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "f17bfe0e"
@@ -34412,19 +34582,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T05:12:09Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "post-merge-publication.bats c134 C-9 (16 cases); workflow-guards PMWG-T1 … T4"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0995"
     created_at: "2026-10-25T05:12:13Z"
-    updated_at: "2026-10-25T05:12:13Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "implementation"
     category: "architecture"
     summary: "Supervisor identity in the lib (record-job: .ident then .pgid), read after exec settles; leaderless/unsettled groups are stale; run-ablation caller lead-landed."
@@ -34441,8 +34616,8 @@ decisions:
       negative:
         - "the .pgid write can lag by up to 5 s (typically 50–100 ms); a driver SIGTERM in that window does not see the job"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "f17bfe0e"
@@ -34450,19 +34625,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T05:12:13Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "batch-supervisor.bats BSV-14 … BSV-19"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0996"
     created_at: "2026-10-25T05:12:17Z"
-    updated_at: "2026-10-25T05:12:17Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "implementation"
     category: "implementation"
     summary: "Seeder: bounds and missing-object refusals exit 2; a failed fetch stays 1 naming paths; symlink blobs in the fix range fetched; two inert bats asserts fixed."
@@ -34477,8 +34657,8 @@ decisions:
       negative:
         - "the defensive 'reads an object outside the fetched set' refusal is unreachable once every changed blob is in the want set"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "f17bfe0e"
@@ -34486,19 +34666,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T05:12:17Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "seed-corpus-from-external.bats SX-21 … SX-24"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0997"
     created_at: "2026-10-25T05:12:20Z"
-    updated_at: "2026-10-25T05:12:20Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "implementation"
     category: "process"
     summary: "Landing: C, D then A, B; each patch's new tests proven red first in a scratch tree; the shared sample fixture was byte-identical (sha256(Bash) d1e9567da9a8)."
@@ -34513,8 +34698,8 @@ decisions:
       negative:
         - "none"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "f17bfe0e"
@@ -34522,19 +34707,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T05:12:20Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "landing.md"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0998"
     created_at: "2026-10-25T07:32:04Z"
-    updated_at: "2026-10-25T07:32:04Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "review"
     category: "process"
     summary: "Sprint 276 dissent cap: the three permitted cross-model runs went to the review gate on the A, C, D code diffs; the audit ran without its own dissent envelope."
@@ -34551,8 +34741,8 @@ decisions:
       negative:
         - "the audit gate has no envelope of its own type this sprint"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "auditing-security/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "c87cc20c"
@@ -34560,19 +34750,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T07:32:04Z"
         from: null
         to: "proposed"
         by: "agent:auditing-security"
         evidence: "a2a/sprint-276/dissent-{a,c,d}.json"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-0999"
     created_at: "2026-10-25T07:40:06Z"
-    updated_at: "2026-10-25T07:40:06Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "implementation"
     category: "budget"
     summary: "Cap amended to USD 40 meter-priced: the meter prices headless CLI hops (cli_reported) that DEC-0969 took as free; real charges: Bedrock fallbacks + the probe."
@@ -34591,8 +34786,8 @@ decisions:
       negative:
         - "the operator sees a cap change made by the run (proposed row, confirmed at the close)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "6d1cc08b"
@@ -34600,19 +34795,24 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T07:40:06Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "cost ledger rows; claude-fallback.log"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1000"
     created_at: "2026-10-25T08:26:44Z"
-    updated_at: "2026-10-25T08:26:44Z"
+    updated_at: "2026-10-25T23:41:39Z"
     phase: "implementation"
     category: "release"
     summary: "Bridgebuilder on PR #1296: round 1 degraded (** glob skips dot segments, bd-a8l0c); round 2 non-degraded REQUEST_CHANGES → HIGH + MEDIUMs fixed; no third round."
@@ -34630,8 +34830,8 @@ decisions:
       negative:
         - "the posted verdict stays REQUEST_CHANGES on the PR; the fixes are documented in the triage comment, not re-reviewed by the Bridgebuilder"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-25T23:41:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "9b9eebab"
@@ -34639,13 +34839,18 @@ decisions:
     cycle: "cycle-134-post-ship-fixes"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-25T08:26:44Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "round2.log; the triage comment on PR #1296"
+      - at: "2026-10-25T23:41:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-25T23:41:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
