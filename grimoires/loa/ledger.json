@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-134-post-ship-fixes",
+  "active_cycle": null,
   "cycles": [
     {
       "id": "cycle-036",
@@ -2760,10 +2760,10 @@
     {
       "id": "cycle-134-post-ship-fixes",
       "label": "cycle-134 — post-ship fixes: the Bridgebuilder findings on rc.8 (took-effect oracle_closed, sandbox-mount rules, egress pid limit, supervisor identity, seeder blobs, orchestrator exit contract) and the red post-merge run on the ledger push (KF-063)",
-      "status": "active",
+      "status": "archived",
       "created": "2026-10-25T02:58:27Z",
-      "archived": null,
-      "archive_path": null,
+      "archived": "2026-10-25T09:43:43Z",
+      "archive_path": "grimoires/loa/archive/cycle-134-post-ship-fixes",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprints": [
@@ -3221,5 +3221,5 @@
     }
   ],
   "next_sprint_number": 277,
-  "last_updated": "2026-10-25T07:32:51Z"
+  "last_updated": "2026-10-25T09:43:43Z"
 }

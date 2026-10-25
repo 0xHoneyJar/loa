@@ -7,7 +7,7 @@
     }
   ],
   "cycle": "cycle-134-post-ship-fixes",
-  "head": "a8d7c973078890ccb1d9fa3b64a69cf651a5bce1",
+  "head": "3e903cb83e40eed684a09c65581326675e34276a",
   "lite_tree": null,
   "paths": [
     "grimoires/loa/a2a/sprint-276",
@@ -16,8 +16,8 @@
     "grimoires/loa/NOTES.md",
     "grimoires/loa/archive/notes"
   ],
-  "prev": "c35cbab32ac3f3f1f419bb81c3afa5972a8db556",
+  "prev": "e45c2469a769eb3614028116ba3420291b306908",
   "results_roots": [],
-  "scan_tree": "636b6caa36c9c4b0ce2b78771f2484003c051d54",
-  "stage": "stage 1"
+  "scan_tree": "7146365f3ff4df37bdbcb8ad2fe0f72b989e4a82",
+  "stage": "stage 2"
 }
