@@ -5,16 +5,33 @@
 # Designed to run on session start via SessionStart hook.
 #
 # Usage:
-#   check-updates.sh --notify     Check and show notification (default for hooks)
-#   check-updates.sh --check      Force check (bypass cache)
-#   check-updates.sh --json       Output JSON (for scripting)
-#   check-updates.sh --quiet      Suppress non-error output
-#   check-updates.sh --help       Show usage
+#   check-updates.sh --notify       Check and show notification (default for hooks)
+#   check-updates.sh --check        Force check (bypass cache)
+#   check-updates.sh --json         Output JSON (for scripting)
+#   check-updates.sh --quiet        Suppress non-error output
+#   check-updates.sh --exit-status  Exit 1 when an update is available (programmatic callers)
+#   check-updates.sh --help         Show usage
 #
 # Exit Codes:
-#   0  Up to date or check disabled
-#   1  Update available
+#   0  Check ran (up to date, or update available without --exit-status), or check disabled
+#   1  Update available — only with --exit-status
 #   2  Error (network, parse, etc.)
+#
+# Hook contract (SessionStart, --notify): the notice goes to stdout and the
+# script exits 0, so Claude Code injects it into the session as context (the
+# routing loa-kf-surface.sh documents: stdout on exit 0 reaches the agent,
+# stderr and non-zero exits do not). Until 2026-10-26 an available update made
+# the hook exit 1; Claude Code records a non-zero hook exit as
+# hook_non_blocking_error and parks the text in an attachment the assistant
+# does not relay, so the notice reached nobody. Measured (loa-smol study,
+# runs/step6/RESULTS.md § 7 and REPORT.md § 6; 25 sessions, seed 20261025):
+# in 18 of 25 sampled sessions the hook fired as `HOOK-FAIL
+# SessionStart:{startup,clear,compact,resume} exit=1 … Run /update-loa to
+# upgrade` and neither the harness nor the assistant surfaced it to the
+# operator; both coders counted it as DEGRADED-SILENTLY, and in 3 sessions it
+# was the whole case for that code. The exit-code contract survives for
+# programmatic callers behind --exit-status, which also runs the check when
+# stdout is not a terminal (as --notify does).
 #
 # Environment:
 #   LOA_DISABLE_UPDATE_CHECK=1    Disable all checks
@@ -55,6 +72,7 @@ FORCE_CHECK=false
 OUTPUT_JSON=false
 QUIET=false
 NOTIFY_MODE=false
+EXIT_STATUS=false
 
 # =============================================================================
 # Dependency Checks
@@ -177,8 +195,9 @@ should_skip() {
     # CI environment
     is_ci_environment && return 0
 
-    # Non-interactive terminal (but allow if --notify explicitly passed)
-    if [[ ! -t 1 ]] && [[ "$NOTIFY_MODE" != "true" ]]; then
+    # Non-interactive terminal (but allow if --notify or --exit-status was
+    # explicitly passed: the hook and programmatic callers never have a tty)
+    if [[ ! -t 1 ]] && [[ "$NOTIFY_MODE" != "true" && "$EXIT_STATUS" != "true" ]]; then
         return 0
     fi
 
@@ -486,11 +505,14 @@ OPTIONS:
   --check         Force check (bypass cache)
   --json          Output JSON (for scripting)
   --quiet         Suppress non-error output
+  --exit-status   Exit 1 when an update is available (for scripts; the
+                  SessionStart hook must not use it: a non-zero hook exit is a
+                  hook failure to Claude Code and the notice is never shown)
   --help          Show this help message
 
 EXIT CODES:
-  0  Up to date or check disabled
-  1  Update available
+  0  Check ran (up to date, or update available without --exit-status), or check disabled
+  1  Update available (only with --exit-status)
   2  Error (network, parse, etc.)
 
 ENVIRONMENT VARIABLES:
@@ -529,6 +551,10 @@ main() {
                 ;;
             --quiet)
                 QUIET=true
+                shift
+                ;;
+            --exit-status)
+                EXIT_STATUS=true
                 shift
                 ;;
             --help|-h)
@@ -650,8 +676,14 @@ main() {
         show_notification "$local_version" "$remote_version" "$remote_url" "$is_major"
     fi
 
-    # Exit code based on update availability
-    [[ "$update_available" == "true" ]] && exit 1 || exit 0
+    # Exit code: 0 unless the caller asked for the exit-status contract. As the
+    # SessionStart hook (--notify) an exit 1 is a hook FAILURE to Claude Code and
+    # the notice above never reaches the session — see the header for the
+    # measured symptom (18 of 25 sessions).
+    if [[ "$EXIT_STATUS" == "true" && "$update_available" == "true" ]]; then
+        exit 1
+    fi
+    exit 0
 }
 
 main "$@"

@@ -29,8 +29,13 @@ setup() {
     mkdir -p "$TEST_PROJECT/.claude/scripts"
     mkdir -p "$TEST_PROJECT"
 
-    # Copy the actual script
+    # Copy the actual script. It sources its siblings relative to its own
+    # directory, so the copy needs them too — link them in. (Without these the
+    # copy died at `source bash-version-guard.sh` with exit 1, and the suite's
+    # old "exit 1 when update available" assertions passed for that reason.)
     cp "$SCRIPT" "$TEST_PROJECT/.claude/scripts/"
+    ln -s "$PROJECT_ROOT/.claude/scripts/bash-version-guard.sh" "$TEST_PROJECT/.claude/scripts/bash-version-guard.sh"
+    ln -s "$PROJECT_ROOT/.claude/scripts/lib" "$TEST_PROJECT/.claude/scripts/lib"
 
     # Create version file
     cat > "$TEST_PROJECT/.loa-version.json" << 'EOF'
@@ -245,10 +250,11 @@ EOF
 EOF
     touch "$LOA_CACHE_DIR/update-check.json"
 
-    # Run with notification
+    # Run with notification. Hook mode: the notice rides on exit 0 (a non-zero
+    # hook exit is a hook failure to Claude Code and the banner is never shown).
     run "$TEST_PROJECT/.claude/scripts/check-updates.sh" --notify
 
-    [[ "$status" -eq 1 ]]
+    [[ "$status" -eq 0 ]]
 
     # Banner should contain key elements
     [[ "$output" == *"Loa"* ]]
@@ -275,10 +281,10 @@ EOF
 EOF
     touch "$LOA_CACHE_DIR/update-check.json"
 
-    # Run with notification
+    # Run with notification (hook mode: exit 0, see above)
     run "$TEST_PROJECT/.claude/scripts/check-updates.sh" --notify
 
-    [[ "$status" -eq 1 ]]
+    [[ "$status" -eq 0 ]]
 
     # Should mention major version
     [[ "$output" == *"MAJOR"* ]] || [[ "$output" == *"changelog"* ]]
@@ -328,7 +334,7 @@ EOF
     [[ "$output" == *'"update_available": false'* ]]
 }
 
-@test "integration: exit code 1 when update available" {
+@test "integration: exit code 0 when update available (hook contract, no --exit-status)" {
     skip_if_not_available
 
     cd "$TEST_PROJECT"
@@ -347,13 +353,34 @@ EOF
 EOF
     touch "$LOA_CACHE_DIR/update-check.json"
 
-    run "$TEST_PROJECT/.claude/scripts/check-updates.sh" --json
+    # --notify: stdout is not a tty under bats and the check must still run
+    run "$TEST_PROJECT/.claude/scripts/check-updates.sh" --json --notify
 
-    # Status is 1 if update available, 0 if no version file found
-    [[ "$status" -eq 0 ]] || [[ "$status" -eq 1 ]]
+    [[ "$status" -eq 0 ]]
+    echo "$output" | jq -e '.update_available == true' > /dev/null
+}
 
-    # If we got output with update info, verify it
-    if [[ "$output" == *'"update_available"'* ]]; then
-        echo "$output" | jq -e '.' > /dev/null
-    fi
+@test "integration: exit code 1 when update available with --exit-status (programmatic contract)" {
+    skip_if_not_available
+
+    cd "$TEST_PROJECT"
+
+    # Create cache indicating update available
+    cat > "$LOA_CACHE_DIR/update-check.json" << 'EOF'
+{
+  "last_check": "2026-01-17T00:00:00Z",
+  "local_version": "0.13.0",
+  "remote_version": "v0.14.0",
+  "remote_url": "https://github.com/0xHoneyJar/loa/releases/tag/v0.14.0",
+  "update_available": true,
+  "is_major_update": false,
+  "ttl_hours": 24
+}
+EOF
+    touch "$LOA_CACHE_DIR/update-check.json"
+
+    run "$TEST_PROJECT/.claude/scripts/check-updates.sh" --json --exit-status
+
+    [[ "$status" -eq 1 ]]
+    echo "$output" | jq -e '.update_available == true' > /dev/null
 }
