@@ -80,6 +80,18 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/bootstrap.sh"
+# run_with_timeout from compat-lib.sh (portable: timeout, gtimeout, perl) when the library is beside this script; the
+# publication tests stage the orchestrator alone, so a same-shaped fallback stands in (never a bare `timeout`: macOS)
+# shellcheck source=compat-lib.sh
+[[ -f "$SCRIPT_DIR/compat-lib.sh" ]] && source "$SCRIPT_DIR/compat-lib.sh"
+if ! declare -F run_with_timeout >/dev/null 2>&1; then
+  run_with_timeout() {
+    local timeout_val="$1"; shift
+    if command -v timeout >/dev/null 2>&1; then command timeout "$timeout_val" "$@"
+    elif command -v gtimeout >/dev/null 2>&1; then gtimeout "$timeout_val" "$@"
+    else "$@"; fi
+  }
+fi
 
 # =============================================================================
 # Configuration
@@ -1664,11 +1676,8 @@ tag_published() {
 # remote cannot be read. Bounded: a hung transport is a failed lookup.
 remote_tag_lookup() {
   local url="$1" tag="$2"
-  if command -v timeout >/dev/null 2>&1; then
-    timeout 60 git -C "$PROJECT_ROOT" ls-remote "$url" "refs/tags/${tag}" 2>/dev/null
-  else
-    git -C "$PROJECT_ROOT" ls-remote "$url" "refs/tags/${tag}" 2>/dev/null
-  fi
+  # run_with_timeout (compat-lib.sh): GNU timeout, gtimeout or a perl alarm — never a bare `timeout` (macOS)
+  run_with_timeout 60 git -C "$PROJECT_ROOT" ls-remote "$url" "refs/tags/${tag}" 2>/dev/null
 }
 
 # cycle-134 C-9 (D-3.2a, D-3.2b): the tag identity, checked before any write.

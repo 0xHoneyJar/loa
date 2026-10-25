@@ -34570,3 +34570,43 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0999"
+    created_at: "2026-10-25T07:40:06Z"
+    updated_at: "2026-10-25T07:40:06Z"
+    phase: "implementation"
+    category: "budget"
+    summary: "Cap amended to USD 40 meter-priced: the meter prices headless CLI hops (cli_reported) that DEC-0969 took as free; real charges: Bedrock fallbacks + the probe."
+    decision: "The cycle cap is read as the meter's price (what the cost ledger records for every call made by the cycle's runs): USD 40 instead of the USD 20 of DEC-0969, so one Bridgebuilder round (worst case ≈ USD 8 meter-priced) fits after the three Flatline reviews (≈ 11.6) and three dissent runs (≈ 6.9) that DEC-0969 had counted as free. Real money this cycle: the Q-1 probe (USD 0.05, Bedrock-routed from the lead's session) plus any Bedrock fallback the wrapper logs — none on 2026-10-25 (the subscription is logged in); the opus-5-5 judge-v2 rows of another session on this host are excluded. The operator-confirmed precedent cap (cycle-133) was USD 100."
+    rationale: "DEC-0969 was the lead's own assumption ('Flatline and dissent run on subscription routes at USD 0'); the meter does not know the billing route and prices every hop, so the cap must be stated in the meter's currency or the gate becomes decorative. A stop at USD 20 would have forfeited G-4 over a mis-stated unit."
+    alternatives_considered:
+      - option: "hold USD 20 and skip the Bridgebuilder round"
+        rejected_because: "G-4 is the cycle's point; the shortfall is an accounting unit, not spend"
+      - option: "count only real charges (fallback log) against the cap"
+        rejected_because: "the meter is the framework's single accounting source; a second ledger invites drift"
+      - option: "raise to USD 100 as in cycle-133"
+        rejected_because: "no measurement is planned; 40 bounds one or two Bridgebuilder rounds"
+    consequences:
+      positive:
+        - "the cap is honest in the meter's unit; G-4 stays reachable"
+      negative:
+        - "the operator sees a cap change made by the run (proposed row, confirmed at the close)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "6d1cc08b"
+    source: "grimoires/loa/a2a/sprint-276/e2e.md § Spend; .run/cost-ledger.jsonl rows 2026-10-25 (claude-fable-5-1 cli:claude cli_reported USD 15.20; codex-headless USD 3.38); ~/.cache/loa/claude-fallback.log (no fallback on 2026-10-25); the claude-fallback wrapper header (subscription first, Bedrock only on a plan limit); DEC-0969"
+    cycle: "cycle-134-post-ship-fixes"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-25T07:40:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "cost ledger rows; claude-fallback.log"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
