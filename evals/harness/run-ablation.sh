@@ -1666,9 +1666,11 @@ run_trial() {  # run_trial <jid> <arm> <task> <type> <kind> <trial> <run_id> <ta
     else "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
     fi
     pid=$!
-    printf '%s %s %s\n' "$pid" "$(date +%s)" "$wds" > "$JOBS_DIR/$jid.pgid"
+    # cycle-134 C-6: the record carries the leader's identity (.ident before .pgid) so the supervisor's reclaim signals only this group
+    "$SCRIPT_DIR/lib/batch-supervisor.sh" record-job "$JOBS_DIR" "$jid" "$pid" "$(date +%s)" "$wds" 2>>"$tlog" \
+      || printf '%s %s %s\n' "$pid" "$(date +%s)" "$wds" > "$JOBS_DIR/$jid.pgid"
     prc=0; wait "$pid" || prc=$?
-    rm -f "$JOBS_DIR/$jid.pgid"
+    rm -f "$JOBS_DIR/$jid.pgid" "$JOBS_DIR/$jid.ident"   # cycle-134 review r1: the identity record leaves with the pgid record (no orphan .ident)
     st="$(final_status "$rd")"
     if [[ -f "$JOBS_DIR/$jid.wd" ]]; then
       override=interrupted
@@ -1757,9 +1759,11 @@ run_session() {  # run_session <jid> <plan-index> <session number>
     else "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
     fi
     pid=$!
-    printf '%s %s %s\n' "$pid" "$(date +%s)" "$wds" > "$JOBS_DIR/$jid.pgid"
+    # cycle-134 C-6: the record carries the leader's identity (.ident before .pgid) so the supervisor's reclaim signals only this group
+    "$SCRIPT_DIR/lib/batch-supervisor.sh" record-job "$JOBS_DIR" "$jid" "$pid" "$(date +%s)" "$wds" 2>>"$tlog" \
+      || printf '%s %s %s\n' "$pid" "$(date +%s)" "$wds" > "$JOBS_DIR/$jid.pgid"
     prc=0; wait "$pid" || prc=$?
-    rm -f "$JOBS_DIR/$jid.pgid"
+    rm -f "$JOBS_DIR/$jid.pgid" "$JOBS_DIR/$jid.ident"   # cycle-134 review r1: the identity record leaves with the pgid record (no orphan .ident)
     local wdf=-; [[ -f "$JOBS_DIR/$jid.wd" ]] && wdf=wd
     if [[ "$wdf" == wd ]]; then
       synthesize_record "$rd" "$arm" "$task" "$type" "$trial" "$srid" "watchdog: no final pipeline record after ${wds}s (pipeline exit $prc)"

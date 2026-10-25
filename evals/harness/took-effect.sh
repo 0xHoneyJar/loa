@@ -37,7 +37,23 @@
 #                              (Python hashlib walk); a loa_mount: false arm passes with
 #                              "no mount"; a home-scope run (cycle-133 C-10) reads meta/home-integrity.json
 #                              instead (the driver checks the HOME framework before it deletes the HOME):
-#                              files > 0, 0 tampered, 0 missing, its manifest_sha256 = the evidence's
+#                              files > 0, 0 tampered, 0 missing, its manifest_sha256 = the evidence's.
+#                              Cycle-134 C-3 (D-1.3) binds that record to the pin the operator named, not
+#                              the driver: the pin (arms[].source_commit, else the batch's ../../MANIFEST.json
+#                              source_commit = run-ablation.sh --source-commit, else the suite's
+#                              source_commit; a non-hex placeholder names none, and none FAILs) must resolve
+#                              to pipeline.json source_commit in the source repository; the pin's
+#                              .claude/checksums.json (git, --source-repo) must have a files map whose
+#                              entries the record covers (files >= its count; the HOME manifest is
+#                              regenerated over the transformed copy, so its digest is never the pin's
+#                              blob digest); files = arm_evidence manifest_files. A retained HOME copy
+#                              (meta/home/.claude, home/.claude) is walked by hashlib: regular files only
+#                              (a symlink, special file or unreadable path FAILs by name), its manifest's
+#                              digest = the recorded one, every entry hashes to its value, every pinned
+#                              path listed, extra files reported. Evidence names the mode: "independent
+#                              walk (<n> files, <k> extra)" or "record cross-checked against the pin (HOME
+#                              deleted at exit)" (per-file tampering after the driver's check is then
+#                              undetectable).
 #   applicability_refused      a refusal record (meta/refused.json) names this arm and a task
 #                              type outside its task_types; a run that was not refused passes
 #                              when its task type is inside task_types (and fails otherwise)
@@ -95,7 +111,18 @@
 #                                  readable; reading it reopens the oracle). Evidence pr_bytes_read=[…],
 #                                  pr_bytes_read_by=["<path> Read|Bash <a>-<b>", …] (the credited windows by tool),
 #                                  cited=[…], grep_only=[…], pinned_bytes_read=[…].
-#                              (g) nothing of the PR's executable surface loaded or ran: a process capture
+#                              (g) nothing of the PR's executable surface loaded or ran: meta/pipeline.json lists
+#                                  every phase the suite declares for the arm (a stopped run — cap_failure,
+#                                  agent_error, interrupted, running — a prefix of them), each label a plain name,
+#                                  each skipped phase with a skipped_reason (else "phases: incomplete record");
+#                                  per executed phase (labels_run: the non-skipped records; cycle-134 C-2,
+#                                  D-1.2a) a regular, non-symlink, non-empty transcripts/events-<label>.jsonl
+#                                  whose every non-empty line is a JSON object (a line above EVENT_CAP, 8 MiB,
+#                                  must end with its newline and counts as skipped_for_size), with exactly one
+#                                  result event as the final non-empty line, a system/init before it, and the
+#                                  init's session_id on every event carrying one (else "transcript <label>:
+#                                  <reason> (line N)"; a transcript of no executed phase is reported as
+#                                  unlabelled), and a process capture
 #                                  meta/ps-<label>.txt per executed phase with at least one sample ("# sample" header lines, then
 #                                  "<pid> <ppid> <args>"); no process and no Bash tool command executes a path
 #                                  under the root .claude/ or pr/{head,base}/.claude/ (the command word, a
@@ -103,13 +130,28 @@
 #                                  bodies followed; a lower bound: a copy run from elsewhere is not seen); the
 #                                  init event lists no MCP server outside home_mcp_servers, no plugin whose path
 #                                  is in the workspace, and no skill, command, agent or output style name the
-#                                  PR adds that the pin lacks; per transcript the hook_started count of each
-#                                  event is within home_hook_counts=<event>:<n>,… (required evidence: the
-#                                  mount declares the pinned user settings' hooks; 2.1.299 names no hook
-#                                  command); no "Base directory for this skill:" under the workspace; and for
+#                                  PR adds that the pin lacks; every hook that ran belongs to the pinned user
+#                                  settings (cycle-134 C-1, D-1.1a; 2.1.299 names no hook command): a
+#                                  hook_started names <event> or <event>:<query> (the query, everything after
+#                                  the first colon, is the trigger's — SessionStart:startup for the matcher-less
+#                                  SessionStart group), hook_event = <event>; its groups are the event's
+#                                  home_hook_groups=<event>:<hex12>:<n>;… entries (hex12 = SHA-256 of the
+#                                  matcher, the empty matcher's for every query; same keys merged, n summed),
+#                                  else — a recorded run with home_hook_counts=<event>:<n>,… only — the
+#                                  event-level aggregate; no group FAILs naming event, query and transcript;
+#                                  per transcript and name the count c = k·n for a whole k >= 0 (k = 0 is
+#                                  legal) and k <= the triggers where derivable (SessionStart[:startup]: init
+#                                  events; UserPromptSubmit: user text turns; Pre/PostToolUse: tool_use blocks
+#                                  named the query or one of its |-alternatives, every tool without a query —
+#                                  compared as text, never as a regex; Stop: result events; else n/a); one of
+#                                  the two lines is required evidence (absent: the cycle-133 message), and with
+#                                  both their per-event sums agree; no "Base directory for this skill:" under the workspace; and for
 #                                  meta/canaries.tsv (optional: item, path, name, effect relative to the run
 #                                  dir, token) no effect file exists and no token appears in a process sample
-#                                  or a hook_response, and no canary name appears in init.
+#                                  or a hook_response, and no canary name appears in init. The (g) evidence
+#                                  ends "hooks: <label> <name> c=<c> n=<n> k=<k> triggers=<t|n/a>, …;
+#                                  cc=<init claude_code_version>; transcripts: <label> lines=<n> init=<i>
+#                                  result=last skipped_for_size=<k>, …; unlabelled=<files|none>".
 
 #   oracle_open_recorded       arm_evidence has mount_overlay=none and oracle_open=true (the
 #                              eval-only open-mount arm; replaces oracle_closed there)
@@ -167,7 +209,9 @@
 # Tested by evals/tests/took-effect.bats (fixture runs under
 # evals/tests/fixtures/ablation-runs/, and cycle-131 runs built in the test with the real
 # mount library), evals/tests/pipeline-run.bats (oracle_closed on a real-library run) and
-# evals/tests/sandbox-mount-home-scope.bats (clauses (e)-(g) on home-scope runs).
+# evals/tests/sandbox-mount-home-scope.bats (clauses (e)-(g) on home-scope runs); cycle-134: the hook rule in
+# evals/tests/took-effect-hooks.bats, transcript completeness in took-effect-transcripts.bats and the home-scope
+# integrity cross-check in took-effect-integrity.bats (runs built by fixtures/took-effect/te-lib.bash).
 # =============================================================================
 set -euo pipefail
 export LC_ALL=C
@@ -377,7 +421,23 @@ rule_integrity_clean() {
     [[ "$hn" =~ ^[0-9]+$ && "$hn" -gt 0 ]] || { EVID="home-scope: the HOME manifest lists no files"; return 1; }
     [[ "$hs" == "$msha" ]] || { EVID="home-scope: the checked HOME manifest ${hs:0:12} is not arm_evidence.manifest_sha256 ${msha:0:12}"; return 1; }
     if [[ "$hb" != 0 || "$hm" != 0 ]]; then EVID="home-scope: $hb tampered, $hm missing of $hn ($hf)"; return 1; fi
-    EVID="home-scope: $hn HOME framework entries verified at finish; manifest_sha256 ${msha:0:12}"
+    # cycle-134 C-3 (D-1.3): the record bound to the pin the operator named, independently of the driver
+    local pin psrc sc repo c mf bind brc=0
+    sc="$(jq -r '.source_commit // ""' "$R/meta/pipeline.json")"
+    IFS=$'\t' read -r pin psrc < <(operator_pin) || { EVID="home-scope: no pin named for the run (arms[].source_commit, the batch MANIFEST.json source_commit, the suite source_commit)"; return 1; }
+    repo=""
+    for c in "$SOURCE_REPO_OPT" "$(evidence_line overlay_source_tree)" "$REPO_ROOT"; do
+      [[ -n "$c" && -d "$c" ]] || continue
+      if git -C "$c" cat-file -e "$sc^{commit}" 2>/dev/null; then repo="$c"; break; fi
+    done
+    [[ -n "$repo" ]] || { EVID="home-scope: source_commit ${sc:-<none>} is in no source repository (--source-repo)"; return 1; }
+    c="$(git -C "$repo" rev-parse -q --verify "$pin^{commit}" 2>/dev/null)" || { EVID="home-scope: the pin ${pin:0:12} ($psrc) does not resolve in $repo"; return 1; }
+    [[ "$c" == "$sc" ]] || { EVID="home-scope: the pin ${pin:0:12} ($psrc) is not pipeline.json source_commit ${sc:0:12}"; return 1; }
+    bind="$(_te_home_bind_py "$R" "$repo" "$sc" "$hn" "$msha" 2>/dev/null)" || brc=$?
+    [[ $brc -eq 0 ]] || { EVID="home-scope: ${bind:-the pin cross-check failed (exit $brc)}"; return 1; }
+    mf="$(evidence_line manifest_files)"; mf="${mf%% *}"
+    if [[ -n "$mf" && "$mf" != "$hn" ]]; then EVID="home-scope: the HOME record lists $hn file(s), arm_evidence manifest_files says $mf"; return 1; fi
+    EVID="home-scope: $hn HOME framework entries verified at finish; manifest_sha256 ${msha:0:12}; pin ${sc:0:12} ($psrc) = source_commit; $bind"
     return 0
   fi
 
@@ -409,6 +469,121 @@ print(len(files), bad, missing, sha(man), first)' "$R/sandbox" "$man")" || { EVI
   [[ "$filesha" == "$msha" ]] && EVID="$EVID (matches checksums.json)"
   return 0
 }
+# operator_pin → "<commit> <source>": the pin the operator named for the run — arms[].source_commit, else the batch's
+# MANIFEST.json source_commit (<run>/../../, run-ablation.sh --source-commit), else the suite's source_commit; a value
+# that is not a hex commit id (a placeholder) names no pin. Tab-separated.
+operator_pin() {
+  local v m="$R/../../MANIFEST.json"
+  v="$(jq -r '.source_commit // "" | tostring' <<<"$ARM_DEF")"
+  if [[ "$v" =~ ^[0-9a-f]{7,40}$ ]]; then printf '%s\tarms[].source_commit\n' "$v"; return 0; fi
+  if [[ -f "$m" && ! -L "$m" ]]; then
+    v="$(jq -r '.source_commit // "" | tostring' "$m" 2>/dev/null || true)"
+    if [[ "$v" =~ ^[0-9a-f]{7,40}$ ]]; then printf '%s\tbatch MANIFEST.json\n' "$v"; return 0; fi
+  fi
+  v="$(jq -r '.source_commit // "" | tostring' <<<"$SUITE_JSON")"
+  if [[ "$v" =~ ^[0-9a-f]{7,40}$ ]]; then printf '%s\tsuite source_commit\n' "$v"; return 0; fi
+  return 1
+}
+
+# _te_home_bind_py <run-dir> <source-repo> <pin> <record-files> <manifest-sha256> — cycle-134 C-3: the pin's
+# .claude/checksums.json (its files map: the entry count) bound to the HOME record; a retained HOME copy
+# (meta/home/.claude, home/.claude) walked by hashlib (regular files only; its manifest is the recorded digest, every
+# entry hashes to its value, every pinned path is listed, extra files reported). Prints the evidence tail (exit 0) or
+# the failure (exit 1).
+_te_home_bind_py() {
+  python3 -I - "$@" <<'PY'
+import hashlib, json, os, stat, subprocess, sys
+
+run, repo, pin, rec_files, msha = sys.argv[1], sys.argv[2], sys.argv[3], int(sys.argv[4]), sys.argv[5]
+env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin"), "HOME": "/nonexistent", "LC_ALL": "C",
+       "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
+try:
+    p = subprocess.run(["git", "--no-pager", "-C", repo, "cat-file", "blob", pin + ":.claude/checksums.json"],
+                       stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, env=env, timeout=120)
+    blob = p.stdout if p.returncode == 0 else None
+    pfiles = json.loads(blob).get("files") if blob is not None else None
+except (OSError, ValueError, subprocess.SubprocessError, AttributeError):
+    pfiles = None
+if not isinstance(pfiles, dict) or not pfiles:
+    print("the pin %s has no .claude/checksums.json files map in %s" % (pin[:12], repo)); sys.exit(1)
+pin_digest = hashlib.sha256(blob).hexdigest()
+if rec_files < len(pfiles):
+    print("the HOME record lists %d file(s), fewer than the pin's manifest (%d entries)" % (rec_files, len(pfiles))); sys.exit(1)
+tail = "the pin's manifest %s (%d entries) covered" % (pin_digest[:12], len(pfiles))
+
+def sha(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+
+walked = []
+for hrel in ("meta/home", "home"):
+    home = os.path.join(run, hrel)
+    if not os.path.lexists(home):
+        continue
+    where = "retained HOME %s/.claude" % hrel
+    def bad(why):
+        print("%s: %s" % (where, why)); sys.exit(1)
+    for x in (home, os.path.join(home, ".claude")):
+        if os.path.islink(x):
+            bad("a symlink (%s)" % os.path.relpath(x, run))
+    if not os.path.isdir(os.path.join(home, ".claude")):
+        continue
+    on_disk = set()
+    errs = []
+    for d, dirs, files in os.walk(os.path.join(home, ".claude"), followlinks=False, onerror=errs.append):
+        for n in sorted(dirs) + sorted(files):
+            full = os.path.join(d, n)
+            rel = os.path.relpath(full, home)
+            try:
+                m = os.lstat(full).st_mode
+            except OSError:
+                bad("unreadable (%s)" % rel)
+            if stat.S_ISLNK(m):
+                bad("a symlink (%s)" % rel)
+            if stat.S_ISDIR(m):
+                if not os.access(full, os.R_OK | os.X_OK):
+                    bad("unreadable (%s)" % rel)
+                continue
+            if not stat.S_ISREG(m):
+                bad("not a regular file (%s)" % rel)
+            if not os.access(full, os.R_OK):
+                bad("unreadable (%s)" % rel)
+            on_disk.add(rel)
+    if errs:
+        bad("unreadable (%s)" % os.path.relpath(getattr(errs[0], "filename", None) or home, home))
+    man = os.path.join(home, ".claude", "checksums.json")
+    if ".claude/checksums.json" not in on_disk:
+        bad("no .claude/checksums.json")
+    try:
+        mbytes = open(man, "rb").read()
+        hfiles = json.loads(mbytes).get("files")
+    except (OSError, ValueError, AttributeError):
+        hfiles = None
+    if not isinstance(hfiles, dict):
+        bad("its manifest has no files map")
+    got = hashlib.sha256(mbytes).hexdigest()
+    if got != msha:
+        bad("its manifest %s is not the recorded manifest_sha256 %s" % (got[:12], msha[:12]))
+    for rel, want in sorted(hfiles.items()):
+        if rel not in on_disk:
+            bad("missing %s" % rel)
+        try:
+            if sha(os.path.join(home, rel)) != want:
+                bad("tampered %s" % rel)
+        except OSError:
+            bad("unreadable (%s)" % rel)
+    for rel in sorted(pfiles):
+        if rel not in hfiles:
+            bad("the manifest lacks %s of the pin's manifest" % rel)
+    extra = sorted(r for r in on_disk if r not in hfiles and r != ".claude/checksums.json" and not r.startswith(".claude/overrides/"))
+    walked.append("independent walk (%d files, %d extra%s)" % (len(hfiles), len(extra), (": " + ",".join(extra[:10]) + (",…" if len(extra) > 10 else "")) if extra else ""))
+print("%s; %s" % (tail, "; ".join(walked) if walked else "record cross-checked against the pin (HOME deleted at exit)"))
+PY
+}
+
 rule_applicability_refused() {
   local f="$R/meta/refused.json" a t
   if [[ ! -f "$f" ]]; then
@@ -485,12 +660,13 @@ rule_oracle_closed() {
   [[ "$(evidence_line mount_mode)" == home-scope ]] || return 0
   local aset fg frc=0
   aset="$(_sm_oracle_py answer-set "$fx" "$repo" home-scope 2>/dev/null)" || { EVID="$EVID; the home-scope answer set did not compute"; return 1; }
-  fg="$(_te_home_scope_py "$R" "$fx" <(printf '%s\n' "$aset") "$repo" "$sc" "$evf" 2>/dev/null)" || frc=$?
+  fg="$(_te_home_scope_py "$R" "$fx" <(printf '%s\n' "$aset") "$repo" "$sc" "$evf" "$(expected_labels)" 2>/dev/null)" || frc=$?
   if [[ $frc -ne 0 ]]; then EVID="${fg:-clauses (f)-(g) failed (exit $frc)}"; return 1; fi
   EVID="$EVID; ${fg#ok }"
 }
 
-# _te_home_scope_py <run-dir> <fixture> <answer-set-file> <source-repo> <source-commit> <evidence-file>
+# _te_home_scope_py <run-dir> <fixture> <answer-set-file> <source-repo> <source-commit> <evidence-file> <expected-labels>
+# (<expected-labels>: the suite's phase labels for the arm, comma-joined, as expected_labels prints them)
 # clauses (f) and (g) of oracle_closed for a home-scope run (cycle-133 C-10). Prints "ok (f) … ; (g) …" (exit 0) or
 # "FAIL (<f|g>) <path|->: <detail>[ (+<n> more)]" (exit 1). See the header for the clauses.
 _te_home_scope_py() {
@@ -498,6 +674,7 @@ _te_home_scope_py() {
 import hashlib, json, math, os, re, shlex, subprocess, sys
 
 run, fixture, setfile, repo, commit, evfile = sys.argv[1:7]
+want_labels = [x for x in (sys.argv[7] if len(sys.argv) > 7 else "").split(",") if x]
 SCHEMA = "claude-stream-json/2.1.299"   # the transcript shape read here: Claude Code 2.1.299 stream-json --verbose
 PARSER = "read-coverage/2"     # 2: single-file Bash reads credited by content (Sprint 274, lead decision b)
 COVER = 0.6                             # a file counts as read at >= 60 % of its lines (or all of them)
@@ -596,14 +773,21 @@ def result_text(blk):
         return "\n".join(x.get("text", "") for x in c if isinstance(x, dict) and isinstance(x.get("text"), str))
     return ""
 
+hook_bad = []
+def safe_txt(x, cap=120):
+    """transcript-derived text in a one-line message: as is when short and printable, else JSON-quoted and truncated"""
+    x = str(x)
+    return x if len(x) <= cap and not any(ord(ch) < 32 or ord(ch) == 127 for ch in x) else json.dumps(x[:cap])
 inits, hook_counts, hook_texts, user_texts, results, bash_cmds = [], {}, [], [], [], []
+trig = {}             # per transcript: the trigger counts of clause (g)'s hook rule (sdd.md § 11.H)
 tdir = os.path.join(run, "transcripts")
 tfiles = sorted(n for n in (os.listdir(tdir) if os.path.isdir(tdir) else []) if re.match(r"^events-[A-Za-z0-9_-]+\.jsonl$", n))
 for tn in tfiles:
     cwd, uses = "/workspace", {}
+    tr = trig.setdefault(tn, {"init": 0, "prompt": 0, "result": 0, "tools": []})
     path = os.path.join(tdir, tn)
-    if os.path.islink(path):
-        continue
+    if os.path.islink(path) or not os.path.isfile(path) or not os.access(path, os.R_OK):
+        continue                            # (transcript_check names it when the label ran)
     for line in open(path, encoding="utf-8", errors="replace"):
         if len(line) > EVENT_CAP:
             continue
@@ -614,15 +798,26 @@ for tn in tfiles:
         if not isinstance(ev, dict):
             continue
         t = ev.get("type")
+        if t == "result":
+            tr["result"] += 1
         if t == "system":
             st = ev.get("subtype")
             if st == "init":
                 if isinstance(ev.get("cwd"), str) and ev["cwd"].startswith("/"):
                     cwd = os.path.normpath(ev["cwd"])
                 inits.append((tn, ev, cwd))
+                tr["init"] += 1
             elif st == "hook_started":
-                k = (tn, str(ev.get("hook_event") or ""))
-                hook_counts[k] = hook_counts.get(k, 0) + 1
+                # hook_name is <event> or <event>:<query> (the query is everything after the first colon)
+                hn, he = str(ev.get("hook_name") or ""), str(ev.get("hook_event") or "")
+                evn, q = hn.split(":", 1) if ":" in hn else (hn, None)
+                if not evn:
+                    hook_bad.append("a hook_started without a hook_name in %s" % tn)
+                elif he != evn:
+                    hook_bad.append("hook %s in %s: hook_event %s is not the event of its name" % (safe_txt(hn), tn, safe_txt(he or "<none>", 80)))
+                else:
+                    k = (tn, evn, q)
+                    hook_counts[k] = hook_counts.get(k, 0) + 1
             elif st == "hook_response":
                 hook_texts.append((tn, " ".join(str(ev.get(k) or "") for k in ("output", "stdout", "stderr"))))
             continue
@@ -630,13 +825,19 @@ for tn in tfiles:
         content = msg.get("content") if isinstance(msg, dict) else None
         if t == "user" and isinstance(content, str):
             user_texts.append((tn, content))
+            tr["prompt"] += 1
             continue
         if not isinstance(content, list):
             continue
+        bts = [b.get("type") for b in content if isinstance(b, dict)]
+        if t == "user" and "text" in bts and "tool_result" not in bts:
+            tr["prompt"] += 1
         for blk in content:
             if not isinstance(blk, dict):
                 continue
             bt = blk.get("type")
+            if t == "assistant" and bt == "tool_use":
+                tr["tools"].append(str(blk.get("name") or ""))
             if t == "user" and bt == "text" and isinstance(blk.get("text"), str):
                 user_texts.append((tn, blk["text"]))
             elif t == "assistant" and bt == "tool_use" and isinstance(blk.get("input"), dict) and isinstance(blk.get("id"), str):
@@ -864,12 +1065,91 @@ except (OSError, ValueError):
     pl = {}
 labels_run = [ph.get("label") for ph in (pl.get("phases") or []) if isinstance(ph, dict) and ph.get("skipped") is not True
               and isinstance(ph.get("label"), str) and re.match(r"^[A-Za-z0-9_-]+$", ph["label"])]
+# the record (cycle-134 C-2): every phase the suite declares for the arm is listed (a stopped run: a prefix of them);
+# every label is a plain name; a skipped phase says why
+phs = [ph for ph in (pl.get("phases") or []) if isinstance(ph, dict)]
+rec_labels = [ph.get("label") for ph in phs]
+missing_labels = [x for x in want_labels if x not in rec_labels]
+if missing_labels and not (pl.get("status") in ("cap_failure", "agent_error", "interrupted", "running")
+                           and rec_labels == want_labels[:len(rec_labels)]):
+    fail("g", "-", "phases: incomplete record (missing %s; status %s)" % (",".join(missing_labels), pl.get("status") or "-"))
+for ph in phs:
+    lab = ph.get("label")
+    if not isinstance(lab, str) or not re.match(r"^[A-Za-z0-9_-]+$", lab):
+        fail("g", "-", "phases: incomplete record (the phase label %s is not a plain name)" % json.dumps(lab)[:80])
+    elif ph.get("skipped") is True and not (isinstance(ph.get("skipped_reason"), str) and ph["skipped_reason"].strip()):
+        fail("g", "-", "phases: incomplete record (%s skipped without a skipped_reason)" % lab)
+
+def transcript_check(lab):
+    """(reason or None, evidence) for transcripts/events-<lab>.jsonl under the JSONL policy (sdd.md D-1.2a)"""
+    rel = "transcripts/events-%s.jsonl" % lab
+    p = os.path.join(run, rel)
+    if os.path.islink(p):
+        return "a symlink (%s)" % rel, None
+    if not os.path.lexists(p):
+        return "missing (%s)" % rel, None
+    if not os.path.isfile(p):
+        return "not a regular file (%s)" % rel, None
+    n = lines = big = last = 0
+    init_at, result_at, sids = [], [], []
+    try:
+        with open(p, "rb") as fh:
+            for raw in fh:
+                n += 1
+                if not raw.strip():
+                    continue
+                lines += 1
+                last = n
+                if len(raw) > EVENT_CAP:
+                    if not raw.endswith(b"\n"):
+                        return "an oversize line without its newline (line %d)" % n, None
+                    big += 1
+                    continue
+                try:
+                    ev = json.loads(raw)
+                except ValueError:
+                    ev = None
+                if not isinstance(ev, dict):
+                    return "not a JSON object (line %d)" % n, None
+                if ev.get("type") == "result":
+                    result_at.append(n)
+                elif ev.get("type") == "system" and ev.get("subtype") == "init":
+                    init_at.append((n, ev.get("session_id")))
+                if "session_id" in ev:
+                    sids.append((n, ev.get("session_id")))
+    except OSError as e:
+        return "unreadable (%s: %s)" % (rel, e.strerror or "error"), None
+    if lines == 0:
+        return "empty", None
+    if not result_at:
+        return "no result event (last line %d)" % last, None
+    if len(result_at) > 1:
+        return "%d result events (lines %s)" % (len(result_at), ", ".join(str(x) for x in result_at[:5])), None
+    if not init_at:
+        return "no system/init event", None
+    if init_at[0][0] > result_at[0]:
+        return "the system/init event follows the result (line %d)" % init_at[0][0], None
+    if result_at[0] != last:
+        return "the result event is not the final line (line %d)" % result_at[0], None
+    sid0 = init_at[0][1]
+    for ln, sid in sids:
+        if sid != sid0:
+            return "foreign session_id %s (line %d; the init has %s)" % (str(sid)[:80], ln, str(sid0)[:80]), None
+    return None, "%s lines=%d init=%d result=last skipped_for_size=%d" % (lab, lines, len(init_at), big)
+
+tev = []
 for lab in labels_run:
     psf = os.path.join(run, "meta", "ps-%s.txt" % lab)
     if not os.path.isfile(psf) or os.path.islink(psf):
         fail("g", "-", "no process capture for %s (meta/ps-%s.txt)" % (lab, lab))
     elif not any(l.startswith("# sample") for l in open(psf, encoding="utf-8", errors="replace").read(FILE_CAP).split("\n")):
         fail("g", "-", "no process sample for %s (meta/ps-%s.txt holds none: the sampler never saw the container)" % (lab, lab))
+    why, te = transcript_check(lab)
+    if why:
+        fail("g", "-", "transcript %s: %s" % (lab, why))
+    else:
+        tev.append(te)
+unlabelled = [tn for tn in tfiles if tn[len("events-"):-len(".jsonl")] not in labels_run]
 
 
 ps_lines, samples = [], 0
@@ -1099,18 +1379,77 @@ for tn, ev, cwd in inits:
             fail("g", "-", "the PR-only %s %s was loaded (%s init)" % (hit, nm, tn))
         elif nm in canary_names:
             fail("g", "-", "the canary for %s loaded (name %s in %s init)" % (canary_names[nm], nm, tn))
-decl_raw = evidence("home_hook_counts")
-if decl_raw is None:
+# the hook rule (cycle-134 C-1, D-1.1a): a hook_started names <event>[:<query>]; it belongs to the pinned groups of the
+# event whose matcher hex id (home_hook_groups) is the query's or the empty matcher's (n summed: a matcher-less group
+# runs for every query), else — a recorded run with home_hook_counts only — to the event-level aggregate. Per
+# transcript and name: c = k·n, k a whole number >= 0, and k <= the triggers where the transcript yields them.
+HEX0 = hashlib.sha256(b"").hexdigest()[:12]
+
+def hx(m):
+    return hashlib.sha256(m.encode("utf-8", "surrogateescape")).hexdigest()[:12]
+
+def triggers(tn, evn, q):
+    """the trigger count of sdd.md § 11.H for a hook name in a transcript, None when not derivable. A query names a
+    tool (or |-separated tools); it is compared as text, never compiled as a regex (transcript data)"""
+    tr = trig.get(tn) or {"init": 0, "prompt": 0, "result": 0, "tools": []}
+    if evn == "SessionStart":
+        return tr["init"] if q in (None, "startup") else None
+    if evn == "UserPromptSubmit":
+        return tr["prompt"]
+    if evn == "Stop":
+        return tr["result"]
+    if evn in ("PreToolUse", "PostToolUse"):
+        return len(tr["tools"]) if q is None else sum(1 for nm in tr["tools"] if nm == q or nm in q.split("|"))
+    return None
+
+for d in hook_bad:
+    fail("g", "-", d)
+decl_raw, groups_raw = evidence("home_hook_counts"), evidence("home_hook_groups")
+hook_ev = []
+if decl_raw is None and groups_raw is None:
     fail("g", "-", "no home_hook_counts evidence (the mount declares the pinned user settings' hooks)")
-    decl = {}
 else:
-    decl = {}
-    for part in decl_raw.split(","):
+    decl, groups = {}, None
+    for part in (decl_raw or "").split(","):
         if ":" in part and part.split(":", 1)[1].isdigit():
-            decl[part.split(":", 1)[0]] = int(part.split(":", 1)[1])
-    for (tn, evn), cnt in sorted(hook_counts.items()):
-        if cnt > decl.get(evn, 0):
-            fail("g", "-", "%d %s hook(s) ran in %s; the pinned user settings declare %d (home_hook_counts)" % (cnt, evn or "<unnamed>", tn, decl.get(evn, 0)))
+            decl[part.split(":", 1)[0]] = decl.get(part.split(":", 1)[0], 0) + int(part.split(":", 1)[1])
+    if groups_raw is not None:
+        groups = {}
+        for part in [x for x in groups_raw.split(";") if x]:
+            m = re.match(r"^([A-Za-z]+):([0-9a-f]{12}):(\d+)$", part)
+            if not m:
+                fail("g", "-", "home_hook_groups entry %s is not <event>:<hex12>:<n>" % part[:200])
+                continue
+            groups[(m.group(1), m.group(2))] = groups.get((m.group(1), m.group(2)), 0) + int(m.group(3))
+        if decl_raw is not None:
+            per = {}
+            for (evn, _h), n in groups.items():
+                per[evn] = per.get(evn, 0) + n
+            for evn in sorted(set(per) | set(decl)):
+                if per.get(evn, 0) != decl.get(evn, 0):
+                    fail("g", "-", "home_hook_groups declares %s:%d but home_hook_counts %s:%d" % (evn, per.get(evn, 0), evn, decl.get(evn, 0)))
+    src = "home_hook_groups" if groups is not None else "home_hook_counts"
+    obs = {}               # (transcript, event, query or None for the event-level aggregate) -> [c, n]
+    for (tn, evn, q), c in sorted(hook_counts.items(), key=lambda x: (x[0][0], x[0][1], x[0][2] or "")):
+        if groups is not None:
+            n = sum(v for (e, h), v in groups.items() if e == evn and h in (hx(q or ""), HEX0))
+        else:
+            n = decl.get(evn, 0)
+        if n == 0:
+            fail("g", "-", "hook %s in %s names no pinned group (event %s, matcher query %s; %s)" % (
+                safe_txt(evn if q is None else "%s:%s" % (evn, q)), tn, safe_txt(evn, 80), "none" if q is None else safe_txt(q, 80), src))
+            continue
+        o = obs.setdefault((tn, evn, q if groups is not None else None), [0, n])
+        o[0] += c
+    for (tn, evn, q), (c, n) in sorted(obs.items(), key=lambda x: (x[0][0], x[0][1], x[0][2] or "")):
+        name = safe_txt(evn if q is None else "%s:%s" % (evn, q))   # untrusted transcript text: one-line evidence
+        t = triggers(tn, evn, q)
+        hook_ev.append("%s %s c=%d n=%d k=%s triggers=%s" % (re.sub(r"^events-|\.jsonl$", "", tn), name, c, n,
+                                                           c // n if c % n == 0 else "-", "n/a" if t is None else t))
+        if c % n:
+            fail("g", "-", "%d %s hook(s) ran in %s; the pinned user settings declare %d (%s): not a whole multiple" % (c, name, tn, n, src))
+        elif t is not None and c // n > t:
+            fail("g", "-", "%d %s hook(s) ran in %s; the pinned user settings declare %d (%s): k=%d above %d trigger(s)" % (c, name, tn, n, src, c // n, t))
 for tn, txt in user_texts:
     for m in re.finditer(r"Base directory for this skill:\s*(\S+)", txt[:1 << 20]):
         bd = os.path.normpath(m.group(1))
@@ -1123,6 +1462,9 @@ gev = "(g) %d phase(s): %d PR .claude/ executions in %d process sample(s) and %d
       "no project MCP server, plugin, skill, command, agent or output style; %s" % (
           len(labels_run), nexec, samples, len(bash_cmds), decl_raw or "-",
           ("%d canaries planted, none loaded or executed" % len(canaries)) if canaries else "no canary planted")
+ccv = sorted(set(str(ev["claude_code_version"]) for _t, ev, _c in inits if isinstance(ev.get("claude_code_version"), str)))
+gev += "; hooks: %s; cc=%s; transcripts: %s; unlabelled=%s" % (", ".join(hook_ev) or "none", ",".join(ccv) or "-",
+                                                               ", ".join(tev) or "none", ",".join(unlabelled) or "none")
 if fails:
     order = {"f": 0, "g": 1}
     fails.sort(key=lambda x: order[x[0]])

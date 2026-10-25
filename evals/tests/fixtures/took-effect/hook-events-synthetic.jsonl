@@ -1,0 +1,5 @@
+{"type":"system","subtype":"hook_started","hook_id":"synthetic-pretooluse-bash","hook_name":"PreToolUse:Bash","hook_event":"PreToolUse","session_id":"s"}
+{"type":"system","subtype":"hook_started","hook_id":"synthetic-pretooluse-write","hook_name":"PreToolUse:Write","hook_event":"PreToolUse","session_id":"s"}
+{"type":"system","subtype":"hook_started","hook_id":"synthetic-userpromptsubmit","hook_name":"UserPromptSubmit","hook_event":"UserPromptSubmit","session_id":"s"}
+{"type":"system","subtype":"hook_started","hook_id":"synthetic-pretooluse-colon-pipe","hook_name":"PreToolUse:mcp__srv__run:a|b","hook_event":"PreToolUse","session_id":"s"}
+{"type":"system","subtype":"hook_started","hook_id":"synthetic-event-mismatch","hook_name":"PreToolUse:Bash","hook_event":"PostToolUse","session_id":"s"}

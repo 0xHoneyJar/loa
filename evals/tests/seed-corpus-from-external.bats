@@ -354,3 +354,109 @@ plant_pyproject() { printf '[project]\nname = "proj"\nlicense = "MIT License"\n'
   [ -z "$(find "$T" -maxdepth 1 -name 'seed-external-dry-run.*')" ]
   [ -z "$(find "$T" -maxdepth 1 -name 'seed-external.*')" ]
 }
+
+# --- cycle-134 C-7 (D-2.4, FR-8; bd-kdk3l): every blob the fix diff reads is in the one bounded fetch, or the run refuses
+apply_fix_line() {
+  python3 - "$U/src/app.py" "$FIX_LINE" <<'PY'
+import sys
+p, fix = sys.argv[1], sys.argv[2]
+s = open(p).read().replace("    if value is None:\n", fix + "\n")
+open(p, "w").write(s)
+PY
+}
+# refix <before-fn> <with-fn> — rebuild the fix on fix^: <before-fn> makes a commit outside the PR's files, then the fix
+# applies FIX_LINE to src/app.py (a PR file) and runs <with-fn> (a change outside the PR's changed set)
+refix() {
+  ug reset -q --hard "$FIX_SHA^"
+  "$1"; ug add -A; ug commit -q -m "chore: outside the PR"
+  apply_fix_line; "$2"; ug add -A; ug commit -q -m "fix: the empty string is not a value"
+  FIX_SHA="$(ug rev-parse HEAD)"
+}
+extra_add() { printf 'def extra(v):\n    return v\n' > "$U/src/extra.py"; }
+extra_fix() { printf 'def extra(v):\n    return v if v != "" else None\n' > "$U/src/extra.py"; }
+link_add() { mkdir -p "$U/docs"; ln -s ../README.md "$U/docs/link"; }
+link_fix() { rm "$U/docs/link"; ln -s ../LICENSE "$U/docs/link"; }
+# the fix diff as git prints it without any user configuration (the seeder's own environment)
+upstream_fix_diff_bytes() {
+  GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 git -C "$U" diff --no-color --no-ext-diff --no-textconv --no-renames -U0 "$FIX_SHA^" "$FIX_SHA" | wc -c | tr -d ' '
+}
+no_temp_trees() { [ -z "$(find "$T" -maxdepth 1 -name 'seed-external*')" ]; }
+# pr_set_bytes — the bytes of the PR's own want set (base src/app.py, head src/app.py and src/util.py, the root LICENSE)
+pr_set_bytes() {
+  local n=0 o
+  for o in "$BASE_SHA:src/app.py" "$HEAD_SHA:src/app.py" "$HEAD_SHA:src/util.py" "$HEAD_SHA:LICENSE"; do n=$((n + $(ug cat-file -s "$o"))); done
+  echo "$n"
+}
+
+@test "SX-21 a fix touching a file outside the PR's changed set: its blobs join the one bounded fetch, the fix diff is complete, the file is listed as dropped" {
+  build_upstream
+  refix extra_add extra_fix
+  run seed --dry-run
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  D="$(dry_corpus "$output")"
+  R="$(dirname "$D")/DRY-RUN-REPORT.txt"
+  # 4 PR blobs (base and head src/app.py, src/util.py, LICENSE) + the fix's src/app.py + src/extra.py at fix^ and fix
+  grep -q '^limits: 7 file(s), ' "$R"
+  grep -q "; fix diff $(upstream_fix_diff_bytes) B\$" "$R"
+  grep -q '^src/extra.py: the fix touches it but the PR did not change it; no fix region$' "$D/labels/pr-99.dropped.txt"
+  grep -q $'^F001\t-\tfix\tsrc/app.py\t' "$D/labels/pr-99.tsv"
+}
+
+@test "SX-22 the fix's blobs outside the fetch bounds refuse before any fetch, naming the paths (--max-files and --max-bytes); nothing is written" {
+  build_upstream
+  refix extra_add extra_fix
+  run seed --dry-run --max-files 4          # the PR's own set fits exactly; the fix needs 3 more blobs
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"fix diff needs 3 blob(s) outside the fetch bounds: src/app.py, src/extra.py"* ]]
+  [[ "$output" != *"fetching blobs"* ]]
+  corpus_unchanged; no_temp_trees
+  run seed --dry-run --max-bytes "$(pr_set_bytes)"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"fix diff needs 3 blob(s) outside the fetch bounds: src/app.py, src/extra.py"* ]]
+  corpus_unchanged; no_temp_trees
+  run seed --commit-trees --out "$C/pr-41" --max-files 4
+  [ "$status" -eq 2 ]
+  [ ! -e "$C/pr-41" ]; corpus_unchanged
+}
+
+@test "SX-23 a symlink changed by the fix outside the PR's files: its blobs (the link targets) are fetched with the set, so the fix diff never reads an unfetched object" {
+  build_upstream
+  refix link_add link_fix
+  run seed --dry-run
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  D="$(dry_corpus "$output")"
+  R="$(dirname "$D")/DRY-RUN-REPORT.txt"
+  grep -q '^limits: 7 file(s), ' "$R"
+  grep -q "; fix diff $(upstream_fix_diff_bytes) B\$" "$R"
+  grep -q '^docs/link: the fix touches it but the PR did not change it; no fix region$' "$D/labels/pr-99.dropped.txt"
+  [ ! -e "$D/pr-99/head/docs/link" ]          # nothing of the fix is materialised
+}
+
+@test "SX-24 a fix blob the upstream cannot serve (deleted from its object store): the bounded fetch fails naming the path, no partial output" {
+  build_upstream
+  refix extra_add extra_fix
+  # the API's tree listings are taken before the object goes (the GitHub API keeps listing it)
+  mkdir -p "$STUB_DIR/trees"
+  local c tree
+  for c in "$BASE_SHA" "$HEAD_SHA" "$FIX_SHA^" "$FIX_SHA"; do
+    tree="$(ug rev-parse "$c^{tree}")"
+    "$STUB_DIR/bin/gh" api "repos/upstream/proj/git/trees/$tree?recursive=1" > "$STUB_DIR/trees/$tree.json"
+  done
+  mv "$STUB_DIR/bin/gh" "$STUB_DIR/gh-real"
+  cat > "$STUB_DIR/bin/gh" <<'SH'
+#!/usr/bin/env bash
+t="${2#*/git/trees/}"; t="${t%%\?*}"
+if [[ "${2:-}" == */git/trees/* && -f "$STUB_DIR/trees/$t.json" ]]; then printf '%s\n' "$*" >> "$STUB_DIR/gh.log"; cat "$STUB_DIR/trees/$t.json"; exit 0; fi
+exec "$STUB_DIR/gh-real" "$@"
+SH
+  chmod +x "$STUB_DIR/bin/gh"
+  oid="$(ug rev-parse "$FIX_SHA:src/extra.py")"
+  rm -f "$U/.git/objects/${oid:0:2}/${oid:2}"
+  ! ug cat-file -e "$oid" 2>/dev/null || false
+  run seed --dry-run
+  [ "$status" -eq 1 ] || { echo "$output"; false; }
+  # the one batch holds all 7 blobs (none is local in a blobless clone); the failure names every path of it
+  [[ "$output" == *"the bounded fetch of 7 blob(s) from https://github.com/upstream/proj failed (LICENSE, src/app.py, src/extra.py, src/util.py): "*"; nothing written"* ]]
+  [[ "$output" != *"dry run: temporary corpus"* ]]
+  corpus_unchanged; no_temp_trees
+}

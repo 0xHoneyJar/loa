@@ -1,0 +1,79 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "command": "true",
+            "type": "command"
+          },
+          {
+            "command": "true",
+            "type": "command"
+          }
+        ],
+        "matcher": "Bash"
+      },
+      {
+        "hooks": [
+          {
+            "command": "true",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "command": "true",
+            "type": "command"
+          },
+          {
+            "command": "true",
+            "type": "command"
+          },
+          {
+            "command": "true",
+            "type": "command"
+          },
+          {
+            "command": "true",
+            "type": "command"
+          },
+          {
+            "command": "true",
+            "type": "command"
+          },
+          {
+            "command": "true",
+            "type": "command"
+          },
+          {
+            "command": "true",
+            "type": "command"
+          },
+          {
+            "command": "true",
+            "type": "command"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "true",
+            "type": "command"
+          },
+          {
+            "command": "true",
+            "type": "command"
+          }
+        ]
+      }
+    ]
+  }
+}

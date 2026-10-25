@@ -39,7 +39,17 @@
 #      sizes, which must agree with the clone's entries): a symlink, a submodule or any other
 #      non-regular entry in the PR's changed files, or an unsafe path, refuses; the blobs to fetch
 #      (base, head, the fix files at fix^ and fix, the root licence files) must fit --max-files
-#      (default 5000) and --max-bytes (default 200M) — no blob has been fetched yet
+#      (default 5000) and --max-bytes (default 200M) — no blob has been fetched yet.
+#      The fix diff's blobs (cycle-134 C-7, D-2.4; bd-kdk3l), in phases: (1) the blobless clone and
+#      fetches already hold the commits and trees of fix^ and fix (no blob); (2) changed(fix^, fix)
+#      over those trees (diff-tree --no-renames: adds and deletes, NUL-safe); (3) both sides' blob ids
+#      of every changed path — regular files and symlinks, every object the diff reads — join the want
+#      set, deduplicated against the PR's blobs and charged once against --max-files / --max-bytes;
+#      when they do not fit: `fix diff needs N blob(s) outside the fetch bounds: <paths>` (exit 2);
+#      (4) the one bounded fetch of step 5; (5) the diffs, after the fetch and still under
+#      GIT_NO_LAZY_FETCH=1 — a diff that reads an object outside the fetched set refuses (exit 2),
+#      never a partial diff. A failure in (1)–(4) (tree enumeration, the fetch: exit 1 naming the
+#      paths) stops the run before (5) and before any write
 #   5. the blobs are fetched in one batch (noop negotiation; every other git call runs with
 #      GIT_NO_LAZY_FETCH=1, so nothing outside the checked set is fetched implicitly); `git archive`
 #      (no hooks, nothing executed) of a tree built in a temporary index from exactly the checked
@@ -472,7 +482,9 @@ for st, path in FIX_CHANGES:
         refuse(f"unsafe path in the fix: {path!r}")
     for side in ("parent", "fix"):
         e = fix_trees[side].get(path)
-        if e and e[0] in REGULAR_MODES and e[1] == "blob":
+        # every blob the fix diff reads (C-7): regular files and symlinks (a symlink's blob is its target text; it is
+        # diffed, never materialised); a submodule entry is a commit id the diff prints without reading an object
+        if e and e[1] == "blob":
             fix_want.append((side, path, e[2]))
 lic_want = [(p, e[2]) for p, e in trees["head"].items() if "/" not in p and LICENCE_FILE_RX.match(p) and e[0] in REGULAR_MODES]
 manifest_want = [(p, trees["head"][p][2]) for p in ("package.json", "pyproject.toml", "Cargo.toml")
@@ -487,17 +499,33 @@ for commit, side_entries in ((MB, want["base"]), (HEAD, want["head"] + lic_want 
         if not m or m[2] != oid or not isinstance(m[3], int):
             fail(f"the GitHub tree listing of {commit[:12]} disagrees with the clone at {path!r}")
         sizes[oid] = m[3]
-for side, path, oid in fix_want:
-    meta = api_sizes(FIX_PARENT if side == "parent" else FIX_LAST)
-    m = meta.get(path)
-    if not m or m[2] != oid or not isinstance(m[3], int):
-        fail(f"the GitHub tree listing of the fix disagrees with the clone at {path!r}")
-    sizes[oid] = m[3]
+oid_paths = {}   # oid → the paths it stands for (refusal and fetch-failure messages)
+for side_entries in (want["base"], want["head"], lic_want, manifest_want):
+    for path, oid in side_entries:
+        oid_paths.setdefault(oid, set()).add(path)
 n_blobs, n_bytes = len(sizes), sum(sizes.values())
 if n_blobs > MAX_FILES:
     refuse(f"{n_blobs} files to fetch exceed --max-files {MAX_FILES} (checked from tree metadata; nothing fetched)")
 if n_bytes > MAX_BYTES:
     refuse(f"{n_bytes} bytes to fetch exceed --max-bytes {MAX_BYTES} (checked from tree metadata; nothing fetched)")
+# the fix diff's blobs (both sides of changed(FIX_PARENT, FIX_LAST)) join the same set, deduplicated against the PR's
+# blobs and charged once against the same bounds; outside the bounds the run refuses naming them (C-7, D-2.4)
+fix_extra = {}
+for side, path, oid in fix_want:
+    meta = api_sizes(FIX_PARENT if side == "parent" else FIX_LAST)
+    m = meta.get(path)
+    if not m or m[2] != oid or not isinstance(m[3], int):
+        fail(f"the GitHub tree listing of the fix disagrees with the clone at {path!r}")
+    oid_paths.setdefault(oid, set()).add(path)
+    if oid not in sizes:
+        fix_extra[oid] = m[3]
+if n_blobs + len(fix_extra) > MAX_FILES or n_bytes + sum(fix_extra.values()) > MAX_BYTES:
+    named = sorted({p for o in fix_extra for p in oid_paths[o]})
+    refuse(f"fix diff needs {len(fix_extra)} blob(s) outside the fetch bounds: {', '.join(named[:20])}"
+           f"{f' (+{len(named) - 20} more)' if len(named) > 20 else ''} (the PR's set is {n_blobs} file(s), {n_bytes} byte(s); "
+           f"--max-files {MAX_FILES}, --max-bytes {MAX_BYTES}; checked from tree metadata; nothing fetched)")
+sizes.update(fix_extra)
+n_blobs, n_bytes = len(sizes), sum(sizes.values())
 log(f"limits ok from tree metadata: {n_blobs} file(s), {n_bytes} byte(s); fetching blobs")
 
 # ------------------------------------------------------- fetch and materialise
@@ -505,11 +533,16 @@ missing = [o for o in sorted(sizes) if g("cat-file", "-e", o, check=False).retur
 if missing:
     # one batch for the checked set, the way git's own promisor fetch asks (noop negotiation: the connectivity
     # check of a have-negotiated fetch rejects bare blob wants); GIT_NO_LAZY_FETCH=1 stays set
-    g("-c", "fetch.negotiationAlgorithm=noop", "fetch", "--quiet", "--no-tags", "--no-write-fetch-head", "--recurse-submodules=no",
-      "--filter=blob:none", "--stdin", "origin", data="".join(o + "\n" for o in missing))
+    fp = g("-c", "fetch.negotiationAlgorithm=noop", "fetch", "--quiet", "--no-tags", "--no-write-fetch-head", "--recurse-submodules=no",
+           "--filter=blob:none", "--stdin", "origin", data="".join(o + "\n" for o in missing), check=False)
+    if fp.returncode != 0:
+        names = sorted({p for o in missing for p in oid_paths.get(o, {o})})
+        fail(f"the bounded fetch of {len(missing)} blob(s) from {SOURCE} failed ({', '.join(names[:20])}"
+             f"{' …' if len(names) > 20 else ''}): {fp.stderr.strip()[:300]}; nothing written")
 still = [o for o in missing if g("cat-file", "-e", o, check=False).returncode != 0]
 if still:
-    fail(f"{len(still)} blob(s) did not arrive from {SOURCE}")
+    names = sorted({p for o in still for p in oid_paths.get(o, {o})})
+    fail(f"{len(still)} blob(s) did not arrive from {SOURCE}: {', '.join(names[:20])}{' …' if len(names) > 20 else ''}; nothing written")
 
 def archive(commit, entries):
     """{path: bytes} through `git archive` (tar) of a tree holding exactly `entries` (built in a temporary
@@ -559,7 +592,14 @@ if not head_files and not base_files:
     refuse(f"pull request #{PR}: only binary or lock files changed")
 DIFF_OPTS = ["--no-color", "--no-ext-diff", "--no-textconv", "--no-renames"]
 diff_text = g("diff", *DIFF_OPTS, MB, HEAD, "--", *[":(literal)" + p for p in paths]).stdout
-fix_diff = g("diff", *DIFF_OPTS, "-U0", FIX_PARENT, FIX_LAST).stdout
+# after the fetch, still under GIT_NO_LAZY_FETCH=1: a diff that needs an object outside the fetched set is a refusal,
+# never a partial diff (C-7)
+fp = g("diff", *DIFF_OPTS, "-U0", FIX_PARENT, FIX_LAST, check=False)
+if fp.returncode != 0:
+    refuse(f"the fix diff {FIX_PARENT[:12]}..{FIX_LAST[:12]} reads an object outside the fetched set "
+           f"({fp.stderr.strip().splitlines()[-1][:200] if fp.stderr.strip() else 'git diff exit ' + str(fp.returncode)}); "
+           "nothing written — report the fix range")
+fix_diff = fp.stdout
 if len(fix_diff.encode("utf-8")) > MAX_FIX_DIFF:
     refuse(f"the fix diff is {len(fix_diff.encode('utf-8'))} bytes, over --max-fix-diff-bytes {MAX_FIX_DIFF}")
 

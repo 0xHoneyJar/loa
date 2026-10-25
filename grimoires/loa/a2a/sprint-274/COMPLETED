@@ -1,6 +1,0 @@
-sprint: sprint-274
-sprint-274 (cycle-133 sprint-3 — the product: Task 3.0 spike (design a′ confirmed, DEC-0908); C-10 home-scope mount landed, not claimed (both smoke launches failed clause (f) as designed — KF-060; FR-10 deferred DEC-0950, G-4 incomplete); C-11 one finding contract, verdict-derive failure clause + blocking tally (+ the unclosed-fence rule from review round 1), grader 1.5 --judge-verdicts, reads --judge-defects; C-12 corpus-seed lib, external seeder with three dry-runs, secret-classes lib, registration v2 looks_seen, measurement-cycle guidance; harness README complete; KF-058 egress guard fix, KF-059 shallow-checkout guard, KF-061 dissent under home-scope fix; floor amendment mechanism DEC-0946; measurement pins 32a8d79cf then 7d2119477). Review APPROVED round 2 (engineer-feedback.md; round 1 CHANGES_REQUIRED one medium, fixed in 87c7041e3), audit APPROVED (auditor-sprint-feedback.md; medium 1 accepted risk, low 5 as beads, one low fixed in f63b4e92a). Dissent runs 2 of 3. Spend USD 20.88 of the USD 40 share.
-
-Completion timestamp: 2026-10-24T13:09:05Z
-Branch: feature/cycle-133-follow-through
-Head: f63b4e92a

@@ -1,4 +1,0 @@
-arm=both setting_sources='user,project' model=global.anthropic.claude-sonnet-5-5 image=loa-ablation:259 proxy_image=loa-egress-proxy:259 batch=spike075217 max_turns=4 timeout_s=420
-sha256:61e88d02d78519f3ecf20fc3bc162cc1b7a56cd927673ce9d94a7fdb78246dbb 2.1.299
-sha256:10fc90b6e85ace444896ed01985a1c6c04b57c1cd8f162f99558a60151bba274
-exit=0

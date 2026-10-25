@@ -1,6 +1,0 @@
-sprint: sprint-275
-sprint-275 (cycle-133 sprint-4 — hygiene and ship: C-13 sweep tooling (7e0123b9a + 14bad657c, f48de024e, 3deb39cd5, 9fb44fe10) and the beads sweep (329 → 155 open; 165 implemented + 9 obsolete closed with evidence, 147 kept backlog-2026-10, 7 pulled-in, 1 skipped-blocked; sample 17/18 with batch 03 fully re-verified); release metadata 2.0.0-rc.8 (f898c739e); Sprint 273 COMPLETED on the first green Shell Tests run (DEC-0953). Review APPROVED round 2 (engineer-feedback.md; round 1 CHANGES_REQUIRED: 1 high, 2 medium, 4 low — fixed in 9fb44fe10), audit APPROVED (auditor-sprint-feedback.md; its own audit envelope; 3 medium + 6 low fixed in 37547f3a4, low 3 open). Dissent runs this sprint: 2 of 3. Task 4.5 (ship: PR ready, Bridgebuilder, admin merge, record branch, publish rc.8, archive) follows this marker; its evidence goes to e2e.md and the ship DEC rows.
-
-Completion timestamp: 2026-10-24T14:55:34Z
-Branch: feature/cycle-133-follow-through
-Head: 37547f3a4

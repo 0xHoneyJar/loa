@@ -1,7 +1,0 @@
-sprint: sprint-273
-sprint-273 (cycle-133 sprint-2 — harness and reproduction hardening: session library C-6, reproduction and analysis C-7, grader 1.4 and refusal policy C-8, egress block and batch supervisor C-9, intermediate pipeline version 50881e6f4). Review APPROVED round 2 (2026-10-24T07:30Z), audit APPROVED (2026-10-24T07:41Z). Marker withheld until CI "Shell Tests" was green on a pushed head containing the Sprint 273 code: run 40094040774 on 0d51dcf45 (the Sprint 273 head c3b059cf3 was red on five eval tests fixed in c31aad7cc and 874fc64a9 — KF-058 — so the green head also carries Sprint 274 commits; recorded as an overlap DEC).
-
-Completion timestamp: 2026-10-24T13:44:44Z
-Branch: feature/cycle-133-follow-through
-Head: 0d51dcf45
-CI: run 40094040774 (BATS Tests / Shell Tests) green; Eval Sandbox run 40085119807 green
