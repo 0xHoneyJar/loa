@@ -2765,8 +2765,16 @@
       "archived": null,
       "archive_path": null,
       "prd": "grimoires/loa/prd.md",
-      "sdd": null,
-      "sprints": []
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 276,
+          "local_label": "sprint-1",
+          "status": "planned",
+          "created": "2026-10-25T03:44:27Z",
+          "completed": null
+        }
+      ]
     }
   ],
   "global_sprint_counter": 268,
@@ -3212,6 +3220,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 276,
-  "last_updated": "2026-10-25T02:58:27Z"
+  "next_sprint_number": 277,
+  "last_updated": "2026-10-25T03:44:27Z"
 }
