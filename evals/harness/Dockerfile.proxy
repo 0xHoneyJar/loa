@@ -42,7 +42,7 @@
 #   docker build -t loa-egress-proxy:259 - < evals/harness/Dockerfile.proxy
 # Run (lib/egress-proxy.sh up does this):
 #   docker run -d --name loa-proxy-<batch> --network loa-egress-<batch>-ext --read-only --tmpfs /tmp:rw,size=8m
-#     --cap-drop ALL --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID --pids-limit 128 --memory 256m
+#     --cap-drop ALL --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID --pids-limit 256 --memory 256m
 #     -e LOA_EGRESS_ALLOWLIST="…" loa-egress-proxy:259
 #   docker network connect loa-egress-<batch> loa-proxy-<batch>
 # A guard (lib/egress-proxy.sh guard does this):

@@ -41,11 +41,29 @@
 #   main) is refused; --allow-v1 REASON publishes it as before and records
 #   the reason in the run state.
 #
+# Publish contract (cycle-134 C-9, bd-4pv1j; sdd.md D-3.2, D-3.2a, D-3.2b):
+#   Before any write, --publish checks the candidate's tag (v<semver next>)
+#   locally and on the push destination: an existing tag must have the
+#   release identity of tag_identity_matches (annotated, on the target, named
+#   the tag, subject "Release <tag>"; a lightweight tag never matches); a
+#   remote whose tag lookup fails or times out is "remote unreachable,
+#   identity unverified". phase_tag repeats both checks immediately before
+#   the push: a tag that appeared in between fails the phase (exit 1, state
+#   FAILED); a tag of the identical identity skips the push and continues.
+#   Candidate numbers are integers: no fraction, no exponent, |n| <= 2^53-1,
+#   no -0. The lexical number tokens are checked before any canonicaliser
+#   normalises them (number_domain_check) — by --generate on the run state
+#   (prepared_state) before any candidate file is written, and by --publish
+#   on the candidate — whether or not rfc8785 is installed.
+#
 # Exit Codes (sdd.md § 5.4):
 #   0 - Candidate prepared or publication verified (RTFM/lore are advisory)
 #   1 - Invalid arguments, generation failure, or a publication step failed
-#   2 - Refusal before any write (digest, schema, v1, ancestry, tag identity,
-#       ledger patch), fatal setup error
+#       after a write (e.g. a tag appearing between validation and the push)
+#   2 - Refusal before any write (digest, schema, v1, ancestry, ledger patch;
+#       local or remote tag identity mismatch, lightweight tag, unreachable
+#       remote; a non-integer number at generate or publish), fatal setup
+#       error
 #   3 - Published, degraded: the ledger step was deferred (ledger_deferred)
 
 #
@@ -1087,13 +1105,16 @@ phase_tag() {
     return 1
   fi
   # cycle-133 C-3: an existing tag (local or remote) is accepted only on the
-  # identical target and release identity; anything else is a refusal.
+  # identical target and release identity. cycle-134 C-9: the refusal of
+  # another identity happens before any write (validate_tag_identity); this
+  # re-check immediately before the push catches a tag that appeared since,
+  # after the state was written, so it is a failed step (1), not a refusal.
   if git -C "$PROJECT_ROOT" rev-parse --quiet --verify "refs/tags/${tag}" >/dev/null &&
       ! tag_identity_matches "refs/tags/${tag}" "$tag" "$target"; then
-    fail_phase tag "Existing local tag ${tag} differs from the candidate (target or release identity)"
-    return 2
+    fail_phase tag "Local tag ${tag} of another identity appeared between validation and the push"
+    return 1
   fi
-  if ! remote_tag=$(git -C "$PROJECT_ROOT" ls-remote "${PUSH_URL:-origin}" "refs/tags/${tag}"); then
+  if ! remote_tag=$(remote_tag_lookup "${PUSH_URL:-origin}" "$tag"); then
     fail_phase tag "Cannot read remote tags"
     return 1
   fi
@@ -1101,8 +1122,8 @@ phase_tag() {
     if ! git -C "$PROJECT_ROOT" fetch --no-tags --quiet "${PUSH_URL:-origin}" \
         "+refs/tags/${tag}:refs/loa/post-merge/observed-tag" ||
         ! tag_identity_matches refs/loa/post-merge/observed-tag "$tag" "$target"; then
-      fail_phase tag "Remote tag ${tag} exists with another target or release identity"
-      return 2
+      fail_phase tag "Remote tag ${tag} of another identity appeared between validation and the push"
+      return 1
     fi
     echo "[TAG] Existing remote ${tag} matches the candidate; not pushed again"
   else
@@ -1639,6 +1660,114 @@ tag_published() {
   tag_identity_matches refs/loa/post-merge/observed-tag "$tag" "$MERGE_SHA"
 }
 
+# The remote's refs/tags/<tag> line (empty when absent); nonzero when the
+# remote cannot be read. Bounded: a hung transport is a failed lookup.
+remote_tag_lookup() {
+  local url="$1" tag="$2"
+  if command -v timeout >/dev/null 2>&1; then
+    timeout 60 git -C "$PROJECT_ROOT" ls-remote "$url" "refs/tags/${tag}" 2>/dev/null
+  else
+    git -C "$PROJECT_ROOT" ls-remote "$url" "refs/tags/${tag}" 2>/dev/null
+  fi
+}
+
+# cycle-134 C-9 (D-3.2a, D-3.2b): the tag identity, checked before any write.
+# A local or remote tag of the candidate's name must carry the release
+# identity (tag_identity_matches; a lightweight tag never does); a remote
+# that cannot be read is not an absent tag. Every refusal is one line, exit 2.
+validate_tag_identity() {
+  local tag="$1" target="$2" url="$3" remote_tag
+  if git -C "$PROJECT_ROOT" rev-parse --quiet --verify "refs/tags/${tag}" >/dev/null &&
+      ! tag_identity_matches "refs/tags/${tag}" "$tag" "$target"; then
+    echo "ERROR: Local tag ${tag} exists with another identity (it must be annotated on ${target} with the subject \"Release ${tag}\"; a lightweight tag never matches); delete the local tag or regenerate, then re-run" >&2
+    return 2
+  fi
+  if ! remote_tag=$(remote_tag_lookup "$url" "$tag"); then
+    echo "ERROR: Cannot read refs/tags/${tag} from ${url}: remote unreachable, identity unverified; restore access to the push destination, then re-run" >&2
+    return 2
+  fi
+  [[ -n "$remote_tag" ]] || return 0
+  if ! git -C "$PROJECT_ROOT" fetch --no-tags --quiet "$url" \
+      "+refs/tags/${tag}:refs/loa/post-merge/observed-tag" 2>/dev/null; then
+    echo "ERROR: Cannot fetch refs/tags/${tag} from ${url}: remote unreachable, identity unverified; restore access to the push destination, then re-run" >&2
+    return 2
+  fi
+  if ! tag_identity_matches refs/loa/post-merge/observed-tag "$tag" "$target"; then
+    echo "ERROR: Remote tag ${tag} exists with another identity (it must be annotated on ${target} with the subject \"Release ${tag}\"; a lightweight tag never matches); resolve the remote tag, then re-run" >&2
+    return 2
+  fi
+}
+
+# cycle-134 C-9 (D-3.2, D-3.2b): every JSON number in FILE is an integer — no
+# fraction, no exponent, no -0, |n| <= 2^53-1. The lexical tokens are read
+# before any conversion (json's parse_int/parse_float/parse_constant hooks
+# receive the token text; a string's content is never a token), so a form a
+# parser or canonicaliser would normalise (1.0, 1e3, -0) is still seen. Every
+# member of an object is visited, duplicate keys included. A refusal names
+# the token and its JSON path (PREFIX + the path inside FILE).
+number_domain_check() {
+  python3 -I - "$1" "$2" <<'PY'
+import json
+import re
+import sys
+
+TOKEN = re.compile(r"-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][-+]?[0-9]+)?")
+LIMIT = 9007199254740991
+IDENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+class Number(str):
+    pass
+
+
+class Members(list):
+    pass
+
+
+def problem(text):
+    match = TOKEN.fullmatch(text)
+    if match is None:
+        return "not a JSON number"
+    if match.group(2) or match.group(3):
+        return "a fraction or an exponent"
+    if text == "-0":
+        return "negative zero"
+    digits = match.group(1)
+    if len(digits) > 16 or int(digits) > LIMIT:
+        return "outside |n| <= 2^53-1"
+    return None
+
+
+def walk(value, path):
+    if isinstance(value, Number):
+        reason = problem(value)
+        if reason:
+            yield path, str(value), reason
+    elif isinstance(value, Members):
+        for key, member in value:
+            step = "." + key if IDENT.fullmatch(key) else "[" + json.dumps(key, ensure_ascii=False) + "]"
+            yield from walk(member, path + step)
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from walk(item, f"{path}[{index}]")
+
+
+source, prefix = sys.argv[1], sys.argv[2]
+try:
+    with open(source, encoding="utf-8") as stream:
+        document = json.load(stream, parse_int=Number, parse_float=Number,
+                             parse_constant=Number, object_pairs_hook=Members)
+except (OSError, ValueError) as error:
+    print(f"ERROR: Cannot read the numbers of {source}: {error}; refusing", file=sys.stderr)
+    sys.exit(2)
+for path, token, reason in walk(document, prefix):
+    print(f"ERROR: Non-integer number {token} at {path or '.'} ({reason}): candidate numbers are integers"
+          " (no fraction, no exponent, |n| <= 2^53-1, no -0); fix the field's producer; nothing written",
+          file=sys.stderr)
+    sys.exit(2)
+PY
+}
+
 # The ledger patch may only modify grimoires/loa/ledger.json as text.
 validate_ledger_patch() {
   local patch="$1" numstat summary headers
@@ -1895,6 +2024,8 @@ publish_ledger_only() {
 
 validate_candidate_v2() {
   local candidate="$1" source_dir="$2" snapdir="$3" merge rebuilt
+  # cycle-134 C-9: the integer domain, on the tokens as approved.
+  number_domain_check "$candidate" "" || return 2
   if ! jq -e -s 'length == 1 and (.[0] |
     .schema_version == 2 and (.pr_number | type == "number" and . > 0) and
     (.pr_type == "cycle" or .pr_type == "bugfix" or .pr_type == "other") and
@@ -1936,6 +2067,9 @@ validate_candidate_v2() {
     echo "ERROR: The candidate's merge ${merge} is not in this repository" >&2
     return 2
   fi
+  # cycle-134 C-9: tag identity before PUBLISHING is written (target = merge).
+  validate_tag_identity "$(jq -r '.tag' "$candidate")" "$merge" \
+    "$(jq -r '.remote_push_url' "$candidate")" || return 2
   LEDGER_NEW=$(jq -r '.ref_updates[0].new // ""' "$candidate")
   [[ -n "$LEDGER_NEW" ]] || return 0
   LEDGER_CYCLE=$(jq -r '.ledger_cycle' "$candidate")
@@ -1968,6 +2102,8 @@ prepare_candidate() {
     echo "ERROR: Generated files are not committed; no candidate will be prepared" >&2
     return 1
   fi
+  # cycle-134 C-9: prepared_state is the run state; its numbers are integers.
+  number_domain_check "$STATE_FILE" ".prepared_state" || return 2
   version=$(read_state '.phases.semver.result.next')
   merge=$(git -C "$PROJECT_ROOT" rev-parse --verify "${MERGE_SHA}^{commit}") || return 1
   head=$(git -C "$PROJECT_ROOT" rev-parse HEAD) || return 1
@@ -2110,6 +2246,8 @@ publish_candidate() (
         echo "ERROR: Invalid release candidate" >&2
         return 2
       fi
+      validate_tag_identity "$(jq -r '.tag' "$PUBLISH_CANDIDATE")" "$(jq -r '.target_commit' "$PUBLISH_CANDIDATE")" \
+        "$(jq -r '.remote_push_url' "$PUBLISH_CANDIDATE")" || return 2
       echo "[PUBLISH] WARNING: publishing a schema_version 1 candidate under --allow-v1: ${ALLOW_V1_REASON}" >&2
       ;;
     2)

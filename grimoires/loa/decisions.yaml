@@ -34120,3 +34120,415 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-0987"
+    created_at: "2026-10-25T05:11:41Z"
+    updated_at: "2026-10-25T05:11:41Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "took-effect hooks: the hook_name suffix is the trigger query → sha(query) + the matcher-less group; regex-only groups fail closed until a real event exists."
+    decision: "A <event>:<q> hook_started maps to the pinned groups whose hex id is sha256(q)[:12] plus the matcher-less group sha256('')[:12], their command counts summed (the observed SessionStart:startup ×8 sits under the matcher-less SessionStart group of 8 commands). A query that only a regex group (Write|Edit|…) would match cannot be resolved from hex ids and fails as unpinned, named — accepted as a known limitation while no tool-hook event has ever been emitted in -p mode (Q-1); the first live event re-checks it (noted on bd-bex39)."
+    rationale: "The real event names the trigger's source (startup), not the configured matcher; a literal hash-the-suffix lookup would false-fail every run that carries home_hook_groups."
+    alternatives_considered:
+      - option: "hash the suffix literally against the group ids"
+        rejected_because: "SessionStart:startup never matches a matcher-less group's id"
+      - option: "read matcher text from the pin's settings.json to expand regex alternatives"
+        rejected_because: "deferred: no tool-hook event exists to design against; the emitter can list |-alternatives later"
+    consequences:
+      positive:
+        - "the observed shape passes; unknown groups fail closed"
+      negative:
+        - "a future PreToolUse:Write event under a regex-only group would false-fail until the emitter expands alternatives"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f17bfe0e"
+    source: "~/.cache/loa/cycle-134/reports/s1-a.md § Judgment calls 2, 3; evals/harness/took-effect.sh (Task 1.1); sdd.md D-1.1a"
+    cycle: "cycle-134-post-ship-fixes"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-25T05:11:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "took-effect-hooks.bats TEH-3, TEH-6, TEH-9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0988"
+    created_at: "2026-10-25T05:11:45Z"
+    updated_at: "2026-10-25T05:11:45Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "took-effect trigger counts compare tool names as text (equal to the query or one of its |-alternatives); transcript strings are never compiled as regex."
+    decision: "PreToolUse/PostToolUse triggers count tool_use blocks whose name equals the query or one of its |-separated alternatives; SessionStart triggers equal the init count only for the query startup (or no query), other sources get triggers: n/a."
+    rationale: "Compiling matcher text from untrusted transcripts as a regex invites ReDoS; text comparison covers every matcher shape the framework uses."
+    alternatives_considered:
+      - option: "full-match regex as the SDD said"
+        rejected_because: "regex over untrusted data; no corpus matcher needs more than alternatives"
+    consequences:
+      positive:
+        - "no regex over untrusted data"
+      negative:
+        - "a regex matcher with character classes would not be understood (none exists in the pinned settings)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f17bfe0e"
+    source: "~/.cache/loa/cycle-134/reports/s1-a.md § Judgment calls 4, 5; sdd.md § 11.H"
+    cycle: "cycle-134-post-ship-fixes"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-25T05:11:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "took-effect-hooks.bats TEH-1, TEH-5"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0989"
+    created_at: "2026-10-25T05:11:48Z"
+    updated_at: "2026-10-25T05:11:48Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "took-effect phases: a stopped run may hold a prefix of the suite phases; one reason per transcript in a fixed order keeps the +N count stable."
+    decision: "The 'every declared phase present' check accepts a prefix when the run status is cap_failure, agent_error, interrupted or running (as all_phases_present already does); otherwise the retained run 1 (agent_error, REVIEW only) would gain an unregistered finding. Per transcript only the first violation in the order file state → parse → results → init → result-last → session_id is reported; unlabelled transcripts are still parsed for the surface checks and reported."
+    rationale: "Pre-registered regression verdicts require stable finding counts; a stopped run is by definition incomplete and is already marked so by its status."
+    alternatives_considered:
+      - option: "require every declared phase regardless of status"
+        rejected_because: "adds an unregistered finding to the retained run 1 and double-counts the status"
+    consequences:
+      positive:
+        - "D-4.3 holds"
+      negative:
+        - "a second defect in the same transcript surfaces only after the first is fixed"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f17bfe0e"
+    source: "~/.cache/loa/cycle-134/reports/s1-a.md § Judgment calls 10, 11, 12; evals/harness/took-effect.sh (Task 1.2)"
+    cycle: "cycle-134-post-ship-fixes"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-25T05:11:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "took-effect-transcripts.bats TET-11, TET-13"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0990"
+    created_at: "2026-10-25T05:11:52Z"
+    updated_at: "2026-10-25T05:11:52Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "integrity_clean binding amended: the HOME manifest is regenerated with a timestamp → bind by coverage, arm_evidence equality and the pin match. Amends DEC-0973."
+    decision: "The pin is resolved from arms[].source_commit, else the batch MANIFEST.json source_commit (run-ablation --source-commit), else the suite's source_commit, and must equal pipeline.json's; the pin's checksums blob is read from --source-repo and its digest shown in the evidence; the binding requires record.files ≥ the pin manifest's entry count (2073 ≥ 2072: the regenerated manifest adds its own entries), record.manifest_sha256 = arm_evidence.manifest_sha256, tampered = missing = 0; a retained HOME at meta/home/.claude or home/.claude is walked (regular files only; symlinked files and directories fail)."
+    rationale: "The HOME manifest is regenerated over the transformed copy and carries a generated timestamp, so literal equality with the pin blob's digest fails every real run; coverage plus the pin match is the strongest binding the record admits without a retained HOME."
+    alternatives_considered:
+      - option: "literal digest equality (DEC-0973 as written)"
+        rejected_because: "infeasible: fails both retained runs and every future run"
+      - option: "suite-only pin source"
+        rejected_because: "the c133-smoke suite's source_commit (ba11b860) is stale for these batches; the batch MANIFEST carries the pin actually used"
+    consequences:
+      positive:
+        - "the regression passes with a stated binding"
+      negative:
+        - "per-file tampering after the driver's check stays unprovable without a retained HOME (unchanged)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f17bfe0e"
+    source: "~/.cache/loa/cycle-134/reports/s1-a.md § Judgment calls 13, 14, 15, 16; grimoires/loa/a2a/sprint-276/regression.md § After; evals/harness/pipeline-run.sh (home_integrity regenerates the manifest over the transformed copy)"
+    cycle: "cycle-134-post-ship-fixes"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-25T05:11:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "took-effect-integrity.bats TEI-1 … TEI-8; regression After"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0991"
+    created_at: "2026-10-25T05:11:57Z"
+    updated_at: "2026-10-25T05:11:57Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Home-scope bats fixtures updated by a lead-landed companion patch (result events, AUDIT record, hex pin) to satisfy the new validator rules."
+    decision: "The lead landed the companion (evals/tests/sandbox-mount-home-scope.bats: fixtures gain result events, HS-8 gains the AUDIT record, HS-12 a real pin) after confirming the seven cases fail without it and pass with it (HS-5, HS-5b, HS-6, HS-7, HS-8, HS-12, HS-13)."
+    rationale: "The fixtures encoded the old, weaker rules; updating them is part of the fix, and the file was not in any implementer's allowlist."
+    alternatives_considered:
+      - option: "weaken the new rules to keep the fixtures"
+        rejected_because: "the fixtures described incomplete captures the rules now rightly reject"
+    consequences:
+      positive:
+        - "one owner per file kept"
+      negative:
+        - "none"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f17bfe0e"
+    source: "~/.cache/loa/cycle-134/reports/s1-a.md § Judgment calls 17, § Tests; ~/.cache/loa/cycle-134/patches/s1-a-companion-home-scope-bats.patch"
+    cycle: "cycle-134-post-ship-fixes"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-25T05:11:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "landing.md; home-scope + took-effect existing bats 53/53"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0992"
+    created_at: "2026-10-25T05:12:01Z"
+    updated_at: "2026-10-25T05:12:01Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Mount rules: narrowing = existence guard; zone names, headings, comments stay rewritten; absent paths and fixtures drop; R5 unchanged; 21-row § 11.F over a TSV."
+    decision: "R3 stays the hit finder; the narrowing is a context guard — a hit is rewritten only when the named path exists in the pinned tree and the hit is not under a test-fixture directory; zone names, headings and HTML comments keep rewriting (HS-11 pins that executing skills keep no relative .claude/; auditing-security's scope line must resolve to the HOME copy); fenced command lines are rewritten whole so a two-root mv cannot split; R5's four hits are all run-time operands and stay. The SDD table groups the 1216 hits into 21 context-class rows; the per-hit list is the TSV, checked byte-exactly by MR-24 against the pinned tree f17bfe0e4."
+    rationale: "Existence in the pinned tree is the one property a regex cannot express and the one that separates a resolvable path from a documentation example; the initial attempt to drop headings and comments broke a measured behaviour."
+    alternatives_considered:
+      - option: "drop zone names, headings and comments (117 hits)"
+        rejected_because: "breaks HS-11 and would point the audit scope exclusion at the PR's workspace copy"
+      - option: "one SDD row per hit"
+        rejected_because: "1216 rows; the TSV carries them and the test pins it"
+      - option: "add fixtures to SKIP"
+        rejected_because: "verify's walk shares SKIP and would stop comparing those files"
+    consequences:
+      positive:
+        - "corpus-pinned, testable narrowing"
+      negative:
+        - "MR-24 is pinned to one commit and skips on a shallow clone"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f17bfe0e"
+    source: "~/.cache/loa/cycle-134/reports/s1-b.md § Judgment calls; grimoires/loa/sdd.md § 11.F; evals/tests/fixtures/sandbox-mount/r3r5-corpus.tsv (1216 hits at f17bfe0e4)"
+    cycle: "cycle-134-post-ship-fixes"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-25T05:12:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "sandbox-mount-rules.bats MR-01 … MR-24, HK-1 … HK-4"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0993"
+    created_at: "2026-10-25T05:12:05Z"
+    updated_at: "2026-10-25T05:12:05Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Classifier: PR number = trailing (#NNN) or the anchored Merge pull request #N prefix (merge-commit repo); empty → other. Amends DEC-0985 item 6."
+    decision: "Trailer first, else the anchored prefix ^Merge pull request #N([[:space:]:]|$), both validated as ^[1-9][0-9]*$; a trailer-only rule would have emptied the number on every real merge on this repository (every first-parent subject on main reads 'Merge pull request #N from …') and disabled every release. R-005's release(...) subject gets a (#1300) trailer in the test so the rule it checks survives; the stderr note prints on every empty number."
+    rationale: "The design assumed GitHub's squash trailer; this repository's merge commits carry the number as a prefix. The fix keeps KF-063's intent (a push without a PR number is not a merge) without breaking the real merge shape."
+    alternatives_considered:
+      - option: "trailer only (DEC-0985 as written)"
+        rejected_because: "disables the release pipeline on merge commits"
+      - option: "first #NNN anywhere (status quo)"
+        rejected_because: "the KF-063 defect"
+    consequences:
+      positive:
+        - "both GitHub merge shapes classify; the ledger push does not"
+      negative:
+        - "a hand-written subject 'Merge pull request #7 …' on a direct push would be treated as a merge"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f17bfe0e"
+    source: "~/.cache/loa/cycle-134/reports/s1-c.md § Judgment calls 1-3; .claude/scripts/classify-merge-pr.sh (Task 1.6); git log --first-parent main"
+    cycle: "cycle-134-post-ship-fixes"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-25T05:12:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "classify-merge-pr.bats KF063-T1 … T13, R-005"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0994"
+    created_at: "2026-10-25T05:12:09Z"
+    updated_at: "2026-10-25T05:12:09Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Publish contract: number tokens via json parse hooks; --generate scans the run state; pre-write excludes refs/loa/post-merge/*; --allow-v1 gets the tag check."
+    decision: "number_domain_check feeds parse_int/parse_float/parse_constant the exact token text (so v1.2.3, dates and SHAs inside strings are never mistaken for numbers) and names the JSON path; --generate scans $STATE_FILE as prepared_state at the start of prepare_candidate ('nothing written' = no candidate, no ledger patch, no PREPARED state; earlier generation phases ran by design); validate_candidate_v2 scans first so the refusal names the path; the pre-write fingerprint covers state, progress, ledger patch, refs/heads, refs/tags and every remote ref but not refs/loa/post-merge/* (observed-tag is the validation's own read); --allow-v1 runs validate_tag_identity too; ls-remote runs under timeout 60 where timeout exists, no new knob; git's stderr is suppressed so each refusal is one line."
+    rationale: "Each choice keeps the § 5.4 contract exact and testable without adding knobs."
+    alternatives_considered:
+      - option: "a bare regex over the serialised text"
+        rejected_because: "matches digits inside strings"
+      - option: "scan the jq-assembled raw candidate"
+        rejected_because: "jq may already have rewritten tokens"
+      - option: "treat refs/loa/post-merge/* as writes"
+        rejected_because: "the preflight already writes observed-main before PUBLISHING; they are the validation's scratch refs"
+    consequences:
+      positive:
+        - "exact tokens, named paths, one-line refusals"
+      negative:
+        - "an older jq that turns 1.0 into 1 hands on a real integer (both canonicalisers agree)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f17bfe0e"
+    source: "~/.cache/loa/cycle-134/reports/s1-c.md § Judgment calls 4-11; .claude/scripts/post-merge-orchestrator.sh (Task 1.7)"
+    cycle: "cycle-134-post-ship-fixes"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-25T05:12:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "post-merge-publication.bats c134 C-9 (16 cases); workflow-guards PMWG-T1 … T4"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0995"
+    created_at: "2026-10-25T05:12:13Z"
+    updated_at: "2026-10-25T05:12:13Z"
+    phase: "implementation"
+    category: "architecture"
+    summary: "Supervisor identity in the lib (record-job: .ident then .pgid), read after exec settles; leaderless/unsettled groups are stale; run-ablation caller lead-landed."
+    decision: "record-job <jobs-dir> <name> <pgid> writes <name>.ident then <name>.pgid atomically; the identity (start_ticks + sha256 of cmdline) is read after the leader's cmdline has settled (differs from the caller's, argv[0] not setsid/env, two reads agree, ≤ 5 s) — a leader that never settles gets no .ident and is stale; at reclaim a record without .ident, with a differing identity, or whose leader is gone or a zombie while members remain, is removed and never signalled (legacy records get one warning listing them); kill_group re-reads the identity before TERM and KILL and skips the KILL only when the leader is alive with another identity (a gone leader with members gets the KILL: Linux does not reuse a pid while it is any process's pgid). The two .pgid writers in run-ablation.sh call record-job with the old printf as fallback — a file outside every allowlist, landed by the lead."
+    rationale: "One file defines the record format; hashing at write time would mismatch every real job because $! passes through the forked shell, setsid and env before it is the pipeline."
+    alternatives_considered:
+      - option: "compute the identity lazily at reclaim"
+        rejected_because: "proves nothing about the recorded job"
+      - option: "hash the expected argv"
+        rejected_because: "breaks on the shebang rewrite"
+    consequences:
+      positive:
+        - "the format has one owner; stale and leaderless groups are never signalled"
+      negative:
+        - "the .pgid write can lag by up to 5 s (typically 50–100 ms); a driver SIGTERM in that window does not see the job"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f17bfe0e"
+    source: "~/.cache/loa/cycle-134/reports/s1-d.md § Judgment calls 1-5; evals/harness/lib/batch-supervisor.sh (Task 1.9); evals/harness/run-ablation.sh:1670, 1763 (lead-landed hunk)"
+    cycle: "cycle-134-post-ship-fixes"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-25T05:12:13Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "batch-supervisor.bats BSV-14 … BSV-19"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0996"
+    created_at: "2026-10-25T05:12:17Z"
+    updated_at: "2026-10-25T05:12:17Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Seeder: bounds and missing-object refusals exit 2; a failed fetch stays 1 naming paths; symlink blobs in the fix range fetched; two inert bats asserts fixed."
+    decision: "fix_want takes every blob of both sides of changed(FIX_PARENT, FIX_LAST) including symlink blobs (diffed text, never materialised; the PR-side symlink refusal is unchanged), charged once against the shared bounds; out-of-bounds refuses with exit 2 naming the paths; the fix diff runs with check=False and a non-zero exit refuses (2) so no partial diff is written; a failed batch fetch keeps exit 1 ('a step failed (git)') and now names its paths. SX-22 uses --max-files 4 (the PR set exactly) so the fix's own bound triggers. Two '! kill -0' assertions in BSV-8/BSV-13 that could never fail under set -e gained '|| false'."
+    rationale: "Nothing is written before the bounds and object checks, so 2 is the honest code; a failed fetch is a step that failed."
+    alternatives_considered:
+      - option: "refuse symlinks in the fix range"
+        rejected_because: "a symlink blob is text in the diff; refusing would reject legitimate fixes"
+    consequences:
+      positive:
+        - "no partial corpus; exact codes"
+      negative:
+        - "the defensive 'reads an object outside the fetched set' refusal is unreachable once every changed blob is in the want set"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f17bfe0e"
+    source: "~/.cache/loa/cycle-134/reports/s1-d.md § Judgment calls 6-9; evals/harness/seed-corpus-from-external.sh (Task 1.10); evals/tests/batch-supervisor.bats BSV-8, BSV-13"
+    cycle: "cycle-134-post-ship-fixes"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-25T05:12:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "seed-corpus-from-external.bats SX-21 … SX-24"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-0997"
+    created_at: "2026-10-25T05:12:20Z"
+    updated_at: "2026-10-25T05:12:20Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Landing: C, D then A, B; each patch's new tests proven red first in a scratch tree; the shared sample fixture was byte-identical (sha256(Bash) d1e9567da9a8)."
+    decision: "Each patch's new tests were applied alone to the sprint base in a scratch worktree and run red (C: 25 of 98 red; D: 11 of 66; A: 36 of 37; B: 11 of 28), then the full patch landed and ran green; B's copy of the sample fixture was excluded from its apply after a byte comparison with A's; the brief's placeholder hash was corrected by both implementers independently."
+    rationale: "The sprint plan's 'fails before, passes after' is verified by the lead, not trusted from the reports; landing order among disjoint files is free."
+    alternatives_considered:
+      - option: "trust the reports' red→green evidence"
+        rejected_because: "the plan made the verification the lead's step (Flatline opus IMP-003)"
+    consequences:
+      positive:
+        - "every new case proven red first"
+      negative:
+        - "none"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "f17bfe0e"
+    source: "~/.cache/loa/cycle-134/reports/landing.md; the four implementer reports; ~/.cache/loa/cycle-134/briefs/s1-a.md, s1-b.md"
+    cycle: "cycle-134-post-ship-fixes"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-25T05:12:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "landing.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

@@ -1666,7 +1666,9 @@ run_trial() {  # run_trial <jid> <arm> <task> <type> <kind> <trial> <run_id> <ta
     else "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
     fi
     pid=$!
-    printf '%s %s %s\n' "$pid" "$(date +%s)" "$wds" > "$JOBS_DIR/$jid.pgid"
+    # cycle-134 C-6: the record carries the leader's identity (.ident before .pgid) so the supervisor's reclaim signals only this group
+    "$SCRIPT_DIR/lib/batch-supervisor.sh" record-job "$JOBS_DIR" "$jid" "$pid" "$(date +%s)" "$wds" 2>>"$tlog" \
+      || printf '%s %s %s\n' "$pid" "$(date +%s)" "$wds" > "$JOBS_DIR/$jid.pgid"
     prc=0; wait "$pid" || prc=$?
     rm -f "$JOBS_DIR/$jid.pgid"
     st="$(final_status "$rd")"
@@ -1757,7 +1759,9 @@ run_session() {  # run_session <jid> <plan-index> <session number>
     else "${cmd[@]}" >> "$tlog" 2>&1 < /dev/null &
     fi
     pid=$!
-    printf '%s %s %s\n' "$pid" "$(date +%s)" "$wds" > "$JOBS_DIR/$jid.pgid"
+    # cycle-134 C-6: the record carries the leader's identity (.ident before .pgid) so the supervisor's reclaim signals only this group
+    "$SCRIPT_DIR/lib/batch-supervisor.sh" record-job "$JOBS_DIR" "$jid" "$pid" "$(date +%s)" "$wds" 2>>"$tlog" \
+      || printf '%s %s %s\n' "$pid" "$(date +%s)" "$wds" > "$JOBS_DIR/$jid.pgid"
     prc=0; wait "$pid" || prc=$?
     rm -f "$JOBS_DIR/$jid.pgid"
     local wdf=-; [[ -f "$JOBS_DIR/$jid.wd" ]] && wdf=wd

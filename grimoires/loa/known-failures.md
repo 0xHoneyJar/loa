@@ -110,7 +110,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-060](#kf-060-home-scope-a-pr-that-changes-review-time-framework-files-exposes-their-later-version-through-the-sandbox-home-clause-f-pinned_bytes_read) | Open — design limit of C-10 home-scope; detected by took-effect clause (f), not prevented; fixture choice is the only mitigation until external fixtures (C-12) exist | evals/harness/lib/sandbox-mount.sh mount_home_scope; evals/harness/took-effect.sh oracle_closed clause (f); the Task 3.5 smoke | 2 |
 | [KF-061](#kf-061-home-scope-the-dissent-fails-inside-the-sandbox-project-root-resolved-under-home-headless-clis-refuse-to-prepare-a-run) | Fixed in 7d2119477 (s3-a3: LOA_PROJECT_ROOT wrapping R6-R8, R5 slash-only, persona.md surface); live confirmation = the Task 3.5 verification rerun | evals/harness/lib/sandbox-mount.sh mount_home_scope transform; evals/harness/pipeline-run.sh home-scope launch; adversarial-review.sh / cheval inside the sandbox | 1 |
 | [KF-062](#kf-062-bridgebuilders-claude-headless-voice-is-refused-by-the-models-safeguards-on-a-security-heavy-review-prompt-degrading-the-round) | Open — mitigation under test: exclude generated, fixture and evidence files from the review diff (round 2); if the voice still refuses, G-2 is recorded as not met and the operator decides on a split or a different voice model | .claude/skills/bridgebuilder-review (multi-model voice anthropic/claude-headless → claude -p, cli_model fable); .claude/adapters/loa_cheval/providers/claude_headless_adapter.py | 1 |
-| [KF-063](#kf-063-post-mergeyml-turns-red-on-the-publishs-own-ledger-fast-forward-the-bot-push-to-main-is-classified-as-a-cycle-merge-and---generate-aborts-with---pr-is-required) | Open (bead bd-hyx0n: route non-PR pushes to a no-op job in the classify step) | .github/workflows/post-merge.yml (Classify Merge → Prepare Release (Cycle)); .claude/scripts/post-merge-orchestrator.sh --publish ledger step (C-3, cycle-133 Sprint 272) | 1 |
+| [KF-063](#kf-063-post-mergeyml-turns-red-on-the-publishs-own-ledger-fast-forward-the-bot-push-to-main-is-classified-as-a-cycle-merge-and---generate-aborts-with---pr-is-required) | Fixed in cycle-134 Sprint 276 (classify-merge-pr.sh trailing (#NNN) + full-pipeline guard; live confirmation at the next rc publish) | .github/workflows/post-merge.yml (Classify Merge → Prepare Release (Cycle)); .claude/scripts/post-merge-orchestrator.sh --publish ledger step (C-3, cycle-133 Sprint 272) | 1 |
 
 ---
 
@@ -2177,7 +2177,7 @@ Read the voice's error text in the BB log before assuming a timeout or an auth p
 
 ## KF-063: post-merge.yml turns red on the publish's own ledger fast-forward: the bot push to main is classified as a cycle merge and --generate aborts with '--pr is required'
 
-**Status**: Open (bead bd-hyx0n: route non-PR pushes to a no-op job in the classify step)
+**Status**: Fixed in cycle-134 Sprint 276 (classify-merge-pr.sh trailing (#NNN) + full-pipeline guard; live confirmation at the next rc publish)
 **Feature**: .github/workflows/post-merge.yml (Classify Merge → Prepare Release (Cycle)); .claude/scripts/post-merge-orchestrator.sh --publish ledger step (C-3, cycle-133 Sprint 272)
 **Symptom**: Post-Merge Pipeline run on main head <ledger commit> 'chore(ledger): archive <cycle> after merge' (author github-actions[bot]): Classify Merge success with pr_type=cycle, Prepare Release (Cycle) fails at 'Prepare release candidate' with 'ERROR: --pr is required' (PM_PR_NUMBER empty); Notify skipped; the run is red although nothing is wrong with the release
 **First observed**: 2026-10-24 cycle-133 Sprint 275 Task 4.5: run 40112013975 on 928b3b9e6 right after the v2.0.0-rc.8 publish (the rc.7 publish did not push a ledger commit to main, so this is the first occurrence of the C-3 shape)
@@ -2191,6 +2191,7 @@ Read the voice's error text in the BB log before assuming a timeout or an auth p
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-10-24 | none yet — observed and filed during the rc.8 ship | bead bd-hyx0n filed; workflow fix pending | run 40112013975; ledger commit 928b3b9e6690209045485f8a34eb99692691ac68 |
+| 2026-10-25 | trailing-(#NNN) extraction + pr_number guard on full-pipeline | fixtures pass; live confirmation pending | cycle-134 Sprint 276 Task 1.6 |
 
 ### Reading guide
 

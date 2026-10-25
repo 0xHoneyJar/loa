@@ -200,9 +200,10 @@ cmd_up() {
   fi
   dk network create --internal --driver bridge --label "loa.egress.batch=$batch" "$NET" >/dev/null \
     || { undo; fail "network create $NET failed"; }
+  # --pids-limit 256 >= MaxClients 200 (Dockerfile.proxy) + the base task allowance: tinyproxy 1.11 is threaded, one task per client (egress-proxy.bats EP-10)
   local -a run=(run -d --name "$PROXY" --label "loa.egress.batch=$batch" --network "$extnet"
                 --read-only --tmpfs /tmp:rw,size=8m --cap-drop ALL --cap-add NET_ADMIN --cap-add SETUID --cap-add SETGID
-                --security-opt no-new-privileges --pids-limit 128 --memory 256m
+                --security-opt no-new-privileges --pids-limit 256 --memory 256m
                 -e "LOA_EGRESS_ALLOWLIST=$ALLOW")
   [[ ${#test_allow[@]} -gt 0 ]] && run+=(-e "LOA_EGRESS_TEST_ALLOW=${test_allow[*]}")
   local th; for th in ${test_hosts[@]+"${test_hosts[@]}"}; do run+=(--add-host "$th"); done

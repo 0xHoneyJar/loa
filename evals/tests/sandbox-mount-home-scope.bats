@@ -395,7 +395,18 @@ rd_in() { jq -cn --arg f "$1" '{file_path: $f}'; }
 rd_win() { jq -cn --arg f "$1" --argjson o "$2" --argjson l "$3" '{file_path: $f, offset: $o, limit: $l}'; }
 bash_in() { jq -cn --arg c "$1" '{command: $c}'; }
 fb() { printf '# Review\n\n%s\n\n<!-- LOA-VERDICT {"gate":"review","verdict":"CHANGES_REQUIRED"} -->\n' "$1" > "$W/grimoires/loa/a2a/sprint-1/engineer-feedback.md"; }
-te_hs() { run "$TE" --run-dir "$RD" --suite-file "$S_HS" --task-yaml "$TY" --source-repo "$SRC"; }
+# end_tx — every transcript ends with its one result event, as a claude -p session does (took-effect clause (g),
+# cycle-134 C-2): earlier result lines dropped, one appended
+end_tx() {
+  local f
+  for f in "$RD"/transcripts/events-*.jsonl; do
+    [[ -f "$f" ]] || continue
+    grep -v '^{"type":"result"' "$f" > "$f.tmp" || true
+    jq -cn '{type: "result", subtype: "success", is_error: false, session_id: "s"}' >> "$f.tmp"
+    mv "$f.tmp" "$f"
+  done
+}
+te_hs() { end_tx; run "$TE" --run-dir "$RD" --suite-file "$S_HS" --task-yaml "$TY" --source-repo "$SRC"; }
 oc() { printf '%s\n' "$output" | grep -E '^arm a1_home: oracle_closed '; }
 reset_run() { find "$RD" -mindepth 1 -delete; cp -a "$T/run0/." "$RD/"; }
 read_p() { tu REVIEW r1 Read "$(rd_in /workspace/.claude/protocols/p.md)" "$(gut "$W/.claude/protocols/p.md")"; fb 'head/.claude/protocols/p.md:5 the guard wording'; }
@@ -607,6 +618,8 @@ YAML
       [ "$(jq -r '.oracle_exposed_defects | length' "$RD/grade.json")" = 0 ] || { jq -c '.oracle_exposed_events' "$RD/grade.json"; false; }
       printf 'home_hook_counts=SessionStart:1\nhome_mcp_servers=\n' >> "$ARM_EVIDENCE_FILE"
       hs_suite
+      yq -i '(.arms[] | select(.id == "a1_home") | .phases) = ["REVIEW"]' "$S_HS"   # the record's one phase
+      end_tx
       run "$TE" --run-dir "$RD" --suite-file "$S_HS" --task-yaml "$GS/tasks/rc-nc/task.yaml" --source-repo "$S2"
       [ "$status" -eq 0 ] || { echo "$output"; false; }
       oc | grep -qF "pr_bytes_read=[\"$q\"]"
@@ -818,6 +831,11 @@ EOF
 @test "HS-12 pipeline-run.sh home-scope (container executor, stub CLI): the session launches with --setting-sources user and LOA_FRAMEWORK_ROOT, the pinned (later) framework under HOME, the PR's data at the root without its surface; meta/mount.json, process samples and the HOME integrity record are written, the HOME is deleted; took-effect integrity_clean passes and oracle_closed runs (e)-(g); a version drift refuses" {
   local fw="$T/fw"
   make_fw "$fw"
+  # the pin's manifest (took-effect integrity_clean binds the HOME record to it, cycle-134 C-3)
+  ( cd "$fw" && find .claude -type f -print | LC_ALL=C sort | while IFS= read -r f; do printf '%s\t%s\n' "$f" "$(sha256sum "$f" | cut -c1-64)"; done ) \
+    | jq -Rn '{algorithm: "sha256", files: ([inputs | split("\t") | {key: .[0], value: .[1]}] | from_entries)}' > "$T/fw-manifest.json"
+  mv "$T/fw-manifest.json" "$fw/.claude/checksums.json"
+  ( cd "$fw" && g . add -A && g . commit -qm manifest )
   # the PR: the executing skill (surface) and a script (data); the pin is later than the PR head for both
   local px="$T/prh"
   mkdir -p "$px/head/.claude/skills/reviewing-code" "$px/base/.claude/skills/reviewing-code" "$px/head/.claude/scripts" "$px/base/.claude/scripts"
@@ -863,8 +881,9 @@ EOF
   # took-effect on the run: integrity_clean from the HOME record; oracle_closed runs (e)-(g) — the stub CLI read nothing
   cp "$T/suite-run.yaml" "$T/suite-te.yaml"
   yq -i '(.arms[] | select(.id == "a1_full") | .took_effect) += ["oracle_closed"]' "$T/suite-te.yaml"
+  yq -i ".source_commit = \"$(git -C "$fw" rev-parse HEAD)\"" "$T/suite-te.yaml"    # the pin the operator names
   run "$HH/took-effect.sh" --run-dir "$RUN" --suite-file "$T/suite-te.yaml" --task-yaml "$T/st/tasks/rc-hs2/task.yaml" --source-repo "$fw"
-  grep -q '^arm a1_full: integrity_clean OK home-scope: [0-9]* HOME framework entries verified at finish' <<<"$output" || { echo "$output"; false; }
+  grep -q '^arm a1_full: integrity_clean OK home-scope: [0-9]* HOME framework entries verified at finish.*record cross-checked against the pin (HOME deleted at exit)' <<<"$output" || { echo "$output"; false; }
   grep -qF 'oracle_closed FAIL FAIL (f) -: pr_bytes_read is empty' <<<"$output" || { echo "$output"; false; }
   # a tampered HOME record fails integrity_clean
   jq '.tampered = 1 | .first = "tampered .claude/scripts/s.sh"' "$RUN/meta/home-integrity.json" > "$T/hi.json" && mv "$T/hi.json" "$RUN/meta/home-integrity.json"

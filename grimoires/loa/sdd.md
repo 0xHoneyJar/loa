@@ -378,18 +378,38 @@ The lead lands A, then B, then C and D; after A and B it runs the home-scope bat
 
 ### 11.F R3/R5 corpus table (implementer B fills this in Sprint 1)
 
-Current patterns (sandbox-mount.sh:1496, 1503):
+Current patterns (sandbox-mount.sh:1496, 1503 at the sprint base f17bfe0e4; after Task 1.5 R3 sits at :1501 and R5 at :1557):
 
 ```
 R3 = re.compile(r"(?<![A-Za-z0-9_./$~{}\\-])\.claude/")                                  # markdown: a relative .claude/ path → <home>/.claude/
 R5 = re.compile(r"(?<!/ )(?<!/)(['\"])(\.claude/[A-Za-z0-9_./-]*)\1")                      # python: a string literal that is exactly a .claude/… path → os.path.join(<env>, it)
 ```
 
-Narrowing criterion: a rewrite is kept only where the pinned framework's text is *resolved as a path at run time* (a hook command, a skill's `Base directory`, a script path a Bash line executes, an `os.path.join`/`open`/`subprocess` operand); prose mentions, documentation examples and message strings are not rewritten. The table lists every hit of the current patterns over the pinned framework with its context class, the decision (keep/drop) and the bats case id:
+Narrowing criterion: a rewrite is kept only where the pinned framework's text is *resolved as a path at run time* (a hook command, a skill's `Base directory`, a script path a Bash line executes, an `os.path.join`/`open`/`subprocess` operand); prose mentions, documentation examples and message strings are not rewritten. The table groups the 1216 R3/R5 hits over the pinned framework (f17bfe0e4) by context class and decision, each row with a count, an example and its bats case; the per-hit list is `evals/tests/fixtures/sandbox-mount/r3r5-corpus.tsv`, pinned byte-exactly by MR-24 (I-1.5a):
 
 | # | Path | Context class | Current rewrite | Keep? | Case |
 |---|------|---------------|-----------------|-------|------|
-| … | (filled by implementer B; every row is a `sandbox-mount-rules.bats` case) | | | | |
+| 1 | R3, 469 hits, e.g. `.claude/commands/feedback.md:175`; every hit is listed under row 1 of `evals/tests/fixtures/sandbox-mount/r3r5-corpus.tsv` (1216 hits at f17bfe0e4, one line each) | code span naming a pinned file or directory | `.claude/` → `<home>/.claude/` | keep: an instruction the agent runs or reads | MR-01 |
+| 2 | R3, 416 hits, e.g. `.claude/protocols/reference/helper-scripts.md:94` (TSV row 2) | fenced code block naming a pinned path (a command) | `.claude/` → `<home>/.claude/` | keep: a Bash line executes it | MR-02 |
+| 3 | R3, 80 hits, e.g. `.claude/subagents/documentation-coherence.md:51` (TSV row 3) | table cell (code span) naming a pinned path | `.claude/` → `<home>/.claude/` | keep: a lookup table the agent resolves | MR-03 |
+| 4 | R3, 84 hits, e.g. `.claude/skills/butterfreezone-gen/SKILL.md:49` (TSV row 4) | bare prose or frontmatter value naming a pinned path (`EXECUTE:`, `allowed-tools: Bash(…)`, `script:`, `paths:`) | `.claude/` → `<home>/.claude/` | keep: executed, permitted or loaded by path | MR-04 |
+| 5 | R3, 3 hits: `.claude/commands/update-loa.md:409`, `:410`, `.claude/protocols/reference/recommended-hooks.md:512` (TSV row 5) | fenced command line: an absent path (a `.tmp`, a `.bak`) beside a pinned one | `.claude/` → `<home>/.claude/` | keep: a command is rewritten whole, so source and target stay on one side | MR-05 |
+| 6 | R3, 25 hits, e.g. `.claude/commands/loa-eject.md:33` (TSV row 6) | code span naming the zone (`.claude/` alone) | `.claude/` → `<home>/.claude/` | keep: under home-scope the System Zone is the HOME copy; "never edit" and the audit scope (`auditing-security/SKILL.md:93`) resolve it against paths | MR-06 |
+| 7 | R3, 10 hits, e.g. `.claude/commands/update-loa.md:279` (TSV row 7) | fenced code naming the zone (a `case` pattern, a tree diagram, an `echo` message) | `.claude/` → `<home>/.claude/` | keep (as row 6) | MR-07 |
+| 8 | R3, 7 hits, e.g. `.claude/commands/ride.md:283` (TSV row 8) | table cell (code span) naming the zone | `.claude/` → `<home>/.claude/` | keep (as row 6) | MR-08 |
+| 9 | R3, 6 hits, e.g. `.claude/commands/loa-eject.md:230` (TSV row 9) | table cell (bare): an error or message string naming the zone | `.claude/` → `<home>/.claude/` | keep: a message string, but rewriting it is harmless and a zone-name rule stays uniform | MR-09 |
+| 10 | R3, 5 hits, e.g. `.claude/rules/zone-system.md:3` (TSV row 10) | bare prose or frontmatter naming the zone (`.claude/`, `.claude/**`) | `.claude/` → `<home>/.claude/` | keep (as row 6) | MR-10 |
+| 11 | R3, 16 hits, e.g. `.claude/protocols/reference/recommended-hooks.md:363` (TSV row 11) | code span naming a path the pinned tree does not hold (a documentation example, a project-owned file such as `settings.local.json`, `constructs/packs/`) | `.claude/` → `<home>/.claude/` | drop (absent): nothing pinned to resolve; a project path stays the project's | MR-11 |
+| 12 | R3, 13 hits, e.g. `.claude/protocols/reference/constructs-integration.md:25` (TSV row 12) | fenced code naming an absent path | `.claude/` → `<home>/.claude/` | drop (absent) | MR-12 |
+| 13 | R3, 9 hits, e.g. `.claude/protocols/reference/constructs-integration.md:48` (TSV row 13) | table cell (code span) naming an absent path or a placeholder under an absent directory | `.claude/` → `<home>/.claude/` | drop (absent) | MR-13 |
+| 14 | R3, 2 hits: `.claude/commands/constructs.md:33`, `.claude/skills/rtfm-testing/SKILL.md:5` (TSV row 14) | bare prose or frontmatter naming an absent path or a glob that matches nothing | `.claude/` → `<home>/.claude/` | drop (absent) | MR-14 |
+| 15 | R3, 4 hits, e.g. `.claude/commands/archive-cycle.md:121` (TSV row 15) | heading | `.claude/` → `<home>/.claude/` | keep: names a pinned script the agent may run | MR-15 |
+| 16 | R3, 60 hits, e.g. `.claude/loa/CLAUDE.loa.md:73` (TSV row 16) | HTML comment (`DO NOT EDIT — generated from …`, `@skill-include` markers) | `.claude/` → `<home>/.claude/` | keep: a provenance marker; rewriting it is harmless, and the executing skills carry these markers (HS-11 pins that their text holds no relative `.claude/` path) | MR-16 |
+| 17 | R3, 3 hits under `.claude/skills/bridgebuilder-review/resources/__tests__/fixtures/` (TSV row 17) | test-fixture data (JSON review comments) | `.claude/` → `<home>/.claude/` | drop (data): never read as an instruction | MR-17 |
+| 18 | R5 `.claude/adapters/cheval.py:176` `".claude/skills"` | `Path` operand (`Path(search_dir) / agent / "persona.md"`) | `os.path.join(<env>, '.claude/skills')` | keep (the bare `".claude"` beside it is a name, never rewritten) | MR-18 |
+| 19 | R5 `.claude/adapters/loa_cheval/audit/modelinv.py:355` | other: a module constant joined as `repo_root / _WRITER_VERSION_PATH` (:402) | `os.path.join(<env>, '.claude/data/cycle-108/…')` | keep | MR-19 |
+| 20 | R5 `.claude/adapters/loa_cheval/config/advisor_strategy.py:219` | other: a module constant joined as `repo_root / SCHEMA_PATH_REL` (:382) | `os.path.join(<env>, '.claude/data/schemas/…')` | keep | MR-20 |
+| 21 | R5 `.claude/adapters/loa_cheval/economy.py:42` | other: an argparse `--model-config` default (:772), opened as a path | `os.path.join(<env>, '.claude/defaults/model-config.yaml')` | keep | MR-21 |
 
 ### 11.G Flatline SDD review dispositions (1.1 → 1.2)
 
@@ -438,3 +458,17 @@ Two voices (codex-headless, claude-headless), cross-scoring degraded (KF-041 sha
 | PreCompact, Setup, PermissionRequest, Notification, SubagentStop | not derivable | `triggers: n/a` — rules (a) and (b) only |
 
 > Sources: the retained smoke transcripts (events-REVIEW.jsonl, events-AUDIT.jsonl); `evals/harness/took-effect.sh:600-660`; the SDK message types for hook events
+
+
+### 11.I Implementation amendments (Sprint 276; the DEC rows I-1.x)
+
+| Design row | Amendment | Row |
+|---|---|---|
+| D-1.3 / DEC-0973 (integrity binding) | the HOME manifest is regenerated over the transformed copy with a `generated` timestamp, so digest equality with the pin blob is infeasible; the binding is coverage (record.files ≥ the pin's entry count), `arm_evidence` equality and the pin match (suite/batch pin = `pipeline.json`'s); the pin's digest is shown in the evidence | DEC-0990 (I-1.3a) |
+| D-1.1a (hook identity) | the `hook_name` suffix is the trigger's query (`startup`), not the configured matcher: a `<event>:<q>` event maps to sha(q) plus the matcher-less group; regex-only groups fail closed until a real tool-hook event exists (none is emitted in `-p` mode on Claude Code 2.1.310) | DEC-0987 (I-1.1a) |
+| § 11.H (trigger evaluation) | tool triggers compare names as text (equal to the query or a `\|`-alternative); transcript strings are never compiled as regex | DEC-0988 (I-1.1b) |
+| D-3.2b item 6 (PR number) | the anchored `Merge pull request #N` prefix is accepted beside the trailing `(#NNN)` — this repository merges with merge commits, and a trailer-only rule would have disabled every release | DEC-0993 (I-1.6a) |
+| D-2.3 (job identity) | `record-job` in the supervisor lib writes `.ident` then `.pgid`; the identity is read after the leader's exec settles (≤ 5 s); `run-ablation.sh`'s writers call it (lead-landed) | DEC-0995 (I-1.9a) |
+| D-2.4 (seeder) | bounds and missing-object refusals exit 2; a failed fetch exits 1 naming paths; symlink blobs in the fix range are fetched | DEC-0996 (I-1.10a) |
+
+> Sources: the four implementer reports (`~/.cache/loa/cycle-134/reports/s1-{a,b,c,d}.md` § Judgment calls); `grimoires/loa/decisions.yaml` DEC-0987 … DEC-0997; `grimoires/loa/a2a/sprint-276/regression.md`

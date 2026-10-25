@@ -1,0 +1,2 @@
+home_hook_counts=PreToolUse:3,SessionStart:8,UserPromptSubmit:2
+home_hook_groups=PreToolUse:d1e9567da9a8:2;PreToolUse:e3b0c44298fc:1;SessionStart:e3b0c44298fc:8;UserPromptSubmit:e3b0c44298fc:2
