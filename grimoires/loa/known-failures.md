@@ -81,7 +81,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content--ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
 | [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
 | [KF-033](#kf-033-unit-suites-reach-cheval-and-write-the-production-ledgers-or-make-live-cli-calls-despite-the-ds-1-isolation-scan) | open — two suites fixed 2026-09-22, scan tightened; structural class remains | test isolation / FR-6 ledger hygiene | 1 |
-| [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 4 |
+| [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 5 |
 | [KF-035](#kf-035-modelinv-audit-emit-fails-soft-when-the-cryptography-module-is-missing--model-invokejsonl-is-silently-not-written) | OPEN | loa_cheval/audit/modelinv.py emit_model_invoke_complete (audit fail-soft default) | 1 |
 | [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 5 |
 | [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable--exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 12 |
@@ -1515,7 +1515,7 @@ DS-1 finds spawners by TEXT SHAPE: it missed (a) env-prefixed command lines (KEY
 **Feature**: release pipeline tests
 **Symptom**: Every case of tests/unit/post-merge-publication.bats fails in setup() with `git tag v1.0.0 … fatal: no tag message?` (19 reds on v1.202.1, 22 with sprint-bug-240); the suite is green under an isolated config. Easily mis-filed as a pre-existing red (it was, 2026-09-22).
 **First observed**: 2026-09-23 (cycle-124 rc prep)
-**Recurrence count**: 4
+**Recurrence count**: 5
 **Current workaround**: GIT_CONFIG_GLOBAL=/dev/null npx --no-install bats tests/unit/post-merge-publication.bats
 **Upstream issue**: bead bd-fpt3 (hermetic git config in setup())
 **Related visions / lore**: KF-014 (worktree commits), KF-033 (suite side effects)
@@ -1527,6 +1527,7 @@ DS-1 finds spawners by TEXT SHAPE: it missed (a) env-prefixed command lines (KEY
 | 2026-09-23 | Re-ran the suite with GIT_CONFIG_GLOBAL=/dev/null while landing sprint-bug-240 | 22/22 green; host config confirmed as the cause | commit 2018c320 (PR #1266); grimoires/loa/a2a/bug-20260923-27d899/auditor-sprint-feedback.md obs 3 |
 | 2026-10-06 | cycle-126 sprint-250 Task 4.7 full tests/unit run at bf988a43: the same setup() red (creating the v1.0.0 lightweight tag fails: 'fatal: no tag message?') also hits tests/unit/semver-evidence.bats (3 cases), alongside post-merge-publication (22); classified pre-existing, not re-attempted | recurred — the class spans every suite that creates lightweight tags in a scratch repo under the operator's global tag config; no fix attempted this cycle | commit bf988a43 (run 2026-10-06T05:40Z–06:18Z, 6214 tests, 42 failures) |
 | 2026-10-23 | Sprint 272 Task 1.3 (implementer B): tests/unit/post-merge-publication.bats setup made hermetic (GIT_CONFIG_GLOBAL empty file, GIT_CONFIG_NOSYSTEM=1, the v1.0.0 tag pattern kept); 22 reds at baseline on this host, 48/48 after under the host's own git config, no workaround needed | fixed for post-merge-publication.bats; the other post-merge suites still need GIT_CONFIG_GLOBAL=/dev/null on a host whose global git config sets tag.gpgSign / tag.forceSignAnnotated (follow-up: the same two lines in their setup) | patch ~/.cache/loa/cycle-133/patches/s1-b.patch landed on feature/cycle-133-follow-through (Sprint 272 Task 1.3 commit); post-merge-*.bats 154/154 on this host |
+| 2026-10-25 | cycle-134 Sprint 276 local CI mirror (s-tests.sh all) on the landed tree: tests/unit/semver-evidence.bats 3 cases red with 'fatal: no tag message?' (host tag.gpgSign=true, tag.forceSignAnnotated=true); the same 3 are red on origin/main 5544d160 in a scratch worktree | confirmed host-config, not a regression of the sprint; CI (hermetic) is the gate; semver-evidence.bats still creates its v1.0.0 tag under the host config (post-merge-publication.bats was made hermetic in Sprint 272) — the hermetic setup should be copied there (bead bd-fpt3 stays the upstream) | ~/.cache/loa/cycle-134/tests/20261025T050511Z-unit.log tests 5508/5509/5511; scratch run on origin/main 2026-10-25 |
 
 ### Reading guide
 
