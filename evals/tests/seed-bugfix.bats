@@ -8,7 +8,8 @@
 # whose every field validates; a fix touching .claude/ is refused by name and
 # writes nothing; --dry-run writes nothing; a fix whose test is already green
 # at the parent fails its proof (exit 1, nothing written); a fix outside the
-# allowed roots is skipped; usage errors are exit 2.
+# allowed roots is skipped; usage errors are exit 2; --id-prefix names the ids
+# (bugfix-v3-01) and refuses a prefix outside [a-z0-9][a-z0-9-]{0,60}.
 # =============================================================================
 
 setup() {
@@ -188,4 +189,32 @@ commit_claude_fix() {
   run "$SEED" --help
   [ "$status" -eq 0 ]
   grep -q 'Exit: 0 done' <<<"$output"
+}
+
+@test "SB-7 --id-prefix names the task ids (a version-bearing id, bugfix-v3-01); a prefix outside the grammar is exit 2" {
+  commit_clean_fix
+  FIX="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --id-prefix bugfix-v3 --suite-version 3
+  [ "$status" -eq 0 ]
+  grep -qx "proof bugfix-v3-01 ${FIX:0:12}: red 2 failed / green 3 passed" <<<"$output"
+  grep -q "^wrote $S/tasks/bugfix-v3-01\$" <<<"$output"
+  [ "$(ls "$S/tasks")" = "bugfix-v3-01" ]
+  [ "$(yq -r .id "$S/tasks/bugfix-v3-01/task.yaml")" = "bugfix-v3-01" ]
+  [ "$(yq -r .fixture "$S/tasks/bugfix-v3-01/task.yaml")" = "tasks/bugfix-v3-01/fixture" ]
+  [ "$(yq -r .suite_version "$S/tasks/bugfix-v3-01/task.yaml")" = "3" ]
+  # the next free number continues the prefix, the default prefix is untouched
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --id-prefix bugfix-v3 --suite-version 3
+  [ "$status" -eq 0 ]
+  grep -q "^wrote $S/tasks/bugfix-v3-02\$" <<<"$output"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G"
+  [ "$status" -eq 0 ]
+  grep -q "^wrote $S/tasks/bugfix-01\$" <<<"$output"
+  # grammar: lower-case letters, digits and hyphens, a letter or digit first
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run --id-prefix Bugfix
+  [ "$status" -eq 2 ]
+  grep -q 'id-prefix must match' <<<"$output"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run --id-prefix -v3
+  [ "$status" -eq 2 ]
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run --id-prefix 'a/b'
+  [ "$status" -eq 2 ]
 }

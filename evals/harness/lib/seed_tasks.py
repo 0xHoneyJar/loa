@@ -521,6 +521,7 @@ def parse(argv):
     ap.add_argument("--repo")
     ap.add_argument("--paths", default=DEFAULT_PATHS)
     ap.add_argument("--suite-version", type=int, default=1)
+    ap.add_argument("--id-prefix")
     ap.add_argument("--dry-run", action="store_true")
     try:
         a = ap.parse_args(argv)
@@ -534,6 +535,9 @@ def parse(argv):
         raise Usage("--select must be at least 1")
     if a.suite_version < 1:
         raise Usage("--suite-version must be at least 1")
+    a.id_prefix = a.id_prefix or ID_PREFIX[a.mode]
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,60}", a.id_prefix):
+        raise Usage(f"--id-prefix must match [a-z0-9][a-z0-9-]{{0,60}}, got {a.id_prefix!r}")
     a.repo = a.repo or a.repo_default
     if subprocess.run(["git", "-C", a.repo, "rev-parse", "--git-dir"], capture_output=True).returncode != 0:
         raise Usage(f"not a git repository: {a.repo}")
@@ -577,7 +581,7 @@ def main(argv):
     taken = set()
     try:
         for sha, parent, date, subject, files in selected:
-            tid = next_id(tasks_dir, ID_PREFIX[a.mode], taken)
+            tid = next_id(tasks_dir, a.id_prefix, taken)
             try:
                 if a.mode == "bugfix":
                     tdir, info = build_bugfix(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots)

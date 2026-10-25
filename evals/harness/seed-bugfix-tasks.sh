@@ -9,7 +9,9 @@
 # roots; refuses by name any candidate touching .claude/, CLAUDE.md,
 # .loa.config.yaml, grimoires/ or .run/ (a path component equal to one of
 # those). For each selected candidate (the first N, newest first) it writes
-# <out>/tasks/bugfix-NN/ (next free number):
+# <out>/tasks/<prefix>-NN/ (next free number; the prefix is `bugfix`, or the
+# --id-prefix given — a suite version belongs in the id, `bugfix-v3`, so a row
+# of one suite version can never pool with a cell of another):
 #   fixture/    from the PARENT commit: the touched non-test files, the other
 #               non-test files in their directories (the modules they most
 #               likely use), the base version of each changed test, and the
@@ -37,7 +39,7 @@
 #
 # Usage:
 #   seed-bugfix-tasks.sh --since DATE [--select N] --out DIR [--repo DIR]
-#                        [--paths CSV] [--suite-version N] [--dry-run]
+#                        [--paths CSV] [--suite-version N] [--id-prefix P] [--dry-run]
 #
 #   --since DATE       YYYY-MM-DD; commits whose committer date is on or after it
 #   --select N         tasks to materialise (default 4); refusals and skips do not
@@ -47,6 +49,8 @@
 #   --paths CSV        allowed roots (default tools,evals/harness,evals/graders,
 #                      tests/unit,evals/tests); a mount-owned root is refused
 #   --suite-version N  suite_version written to task.yaml (default 1)
+#   --id-prefix P      task id prefix, [a-z0-9][a-z0-9-]{0,60} (default bugfix): ids are
+#                      <P>-NN, the next free number under <out>/tasks/
 #   --dry-run          list candidates, refusals and skips; write nothing
 #   LOA_SEED_BATS      bats binary used for the proof when bats is not on PATH
 #
@@ -54,13 +58,14 @@
 #   candidate <sha12> <date> <subject>
 #   refused <sha12>: <path>                 (or: a secret pattern in the materialised task)
 #   skipped <sha12>: <reason>
-#   proof bugfix-NN <sha12>: red N failed / green M passed
+#   proof <prefix>-NN <sha12>: red N failed / green M passed
 #   proof-failed <sha12>: <reason>
 #   wrote <dir>
 #   seed-bugfix: C candidate(s), R refused, S skipped; selected X, written W, proof failed F
 #
 # Exit: 0 done (also when nothing qualified); 1 a selected candidate failed its
-#       proof; 2 usage (bad option or date, not a git repository, bad --paths).
+#       proof; 2 usage (bad option or date, not a git repository, bad --paths or
+#       --id-prefix).
 # Tested by evals/tests/seed-bugfix.bats.
 # =============================================================================
 set -euo pipefail

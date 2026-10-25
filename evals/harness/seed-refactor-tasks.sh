@@ -9,7 +9,8 @@
 # `test_*.py`, `*_test.py` or `*.bats`; such a commit is skipped with the
 # reason); refuses by name any candidate touching .claude/, CLAUDE.md,
 # .loa.config.yaml, grimoires/ or .run/. For each selected candidate (the
-# first N, newest first) it writes <out>/tasks/refactor-NN/ (next free number):
+# first N, newest first) it writes <out>/tasks/<prefix>-NN/ (next free number;
+# the prefix is `refactor`, or the --id-prefix given):
 #   fixture/    from the PARENT commit: the touched source files, the other
 #               non-test files in their directories, the tests
 #               under the allowed roots that name a touched file (its basename,
@@ -32,19 +33,20 @@
 #
 # Usage:
 #   seed-refactor-tasks.sh --since DATE [--select N] --out DIR [--repo DIR]
-#                          [--paths CSV] [--suite-version N] [--dry-run]
+#                          [--paths CSV] [--suite-version N] [--id-prefix P] [--dry-run]
 #
 #   options as seed-bugfix-tasks.sh (--select default 4; a commit without a
-#   covering test is skipped and does not count); LOA_SEED_BATS likewise
+#   covering test is skipped and does not count; --id-prefix default refactor);
+#   LOA_SEED_BATS likewise
 #
 # Output (stdout, one line each):
 #   candidate <sha12> <date> <subject>
 #   refused <sha12>: <path>
 #   skipped <sha12>: <reason>          (touches a test file: <path> | touches N
 #                                       source file(s), want at least 2 | …)
-#   proof refactor-NN <sha12>: green at base (N passed) / green at reference (M passed)
-#   churn refactor-NN: files F, insertions I, deletions D
-#   todo refactor-NN: author the structural check …
+#   proof <prefix>-NN <sha12>: green at base (N passed) / green at reference (M passed)
+#   churn <prefix>-NN: files F, insertions I, deletions D
+#   todo <prefix>-NN: author the structural check …
 #   proof-failed <sha12>: <reason>
 #   wrote <dir>
 #   seed-refactor: C candidate(s), R refused, S skipped; selected X, written W, proof failed F
