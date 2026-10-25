@@ -1,12 +1,12 @@
-# Software Design Document: The follow-through (cycle-133)
+# Software Design Document: Post-ship fixes (cycle-134)
 
 **Version:** 1.2
-**Date:** 2026-10-23
+**Date:** 2026-10-25
 **Author:** Architecture Agent (Claude Fable 5.1, unattended)
-**PRD Reference:** `grimoires/loa/prd.md` (cycle-133, 1.1, FR-1 … FR-14, Appendix A D-1 … D-12 = DEC-0827 … DEC-0838)
-**Status:** Draft 1.1 — autonomous run; design-level decisions taken on the operator's behalf are §11.D D-1.1 … D-4.2 (DEC-0839 … DEC-0852) and, from the Flatline SDD review, D-1.6, D-1.7, D-2.5, D-3.4, D-3.5, D-3.6 (DEC-0856, DEC-0853, DEC-0854, DEC-0855, DEC-0857, DEC-0858), each with the alternatives rejected; the FR-10 and FR-3 choices are the operator-visible ones (D-3.1 as amended by D-3.6, D-1.3 as amended by D-1.6); §11.E lists every review concern and where it landed
-**Branch:** `feature/cycle-133-follow-through` from `main a82ec556`
-**Pins:** the cycle-132 pipeline pin `fbd36a0c`, its record branch and registered reads are untouched; the Sprint 2 head is an intermediate pipeline version (image 259 built, self-check recorded); the pin the smoke and any later measurement cite is the Sprint 3 head, after the mount mode, the took-effect clauses, grader 1.5 and registration v2 land (D-3.4); the cycle-132 reproduction runs from a worktree at `fbd36a0c` because the new tooling replaces the same paths on `main`
+**PRD Reference:** `grimoires/loa/prd.md` (cycle-134, 1.0, FR-1 … FR-10, Appendix A D-1 … D-5 = DEC-0966 … DEC-0970)
+**Status:** Draft 1.2 — autonomous run; design-level decisions taken on the operator's behalf are § 11 D-1.1 … D-4.2 (DEC-0971 … DEC-0980), D-3.2a from the Flatline PRD review (DEC-0981) and D-1.1a, D-1.2a, D-2.1a, D-3.2b, D-4.3 from the Flatline SDD review (DEC-0982 … DEC-0986; every blocker and medium item dispositioned in § 11.G).
+**Branch:** `feature/cycle-134-post-ship-fixes` from `chore/cycle-133-post-ship c533d760`
+**Pins:** the cycle-132 pipeline pin `fbd36a0c` and the cycle-133 pin `7d2119477`, their record branches and recorded evidence are untouched; the harness changes here land as the next pipeline version with tests, not as a re-run.
 
 ---
 
@@ -30,163 +30,168 @@
 
 ### 1.1 System Overview
 
-Four surfaces of the framework change, each in place, plus two shared contracts:
+Nine local repairs in five areas of an existing system; no new component, no new interface. The areas: the home-scope validator (`evals/harness/took-effect.sh`), the mount transform (`evals/harness/lib/sandbox-mount.sh`), three harness libraries (`evals/harness/lib/egress-proxy.sh` with `Dockerfile.proxy`, `evals/harness/lib/batch-supervisor.sh`, `evals/harness/seed-corpus-from-external.sh`), and the publish path (`.github/workflows/post-merge.yml`, `.claude/scripts/classify-merge-pr.sh`, `.claude/scripts/post-merge-orchestrator.sh`). Each repair keeps the file's existing contract (exit codes § 5.4, evidence-line format, record formats) and adds the missing check or narrows the over-broad one.
 
-- **Reviewer tooling** — the Bridgebuilder skill (`.claude/skills/bridgebuilder-review/resources/**`, compiled to `dist/`): a paged, SHA-pinned file fetch (FR-1) and a guarded consensus writer with a block-derived verdict (FR-2).
-- **Release path** — `post-merge-orchestrator.sh`: the candidate targets the merge commit; the ledger-archive change rides as a patch applied by a conditional fast-forward after the release (FR-3).
-- **Framework scripts and hooks** — a new `record-branch.sh`; `notes-guard.sh rotate`, `pre-compact-marker.sh`, `dec-write-lib.sh`, `security-audit-scope.sh`, `ledger-lib.sh validate_ledger` fixed (FR-4); CI and quarantine (FR-5).
-- **Harness and analysis** — the session library hardened and shared (FR-6); reproduction and analysis tooling hardened (FR-7); grader 1.4 and the refusal policy (FR-8); supervisor and egress (FR-9); the mount that lets Loa review Loa (FR-10); grader 1.5 with the judge hook (FR-11); the external seeder and registration v2 (FR-12).
-- **Contracts** — one canonical finding schema at the four gates (FR-11) and the process of the beads sweep (FR-13) and the release (FR-14).
-
-> From prd.md: "Every recorded defect is fixed in the framework with a test that fails when it returns and a line of documentation."
+> Sources: prd.md § Technical Considerations / Architecture; § 1.4 below
 
 ### 1.2 Architectural Pattern
 
-Surgical change within existing components, each guarded by the test that reproduces its defect; new components only where none exists (`record-branch.sh`, `lib/corpus-seed.sh`, `seed-corpus-from-external.sh`, the egress proxy sidecar, the supervisor mode, `finding.schema.json`, `tests/QUARANTINE.tsv`). Fail-closed everywhere a value feeds a decision: a sentinel the consumer cannot mistake for data (pricing), a refusal with repair text (exit 2), a degraded result with a named reason (exit 3).
+Validators read captures and recompute; drivers write records; a validator never trusts a driver-written record for a fact it can recompute (D-1.3). Guards fail closed with a named reason (D-1.1, D-1.2, D-2.4). Workflow safety has two independent layers (classifier and job guard, D-3.1). Exit codes keep the four-value contract of cycle-133 (§ 5.4).
+
+> Sources: prd.md § Non-Functional Requirements / Security, Reliability; cycle-133 sdd.md § 5.4 (archived)
 
 ### 1.3 Component Diagram
 
 ```
- operator ──/bridgebuilder──▶ [C-1 paged fetch] ─▶ [truncation per page] ─▶ voices ─▶ [C-2 guarded writer] ─▶ GitHub comment + verdict JSON
- merge ──post-merge.yml──▶ [--generate: target = merge, ledger patch] ─▶ artifact ─▶ operator ──[--publish: remote-main check → tag → release → ledger ff → notify]
- cycle close ──▶ [C-4 record-branch.sh: manifest → temp index → staged-tree scan → commit-tree] ─▶ ICE push
- batch ──▶ [C-9 supervisor (systemd-run --user | watchdog)] ─▶ run-ablation.sh --resume ─▶ pipeline-run.sh ─▶ docker 26.1.5 (internal net) ─▶ [proxy sidecar: allowlist] ─▶ model endpoints
- review-catch trial ──▶ [C-10 mount: HOME-scope pinned framework; root .claude/ = PR data; executable surface absent] ─▶ claude -p (user scope) ─▶ transcript ─▶ [took-effect clause (e) + grader oracle scan]
- gate outputs (review, audit, BB, dissent) ──▶ [C-11 finding.schema.json v1] ──▶ verdict-derive / schema validators ──▶ [grader 1.5 --judge-verdicts]
- external repo ──▶ [C-12 seed-corpus-from-external.sh ← lib/corpus-seed.sh] ─▶ fixture (temp or committed under the SPDX allowlist)
- tracker ──▶ [C-13 sweep: inventory → Explore batches → manifest → lead applies → 10 % re-verify]
+ pinned framework commit ──git show──► took-effect.sh ◄── transcripts/events-<label>.jsonl (hook_started, init, result, tool_use)
+        │                                   ▲  ▲                 meta/ps-<label>.txt, meta/home-integrity.json, meta/arm-evidence.txt
+        │                                   │  └── sandbox-mount.sh cmd_hooks → home_hook_counts=<event>[:<matcher>]:<n>
+        └── sandbox-mount.sh transform/verify (R1–R8; verify = reverse(copy) == pinned bytes)
+
+ egress-proxy.sh up ──docker run --pids-limit 256──► loa-egress-proxy (Docker 26.1; tinyproxy 1.11 MaxClients 200)
+ batch-supervisor.sh ── .jobs/<name>.pgid + <name>.ident ──► reclaim (identity-checked kill_group)
+ seed-corpus-from-external.sh ── trees → want (PR files ∪ fix-diff files) → one bounded fetch → head.diff, fix diff
+
+ post-merge.yml: classify (classify-merge-pr.sh: pr_type, pr_number) ──► simple-release [pr_type != cycle && pr_number != '']
+                                                                     └─► full-pipeline  [pr_type == cycle && pr_number != '']
+ post-merge-orchestrator.sh --publish: validate_candidate_v2 (+ local and remote tag identity → exit 2) → PUBLISHING → phase_tag (re-check; race → 1) → …
 ```
+
+> Sources: the file:line reads in § 1.4
 
 ### 1.4 System Components
 
-**C-1 Paged PR fetch (FR-1; D-1.1 DEC-0839).** `adapters/github-cli.ts`: `getPR(owner, repo, n)` returns `{base_sha, head_sha, changed_files}` from `pulls/N`. The fetch is two-pass: pass 1 pages `pulls/N/files?per_page=100&page=K` (no `--paginate`) keeping filename, status, additions, deletions and `patch` length only, deduplicating by filename, re-reading `pulls/N` before every page and discarding everything on a base or head change (`PrHeadMoved`; one restart, then `degraded_reason: pr_head_moved`); `truncateFiles` then runs once over the complete filename list with the global limits (Loa tier, `exclude_patterns`, `max_files_per_pr`, tier ordering), producing the selection; pass 2 re-pages only the pages that hold selected files and retains their `patch` text up to `max_diff_bytes` (a selected file whose patch exceeds the remaining budget is retained cut and recorded `patch_truncated`); after pass 2 both SHAs are revalidated and the result is discarded on change. Received bytes are bounded per page; `gh_max_buffer_bytes` (config, default 64 MiB) is the per-call buffer. GitHub omissions are recorded, never silent: a file without `patch` (binary, generated, GitHub-truncated) → `no_patch`; `changed_files > 3000` → `files_list_truncated` with the unknown count `changed_files − listed` kept separate from named omissions; an incomplete page request → `page_incomplete` and degraded. "Reviewable code file" = a file not excluded by the Loa tier or `exclude_patterns` whose extension is in the review set (code, scripts, config, docs); omission of any reviewable code file sets `degraded: true` and `mergeBlocked: true` with `mergeBlockedReason: incomplete_coverage`; files omitted by pattern never degrade. Default `exclude_patterns` gain `evals/fixtures/review-prs/**` and `grimoires/loa/reports/ablation-2.0/*-grades/**`. Coverage record `{base_sha, head_sha, reviewed: [{file, bytes, hunks}], omitted: [{file, reason}], unknown_omitted}` lives in full in the summary JSON and the marker; the posted comment shows counts per reason plus the first 20 paths. Callers `core/reviewer.ts:820` and `main.ts:614` switch to the two-pass path.
+| Id | Component | File(s) | Change | PRD |
+|---|---|---|---|---|
+| C-1 | Hook identity rule | `evals/harness/took-effect.sh:600-640, 1102-1113` | parse `hook_name` as `<event>[:<matcher>]` (the matcher is everything after the first colon); the (event, matcher) group must exist in the pinned user settings read from the HOME copy (groups with the same key merge, counts summed); per group the observed count c = k·n with an integer k ≥ 0 and k ≤ triggers where the trigger count is derivable (§ 11.H); k = 0 passes (D-1.1, D-1.1a); the group evidence is read from `home_hook_groups` (hex ids, § 3.2) with the old `home_hook_counts` grammar accepted as event-level aggregates; confirming the `hook_name` grammar for a matcher-less and a regex group on a real one-turn session is a pre-merge gate (Q-1) | FR-1 |
+| C-2 | Transcript completeness rule | `evals/harness/took-effect.sh:590-601, 865-871` | `labels_run` = the non-skipped phases of `meta/pipeline.json`; per label a regular non-symlink non-empty transcript in which every non-empty line parses as a JSON object, exactly one `result` event is the final non-empty line, at least one `system`/`init` precedes it and every event carrying `session_id` shares the init's; any violation fails (g) as `transcript <label>: <reason> (line N)` (D-1.2, D-1.2a) | FR-2 |
+| C-3 | Independent integrity cross-check | `evals/harness/took-effect.sh:363-400`; `evals/harness/pipeline-run.sh:552-576` | recompute the pin's manifest digest; bind record and arm_evidence to it and to the entry count; walk a retained HOME when present; evidence names the mode (D-1.3) | FR-4 |
+| C-4 | R3/R5 corpus table and narrowing; hook-group evidence emitter | `evals/harness/lib/sandbox-mount.sh:1496, 1503, 1576-1580, 1609-1626, 1707-1731, 1733-1743` | corpus table of every R3/R5 hit by context (§ 11.F); narrowed regexes; verify already covers R5 — recorded as a correction (D-2.1); `cmd_hooks` additionally emits `home_hook_groups` to the § 3.2 grammar (D-2.1a: implementer B owns this file) | FR-5, FR-1 |
+| C-5 | Proxy pid limit | `evals/harness/lib/egress-proxy.sh:203-205`; `evals/harness/Dockerfile.proxy:45, 101`; `evals/tests/egress-proxy.bats` | `--pids-limit 256`; documented run line; a pair-pinning test (D-2.2) | FR-6 |
+| C-6 | Supervisor job identity | `evals/harness/lib/batch-supervisor.sh:228-260, 400, 449, 512` | `.jobs/<name>.ident` (start_ticks + cmdline sha256); reclaim compares before `kill_group`; identity-less records are stale (D-2.3) | FR-7 |
+| C-7 | Seeder fix-diff blobs | `evals/harness/seed-corpus-from-external.sh:400-430, 540-564` | fix-diff paths from trees join the bounded want set; out-of-bounds refuses by name; diff after the fetch (D-2.4) | FR-8 |
+| C-8 | Classify guard | `.claude/scripts/classify-merge-pr.sh:86-90, 102-137`; `.github/workflows/post-merge.yml:110, 182`; `tests/unit/classify-merge-pr.bats` | the PR number comes from the subject's trailing `(#NNN)` (GitHub's merge and squash form) validated as a positive decimal, else empty (D-3.2b); empty PR number → `other`; full-pipeline guarded on `pr_number != ''`; tests for both (D-3.1) | FR-3 |
+| C-9 | Publish contract | `.claude/scripts/post-merge-orchestrator.sh:44-49, 1062-1110, 1543-1600, 1621-1630, 1896-1920, 2117, 2184` | local and remote tag identity checks in `validate_candidate_v2` (exit 2 pre-write; D-3.2a) using the existing `tag_identity_matches` rule (annotated tag object: object = target, type commit, tag name, subject `Release <tag>`; a lightweight tag never matches → refusal); a failed or timed-out `ls-remote` is `remote unreachable, identity unverified` → exit 2; `phase_tag` re-checks before the push and returns 1 on the race, and a re-run with an identical-identity tag skips the push; `--generate` refuses a non-integer number (no fraction, no exponent, |n| ≤ 2^53−1, −0 refused) with exit 2 and nothing written, and `validate_candidate_v2` enforces the same domain at publish (exit 2); Q-3 resolved (D-3.2, D-3.2b) | FR-9 |
+| C-10 | Ship | `record-branch.sh`, `archive-cycle.sh`, the Bridgebuilder, CHANGELOG `[Unreleased]` | one PR for the sprint; non-degraded round; merge; record; archive; no release (DEC-0967) | FR-10 |
 
-**C-2 Guarded consensus writer and verdict (FR-2; D-1.2 DEC-0840, D-1.7 DEC-0853).** Writer eligibility: the default `writer_role_allowlist` is claude-headless (`--tools ""` + plan mode, `claude_headless_adapter.py:143-155`) and the API adapters; codex-headless joins only after a vitest proves its native shell, file and network tools cannot execute under its dispatch (`codex_headless_adapter.py:18-27, 83-114` describes a posture, not a tested restriction); every adapter reports its enforced no-tool stance in the dispatch result and the role check verifies that report; an ineligible writer is `degraded_reason: writer_not_eligible` (exit 3, un-enriched consensus posted). The findings themselves are never produced by the writer: the posted block is rendered deterministically from the consensus (every canonical field — id, file, anchor_line, anchor_line_end, severity, confidence, failure_scenario, suggestion, blocking — byte for byte, same multiplicity, no duplicate ids) and the writer's output is commentary placed in a separate section. The guard (`core/enrichment-guard.ts`, new) rejects writer output that contains a findings block of its own, that alters or omits any canonical field if it echoes findings, or that carries provider tool grammar matched structurally (a line-start XML tag `<invoke`/`<function_calls`, or a top-level JSON key `tool_use`/`function_call`/`tool_calls`, outside fenced code spans and outside quoted string values) → `enrichment_guard_rejected`, exit 3. `core/review-verdict.ts summarizeReviewVerdict` decision table: (1) any finding with `blocking: true` or severity CRITICAL or HIGH → REQUEST_CHANGES; (2) a guard rejection or `incomplete_coverage` → `UNKNOWN`, `degraded: true`, `mergeBlocked: true` with the reason; (3) exactly one valid consensus block → its `verdict`; (4) no block → the prose rule; (5) two blocks, a malformed block, or a block verdict contradicting (1) → `verdict_conflict`, `UNKNOWN`, `mergeBlocked: true`. INFO, PRAISE, SPECULATION and REFRAME never block. `degraded_reason` is an exported enum in `core/run-outcome.ts` (`files_payload_oversize`, `files_list_truncated`, `page_incomplete`, `patch_fetch_rate_limited`, `pr_head_moved`, `incomplete_coverage`, `enrichment_guard_rejected`, `writer_not_eligible`, `verdict_conflict`).
-
-**C-3 Release publish (FR-3; D-1.3 DEC-0846, D-1.6 DEC-0856).** `post-merge-orchestrator.sh --generate` writes candidate schema_version 2 with an immutable sealed object — `merge_sha`, `target_commit = merge_sha`, `target_tree`, `tag`, `prerelease`, `release_body` + `release_notes_sha256`, `post-merge-ledger.patch` bytes digest `ledger_patch_sha256`, `ledger_commit: {author, committer, dates}` fixed so the resulting commit id is deterministic and recorded as `ref_updates[].new`, `ref_updates: [{ref: refs/heads/main, expected_old: merge_sha, new}]`, `remote_origin`, `remote_push_url` — canonicalised through `lib/jcs.sh` for the approval digest, and a separate mutable `progress` file for publish state. `--publish`: refuse a schema_version 1 candidate with a regeneration instruction (`--allow-v1` with a logged reason is the only exception); verify the digest; verify `git merge-base --is-ancestor <merge_sha> <remote main>` (equality is not required: a later merge must not make the candidate unpublishable); re-verify the ancestry immediately before each externally visible step; tag the merge (an existing tag is accepted only when its target and release identity match the candidate, else refusal); create the release (an existing release accepted on the same identity match); then the ledger step, whose patch is validated to touch only `grimoires/loa/ledger.json` and to express the cycle's active → archived transition: apply the patch onto the observed remote `main` in a detached worktree with the recorded identity, push with `--force-with-lease=refs/heads/main:<observed sha>`; a lease failure records `ledger_commit: deferred` and `--publish --ledger-only` completes it later (re-applying onto the then-current `main`), or `archive-cycle.sh` discovers the deferred patch under `.run/post-merge-ledger-deferred.json` and applies it with the same lease rule; the recovery state machine re-runs each phase only when its post-condition is unmet and accepts remote `main` at the original merge or at the published ledger commit. Sprint 1 reads `branches/main/protection` with the operator token and records whether a direct fast-forward is permitted (if not, the deferral path is the documented default). Exit codes follow §5.4.
-
-**C-4 Framework ergonomics (FR-4; D-1.4 DEC-0841, D-1.5 DEC-0842).** `record-branch.sh`: `--cycle N --head SHA --prev REF --stage LABEL [--manifest FILE] [--add PATH]… [--dry-run] [--accept-scan TREE_SHA]`; the default manifest is derived from the ledger cycle (its a2a sprint dirs, `a2a/audits/<dates>`, `flatline`, `prompts`, NOTES, `archive/notes`, results roots `evals/results/ablation-2.0/<cycle batches>` minus `sandbox/ snapshots/ grading/pr/`, a record_lite tree); symlinks and any path resolving outside the repository are refused before staging (the check walks the complete final tree, inherited `head` entries and the lite tree included); `GIT_INDEX_FILE` temp index → `read-tree <head>` → `add -f` → `write-tree`; the secret scan runs over the paths that differ between `<head>` and the staged tree (`git diff-tree -r --name-only <head> <tree>`, exported to a bounded temporary directory) with `audit-secret-redaction-scan.sh`; credential-shaped classes stop the build unconditionally (exit 2), other classes stop unless `--accept-scan <that tree sha>` names this tree, and the acceptance (`scan_tree`, `accepted_scan`) goes into the commit message and the manifest; `commit-tree -p <prev> -p <head>`; `update-ref <record ref> <new> <expected old>` (compare-and-swap against the previous record); the push stays the operator's ICE call. `notes-guard.sh cmd_rotate`: build the retained file section by section in the template's order — `## Blockers` and `## Active Sub-Goals` whole, `## Session Continuity` newest block whole, `## Decision Log` newest three blocks, `## Session Log` newest 20 entries — then the archive pointer; a section whose header is missing from the source is emitted with its header and no body. `pre-compact-marker.sh`: read `.state` and `timestamps.last_activity`; RUNNING → active; HALTED, INTERRUPTED → awaiting resume; COMPLETED, JACKED_OUT, an absent or unreadable file, an unknown state, or `last_activity` older than `LOA_HOOK_LIVE_WINDOW_DAYS` (7) → silent. `dec-write-lib.sh:471`: the refusal prints `N code points (limit 160): <first 160>…`. `security-audit-scope.sh`: `--help`, `--files FILE`, `--paths P…` restrict the walk. `ledger-lib.sh validate_ledger`: `schema_version` required, `version` accepted as alias.
-
-**C-5 CI and quarantine (FR-5; D-4.2 DEC-0852).** `tests/QUARANTINE.tsv` (`test_id\towner\texpiry\tbead\treason`); `tools/check-quarantine-expiry.sh` validates every row (the test id exists in a bats file, owner non-empty, the bead exists and is open, expiry an ISO date within one day of the row's quarantine date plus 30 (quarantine date = the UTC committer date of the commit that last wrote the row, per git blame — author dates survive rebase, cherry-pick and squash; an uncommitted row is dated today; a depth-1 CI checkout blames every line on the boundary commit, whose date says nothing about the row, so there the rule is expiry ≤ today + 31) and never more than 60 days out, no duplicate ids) and fails on an expired row, printing executed / skipped / quarantined counts; `tests/unit/helpers/quarantine.bash` skips a listed test with the reason and refuses a row whose test id does not match the running test; at most 4 of the 10 bd-tgn04 failures may be quarantined at Sprint 1 exit, the rest repaired; the isolation, egress-denial and mount-provenance tests (C-9, C-10) may never appear in the file (the helper refuses them by name pattern). `bats-tests.yml`: the pytest step globs `evals/analysis/*/tests`; the quarantine step runs before the unit suite; the tripwire `tests/unit/lint-walk-excludes-fixtures.bats` plants a known violation under `evals/fixtures/review-prs/pr-99/` in a temp copy and asserts that `check-no-swallowed-jq.sh` and every `find "$ROOT"` lint walk report zero for it. `.gitattributes` gains `evals/fixtures/review-prs/pr-*/**` (the frozen PR trees only — `corpus.tsv`, `labels/`, `manifests/`, `incidents/` stay reviewable; Sprint 272 implementation decision, see decisions.yaml) and `grimoires/loa/reports/ablation-2.0/*-grades/**` and `grimoires/loa/reports/ablation-2.0/*-grades/** linguist-generated -diff` (the workflows `merge=ours` rule untouched; `-diff` also hides these paths in local `git diff`, intended for frozen fixtures and noted in the harness README).
-
-**C-6 Session library (FR-6; D-2.1 DEC-0843).** `lib/session-exec.sh`: `price_for` prints `ERR` and returns non-zero when the model id is absent from the table or any of `in/out/cr/cc` is null, negative or non-finite; `price_events` prints `ERR` and returns non-zero on jq failure, an invalid token count or a completed assistant turn without usage; callers check both the sentinel and the status (`blind-session.sh`: no launch; `pipeline-run.sh`: stop the phase, `status infrastructure_error`, reason `metering_incomplete`); zero prices pass; metering rules: every attempt is priced (streaming deltas summed per message id, cached-read and cache-write tokens priced by their own rates, an interrupted turn priced on the usage received, a refusal rerun priced as a second attempt), and an attempt that consumed tokens without a usage event is persisted as an `unmetered_attempt` row so accounting failure is distinguishable from zero spend. `ENV_SHIM` lists `/proc/self/fd` and closes every descriptor above 2 except the listing handle and any descriptor named in `LOA_KEEP_FDS` (default empty, documented); when `/proc` is unavailable it falls back to `os.closerange(3, hard RLIMIT_NOFILE)` and, for an infinite or unusable hard limit, to a fixed 1,048,576; a subprocess test inherits a descriptor above 65535. Startup assertion `assert_secret_keys`: `SECRET_KEY_PATTERN='(KEY|TOKEN|SECRET|PASSWORD|PASS|CREDENTIAL|AUTH)'` (a documented constant with its own unit vector) over `PASS_KEYS`; a match must be in `SECRET_KEYS` or `NON_SECRET_ALLOWLIST`. `pipeline-run.sh` sources the lib by a literal relative path (eval.yml trust boundary) and its bats harness stages `lib/`; the drift test is kept until the Sprint 3 smoke is green on the measurement pin, then deleted in a versioned commit.
-
-**C-7 Reproduction and analysis (FR-7; D-2.2 DEC-0844).** `reproduce.sh`: `pinned_trees_identical_to_worktree` = `git diff --quiet <pin> -- evals/harness evals/suites evals/fixtures <suite>/tasks <suite>/MANIFEST.sha256 evals/analysis/c132` plus `git status --porcelain -- <same>` empty; `git describe --always --dirty` recorded; exit table 0/1/2/3; `--live-sample` requires rc 0 and a matched environment, reads the registration hash from `$REG`, filters the recorded range to valid rows, marks the live table with the environment verdicts. `record_lite.py`: `sha256_file(path, verify=True)` bypasses the cache on verification paths; `safe_rel` on symlink targets; REPRODUCE.md names `INDEX.json` / `INDEX-only.json`. `judge_defects.py`: `sample_id = sha256(key.json without the field)[:12]` written into every packet header and `labels.json`; `write_sample` refuses an existing `key.json` without `--force`; `aggregate` rejects a mismatched `sample_id` and loads grades for validity; `run-judge-defects.sh` chunk dir keyed by the key sha. `final.sh`, `run-judge-defects.sh`: `REG`, `PIN`, `REG_SHA` parsed by whitelist from `registration.txt` or passed as flags; root from `BASH_SOURCE`. Power-mini fixtures generated in a pytest fixture by `synth.py --seed 20261023`. `spend.sh` dedups anonymous rows by `(run_id, batch)`. The new tooling replaces the same paths on `main`; reproducing cycle-132 (including `--live-sample`) runs from a worktree checked out at pin `fbd36a0c`, and the new `REPRODUCE.md` says so; the record branch's copies are untouched.
-
-**C-8 Grader 1.4 and refusal policy (FR-8; D-2.3 DEC-0845).** `ablation-grade.sh` 1.4: class 7 exempts a heredoc-written report whose quoted token is PR-native (the same exemption the Write tool path already has); `outside_path` exempts the container-mode bare `/home` probe shape; per-class fixtures. Suite key `refusal_policy: exclude | keep | rerun-once` per arm (default `exclude`); `run-ablation.sh` writes `refusal_policy_applied` and `attempt` beside `refusal_fallbacks` in every row and, for `rerun-once`, relaunches the trial once with the same plan index, retaining the refused attempt's transcript and meta and charging both attempts. Outcome rules: `exclude` — a row with a fallback is invalid (cycle-132 behaviour) and the denominator excludes it; `keep` — the row is valid and flagged and the denominator includes it; `rerun-once` — the second attempt's row is the cell when it has no fallback, else the cell is invalid; a second refusal or an infrastructure failure on the retry leaves the cell invalid with both attempts recorded. `ablation-row.sh` emits a per-arm `refusal_rate`; above 0.2 the arm is flagged in the report. The denominator rules live here and are mirrored in `evals/harness/README.md`.
-
-**C-9 Supervisor and egress (FR-9; D-2.4 DEC-0847, D-2.5 DEC-0854).** Supervisor: `run-ablation.sh --supervised [--max-retries N]` refuses unless `loginctl show-user --property=Linger` is `yes` or the batch is launched inside a lingering scope (repair text names `loginctl enable-linger`); with `systemd-run` the batch runs as `systemd-run --user --unit loa-batch-<name> --collect`, otherwise `lib/batch-supervisor.sh` runs a `setsid` loop; the supervisor takes `flock <batch>/supervisor.lock` before daemonising and holds it; STATUS.json updates go through the runner's existing flock; it declares the runner dead on process exit or when STATUS.json has not been updated for 30 minutes while a run is marked running; before every `--resume` it stops containers named `loa-abl-<run_id>-*`; it retries only retryable classes (`infrastructure_error`, a container exit with no STATUS update) and never `metering_incomplete`, budget exhaustion, refusals (the policy owns them) or an intentional stop; ownership is durable — `supervisor: {owner_pid, boot_id, start_time, unit, attempt_id, retries: [{at, reason_class, retry_id, provider_request_ids}], cap}` — so a PID reused after a reboot is not mistaken for the owner; before a retry the supervisor reconciles uncertain provider requests from the cost ledger and terminates the whole owned process group; run arguments are persisted in MANIFEST so a reboot restores the batch; stops after `--max-retries` (default 3); tests cover reboot, PID reuse and cancellation during an active request. Egress (threat model: repository and arbitrary-destination egress from the sandbox is denied; exfiltration through the allowlisted model API is out of scope and left to the class-9 tripwire, stated in the README): `lib/egress-proxy.sh up|down|self-check` creates a docker internal network `loa-egress-<batch>` and a sidecar `loa-proxy-<batch>` (tinyproxy 1.11, `Dockerfile.proxy`) attached to the internal network and to an external one; the allowlist is generated from a new `egress_hosts[]` per provider in `model-config.yaml` (model endpoints plus auth and token-refresh hosts such as `sts.amazonaws.com`, `auth.openai.com`); the proxy validates every CONNECT and plain HTTP destination by resolved address at connect time against the allowlist and denies private, loopback, link-local and metadata ranges, restricts CONNECT to port 443, and re-validates on redirects; the sandbox runs `--network loa-egress-<batch> --dns 0.0.0.1` (DNS sinkholed; the proxy resolves) with `HTTPS_PROXY/HTTP_PROXY=http://loa-proxy-<batch>:8888`, `NO_PROXY=`; each run's container address is recorded in meta at launch and denials are attributed by source address into `<run>/meta/egress-denied.jsonl`; `self-check` exercises an allowed model call per planned model, a direct connection attempt, DNS, denied HTTP and CONNECT, alternate hostname encodings and denial attribution, and `down` removes the network and sidecar. The suite key `egress: blocked | bridge` per arm (default blocked) is recorded in MANIFEST and meta; the open-mount control keeps `blocked` unless a batch records `bridge` as a factor. `Dockerfile.ablation` → `loa-ablation:259` (CA/proxy env defaults; the Claude Code version pinned and recorded in MANIFEST); the isolation and egress-denial tests are release gates that QUARANTINE.tsv may not list.
-
-**C-10 Loa reviews Loa (FR-10; D-3.1 DEC-0848 as amended by D-3.6 DEC-0858).** Design (a′) in `lib/sandbox-mount.sh` as a new mount mode `home-scope`: the pinned framework is materialised under the sandbox HOME (`$HOME_DIR/.claude/{CLAUDE.md,settings.json,skills/,scripts/,hooks/,rules/,…}`, `CLAUDE.md` importing `~/.claude/loa/CLAUDE.loa.md` by absolute path, every hook `command` and every framework script or skill reference to `.claude/` resolved through one root variable set by the mount — audited once across hooks, skills and scripts in the spike), the session launched with settings restricted to the user scope (`--setting-sources user` or the equivalent the spike confirms) and the project trust accepted; the workspace root receives `overlay_answer_paths` for every changed `.claude/` path of the PR except the executable and prompt surface — `.claude/skills/`, `commands/`, `agents/`, `hooks/`, `settings.json`, `settings.local.json`, `*.local.*` under `.claude/`, `.claude/rules/**`, `.claude/CLAUDE.md`, the root `CLAUDE.md` and `CLAUDE.local.md`, `.mcp.json`, `.claude/output-styles/`, `.claude/plugins/`, and any file an `@` import in those names — the list is derived from the pinned Claude Code version's documented load paths and re-derived when that version changes — which is removed from the root and stays readable under `pr/head/`; `check_mount_closed` clause (e): every surface path is absent at the root and every other changed `.claude/` path at the root hashes to the PR's bytes. `took-effect.sh oracle_closed` gains clause (e) and a positive read clause (f): the transcript parser (versioned, `transcript_schema` recorded) collects Read results (gutter stripped, offset/limit windows concatenated) and Grep results per path; a changed PR `.claude/` file counts as read when the normalised Read content covers at least 60 % of its lines or the whole file, hashed line-set against the PR bytes (Grep alone never counts); `pr_bytes_read: [paths]` must be non-empty and cover every changed `.claude/` file the review's findings cite; a clause (g) asserts no project hook, MCP server or planted canary executed (process list, hook log, canary side effect). The grader's `oracle_scan` keeps firing on pinned-byte reads; the negative-control fixture holds distinct PR and pinned bytes for the same path and the cycle-132 mount must still fire. **Spike (first task of Sprint 3, ≤ USD 2):** in `loa-ablation:259` with its Claude Code version recorded, `claude -p` with the HOME-scope layout and a planted canary for every surface item (hook, skill, command, agent, settings, `.mcp.json`, root `CLAUDE.md`, `.claude/rules/` file, an `@` import, a `.claude/scripts/` file at the root) must show the pinned skill loaded and no canary loaded or executed: each canary has a deterministic filesystem effect (a marker file it would write) and the session runs under process-execution capture (hook log, a one-second `ps` sampler, `LOA_CANARY` markers); the spike runs inside the egress block with its own `--max-usd 2`, records the image digest, Claude Code version, scope flags, effective settings and framework content hashes, and is repeated if any of those inputs change before the smoke; an observed project-scope execution is a containment failure. **If the spike fails, the run HALTS with the spike record; adopting fallback (c) — a reviewer read contract enforced by clauses (f) and (g) with hooks, settings and `.mcp.json` still stripped from the root — is the operator's decision, never an autonomous amendment (D-3.6).**
-
-**C-11 Finding contract and grader 1.5 (FR-11; D-3.2 DEC-0849, D-3.5 DEC-0857).** `.claude/schemas/finding.schema.json` v1: `{id, file, anchor_line, anchor_line_end?, failure_scenario, severity ∈ {CRITICAL, HIGH, MEDIUM, LOW, PRAISE, SPECULATION, REFRAME, INFO}, blocking: boolean (default false; a voice's blocking mark maps here), confidence ∈ {high, medium, low} (a number 0–1 normalises: ≥ 0.75 high, ≥ 0.45 medium, else low; validators emit the enum), title?, suggestion?}`; `id` is given, else derived `F-<first 6 hex of sha256(file:anchor_line:title)>`; `file` is repository-relative POSIX with no `..` or leading `/`; anchors are positive integers with `anchor_line_end ≥ anchor_line`. `failure_scenario` rule for defect severities (CRITICAL, HIGH, MEDIUM, LOW): at least 12 whitespace-separated tokens or a `when … then …` shape, none of the denylist (`TODO`, `n/a`, `see above`, `as described`, `placeholder`); PRAISE, INFO, REFRAME and SPECULATION are exempt. Markdown grammar for review/audit bullets: `- **SEV** (confidence: c) \`file:line[-end]\` <dash> <title>. Failure: <scenario>.` where the dash is any of `—`, `–`, `-`, `--` and the clause starts at the last `Failure:` token outside backticks. `verdict-derive.sh`: a defect-severity bullet without a valid clause is a violation; **a CRITICAL, HIGH or `blocking` bullet without a valid clause is still counted in the blocking tally**, so the file is inconsistent and can never derive APPROVED (red test: one malformed CRITICAL bullet must not yield APPROVE). Shared conformance vectors under `.claude/schemas/finding.vectors/{valid,invalid}/*.json` are run by the zod suite, the jq/bash validator and the python validator and must agree. The reviewing-code and auditing-security templates and the Bridgebuilder persona emit the clause; `adversarial-finding.schema.json` and `FindingsBlockSchema` reference the canonical schema; aliases `failure_mode`, `description` normalise (precedence: `failure_scenario` > `failure_mode` > `description`) with the warning "`failure_mode` is an alias of `failure_scenario`; removed in 2.1.0"; both present and different → rejected. `ablation-grade.sh` 1.5: `--judge-verdicts FILE` (JSONL: `{finding_id, finding_sha256, defect_key, fixture_sha256, grader_version, verdict ∈ {describes, does_not_describe}, judge_model, judge_prompt_sha256, blind, ts, supersedes?}`); eligibility: credited pairs of valid cells under grader 1.5; pair key `(run_id, finding_id, defect_key)`; hashes are JCS of the canonical finding and of the fixture manifest; a duplicate verdict for a pair is refused unless the later row names the earlier in `supersedes`; `blind: false` rows are excluded from `recall_judged` and reported in `recall_judged_unblind`; stale hashes or version → the run is rejected; outputs `recall_judged`, `judged_pairs`, `unjudged_pairs`, provenance (judge model, prompt hash) in `grade.json`. `reads-c132.py --judge-defects` registers the read under a new chain version (`registration.py` schema v2).
-
-**C-12 External seeder and registration v2 (FR-12; D-3.3 DEC-0851).** `lib/corpus-seed.sh` extracted from `seed-corpus-from-record.sh` (fixture layout, labels grammar, exposure block, SHA256SUMS freeze, corpus.tsv row); `seed-corpus-from-external.sh <repo-url> <pr> --fix <sha>|<range> [--incident REF] [--licence SPDX] [--commit-trees] [--dry-run] [--check]`: accepts `https://` URLs only, strips credentials and logs the sanitised form; reads the PR's base and head SHAs through `gh api` and verifies them against the clone; `base/` is the fix commit's parent (`fix^`, or the range start's parent) and `head/` the PR head, with the relation `head ⊂ fix^..fix` checked; limits (`--max-files 5000 --max-bytes 200M`) are checked from tree metadata (`git ls-tree -r -l`) before any blob is fetched; clones with `--filter=blob:none --no-recurse-submodules`, materialises with `git archive` (no hooks run), refuses symlinks, submodules and non-regular entries before extraction, bounds the fix-diff size; `PR.md` is built from the PR title and body only and the leakage test refuses when any added or removed fix-diff line of at least 20 non-whitespace characters (whitespace-normalised, a stop-list of braces, blank lines and import lines excluded) appears in it, reporting the matching lines; the same scanner as C-4 runs over the materialised trees; licensing uses the GitHub license API SPDX id (a conflicting declaration or a missing licence refuses; `--licence` cannot override contrary evidence) and `--commit-trees` commits the upstream LICENSE/NOTICE files and an attribution row with the fixture, otherwise a fetch manifest with hashes is written; `--dry-run` leaves only the temp tree and a report. `registration.py` v2: optional `looks_seen: [{look, suite, registration_sha256, rows_sha256}]`, strictly increasing look index, no self-reference, each entry validated against the committed looks inventory (`<reports>/c*-looks/*/rows.jsonl`) and completeness verified against that inventory, not merely declared; v1 documents verify unchanged. Guidance: `evals/harness/README.md` § Shipping a measurement cycle (four PR kinds, when one PR is acceptable) and `planning-sprints/resources/REFERENCE.md` pointer.
-
-**C-13 Beads sweep (FR-13; D-4.1 DEC-0850).** `.claude/scripts/beads/sweep-inventory.sh` exports the open beads to `grimoires/loa/a2a/sprint-<N>/sweep/inventory.jsonl` with its sha256 (the frozen snapshot); Explore batches (≤ 40 beads, read-only) return `manifest-<k>.jsonl` rows `{id, category ∈ {closed-implemented, closed-obsolete, kept, pulled-in}, evidence, confidence}`; category → action: closed-implemented → `br close --reason "implemented: <evidence>"`; closed-obsolete → `br close --reason "obsolete: <evidence>"`; kept → `br label add backlog-2026-10` + status comment + review-by date; pulled-in → `br label add sprint:<n>` + comment; `sweep-apply.sh` validates every manifest row (id in the snapshot and still open, each id once, evidence a resolvable reference — a commit sha in the repository, a PR number, or a path that exists at head — for both closure categories) and writes an append-only `applied.jsonl` so a re-run skips applied rows; the manifests must form a complete partition of the frozen inventory (duplicate, missing, unknown or conflicting ids are rejected before any mutation; an inventory above seven batches of 40 gets more batches); `sweep-sample.sh` draws `ceil(10 %)` of the proposed closures with seed 20261023 for the second Explore BEFORE anything is applied, and a disagreement sends that batch back for a re-sweep; `applied.jsonl` keeps every mutation reversible (`br reopen` with a comment); the report table counts the five categories (opened-during-cycle from the ledger) and names the sample result.
-
-**C-14 Release (FR-14).** CHANGELOG `[Unreleased]` → `## [2.0.0-rc.8]`; `update-loa-bump-version.sh --target 2.0.0-rc.8` under the zone marker; checksums; README pin; release notes; the PR; the Bridgebuilder built from the cycle branch reviews it; CI; admin merge; `record-branch.sh --stage "stage 1"`; publish through C-3; `archive-cycle.sh --cycle 133`.
+> Sources: the file:line reads of 2026-10-25 at branch head `5e7219a3` (files identical to `main 1fc6d150`); prd.md § Functional Requirements
 
 ### 1.5 Data Flow
 
-PR → C-1 pages → selected patches → voices → consensus → C-2 guard → posted review + verdict JSON. Merge → C-3 candidate (merge-targeted, ledger patch) → publish → tag, release, ledger ff. Batch → C-9 supervisor → runner → sandbox (internal net, proxy) → transcripts → took-effect (clauses a–f) → grader 1.4/1.5 → rows → reads (registration v2). Gate outputs → C-11 schema → validators → trailers. Tracker → C-13 inventory → manifests → applied closures → report.
+C-1/C-2: `pipeline-run.sh` captures `transcripts/events-<label>.jsonl` and `meta/ps-<label>.txt`; the mount writes `home_hook_counts` into `meta/arm-evidence.txt`; `took-effect.sh` reads all three and the pinned commit. C-3: the driver writes `meta/home-integrity.json` before deleting the HOME; the validator re-derives the manifest digest from the pin. C-7: trees → want set → one fetch → archive bytes → diffs. C-8/C-9: the merge sha → classifier outputs → job guards; the candidate JSON → `validate_candidate_v2` → state PUBLISHING → phases.
+
+> Sources: `evals/harness/pipeline-run.sh:74, 191, 552-576`; `evals/harness/took-effect.sh:590-640`; `.claude/scripts/post-merge-orchestrator.sh:2117-2195`
 
 ### 1.6 External Integrations
 
-GitHub REST through `gh` (PR metadata, paged files, reviews, releases, conditional ref update via `git push --force-with-lease`); Docker 26.1.5 (sandbox, internal network, proxy sidecar); systemd user units; model endpoints through the proxy allowlist; the beads CLI `br`.
+GitHub Actions (post-merge.yml), the GitHub API through `gh` (classifier enrichment, seeder trees), Docker 26.1 (proxy and sandboxes), the Bridgebuilder on the sprint PR.
+
+> Sources: § 1.4
 
 ### 1.7 Deployment Architecture
 
-Host: the lead's checkout (worktrees per implementer under `../loa-wt-s<N><letter>`), `~/.cache/loa/cycle-133/` for logs, patches and briefs. CI: `bats-tests.yml` (unit bats, analysis pytest glob, quarantine expiry, lint tripwire, Bridgebuilder vitest and `check-bb-dist-fresh`); container bats run in the Docker 26.1.5-enabled job or locally with a dated quarantine row. Container: `loa-ablation:259` plus the proxy sidecar image.
+Framework files ship in the repository; the CI image is the pinned `loa-ablation:259` for harness bats that need a container; the egress bats that assert the pid pair read files only.
+
+> Sources: `evals/harness/README.md` § Pipeline version; prd.md § Technical Considerations / Dependencies
 
 ### 1.8 Scalability Strategy
 
-Per-page processing bounds Bridgebuilder memory by page, not by PR size; the supervisor and the proxy are per batch; the sweep is batched at 40 beads per subagent.
+Not applicable beyond C-5 (parallel sandbox capacity: MaxClients 200 with pid headroom).
+
+> Sources: D-2.2
 
 ### 1.9 Security Architecture
 
-PR-supplied `.claude/` content is data only (C-10: executable surface absent at the root, framework in HOME scope, settings restricted to user scope; the spike proves it before use). Egress default-deny through the proxy with denial logs (C-9). The writer has no tools and its output is validated semantically (C-2). Credential-shaped secret hits are non-bypassable in the record build (C-4). Metering fails closed (C-6). The refusal list of PRD § Authorization basis binds every automated git and GitHub action; `--force-with-lease` is the only write to `main` and only inside publish.
+Fail-closed validators (C-1, C-2, C-3); provenance boundary kept (`GIT_NO_LAZY_FETCH=1`, C-7); no signal to an unverified process group (C-6); the pid limit stays on a NET_ADMIN container (C-5); System Zone writes under the bounded zone marker with `checksums.json` and REPO-MAP regenerated in the same commit (DEC-0824); secret scan before every public push.
 
-> Sources: prd.md FR-1 … FR-14 and the file:line reads it cites; `github-cli.ts:235-277`, `review-verdict.ts:12-57`, `multi-model-pipeline.ts:882-940`, `truncation.ts:1140-1175`, `post-merge-orchestrator.sh:998-1046, 1360-1400, 1455-1520`, `notes-guard.sh:222-255`, `pre-compact-marker.sh:35-39`, `session-exec.sh:21-68`, `blind-session.sh:286-332`, `pipeline-run.sh:120-170, 960-1000`, `sandbox-mount.sh:85-140`, `took-effect.sh:39-72, 400`, `ablation-grade.sh:154-319, 2492-3240`, `run-ablation.sh:1332-1344`, `seed-corpus-from-record.sh:25-90`, `registration.py:204-258`, `claude_headless_adapter.py:136-155`, `codex_headless_adapter.py:18-114`
+> Sources: prd.md § Non-Functional Requirements / Security; DEC-0824
 
 ---
 
 ## 2. Software Stack
 
 ### 2.1 Frontend Technologies
-None (CLI, GitHub comments, markdown reports).
+
+None (command-line tooling and CI).
 
 ### 2.2 Backend Technologies
-Bash 5.2 (scripts, harness, hooks); Python 3.13.5 standard library only (analysis, record tooling, grader helpers); Node.js 22.22.2 with TypeScript 5.9.3 and zod 4.3.6 for the Bridgebuilder skill (vitest for tests; `dist/` compiled and tracked); jq 1.7 and yq 4.44.1 for JSON/YAML; git 2.47.
+
+Bash 5.2 with embedded Python 3.12 (`python3 -I`) for the validator, the mount transform and the orchestrator's canonicaliser; jq 1.7; git 2.4x; tinyproxy 1.11 in `Dockerfile.proxy`; GitHub Actions YAML.
 
 ### 2.3 Infrastructure & DevOps
-Docker 26.1.5 (ablation image 259, proxy sidecar tinyproxy 1.11); systemd user units for supervised batches; GitHub Actions (`bats-tests.yml`, `post-merge.yml`); bats 1.13.0 (`npx --no-install bats` locally).
 
-> Sources: tool versions read on the host 2026-10-23; `.claude/skills/bridgebuilder-review/package.json`; `.github/workflows/bats-tests.yml`
+`bats-tests.yml` (unit and harness bats, analysis pytest), `post-merge.yml` (candidate preparation), Docker 26.1 on the lead host for the proxy and sandbox bats.
+
+> Sources: `evals/harness/Dockerfile.proxy`; `.github/workflows/bats-tests.yml`; the shebangs and `python3 -I` calls of the files in § 1.4
 
 ---
 
 ## 3. Database Design
 
 ### 3.1 Database Technology
-None. State lives in tracked files and JSON/TSV artefacts.
+
+None. Records are JSON and plain-text files under the run directory (`meta/`, `transcripts/`, `.jobs/`) and `.run/` (orchestrator state, progress).
 
 ### 3.2 Schema Design
 
-| Artefact | Owner | Shape |
-|---|---|---|
-| `post-merge-candidate.json` v2 | C-3 | sealed: v1 fields + `ledger_patch_sha256`, `release_notes_sha256`, `ledger_commit{author,committer,dates}`, `ref_updates[]`, `target_on_main: true`; mutable `progress` file beside it |
-| `tests/QUARANTINE.tsv` | C-5 | `test_id, owner, expiry (ISO date), bead, reason` |
-| `finding.schema.json` v1 | C-11 | see C-11 |
-| judge verdicts JSONL | C-11 | `finding_id, finding_sha256, defect_key, fixture_sha256, grader_version, verdict, judge_model, blind, ts` |
-| `REGISTRATION-N.json` v2 | C-12 | v1 + optional `looks_seen[]` |
-| STATUS.json `supervisor` | C-9 | `owner_pid, unit, retries[{at, reason, retry_id}], cap` |
-| MANIFEST.json `egress`, `refusal_policy` | C-8, C-9 | per arm |
-| record manifest | C-4 | `{cycle, head, prev, stage, paths[], results_roots[], lite_tree, scan_tree, accepted_scan[]}` |
-| sweep inventory / manifests | C-13 | `{id, title, labels, created}` / `{id, category, evidence, confidence}` |
-| coverage record (BB) | C-1 | `{base_sha, head_sha, reviewed[], omitted[{file, reason}]}` |
+- `meta/arm-evidence.txt`: `home_hook_counts=<event>:<n>,…` stays as it is (event-level aggregate); a new line `home_hook_groups=<event>:<hex12>:<n>;…` lists every pinned group, `hex12` being the first 12 hex digits of the SHA-256 of the group's matcher string (the empty string for a matcher-less group), groups with the same key merged; the grammar has no verbatim matcher text, so colons, commas and regex metacharacters cannot break it. The validator hashes the matcher it parses from `hook_name` and looks the group up; without a `home_hook_groups` line (recorded runs) it falls back to the event-level aggregate with the same equation (C-1, D-1.1a).
+- `.jobs/<name>.ident` — one line `<start_ticks>:<sha256 hex of /proc/<pgid>/cmdline>`, written before the `.pgid` file is published (so a record without `.ident` is either legacy or partial, both stale) (C-6).
+- `meta/home-integrity.json` — unchanged `{files, tampered, missing, manifest_sha256, first}`; the validator now binds `manifest_sha256` and `files` to the pin (C-3).
+- `.run/post-merge-candidate.json` — unchanged schema 2; the value domain is enforced at generation (C-9).
 
 ### 3.3 Data Modeling Approach
-Append-only where a record is evidence (rows, registrations, candidates); replace-in-place only for derived state (STATUS.json, caches).
+
+Append-only evidence lines and single-purpose record files, as today.
 
 ### 3.4 Migration Strategy
-Candidate v1 files remain publishable (the v1 path is kept behind `schema_version`); registration v1 verifies unchanged; the finding aliases normalise until 2.1.0.
+
+Recorded runs without `home_hook_groups` validate at event-level aggregates with the new equation (k·n over the event's summed commands; triggers summed over the event's groups); `.jobs` records without `.ident` are stale (not signalled, removed) and the first `reclaim` that meets them prints a one-time warning listing them (pgid, record name) so an operator can inspect live groups left by the pre-upgrade supervisor.
 
 ### 3.5 Data Access Patterns
-jq/yq reads; Python `json`; no concurrent writers except STATUS.json under the runner's flock.
+
+Read-once at validation; no indexes.
 
 ### 3.6 Caching Strategy
-`record_lite.py`'s digest cache is build-side only (verification paths hash afresh).
+
+None.
 
 ### 3.7 Backup and Recovery
-Record branches and the archive directory are the backups; the publish sequence is resumable; the supervisor resumes batches.
 
-> Sources: prd.md § Technical Considerations; `post-merge-orchestrator.sh:1455-1500`; `run-ablation.sh:1332-1344`
+The orchestrator's state and progress files keep their existing recovery semantics; the exit-code contract (§ 5.4) is what the runbook relies on.
+
+> Sources: `evals/harness/took-effect.sh:1102-1110`; `evals/harness/lib/batch-supervisor.sh:56, 449`; `.claude/scripts/post-merge-orchestrator.sh:15-49`
 
 ---
 
 ## 4. UI Design
 
 ### 4.1 Design System
-Plain text: CLI output with `exit 2` refusals naming the repair and `exit 3` degradations naming the reason; GitHub comments in the existing Bridgebuilder layout plus a coverage table.
+
+Plain-text evidence lines; every rule prints what it checked and how (the existing `(f)`/`(g)` format).
 
 ### 4.2 Key User Flows
-See §1.5 and prd.md § User Experience.
+
+See prd.md § User Experience: validate a session; publish an rc; ship the sprint.
 
 ### 4.3 Page/View Structure
-Bridgebuilder comment: `[1/3] … [3/3]`, the consensus block, a `## Coverage` table (reviewed, omitted with reasons), the verdict line.
+
+Not applicable.
 
 ### 4.4 Component Architecture
+
 Not applicable.
 
 ### 4.5 Responsive Design Strategy
+
 Not applicable.
 
 ### 4.6 Accessibility Standards
-No colour-only signalling; every refusal is a sentence with the repair.
+
+Plain text; no colour-only signals.
 
 ### 4.7 State Management
-Run state in `.run/*.json` as today; the hook reads it (C-4).
+
+Not applicable.
 
 > Sources: prd.md § User Experience
 
@@ -195,109 +200,106 @@ Run state in `.run/*.json` as today; the hook reads it (C-4).
 ## 5. API Specifications
 
 ### 5.1 API Design Principles
-Flags over environment variables for new behaviour; every new flag documented in the script header; refusals before any write.
+
+Command-line contracts: arguments, exit codes, evidence lines. No network API is added.
 
 ### 5.2 Endpoints
 
-| Interface | Signature | Notes |
-|---|---|---|
-| `record-branch.sh` | `--cycle N --head SHA --prev REF --stage L [--manifest F] [--add P]… [--dry-run] [--accept-scan TREE]` | exit 0 built; 2 usage/refusal; 3 scan hit |
-| `reproduce.sh` | as today + exit 0/1/2/3 table | `--live-sample` needs rc 0 and a match |
-| `run-ablation.sh` | `--supervised [--max-retries N]` | STATUS.json `supervisor` |
-| `lib/egress-proxy.sh` | `up <batch> <allowlist-file>` / `down <batch>` / `self-check <batch>` | self-check runs the denial tests |
-| `seed-corpus-from-external.sh` | `<repo-url> <pr> --fix SHA|RANGE [--incident R] [--licence SPDX] [--commit-trees] [--dry-run] [--check]` | exit 0; 1 refused (licence, leakage, limits); 2 usage |
-| `ablation-grade.sh` | `--judge-verdicts FILE` | grader 1.5; `recall_judged`, `unjudged_pairs` |
-| `post-merge-orchestrator.sh` | `--generate` (candidate v2) / `--publish FILE --approve-sha256 HEX` | remote-main check; `--force-with-lease` ledger ff |
-| Bridgebuilder config | `gh_max_buffer_bytes`, `writer_role_allowlist`, default `exclude_patterns` | `.loa.config.yaml bridgebuilder:` |
-| GitHub endpoints | `pulls/N`; `pulls/N/files?per_page=100&page=K`; reviews; releases | no `--paginate` on files |
-| `verdict-derive.sh` | unchanged flags; new violation class `finding-without-failure-clause` | |
-| `registration.py` | v2 `--looks-seen JSON` (optional) | v1 verifies |
-| `sweep-inventory.sh` / `sweep-apply.sh MANIFEST` / `sweep-sample.sh` | | manifests under `a2a/sprint-275/sweep/` |
+| Script | Change to its contract |
+|---|---|
+| `took-effect.sh --run-dir <run> --suite-file <suite>` | clause (g) evidence gains `hooks: <event>[:<matcher>] c=<count> n=<n> k=<k> triggers=<t|n/a>…`, `transcripts: <label> lines=<n> init=1 result=last …`, and `integrity: independent walk | record cross-checked against the pin (HOME deleted at exit)`; failures name the phase or group and the line |
+| `sandbox-mount.sh hooks <settings>` | prints the `home_hook_counts` value as today and, on a second line, the `home_hook_groups` value (§ 3.2) |
+| `egress-proxy.sh up` | `--pids-limit 256` |
+| `batch-supervisor.sh` | writes `.jobs/<name>.ident`; `reclaim` identity-checks every group |
+| `seed-corpus-from-external.sh` | the want set includes the fix diff's paths; new refusal text `fix diff needs N blob(s) outside the fetch bounds: <paths>` |
+| `classify-merge-pr.sh` | the PR number is the subject's trailing `(#NNN)`, a positive decimal, else empty; `pr_type=other` when `pr_number` is empty (stderr note `no associated PR: a push, not a merge`); `--pr-number` still honoured |
+| `post-merge-orchestrator.sh --publish` | a local or remote tag of another identity, a lightweight tag, an unreachable remote (`identity unverified`) or a non-integer number in the candidate refuses with exit 2 before any write; a tag appearing between validation and the push exits 1 (state FAILED); a re-run with an identical-identity tag skips the push and continues |
+| `post-merge-orchestrator.sh --generate` | refuses a non-integer number in `prepared_state` with exit 2 and the JSON path, nothing written |
 
 ### 5.3 Contracts
-`finding.schema.json` v1 is the contract every gate validates against; the markdown grammar is its textual projection.
+
+The finding contract of cycle-133 (`finding.schema.json` v1) is untouched; the review and audit of this sprint use it.
 
 ### 5.4 Exit codes (authoritative for every script this cycle touches)
 
 | Code | Meaning | Examples |
 |---|---|---|
-| 0 | completed as asked | review posted and complete; publish done; record built; fixture seeded |
-| 1 | a step failed or a named difference | reproduce.sh difference; a publish phase failed after a write |
-| 2 | refusal before any write (usage, precondition, policy) | record-branch scan hit; seeder licence or leakage refusal; `--supervised` without linger; v1 candidate; dirty worktree for the attestation |
-| 3 | completed, degraded, reason named | Bridgebuilder `degraded_reason`; `writer_not_eligible`; reproduce.sh live sample requested but not run |
+| 0 | completed as asked | validator ok; publish done; classifier answered |
+| 1 | a step failed or a named difference | a publish phase failed after a write (a tag appearing between validation and the push); a validator FAIL line |
+| 2 | refusal before any write (usage, precondition, policy) | candidate digest, schema, ancestry, local or remote tag identity mismatch, lightweight tag, unreachable remote, a non-integer number at generate or publish; seeder bounds refusal |
+| 3 | completed, degraded, reason named | Bridgebuilder `degraded_reason` |
 
-The §5.2 rows for `record-branch.sh` (scan hit → 2) and `seed-corpus-from-external.sh` (refusals → 2) follow this table.
-
-> Sources: §1.4; prd.md FR-1 … FR-14
+> Sources: `.claude/scripts/post-merge-orchestrator.sh:44-49`; cycle-133 sdd.md § 5.4 (archived); § 1.4
 
 ---
 
 ## 6. Error Handling Strategy
 
 ### 6.1 Error Categories
-Refusal (exit 2: usage, precondition, policy) before any write; degraded (exit 3: review completed but incomplete, with `degraded_reason`); failure (exit 1: a named difference or a failed step); fail-closed sentinels (`ERR` in pricing).
+
+Refusal before write (2), failure after write (1), degraded completion (3); validator failures are `FAIL (g) <phase>: <reason>` lines.
 
 ### 6.2 Error Response Format
-One stderr line naming the condition and the repair; JSON summaries carry `degraded`, `degraded_reason`, `mergeBlockedReason`.
+
+Plain text on stderr for scripts; evidence lines on stdout for the validator; `::error::` annotations in the workflow preflight.
 
 ### 6.3 Logging Strategy
-Egress denials to `meta/egress-denied.jsonl`; supervisor retries to STATUS.json; publish steps to the candidate's `phases`; record-branch scan results to the commit message.
 
-> Sources: prd.md § Non-Functional Requirements; `.claude/protocols/agent-ergonomics.md`
+Unchanged: `[TAG]`, `[PUBLISH]`, `[classify-merge-pr]` prefixes; the supervisor's `log` lines gain the stale-identity message.
+
+> Sources: `.claude/scripts/post-merge-orchestrator.sh:1062-1110`; `.claude/scripts/classify-merge-pr.sh:118`; `evals/harness/lib/batch-supervisor.sh:243`
 
 ---
 
 ## 7. Testing Strategy
 
 ### 7.1 Testing Pyramid
-Unit: vitest (C-1, C-2), bats (C-3 … C-9, C-11, C-13), pytest (C-7, C-11, C-12). Integration: the container bats (C-9, C-10) in the Docker 26.1.5-enabled CI job or a dated quarantine; the Sprint 3 smoke (one `a1_full` trial). System: the cycle's own PR reviewed by the fixed Bridgebuilder; the rc.8 publish.
+
+Unit bats per component (fixtures that fail before and pass after), the existing harness and workflow suites unchanged and green, one host-local regression (D-4.2), CI as the gate.
 
 ### 7.2 Testing Guidelines
-Every defect gets the test that reproduces it before the fix (red → green, `red-test-check.sh`); fixtures are generated deterministically; no network in unit tests (mocked `gh`, mocked model adapters).
+
+Every fixture encodes one direction; a change without a failing-before fixture is not accepted at review. `npx --no-install bats` on this host; the Docker 26.1-dependent egress bats keep their container job.
 
 ### 7.3 Traceability matrix (defect → reproducing test → component)
 
 | Defect / requirement | Test | Component |
 |---|---|---|
-| KF-054 large-PR Fatal | `__tests__/paged-fetch.test.ts` (2,000 and 3,001 files; head moved; oversize patch) | C-1 |
-| KF-055 writer transcript; UNKNOWN verdict | `__tests__/enrichment-guard.test.ts`, `review-verdict.test.ts` (round replays) | C-2 |
-| rc.6/rc.7 unreachable tags | `tests/unit/post-merge-publication.bats` (ancestor precondition, lease, deferral, v1 refusal, idempotent re-run) | C-3 |
-| record built by hand each cycle | `tests/unit/record-branch.bats` (refusals, credential hit, CAS) | C-4 |
-| NOTES rotation drift; stale simstim; dec-write length; scope help; ledger validator | `tests/unit/{notes-guard-rotate,pre-compact-liveness,dec-write-length,security-audit-scope,ledger-validate}.bats` | C-4 |
-| ten failing unit tests; analysis pytest absent from CI | `tests/QUARANTINE.tsv` + `check-quarantine-expiry` tests; CI run | C-5 |
-| fail-open pricing; descriptors; secrecy | `evals/tests/session-exec.bats` | C-6 |
-| attestation of the wrong tree; live sample ungated; sample binding; digest cache | `evals/analysis/c132/tests/test_{reproduce,record_lite,judge_defects}.py` | C-7 |
-| two benign shapes; refusal policy | grader 1.4 fixtures; `evals/tests/refusal-policy.bats` | C-8 |
-| dead batches; repository egress | `evals/tests/batch-supervisor.bats`, `egress-proxy.bats` (container job; never quarantined) | C-9 |
-| oracle exposure on `.claude/` PRs | `evals/tests/sandbox-mount-home-scope.bats`; the smoke; the negative control | C-10 |
-| findings without a scenario | conformance vectors across four validators; `verdict-derive-failure-clause.bats` | C-11 |
-| corpus from Loa's own history | `evals/tests/seed-corpus-from-external.bats`; three dry-runs | C-12 |
-| 310 open beads | `sweep-apply` validation tests; the sample | C-13 |
+| F-001 recurring hooks false-fail (bd-bex39) | `evals/tests/took-effect-hooks.bats`: 1 configured PreToolUse hook, 2 Bash invocations → pass (k = 2 ≤ 2); 0 hook events with 66 Bash uses → pass (k = 0); a `hook_started` naming a group absent from the pin → fail; c not a whole multiple of n → fail; k above the trigger count → fail; two pinned groups with the same key merge; a matcher with colons and pipes round-trips through `home_hook_groups`; a recorded run with only `home_hook_counts` (several matchers under one event) → event-level aggregate | C-1 |
+| F-002 missing transcript passes (bd-k3dia) | `evals/tests/took-effect-transcripts.bats`: executed label (from `pipeline.json`) without a transcript / with no init / with no result / with a malformed interior line / with a result that is not the final line / with an init after the result / with a foreign `session_id` → fail naming the phase and line; complete → pass; a transcript whose label is not in `labels_run` is reported | C-2 |
+| integrity record trusted (bd-htzy2) | `evals/tests/took-effect-integrity.bats`: record digest ≠ the pin's manifest digest → fail; `files` ≠ entry count → fail; retained HOME with a tampered file → fail; clean → pass with the mode named | C-3 |
+| R3/R5 breadth (bd-kgfh5) | `evals/tests/sandbox-mount-rules.bats`: one case per corpus-table row; `evals/tests/sandbox-mount-home-scope.bats` and the negative control unchanged | C-4 |
+| pids < MaxClients (bd-1br0v) | `evals/tests/egress-proxy.bats`: pid limit ≥ MaxClients + 16, both read from the files | C-5 |
+| reclaim without identity (bd-ruo5b) | `evals/tests/batch-supervisor.bats`: stale identity → not signalled, record removed; matching identity → terminated; no `.ident` → stale with the one-time warning listing it; `.ident` written before `.pgid`; the identity is re-read before TERM and before KILL (the residual numeric-pgid window is documented in the lib header) | C-6 |
+| fix diff over unfetched blobs (bd-kdk3l) | `evals/tests/seed-corpus-from-external.bats`: a fix touching a file outside the PR set is fetched within bounds; outside the bounds → refusal naming the path | C-7 |
+| red pipeline on the ledger push (bd-hyx0n, KF-063) | `tests/unit/classify-merge-pr.bats`: `chore(ledger): archive … after merge` → other; `feat(cycle-134): …` without `(#NNN)` → other; `fix: … closes #12 (#345)` → pr_number 345; `(#0)` and `(#12a)` → empty; `--pr-number` explicit → cycle; `tests/unit/post-merge-workflow-guards.bats`: both job guards name `pr_number`, and a push without a PR runs neither job (stated as intended) | C-8 |
+| exit 2 after a write; floats (bd-4pv1j) | `tests/unit/post-merge-publication.bats`: pre-existing local or remote tag of another identity → exit 2, no state file; a lightweight tag → exit 2; an unreachable remote → exit 2 `identity unverified`; a tag appearing between validation and the push → exit 1, state FAILED; a re-run with an identical-identity tag skips the push; a float (also nested), an exponent form or `-0` in `prepared_state` → `--generate` exit 2 with the path, with and without `rfc8785`; the same value in a candidate at `--publish` → exit 2; the integer domain agrees across both paths; the rc.8 candidate (10 integers) passes | C-9 |
+| the sprint ships as one PR with a non-degraded verdict | the Bridgebuilder summary on the PR; `record-branch.sh` and `archive-cycle.sh` runs | C-10 |
 
-Egress precondition: the complete container egress suite passes on the actual image, network and endpoints before the intermediate pin is recorded and before the spike or the smoke launches — on the operator host when the Docker CI job is unavailable, with the bats output and `meta/egress-denied.jsonl` attached as evidence; a quarantine row never satisfies it. Smoke pass criteria (Sprint 3): took-effect clauses (a)–(g) satisfied; `oracle_exposed_defects` 0 and `pr_bytes_read` covering every changed `.claude/` file the findings cite; `grade.json` under grader 1.5 with the measurement pin recorded; spend within the USD 40 share (spike ≤ 2 inside it; one verification rerun reserved for a fix); a launch is a session that reached the model (spend above USD 0.50) — an infrastructure abort below that may be relaunched within the share; a failed smoke leaves G-4 incomplete, blocks the drift-test deletion and the FR-10 release claim, and the feature is deferred with a DEC row rather than claimed. Mandatory release gates that may never be quarantined: egress isolation, mount provenance (clauses e–g), writer tool disabling, the finding-clause blocking rule.
+Host-local regression (D-4.2, pre-registered in D-4.3): `took-effect.sh --run-dir <run> --suite-file grimoires/loa/reports/ablation-2.0/c133-smoke/suite.yaml` over `evals/results/ablation-2.0/smoke-c133-s274/a1_full/smoke-review-c133-t1` and `smoke-c133-s274-r2/a1_full/smoke-review-c133b-t1`. Baseline 2026-10-25 (identical to the recorded `meta/took-effect.json`): run 1 fails `oracle_closed` on clause (f) (`pinned_bytes_read`, +34 more; KF-060) and `dissent_present`, `integrity_clean` passes (2073 entries); run 2 fails `oracle_closed` on (f) (+11 more), `integrity_clean` passes. Expected after C-1/C-2/C-3: the same failing sets and passes; run 1's REVIEW capture (845 lines, init 1, result 0) adds a (g) `transcript REVIEW: no result event` entry to the `+N more` list — the one pre-explained change; hook groups pass with k = 1 for `SessionStart:startup` (8 of 8 per init) and k = 0 elsewhere; `integrity_clean` passes as `record cross-checked against the pin`. Any other difference is a shipping gate (DEC row and bead before merge).
 
 ### 7.4 CI/CD Integration
-`bats-tests.yml`: analysis pytest glob, quarantine expiry gate, lint tripwire, Bridgebuilder vitest + `check-bb-dist-fresh`, unit bats; `post-merge.yml` prepares the candidate v2.
 
-> Sources: prd.md § Non-Functional Requirements / Reliability; `.github/workflows/bats-tests.yml:170-200`
+`bats-tests.yml` runs the unit and harness bats; `post-merge.yml` prepares the candidate on the merge (left unpublished, DEC-0967).
+
+> Sources: prd.md § Functional Requirements (acceptance criteria); `.github/workflows/bats-tests.yml`; D-4.2 (DEC-0980)
 
 ---
 
 ## 8. Development Phases
 
-### Sprint 1 (global 272) — the framework's own defects
-Implementers in parallel: A — C-1 + C-2 (Bridgebuilder, vitest, dist rebuild); B — C-3 (publish, candidate v2, bats) plus the branch-protection read recorded in the sprint report; C — C-4 (record-branch.sh, notes-guard, hook, dec-write, scope, ledger validator; bats); D — C-5 (CI glob, quarantine mechanism, the ten failing tests with at most four quarantined, gitattributes + tripwire). Exit: review and audit APPROVED; CI green including the analysis pytest; `tests/unit` green.
+### Sprint 1 (global 276) — the nine fixes
 
-### Sprint 2 (global 273) — harness and reproduction hardening
-A — C-6 (session lib; first, the others rebase on it); B — C-7 (reproduce, record_lite, judge_defects, drivers, synth, spend); C — C-8 (grader 1.4, refusal policy); D — C-9 (supervisor, egress proxy, image 259). Exit: bats/pytest green; the intermediate pipeline version recorded (the Sprint 2 head, image 259 digest, self-check log).
+Four implementers in parallel, each in a worktree from the sprint base, each with a code-only diff and a "Judgment calls" section in its report:
 
-### Sprint 3 (global 274) — the product
-Spike first (C-10 scope facts in the image with a canary per surface item, ≤ USD 2; a failure HALTS the run for the operator, D-3.6); then A — C-10 mount mode + clauses (e)–(g); B — C-11 schema, grammar, validators, templates, grader 1.5; C — C-12 lib extraction, external seeder, registration v2, guidance; then the lead records the measurement pin (the Sprint 3 head after A–C land, D-3.4) and A runs the smoke (≤ USD 30) at that pin; D — the drift-test removal after the smoke and the harness README. Exit: the smoke's grade at the recorded pin; the four validators; three dry-runs.
+- **A — validator:** C-1, C-2, C-3 (`took-effect.sh` only), the three took-effect bats files, the host-local regression (D-4.3), the Q-1 grammar confirmation (a one-turn `claude -p` on the lead host under a settings file with a matcher-less and a regex PreToolUse group; the real events become fixtures).
+- **B — mount rules and hook-group evidence:** C-4 (the corpus table § 11.F, the narrowed regexes, `sandbox-mount-rules.bats`, the bead correction) and `cmd_hooks` → `home_hook_groups` to the § 3.2 grammar with its own bats case (D-2.1a); B owns every change to `sandbox-mount.sh`.
+- **C — publish path (System Zone):** C-8, C-9 (`classify-merge-pr.sh`, `post-merge.yml`, `post-merge-orchestrator.sh`, their bats), under the zone marker with `checksums.json` and REPO-MAP regenerated.
+- **D — harness libraries:** C-5, C-6, C-7 and their bats.
 
-### Sprint 4 (global 275) — hygiene and ship
-A/B — C-13 sweep (seven Explore batches, apply, sample); lead — docs, CHANGELOG, rc.8 bump, PR, Bridgebuilder, merge, record, publish, archive.
+The lead lands A, then B, then C and D; after A and B it runs the home-scope bats and a hook-grammar round trip (`sandbox-mount.sh hooks` → `took-effect.sh` on a fixture); then the suites, CHANGELOG `[Unreleased]`, review and audit (dissent ≤ 3), the host-local regression against D-4.3, and the ship (C-10).
 
-> Sources: prd.md § Timeline & Milestones; D-8 (DEC-0834)
+> Sources: prd.md § Timeline & Milestones; cycle-134-brief.md § Sprint breakdown
 
 ---
 
@@ -305,90 +307,168 @@ A/B — C-13 sweep (seven Explore batches, apply, sample); lead — docs, CHANGE
 
 | Risk | Mitigation |
 |---|---|
-| Claude Code scope facts do not support design (a′) (project skills or hooks still load) | the Sprint 3 spike runs first; fallback (c) is specified in C-10; D-3.1 amended |
-| `--force-with-lease` push to `main` blocked by branch protection for the token | Sprint 1 reads the protection rules and records the answer; the ancestor precondition and the deferral path keep the tag valid either way |
-| The spike fails and the fallback would change the threat model | the run HALTS; the choice of (c) is the operator's (D-3.6) |
-| Proxy allowlist misses an endpoint (model fallbacks, auth and refresh hosts) | `egress_hosts[]` per provider in the registry; `self-check` runs one request per planned model before the batch |
-| Bridgebuilder `dist/` drift | rebuild in the same commit; `check-bb-dist-fresh` |
-| The ten unit failures hide deeper regressions | repairs preferred; quarantine rows expire at the next cycle's close |
-| Sweep false closures | evidence rule, manifest review, 10 % sample, `backlog-2026-10` when unsure |
-| Dissent voice budget on large sprint diffs (KF-004) | code-only diffs per implementer; ≤ 3 runs per sprint |
+| `hook_name` grammar differs for matcher-less or tool-event hooks (only `SessionStart:startup` is observed; the retained sessions emitted no tool-hook events at all beside 31–66 Bash uses) | C-1 parses `<event>` alone and `<event>:<matcher>`; a hook_name that parses but names no pinned group fails; k = 0 is legal so an un-emitting group never false-fails; the grammar confirmation on a real one-turn session is a pre-merge gate (Q-1, implementer A) |
+| trigger counts are not derivable for rare events | rules (a)+(b) apply (0 ≤ k, divisibility); the evidence line says `triggers: n/a` for that group; § 11.H lists the derivable events |
+| narrowing R3/R5 drops a rewrite the mount needs | the corpus table with every difference explained; the home-scope bats and the negative control gate the change |
+| the classifier change misroutes a real cycle merge | the fixture for a cycle subject with `(#NNN)` stays `cycle`; the job guard is additive |
+| moving the tag check pre-write misses a tag created between validation and the tag phase | `phase_tag` keeps its check and returns 1 (failed after write), the honest code for that race |
+| the host-local regression cannot run in CI | recorded in the sprint report with the verdict lines; the fixtures carry the same cases into CI |
+| the fixed validator legitimately changes a recorded smoke verdict | investigated, recorded as a DEC row and a bead; never accepted silently (prd.md FR-1 AC) |
 
-> Sources: prd.md § Risks & Mitigation; KF-004, KF-034, KF-041, KF-054, KF-055
+> Sources: prd.md § Risks & Mitigation; § 11 D-1.1, D-2.1, D-3.1, D-3.2, D-4.2
 
 ---
 
 ## 10. Open Questions
 
-| Question | Status | DEC |
-|---|---|---|
-| Does `--setting-sources user` (or an equivalent) exclude project-scope hooks, skills, `.mcp.json` and the root CLAUDE.md in the image's Claude Code version? | Unresolved — the Sprint 3 spike answers it with a canary per surface item; a failure HALTS for the operator (D-3.6) | — |
-| Can the operator token fast-forward `main` under the current branch protection without a PR? | Unresolved — Sprint 1 reads the protection rules and records the answer; the publish design does not depend on it (D-1.6) | — |
-| Is codex-headless a tool-free writer? | Resolved — not by default; it joins the allowlist only after a vitest proves its native tools cannot execute | DEC-0853 |
-| Is the refusal policy default `exclude`? | Resolved | DEC-0845 |
-| Which commit is the measurement pin? | Resolved — the Sprint 3 head after every harness change; Sprint 2 is intermediate | DEC-0855 |
+| # | Question | Owner | Resolution path |
+|---|---|---|---|
+| Q-1 | What `hook_name` does Claude Code emit for a matcher-less PreToolUse group and for a regex matcher such as `Write|Edit|MultiEdit|NotebookEdit`? | implementer A | **pre-merge gate:** a one-turn `claude -p` on the lead host under a settings file with both group kinds (the retained batches hold only `SessionStart:startup`); the real events become fixtures; if tool hooks emit no events in `-p` mode, that fact is recorded on bd-bex39 and k = 0 covers it |
+| Q-2 | Which R3/R5 contexts does the mount rely on? | implementer B | the corpus table (D-2.1) |
+| Q-3 | Does any current `prepared_state` field carry a float? | resolved 2026-10-25 | the rc.8 candidate `post-merge-candidate.json` holds 10 numbers, all integers within 2^53, no float — the refusal is safe for the current producer; the bats keep the real candidate as a passing fixture |
+
+> Sources: § 11 D-1.1, D-2.1, D-3.2
 
 ---
 
 ## 11. Appendix
 
-### A. Glossary
-Executable surface — the `.claude/` paths a session may load or run: `skills/`, `commands/`, `agents/`, `hooks/`, `settings*.json`. HOME scope — the user-level Claude Code configuration under the sandbox HOME. Degraded — a completed review or run that names what it omitted. Sentinel — the `ERR` value the pricing helpers return on any failure.
+### 11.D Design decisions taken on the operator's behalf
 
-### B. References
-PRD 1.1 and the file:line reads listed in §1.9 Sources; cycle-132 report § Honest caveats; PREREGISTRATION addendum 9; KF-041, KF-051 … KF-055; PR #1289 Bridgebuilder rounds (`a2a/sprint-271/bridgebuilder/` on the record branch).
+| # | Decision | Row |
+|---|---|---|
+| D-1.1 | FR-1 hook rule: `hook_name` group identity + per-group whole-multiple count bounded by transcript triggers | DEC-0971 |
+| D-1.2 | FR-2: transcript + init + final result per executed phase | DEC-0972 |
+| D-1.3 | FR-4: recompute the pin's manifest digest; bind record, arm_evidence and entry count; walk a retained HOME | DEC-0973 |
+| D-2.1 | FR-5: verify already round-trips R5 (correction); corpus table narrows R3/R5 | DEC-0974 |
+| D-2.2 | FR-6: proxy `--pids-limit 256`; pair-pinning test | DEC-0975 |
+| D-2.3 | FR-7: `.jobs/<name>.ident`; identity-checked reclaim | DEC-0976 |
+| D-2.4 | FR-8: fix-diff paths join the bounded fetch; refuse by name | DEC-0977 |
+| D-3.1 | FR-3: empty PR number → other; cycle job guarded on `pr_number`; `[skip ci]` rejected | DEC-0978 |
+| D-3.2 | FR-9: tag identity check pre-write (exit 2); remote mismatch → 1; `--generate` refuses non-integer numbers | DEC-0979 |
+| D-4.2 | took-effect regression on the retained smoke batches (host-local); amends DEC-0970 | DEC-0980 |
+| D-3.2a | FR-9 amendment (Flatline IMP-014): the remote tag identity check also runs pre-write; `phase_tag` re-checks for the race | DEC-0981 |
+| D-1.1a | FR-1 equation c = k·n, 0 ≤ k ≤ triggers, k = 0 allowed; merged groups; `home_hook_groups` hex evidence; grammar gate | DEC-0982 |
+| D-1.2a | FR-2 JSONL policy: every line parses, init before the unique final result, shared session_id | DEC-0983 |
+| D-2.1a | implementer B owns every `sandbox-mount.sh` change incl. the evidence emitter; landing order A → B | DEC-0984 |
+| D-3.2b | `--generate` refusal exits 2; integer domain at generate and publish; unreachable remote exits 2; annotated-tag identity; trailing `(#NNN)` | DEC-0985 |
+| D-4.3 | regression baseline and expected after-state pre-registered | DEC-0986 |
 
-### C. Change Log
-1.0 (2026-10-23) — initial design for cycle-133.
-1.1 (2026-10-23) — Flatline SDD review integrated (16 skeptic blockers, 31 + 41 reviewer items; §11.E); D-1.6, D-1.7, D-2.5, D-3.4, D-3.5, D-3.6 added; §5.4 exit codes; §7.3 traceability and smoke criteria.
-1.2 (2026-10-23) — sprint Flatline review folded (D-S.1): ledger patch restriction and identity-matched existing tag (C-3); durable supervisor identity (C-9); surface derived from the pinned Claude Code version plus output-styles and plugins, canaries with filesystem effects under process capture, spike inside the egress block (C-10); ISO quarantine expiry (C-5); sample before apply (C-13); egress precondition and smoke failure rule (§7.3).
+### 11.E Grounding reads
 
-### D. Design decisions taken on the operator's behalf
-- **D-1.1** (DEC-0839) — paged, SHA-pinned Bridgebuilder fetch; per-page filtering; retained patches bounded.
-- **D-1.2** (DEC-0840) — writer-role allowlist of no-tool adapters; schema and semantic-equality guard; block-derived verdict with precedence.
-- **D-1.3** (DEC-0846) — publish tags the merge; ledger patch applied by a conditional fast-forward after the release, else deferred.
-- **D-1.4** (DEC-0841) — `record-branch.sh` from the cycle-132 cache script: manifest, staged-tree scan, tree-bound acceptance.
-- **D-1.5** (DEC-0842) — hook liveness by state allowlist and recency.
-- **D-2.1** (DEC-0843) — `ERR` sentinel, `/proc/self/fd` closing, startup secrecy assertion, lib sourced.
-- **D-2.2** (DEC-0844) — worktree attestation over harness, suites, fixtures and analysis; exit table.
-- **D-2.3** (DEC-0845) — refusal policy suite key, default `exclude`.
-- **D-2.4** (DEC-0847) — supervisor as a user systemd unit with a watchdog fallback; internal network plus proxy sidecar.
-- **D-3.1** (DEC-0848) — design (a′) for Loa reviews Loa, spike first, (c) as fallback.
-- **D-3.2** (DEC-0849) — canonical finding schema, markdown Failure clause, grader 1.5 judge hook.
-- **D-3.3** (DEC-0851) — shared seeding lib, git-archive materialisation, SPDX allowlist, registration v2.
-- **D-4.1** (DEC-0850) — sweep through inventory, manifests, lead-applied closures, 10 % re-verification.
-- **D-4.2** (DEC-0852) — `tests/QUARANTINE.tsv` with CI-enforced expiry; pytest glob.
-- **D-1.6** (DEC-0856) — publish precondition is ancestry, the lease applies only to the ledger fast-forward, the ledger commit is deterministic, `--ledger-only` completes a deferral, v1 candidates are refused.
-- **D-1.7** (DEC-0853) — codex-headless is out of the default writer allowlist until a test proves its native tools cannot execute; adapters self-report the stance.
-- **D-2.5** (DEC-0854) — egress threat model stated; resolved-address and port validation; DNS sinkholed; `egress_hosts[]` in the registry; isolation checks never quarantined.
-- **D-3.4** (DEC-0855) — the measurement pin is the Sprint 3 head; Sprint 2 is an intermediate version; the smoke asserts the exact tree.
-- **D-3.5** (DEC-0857) — a blocking bullet without a valid Failure clause still blocks; non-defect severities exempt; `blocking` flag and confidence normalisation in the schema.
-- **D-3.6** (DEC-0858) — amends D-3.1: a failed spike HALTS for an operator decision; (c) is never adopted autonomously; the surface covers every instruction and configuration path.
+| Component | File:line | Quote |
+|---|---|---|
+| C-1 | `evals/harness/took-effect.sh:624-625` | `elif st == "hook_started": k = (tn, str(ev.get("hook_event") or "")); hook_counts[k] = hook_counts.get(k, 0) + 1` |
+| C-1 | `evals/harness/lib/sandbox-mount.sh:1733-1743` | `def cmd_hooks(settings): """<event>:<n>,… — the hook commands per event the pinned user settings declare (home_hook_counts)"""` |
+| C-1 | retained cycle-130 smoke transcript | `{"type":"system","subtype":"hook_started","hook_id":"…","hook_name":"SessionStart:startup","hook_event":"SessionStart",…}` |
+| C-2 | `evals/harness/took-effect.sh:601` | `tfiles = sorted(n for n in (os.listdir(tdir) if os.path.isdir(tdir) else []) if re.match(r"^events-[A-Za-z0-9_-]+\.jsonl$", n))` |
+| C-3 | `evals/harness/pipeline-run.sh:552-554` | `home_integrity — home-scope: the HOME framework copy against its manifest (the HOME is deleted at exit, so took-effect.sh integrity_clean reads this record)` |
+| C-4 | `evals/harness/lib/sandbox-mount.sh:1707-1709` | `def cmd_verify(home_root, source_root, home): """reverse(every copied file) == the pinned bytes …"""` |
+| C-4 | `evals/harness/lib/sandbox-mount.sh:1613` | `text = R5_REV.sub(lambda m: m.group(1), text)` |
+| C-5 | `evals/harness/lib/egress-proxy.sh:205` / `Dockerfile.proxy:101` | `--security-opt no-new-privileges --pids-limit 128 --memory 256m` / `MaxClients 200` |
+| C-6 | `evals/harness/lib/batch-supervisor.sh:237-238` | `Same boot: the recorded runner (identity-checked) and every .jobs/ group still alive are terminated` |
+| C-7 | `evals/harness/seed-corpus-from-external.sh:562` | `fix_diff = g("diff", *DIFF_OPTS, "-U0", FIX_PARENT, FIX_LAST).stdout` |
+| C-8 | `.claude/scripts/classify-merge-pr.sh:88` | `PR_NUMBER=$(echo "$MERGE_MSG" | grep -oE '#[0-9]+' | head -1 | tr -d '#' || true)` |
+| C-8 | `.github/workflows/post-merge.yml:182` | `if: needs.classify.outputs.pr_type == 'cycle'` |
+| C-9 | `.claude/scripts/post-merge-orchestrator.sh:1091-1093` | `fail_phase tag "Existing local tag ${tag} differs from the candidate (target or release identity)"; return 2` |
+| C-9 | `.claude/scripts/post-merge-orchestrator.sh:2184` | `atomic_state_update --arg digest "$APPROVED_DIGEST" '.candidate_digest = $digest | .state = "PUBLISHING"'` |
 
-### E. Flatline integration (SDD review, `a2a/flatline/cycle-133-sdd-review.json`)
+> Sources: direct reads on 2026-10-25; `grimoires/loa/decisions.yaml` DEC-0971 … DEC-0980
 
-Run: claude-headless + gpt-5.5, cross-scoring degraded (KF-041, recurrence 10), 16 skeptic blockers (two CRITICAL), 31 + 41 reviewer items; every one dispositioned.
 
-| Concern | Where it landed |
-|---|---|
-| SKP-004, SKP-006, gpt 07–10, opus 04–06, 32 — equality precondition, deferred ledger, approval binding, v1 path | C-3 rewritten; D-1.6 |
-| SKP-001 (CRITICAL), SKP-010, SKP-003/011, gpt 19–20, opus 02–03, 24–25 — surface gaps, fallback (c), clause (f) comparison, canaries, version pin | C-10 rewritten; D-3.6 |
-| SKP-013, gpt 21, opus 01 — pin at the wrong sprint | header Pins; §8 Sprint 2/3; D-3.4 |
-| SKP-002 (CRITICAL), SKP-021, opus 08–11, 40, gpt 22 — malformed blocking bullets, severity vocabulary, confidence, vectors, grammar details | C-11 rewritten; D-3.5 |
-| SKP-003b, gpt 02–03, 06, opus 13–15 — coverage, degradation blocking merge, two-pass selection, final revalidation | C-1 and C-2 rewritten |
-| SKP-001b, gpt 04, opus 38 — codex writer, self-reported stance, `writer_not_eligible` | C-2; D-1.7 |
-| SKP-002a, gpt 05, opus 07, 09 — enrichment preserving fields, structural grammar check | C-2 |
-| SKP-014, SKP-015, gpt 16–17, opus 21–23 — threat model, resolved addresses, DNS, `egress_hosts`, attribution | C-9; D-2.5 |
-| SKP-016, gpt 18, opus 20, 41 — supervisor lock, hangs, retry classes, linger | C-9 |
-| SKP-012, gpt 13–14, opus 17–19 — RLIMIT, keep-list, exit status, pattern, metering rules | C-6 |
-| gpt 15, opus 26 — refusal policy outcomes, attempts, rate | C-8 |
-| gpt 11, opus 36, 39 — record scan scope, CAS, manifest fields | C-4; §3.2 |
-| gpt 12, opus 31, SKP-031 — quarantine validation, limits, mandatory gates, tripwire mechanism | C-5; §7.3 |
-| gpt 24–28, opus 27–29 — seeder binding, limits order, base definition, leakage test, licence API, secret scan, `looks_seen` integrity | C-12 |
-| gpt 29, opus 30 — sweep categories, resolvable evidence, sample rule | C-13 |
-| gpt 31, opus 16 — one exit-code table | §5.4 |
-| gpt 30, opus 33 — traceability matrix, smoke criteria, mandatory gates | §7.3 |
-| opus 34 — branch protection read early | C-3; §8 Sprint 1; §10 |
-| opus 35 — notes-guard and hook unspecified values | C-4 |
-| opus 37 — reproducing cycle-132 from a pinned worktree | C-7; header Pins |
-| SKP-015 (credential-owning gateway) | recorded as out of scope with the threat model (D-2.5) |
+### 11.F R3/R5 corpus table (implementer B fills this in Sprint 1)
+
+Current patterns (sandbox-mount.sh:1496, 1503 at the sprint base f17bfe0e4; after Task 1.5 R3 sits at :1501 and R5 at :1557):
+
+```
+R3 = re.compile(r"(?<![A-Za-z0-9_./$~{}\\-])\.claude/")                                  # markdown: a relative .claude/ path → <home>/.claude/
+R5 = re.compile(r"(?<!/ )(?<!/)(['\"])(\.claude/[A-Za-z0-9_./-]*)\1")                      # python: a string literal that is exactly a .claude/… path → os.path.join(<env>, it)
+```
+
+Narrowing criterion: a rewrite is kept only where the pinned framework's text is *resolved as a path at run time* (a hook command, a skill's `Base directory`, a script path a Bash line executes, an `os.path.join`/`open`/`subprocess` operand); prose mentions, documentation examples and message strings are not rewritten. The table groups the 1216 R3/R5 hits over the pinned framework (f17bfe0e4) by context class and decision, each row with a count, an example and its bats case; the per-hit list is `evals/tests/fixtures/sandbox-mount/r3r5-corpus.tsv`, pinned byte-exactly by MR-24 (I-1.5a):
+
+| # | Path | Context class | Current rewrite | Keep? | Case |
+|---|------|---------------|-----------------|-------|------|
+| 1 | R3, 469 hits, e.g. `.claude/commands/feedback.md:175`; every hit is listed under row 1 of `evals/tests/fixtures/sandbox-mount/r3r5-corpus.tsv` (1216 hits at f17bfe0e4, one line each) | code span naming a pinned file or directory | `.claude/` → `<home>/.claude/` | keep: an instruction the agent runs or reads | MR-01 |
+| 2 | R3, 416 hits, e.g. `.claude/protocols/reference/helper-scripts.md:94` (TSV row 2) | fenced code block naming a pinned path (a command) | `.claude/` → `<home>/.claude/` | keep: a Bash line executes it | MR-02 |
+| 3 | R3, 80 hits, e.g. `.claude/subagents/documentation-coherence.md:51` (TSV row 3) | table cell (code span) naming a pinned path | `.claude/` → `<home>/.claude/` | keep: a lookup table the agent resolves | MR-03 |
+| 4 | R3, 84 hits, e.g. `.claude/skills/butterfreezone-gen/SKILL.md:49` (TSV row 4) | bare prose or frontmatter value naming a pinned path (`EXECUTE:`, `allowed-tools: Bash(…)`, `script:`, `paths:`) | `.claude/` → `<home>/.claude/` | keep: executed, permitted or loaded by path | MR-04 |
+| 5 | R3, 3 hits: `.claude/commands/update-loa.md:409`, `:410`, `.claude/protocols/reference/recommended-hooks.md:512` (TSV row 5) | fenced command line: an absent path (a `.tmp`, a `.bak`) beside a pinned one | `.claude/` → `<home>/.claude/` | keep: a command is rewritten whole, so source and target stay on one side | MR-05 |
+| 6 | R3, 25 hits, e.g. `.claude/commands/loa-eject.md:33` (TSV row 6) | code span naming the zone (`.claude/` alone) | `.claude/` → `<home>/.claude/` | keep: under home-scope the System Zone is the HOME copy; "never edit" and the audit scope (`auditing-security/SKILL.md:93`) resolve it against paths | MR-06 |
+| 7 | R3, 10 hits, e.g. `.claude/commands/update-loa.md:279` (TSV row 7) | fenced code naming the zone (a `case` pattern, a tree diagram, an `echo` message) | `.claude/` → `<home>/.claude/` | keep (as row 6) | MR-07 |
+| 8 | R3, 7 hits, e.g. `.claude/commands/ride.md:283` (TSV row 8) | table cell (code span) naming the zone | `.claude/` → `<home>/.claude/` | keep (as row 6) | MR-08 |
+| 9 | R3, 6 hits, e.g. `.claude/commands/loa-eject.md:230` (TSV row 9) | table cell (bare): an error or message string naming the zone | `.claude/` → `<home>/.claude/` | keep: a message string, but rewriting it is harmless and a zone-name rule stays uniform | MR-09 |
+| 10 | R3, 5 hits, e.g. `.claude/rules/zone-system.md:3` (TSV row 10) | bare prose or frontmatter naming the zone (`.claude/`, `.claude/**`) | `.claude/` → `<home>/.claude/` | keep (as row 6) | MR-10 |
+| 11 | R3, 16 hits, e.g. `.claude/protocols/reference/recommended-hooks.md:363` (TSV row 11) | code span naming a path the pinned tree does not hold (a documentation example, a project-owned file such as `settings.local.json`, `constructs/packs/`) | `.claude/` → `<home>/.claude/` | drop (absent): nothing pinned to resolve; a project path stays the project's | MR-11 |
+| 12 | R3, 13 hits, e.g. `.claude/protocols/reference/constructs-integration.md:25` (TSV row 12) | fenced code naming an absent path | `.claude/` → `<home>/.claude/` | drop (absent) | MR-12 |
+| 13 | R3, 9 hits, e.g. `.claude/protocols/reference/constructs-integration.md:48` (TSV row 13) | table cell (code span) naming an absent path or a placeholder under an absent directory | `.claude/` → `<home>/.claude/` | drop (absent) | MR-13 |
+| 14 | R3, 2 hits: `.claude/commands/constructs.md:33`, `.claude/skills/rtfm-testing/SKILL.md:5` (TSV row 14) | bare prose or frontmatter naming an absent path or a glob that matches nothing | `.claude/` → `<home>/.claude/` | drop (absent) | MR-14 |
+| 15 | R3, 4 hits, e.g. `.claude/commands/archive-cycle.md:121` (TSV row 15) | heading | `.claude/` → `<home>/.claude/` | keep: names a pinned script the agent may run | MR-15 |
+| 16 | R3, 60 hits, e.g. `.claude/loa/CLAUDE.loa.md:73` (TSV row 16) | HTML comment (`DO NOT EDIT — generated from …`, `@skill-include` markers) | `.claude/` → `<home>/.claude/` | keep: a provenance marker; rewriting it is harmless, and the executing skills carry these markers (HS-11 pins that their text holds no relative `.claude/` path) | MR-16 |
+| 17 | R3, 3 hits under `.claude/skills/bridgebuilder-review/resources/__tests__/fixtures/` (TSV row 17) | test-fixture data (JSON review comments) | `.claude/` → `<home>/.claude/` | drop (data): never read as an instruction | MR-17 |
+| 18 | R5 `.claude/adapters/cheval.py:176` `".claude/skills"` | `Path` operand (`Path(search_dir) / agent / "persona.md"`) | `os.path.join(<env>, '.claude/skills')` | keep (the bare `".claude"` beside it is a name, never rewritten) | MR-18 |
+| 19 | R5 `.claude/adapters/loa_cheval/audit/modelinv.py:355` | other: a module constant joined as `repo_root / _WRITER_VERSION_PATH` (:402) | `os.path.join(<env>, '.claude/data/cycle-108/…')` | keep | MR-19 |
+| 20 | R5 `.claude/adapters/loa_cheval/config/advisor_strategy.py:219` | other: a module constant joined as `repo_root / SCHEMA_PATH_REL` (:382) | `os.path.join(<env>, '.claude/data/schemas/…')` | keep | MR-20 |
+| 21 | R5 `.claude/adapters/loa_cheval/economy.py:42` | other: an argparse `--model-config` default (:772), opened as a path | `os.path.join(<env>, '.claude/defaults/model-config.yaml')` | keep | MR-21 |
+
+### 11.G Flatline SDD review dispositions (1.1 → 1.2)
+
+Two voices (codex-headless, claude-headless), cross-scoring degraded (KF-041 shape), 0 high-consensus items, 49 medium items, 12 skeptic blockers. Every item was read:
+
+| Item | Concern (short) | Disposition |
+|---|---|---|
+| SKP-002 (gpt), SKP-003 (gpt) | 0 is a whole multiple; no positive-count requirement | **Rejected with reasoning, semantics made explicit (D-1.1a):** clause (g) asks whether a hook of the PR ran, not whether the pinned hooks fired; the retained sessions show 0 tool-hook events beside 31–66 Bash uses, so k ≥ 1 would false-fail legitimate runs |
+| SKP-001 (gpt), SKP-007 (opus) | source of truth for executed labels; binding init/result to the phase | **Accepted** (C-2: `pipeline.json` non-skipped phases; shared `session_id`) |
+| SKP-003 (opus) | Q-3 open while the float refusal ships | **Accepted and resolved:** the rc.8 candidate has 10 integers, no float; the bats keep it as a fixture |
+| SKP-009, gpt IMP-011 | TOCTOU with numeric pgids; record lifecycle | **Accepted in part:** `.ident` before `.pgid`, re-read before TERM/KILL, the residual window documented; atomicity is not available for pgids |
+| SKP-012, gpt IMP-014, opus IMP-012 | remote lookup failure vs absence; annotated-tag identity | **Accepted** (D-3.2b) |
+| SKP-013 | concurrent publishers | **Out of scope, documented:** a single operator publishes; `main` is lease-protected; concurrent publishers are not a supported mode |
+| SKP-004, gpt IMP-002, opus IMP-018 | duplicate (event, matcher) groups; settings sources; grammar unresolved | **Accepted** (D-1.1a: groups merge; HOME user settings only; grammar gate) |
+| SKP-002 (opus), gpt IMP-001, gpt IMP-018 | verbatim matcher encoding; legacy aggregation | **Accepted** (`home_hook_groups` hex ids; § 3.4) |
+| SKP-006, gpt IMP-005, opus IMP-002 | "last parseable line" permits malformed trailing content | **Accepted** (D-1.2a) |
+| SKP-001 (opus), gpt IMP-009 | record cross-check is not content proof | **Accepted, stated:** the evidence mode names it; a claimed home-scope measurement retains the HOME (or an independent pre-session listing) — recorded on bd-ivmtk |
+| gpt IMP-003, opus IMP-019 | acceptance equation and trigger derivation table | **Accepted** (D-1.1a; § 11.H) |
+| gpt IMP-004 | grammar confirmation as a pre-merge gate | **Accepted** (Q-1) |
+| gpt IMP-006 | failed/interrupted/retried phases | **Accepted:** every non-skipped label requires a complete transcript; a killed phase fails (g) as unexamined |
+| gpt IMP-007, IMP-008; opus IMP-026 | digest algorithm and inputs; retained-HOME walk rules and location | **Accepted:** SHA-256 of the pin's `.claude/checksums.json` blob bytes; entry count = its `files` map size; the walk mirrors the sandbox walk (regular files only, symlink = fail, extra files reported); the retained copy lives at `<run>/home/.claude` and `home-integrity.json` records `retained: true` |
+| gpt IMP-010, opus IMP-020 | the corpus table and the narrowing criterion | **Accepted** (§ 11.F) |
+| gpt IMP-012, IMP-013; opus IMP-016 | seeder discovery over both trees; fail-closed; bounds | **Accepted:** `changed(FIX_PARENT, FIX_LAST)` with `--no-renames` (adds and deletes), NUL-safe, blob ids deduplicated and charged once against `--max-files`/`--max-bytes`; any enumeration or fetch failure refuses |
+| gpt IMP-015, opus IMP-013 | race through the push; re-run contract | **Accepted** (D-3.2b items 3 and 5) |
+| gpt IMP-016, opus IMP-014 | integer domain definition; enforce at publish | **Accepted** (D-3.2b item 2) |
+| gpt IMP-017, opus IMP-001 | `--generate` exit code vs § 5.4 | **Accepted:** exit 2 |
+| gpt IMP-019 | validate the PR number; routing semantics | **Accepted in part:** positive decimal validated; the guard test reads the workflow text (no expression evaluator) |
+| gpt IMP-020, opus IMP-021 | shared-file edit between A and B | **Accepted** (D-2.1a) |
+| gpt IMP-021, opus IMP-017 | expected regression verdicts | **Accepted** (D-4.3) |
+| gpt IMP-022, opus IMP-024 | D-3.2a row bookkeeping; version/status | **Accepted** (fixed) |
+| opus IMP-011 | anchor the PR number to the trailing `(#NNN)` | **Accepted** (D-3.2b item 6) |
+| opus IMP-015 | Dockerfile naming | **Accepted** (fixed) |
+| opus IMP-022 | legacy `.jobs` records warning | **Accepted** (§ 3.4) |
+| opus IMP-023 | § 5.4 examples | **Accepted** (fixed) |
+| opus IMP-025 | a push without a PR runs neither job | **Accepted, stated as intended** (§ 7.3 C-8) |
+| remaining medium items | restatements or wording | **Noted** |
+
+### 11.H Trigger derivation (C-1 rule (c))
+
+| Event | Transcript signal for the trigger count | Matcher evaluation |
+|---|---|---|
+| SessionStart | `system`/`init` events | matcher is the source (`startup`, `resume`, `clear`, `compact`); `startup` ↔ init |
+| UserPromptSubmit | `user` events whose content is text (not `tool_result`) | none |
+| PreToolUse, PostToolUse | `tool_use` blocks in `assistant` messages whose `name` matches the matcher as a regex (empty matcher = every tool) | regex, full match on the tool name |
+| Stop | `result` events | none |
+| PreCompact, Setup, PermissionRequest, Notification, SubagentStop | not derivable | `triggers: n/a` — rules (a) and (b) only |
+
+> Sources: the retained smoke transcripts (events-REVIEW.jsonl, events-AUDIT.jsonl); `evals/harness/took-effect.sh:600-660`; the SDK message types for hook events
+
+
+### 11.I Implementation amendments (Sprint 276; the DEC rows I-1.x)
+
+| Design row | Amendment | Row |
+|---|---|---|
+| D-1.3 / DEC-0973 (integrity binding) | the HOME manifest is regenerated over the transformed copy with a `generated` timestamp, so digest equality with the pin blob is infeasible; the binding is coverage (record.files ≥ the pin's entry count), `arm_evidence` equality and the pin match (suite/batch pin = `pipeline.json`'s); the pin's digest is shown in the evidence | DEC-0990 (I-1.3a) |
+| D-1.1a (hook identity) | the `hook_name` suffix is the trigger's query (`startup`), not the configured matcher: a `<event>:<q>` event maps to sha(q) plus the matcher-less group; regex-only groups fail closed until a real tool-hook event exists (none is emitted in `-p` mode on Claude Code 2.1.310) | DEC-0987 (I-1.1a) |
+| § 11.H (trigger evaluation) | tool triggers compare names as text (equal to the query or a `\|`-alternative); transcript strings are never compiled as regex | DEC-0988 (I-1.1b) |
+| D-3.2b item 6 (PR number) | the anchored `Merge pull request #N` prefix is accepted beside the trailing `(#NNN)` — this repository merges with merge commits, and a trailer-only rule would have disabled every release | DEC-0993 (I-1.6a) |
+| D-2.3 (job identity) | `record-job` in the supervisor lib writes `.ident` then `.pgid`; the identity is read after the leader's exec settles (≤ 5 s); `run-ablation.sh`'s writers call it (lead-landed) | DEC-0995 (I-1.9a) |
+| D-2.4 (seeder) | bounds and missing-object refusals exit 2; a failed fetch exits 1 naming paths; symlink blobs in the fix range are fetched | DEC-0996 (I-1.10a) |
+
+> Sources: the four implementer reports (`~/.cache/loa/cycle-134/reports/s1-{a,b,c,d}.md` § Judgment calls); `grimoires/loa/decisions.yaml` DEC-0987 … DEC-0997; `grimoires/loa/a2a/sprint-276/regression.md`

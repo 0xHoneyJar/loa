@@ -18,6 +18,16 @@
 #   pr_type=<cycle|bugfix|other>
 #   pr_number=<n|empty>
 #
+# PR number (KF-063, cycle-134 C-8): taken only from GitHub's own subject
+# forms — the squash trailer `(#NNN)` at the END of the subject, else the
+# merge-commit prefix `Merge pull request #NNN` — and validated as a positive
+# decimal (no leading zero, > 0); anything else (an issue reference such as
+# `closes #12`, `(#0)`, `(#12a)`) yields no number. With no number and no
+# explicit --pr-number the commit is a push, not a merge: pr_type=other and
+# one stderr note `[classify-merge-pr] no associated PR: a push, not a merge`
+# (the post-merge jobs both require a PR number, so neither runs). An
+# explicit --pr-number is honoured as given.
+#
 # When $GITHUB_OUTPUT is set, the same key=value lines are appended there.
 #
 # Exit codes:
@@ -84,10 +94,19 @@ if [[ -z "$MERGE_MSG" && -n "$MERGE_SHA" ]]; then
     fi
 fi
 
-# Extract PR number from merge message if not provided
+# Extract the PR number from the subject if not provided (KF-063): the
+# trailing squash form `(#NNN)`, else the merge-commit prefix, as a positive
+# decimal; never the first `#NNN` anywhere (an issue reference is not a PR).
 if [[ -z "$PR_NUMBER" && -n "$MERGE_MSG" ]]; then
-    # Match (#NNN) or trailing #NNN
-    PR_NUMBER=$(echo "$MERGE_MSG" | grep -oE '#[0-9]+' | head -1 | tr -d '#' || true)
+    # the subject is the first line: a squash message carries a body after `<title> (#NNN)` and bash's `$` anchors the
+    # end of the whole string (Bridgebuilder round 2 on PR #1296, HIGH: a body would hide the trailer)
+    _pr_subject="${MERGE_MSG%%$'\n'*}"
+    _pr_re_trailer='\(#([0-9]+)\)[[:space:]]*$'
+    _pr_re_merge='^Merge pull request #([0-9]+)([[:space:]:]|$)'
+    if [[ "$_pr_subject" =~ $_pr_re_trailer ]] || [[ "$_pr_subject" =~ $_pr_re_merge ]]; then
+        PR_NUMBER="${BASH_REMATCH[1]}"
+    fi
+    [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || PR_NUMBER=""
 fi
 
 # Source the shared rules engine
@@ -130,6 +149,13 @@ if [[ -n "$LABELS" ]] && echo "$LABELS" | grep -qi "cycle"; then
     PR_TYPE="cycle"
 else
     PR_TYPE="$PR_TYPE_PRIMARY"
+fi
+
+# KF-063: no PR number means a push, not a merge (e.g. the publisher's
+# `chore(ledger): archive <cycle> after merge` fast-forward) — never cycle.
+if [[ -z "$PR_NUMBER" ]]; then
+    PR_TYPE="other"
+    echo "[classify-merge-pr] no associated PR: a push, not a merge" >&2
 fi
 
 # Emit result

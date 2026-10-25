@@ -81,7 +81,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content--ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
 | [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
 | [KF-033](#kf-033-unit-suites-reach-cheval-and-write-the-production-ledgers-or-make-live-cli-calls-despite-the-ds-1-isolation-scan) | open — two suites fixed 2026-09-22, scan tightened; structural class remains | test isolation / FR-6 ledger hygiene | 1 |
-| [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 4 |
+| [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 5 |
 | [KF-035](#kf-035-modelinv-audit-emit-fails-soft-when-the-cryptography-module-is-missing--model-invokejsonl-is-silently-not-written) | OPEN | loa_cheval/audit/modelinv.py emit_model_invoke_complete (audit fail-soft default) | 1 |
 | [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 5 |
 | [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable--exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 12 |
@@ -110,7 +110,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-060](#kf-060-home-scope-a-pr-that-changes-review-time-framework-files-exposes-their-later-version-through-the-sandbox-home-clause-f-pinned_bytes_read) | Open — design limit of C-10 home-scope; detected by took-effect clause (f), not prevented; fixture choice is the only mitigation until external fixtures (C-12) exist | evals/harness/lib/sandbox-mount.sh mount_home_scope; evals/harness/took-effect.sh oracle_closed clause (f); the Task 3.5 smoke | 2 |
 | [KF-061](#kf-061-home-scope-the-dissent-fails-inside-the-sandbox-project-root-resolved-under-home-headless-clis-refuse-to-prepare-a-run) | Fixed in 7d2119477 (s3-a3: LOA_PROJECT_ROOT wrapping R6-R8, R5 slash-only, persona.md surface); live confirmation = the Task 3.5 verification rerun | evals/harness/lib/sandbox-mount.sh mount_home_scope transform; evals/harness/pipeline-run.sh home-scope launch; adversarial-review.sh / cheval inside the sandbox | 1 |
 | [KF-062](#kf-062-bridgebuilders-claude-headless-voice-is-refused-by-the-models-safeguards-on-a-security-heavy-review-prompt-degrading-the-round) | Open — mitigation under test: exclude generated, fixture and evidence files from the review diff (round 2); if the voice still refuses, G-2 is recorded as not met and the operator decides on a split or a different voice model | .claude/skills/bridgebuilder-review (multi-model voice anthropic/claude-headless → claude -p, cli_model fable); .claude/adapters/loa_cheval/providers/claude_headless_adapter.py | 1 |
-| [KF-063](#kf-063-post-mergeyml-turns-red-on-the-publishs-own-ledger-fast-forward-the-bot-push-to-main-is-classified-as-a-cycle-merge-and---generate-aborts-with---pr-is-required) | Open (bead bd-hyx0n: route non-PR pushes to a no-op job in the classify step) | .github/workflows/post-merge.yml (Classify Merge → Prepare Release (Cycle)); .claude/scripts/post-merge-orchestrator.sh --publish ledger step (C-3, cycle-133 Sprint 272) | 1 |
+| [KF-063](#kf-063-post-mergeyml-turns-red-on-the-publishs-own-ledger-fast-forward-the-bot-push-to-main-is-classified-as-a-cycle-merge-and---generate-aborts-with---pr-is-required) | Fixed in cycle-134 Sprint 276 (classify-merge-pr.sh trailing (#NNN) + full-pipeline guard; live confirmation at the next rc publish) | .github/workflows/post-merge.yml (Classify Merge → Prepare Release (Cycle)); .claude/scripts/post-merge-orchestrator.sh --publish ledger step (C-3, cycle-133 Sprint 272) | 1 |
 
 ---
 
@@ -1515,7 +1515,7 @@ DS-1 finds spawners by TEXT SHAPE: it missed (a) env-prefixed command lines (KEY
 **Feature**: release pipeline tests
 **Symptom**: Every case of tests/unit/post-merge-publication.bats fails in setup() with `git tag v1.0.0 … fatal: no tag message?` (19 reds on v1.202.1, 22 with sprint-bug-240); the suite is green under an isolated config. Easily mis-filed as a pre-existing red (it was, 2026-09-22).
 **First observed**: 2026-09-23 (cycle-124 rc prep)
-**Recurrence count**: 4
+**Recurrence count**: 5
 **Current workaround**: GIT_CONFIG_GLOBAL=/dev/null npx --no-install bats tests/unit/post-merge-publication.bats
 **Upstream issue**: bead bd-fpt3 (hermetic git config in setup())
 **Related visions / lore**: KF-014 (worktree commits), KF-033 (suite side effects)
@@ -1527,6 +1527,7 @@ DS-1 finds spawners by TEXT SHAPE: it missed (a) env-prefixed command lines (KEY
 | 2026-09-23 | Re-ran the suite with GIT_CONFIG_GLOBAL=/dev/null while landing sprint-bug-240 | 22/22 green; host config confirmed as the cause | commit 2018c320 (PR #1266); grimoires/loa/a2a/bug-20260923-27d899/auditor-sprint-feedback.md obs 3 |
 | 2026-10-06 | cycle-126 sprint-250 Task 4.7 full tests/unit run at bf988a43: the same setup() red (creating the v1.0.0 lightweight tag fails: 'fatal: no tag message?') also hits tests/unit/semver-evidence.bats (3 cases), alongside post-merge-publication (22); classified pre-existing, not re-attempted | recurred — the class spans every suite that creates lightweight tags in a scratch repo under the operator's global tag config; no fix attempted this cycle | commit bf988a43 (run 2026-10-06T05:40Z–06:18Z, 6214 tests, 42 failures) |
 | 2026-10-23 | Sprint 272 Task 1.3 (implementer B): tests/unit/post-merge-publication.bats setup made hermetic (GIT_CONFIG_GLOBAL empty file, GIT_CONFIG_NOSYSTEM=1, the v1.0.0 tag pattern kept); 22 reds at baseline on this host, 48/48 after under the host's own git config, no workaround needed | fixed for post-merge-publication.bats; the other post-merge suites still need GIT_CONFIG_GLOBAL=/dev/null on a host whose global git config sets tag.gpgSign / tag.forceSignAnnotated (follow-up: the same two lines in their setup) | patch ~/.cache/loa/cycle-133/patches/s1-b.patch landed on feature/cycle-133-follow-through (Sprint 272 Task 1.3 commit); post-merge-*.bats 154/154 on this host |
+| 2026-10-25 | cycle-134 Sprint 276 local CI mirror (s-tests.sh all) on the landed tree: tests/unit/semver-evidence.bats 3 cases red with 'fatal: no tag message?' (host tag.gpgSign=true, tag.forceSignAnnotated=true); the same 3 are red on origin/main 5544d160 in a scratch worktree | confirmed host-config, not a regression of the sprint; CI (hermetic) is the gate; semver-evidence.bats still creates its v1.0.0 tag under the host config (post-merge-publication.bats was made hermetic in Sprint 272) — the hermetic setup should be copied there (bead bd-fpt3 stays the upstream) | ~/.cache/loa/cycle-134/tests/20261025T050511Z-unit.log tests 5508/5509/5511; scratch run on origin/main 2026-10-25 |
 
 ### Reading guide
 
@@ -2177,7 +2178,7 @@ Read the voice's error text in the BB log before assuming a timeout or an auth p
 
 ## KF-063: post-merge.yml turns red on the publish's own ledger fast-forward: the bot push to main is classified as a cycle merge and --generate aborts with '--pr is required'
 
-**Status**: Open (bead bd-hyx0n: route non-PR pushes to a no-op job in the classify step)
+**Status**: Fixed in cycle-134 Sprint 276 (classify-merge-pr.sh trailing (#NNN) + full-pipeline guard; live confirmation at the next rc publish)
 **Feature**: .github/workflows/post-merge.yml (Classify Merge → Prepare Release (Cycle)); .claude/scripts/post-merge-orchestrator.sh --publish ledger step (C-3, cycle-133 Sprint 272)
 **Symptom**: Post-Merge Pipeline run on main head <ledger commit> 'chore(ledger): archive <cycle> after merge' (author github-actions[bot]): Classify Merge success with pr_type=cycle, Prepare Release (Cycle) fails at 'Prepare release candidate' with 'ERROR: --pr is required' (PM_PR_NUMBER empty); Notify skipped; the run is red although nothing is wrong with the release
 **First observed**: 2026-10-24 cycle-133 Sprint 275 Task 4.5: run 40112013975 on 928b3b9e6 right after the v2.0.0-rc.8 publish (the rc.7 publish did not push a ledger commit to main, so this is the first occurrence of the C-3 shape)
@@ -2191,6 +2192,7 @@ Read the voice's error text in the BB log before assuming a timeout or an auth p
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-10-24 | none yet — observed and filed during the rc.8 ship | bead bd-hyx0n filed; workflow fix pending | run 40112013975; ledger commit 928b3b9e6690209045485f8a34eb99692691ac68 |
+| 2026-10-25 | trailing-(#NNN) extraction + pr_number guard on full-pipeline | fixtures pass; live confirmation pending | cycle-134 Sprint 276 Task 1.6 |
 
 ### Reading guide
 

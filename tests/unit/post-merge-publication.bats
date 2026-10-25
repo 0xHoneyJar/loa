@@ -749,3 +749,298 @@ v1_candidate() {
     run bash -c 'source "$1"; jcs_stdlib_file "$2"' _ "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh" "$CASE_DIR/float.json"
     [ "$status" -ne 0 ]
 }
+
+# =============================================================================
+# cycle-134 C-9 (bd-4pv1j; sdd.md D-3.2, D-3.2a, D-3.2b): the exit-code
+# contract. Exit 2 is a refusal before any write: the tag identity checks
+# (local and remote, lightweight tag = refusal, unreachable remote = identity
+# unverified) run in validate_candidate_v2, before PUBLISHING. A tag that
+# appears between validation and the push is a step failing after a write:
+# exit 1, state FAILED. Candidate numbers are integers (no fraction, no
+# exponent, |n| <= 2^53-1, no -0), enforced on the lexical tokens at
+# --generate and at --publish, whether or not rfc8785 is installed.
+# =============================================================================
+
+# 'Pre-write' (Task 1.7): the state file, the progress file, the ledger patch,
+# the local branches and tags and every ref of the bare remote are unchanged.
+# The private observation refs under refs/loa/post-merge/ are excluded: the
+# pre-write validation itself records what it read from the remote there.
+prewrite_fingerprint() {
+    local f
+    for f in post-merge-state.json post-merge-progress.json post-merge-ledger.patch; do
+        if [[ -f "$PROJECT_ROOT/.run/$f" ]]; then
+            printf '%s %s\n' "$f" "$(sha256sum < "$PROJECT_ROOT/.run/$f" | cut -d' ' -f1)"
+        else
+            printf '%s absent\n' "$f"
+        fi
+    done
+    git -C "$PROJECT_ROOT" for-each-ref --format='local %(refname) %(objectname)' refs/heads refs/tags
+    remote_git for-each-ref --format='remote %(refname) %(objectname)'
+}
+snapshot_prewrite() { prewrite_fingerprint > "$CASE_DIR/prewrite.before"; }
+assert_prewrite_unchanged() {
+    prewrite_fingerprint > "$CASE_DIR/prewrite.after"
+    diff "$CASE_DIR/prewrite.before" "$CASE_DIR/prewrite.after"
+    [ ! -f "$PROJECT_ROOT/.run/post-merge-progress.json" ]
+    jq -e '.state == "PREPARED"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    if [[ -f "$GH_LOG" ]]; then
+        ! grep -q -- '--method POST' "$GH_LOG"
+    fi
+}
+
+# The orchestrator without its trailing `main "$@"`, for sourcing a helper.
+source_copy() {
+    SOURCED="$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh"
+    sed '$d' "$SCRIPT" > "$SOURCED"
+}
+
+@test "c134 C-9: a local tag of another identity refuses with exit 2 before any write" {
+    generate
+    git -C "$PROJECT_ROOT" tag -a v1.0.1 v1.0.0 -m "Release v1.0.1"
+    snapshot_prewrite
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"Local tag v1.0.1"*"another identity"* ]]
+    assert_prewrite_unchanged
+}
+
+@test "c134 C-9: a lightweight local tag on the merge refuses with exit 2 before any write" {
+    generate
+    git -C "$PROJECT_ROOT" tag v1.0.1 "$SHA"
+    snapshot_prewrite
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"Local tag v1.0.1"*"lightweight"* ]]
+    assert_prewrite_unchanged
+}
+
+@test "c134 C-9: a remote tag of another identity refuses with exit 2 before any write" {
+    generate
+    git -C "$PROJECT_ROOT" tag -a v1.0.1 "$SHA" -m "Something else"
+    git -C "$PROJECT_ROOT" push -q "$CASE_DIR/remote" refs/tags/v1.0.1
+    git -C "$PROJECT_ROOT" tag -d v1.0.1 >/dev/null
+    snapshot_prewrite
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"Remote tag v1.0.1"*"another identity"* ]]
+    assert_prewrite_unchanged
+}
+
+@test "c134 C-9: a lightweight remote tag on the merge refuses with exit 2 before any write" {
+    generate
+    remote_git update-ref refs/tags/v1.0.1 "$SHA"
+    snapshot_prewrite
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"Remote tag v1.0.1"*"another identity"* ]]
+    assert_prewrite_unchanged
+}
+
+@test "c134 C-9: an unreachable remote refuses with exit 2: identity unverified" {
+    git -C "$PROJECT_ROOT" remote set-url --push origin "$CASE_DIR/no-such-remote"
+    generate
+    [ "$(jq -r '.remote_push_url' "$CANDIDATE")" = "$CASE_DIR/no-such-remote" ]
+    snapshot_prewrite
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 2 ]
+    [[ "$output" == *"remote unreachable, identity unverified"* ]]
+    # One refusal line.
+    [ "$(grep -c '^ERROR: ' <<<"$output")" = 1 ]
+    assert_prewrite_unchanged
+}
+
+@test "c134 C-9: a tag appearing between validation and the push exits 1 with the state FAILED" {
+    generate
+    other="$(git -C "$PROJECT_ROOT" rev-parse v1.0.0)"
+    # The first fetch of the private observed-main ref happens after the
+    # validation (the preflight ancestry check); the remote tag of another
+    # identity appears exactly then.
+    cat > "$PROJECT_ROOT/.git/hooks/reference-transaction" <<HOOK
+#!/usr/bin/env bash
+[[ "\$1" == committed && ! -f "$CASE_DIR/raced" ]] || exit 0
+while read -r _old _new ref; do
+    if [[ "\$ref" == refs/loa/post-merge/observed-main ]]; then
+        touch "$CASE_DIR/raced"
+        obj=\$(printf 'object %s\ntype commit\ntag v1.0.1\ntagger Racer <racer@example.invalid> 0 +0000\n\nRelease v1.0.1\n' "$other" |
+            git --git-dir="$CASE_DIR/remote" mktag)
+        git --git-dir="$CASE_DIR/remote" update-ref refs/tags/v1.0.1 "\$obj"
+    fi
+done
+exit 0
+HOOK
+    chmod +x "$PROJECT_ROOT/.git/hooks/reference-transaction"
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 1 ]
+    [ -f "$CASE_DIR/raced" ]
+    [[ "$output" == *"appeared between validation and the push"* ]]
+    jq -e '.state == "FAILED" and .phases.tag.status == "failed"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    [ "$(remote_git rev-parse 'refs/tags/v1.0.1^{commit}')" = "$other" ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$SHA" ]
+    ! grep -q -- '--method POST' "$GH_LOG"
+}
+
+@test "c134 C-9: a re-run with an identical-identity tag skips the push and continues" {
+    generate
+    export GH_MODE=fail
+    run publish
+    [ "$status" -eq 1 ]
+    tag_object="$(remote_git rev-parse refs/tags/v1.0.1)"
+    cat > "$PROJECT_ROOT/.git/hooks/pre-push" <<HOOK
+#!/usr/bin/env bash
+while read -r _lref _lsha rref _rsha; do printf '%s\n' "\$rref" >> "$CASE_DIR/pushed"; done
+exit 0
+HOOK
+    chmod +x "$PROJECT_ROOT/.git/hooks/pre-push"
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"Existing remote v1.0.1 matches the candidate; not pushed again"* ]]
+    ! grep -q '^refs/tags/' "$CASE_DIR/pushed"
+    [ "$(remote_git rev-parse refs/tags/v1.0.1)" = "$tag_object" ]
+    jq -e '.state == "DONE" and .phases.tag.result.verified' "$PROJECT_ROOT/.run/post-merge-state.json"
+}
+
+# --- integer domain -----------------------------------------------------------
+
+# Plant a JSON number token, as text, into the semver phase result (nested),
+# through a wrapper committed as the merge (so the checkout stays clean).
+plant_number() {
+    local dir="$PROJECT_ROOT/.claude/scripts"
+    cp -p "$dir/semver-bump.sh" "$dir/semver-bump.real.sh"
+    cat > "$dir/semver-bump.sh" <<SH
+#!/usr/bin/env bash
+out=\$("\$(dirname "\$0")/semver-bump.real.sh" "\$@") || exit \$?
+printf '%s' "\$out" | python3 -I -c 'import sys; t = sys.stdin.read(); i = t.index("{"); sys.stdout.write(t[:i + 1] + "\"planted\": {\"deep\": [0, {\"x\": " + sys.argv[1] + "}]}, " + t[i + 1:])' '$1'
+SH
+    git -C "$PROJECT_ROOT" add "$dir"
+    git -C "$PROJECT_ROOT" commit -qm "fix: plant a number"
+    SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+    git -C "$PROJECT_ROOT" push -q "$CASE_DIR/remote" "$SHA:refs/heads/main"
+}
+
+# A python3 on which `import rfc8785` fails (lib/jcs.sh then reports the
+# package absent and the stdlib canonicaliser is used).
+hide_rfc8785() {
+    mkdir -p "$CASE_DIR/no-rfc8785"
+    printf 'raise ImportError("rfc8785 hidden by the test")\n' > "$CASE_DIR/no-rfc8785/rfc8785.py"
+    export PYTHONPATH="$CASE_DIR/no-rfc8785"
+}
+
+# --generate with the planted token refuses: exit 2, the JSON path, nothing
+# written (no candidate, no ledger patch, state not PREPARED), in both modes.
+# $2 is the token as the run state carries it when jq re-serialises it
+# (jq 1.7 writes 1e3 as 1E+3 — still an exponent, still refused).
+assert_generate_refuses() {
+    local token="$1" reported="${2:-$1}" mode
+    plant_number "$token"
+    for mode in rfc8785 stdlib; do
+        if [[ "$mode" == rfc8785 ]]; then
+            python3 -c 'import rfc8785' 2>/dev/null || continue
+        else
+            hide_rfc8785
+            ! python3 -c 'import rfc8785' 2>/dev/null
+        fi
+        git -C "$PROJECT_ROOT" reset -q --hard "$SHA"
+        rm -f "$PROJECT_ROOT/.run/post-merge-state.json"
+        run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
+        echo "mode=$mode token=$token status=$status" >&2
+        [ "$status" -eq 2 ]
+        [[ "$output" == *"Non-integer number ${reported} at .prepared_state.phases.semver.result.planted.deep[1].x"* ]]
+        [ ! -f "$PROJECT_ROOT/.run/post-merge-candidate.json" ]
+        [ ! -f "$PROJECT_ROOT/.run/post-merge-ledger.patch" ]
+        ! jq -e '.state == "PREPARED"' "$PROJECT_ROOT/.run/post-merge-state.json"
+        [ -z "$(remote_git tag)" ]
+        [ "$(remote_git rev-parse refs/heads/main)" = "$SHA" ]
+    done
+    unset PYTHONPATH
+}
+
+@test "c134 C-9: --generate refuses a fraction (1.0) with exit 2 and the JSON path, with and without rfc8785" {
+    assert_generate_refuses 1.0
+}
+
+@test "c134 C-9: --generate refuses an exponent form (1e3) with exit 2, with and without rfc8785" {
+    assert_generate_refuses 1e3 "$(jq -nc --argjson n 1e3 '$n')"
+}
+
+@test "c134 C-9: --generate refuses -0 with exit 2, with and without rfc8785" {
+    assert_generate_refuses -0
+}
+
+@test "c134 C-9: --generate refuses 2^53 (9007199254740992) with exit 2, with and without rfc8785" {
+    assert_generate_refuses 9007199254740992
+}
+
+@test "c134 C-9: --generate refuses -2^53 (-9007199254740992) with exit 2, with and without rfc8785" {
+    assert_generate_refuses -9007199254740992
+}
+
+@test "c134 C-9: --generate accepts 2^53-1 (9007199254740991) on both canonicalisers, byte-identical" {
+    plant_number 9007199254740991
+    run bash "$SCRIPT" --generate --pr 7 --type cycle --sha "$SHA" --downstream --skip-gt --skip-rtfm
+    [ "$status" -eq 0 ]
+    CANDIDATE="$PROJECT_ROOT/.run/post-merge-candidate.json"
+    jq -e '.prepared_state.phases.semver.result.planted.deep[1].x == 9007199254740991' "$CANDIDATE"
+    grep -q '"x":9007199254740991' "$CANDIDATE"
+    source_copy
+    bash -c 'source "$1"; jcs_stdlib_file "$2"' _ "$SOURCED" "$CANDIDATE" | cmp - "$CANDIDATE"
+}
+
+# Plant a number token as text into the generated candidate and re-approve
+# it (the file is not re-canonicalised: a parser would normalise the token).
+plant_in_candidate() {
+    python3 -I -c 'import sys
+p = sys.argv[1]
+t = open(p, encoding="utf-8").read()
+k = "\"prepared_state\":{"
+assert t.count(k) == 1
+open(p, "w", encoding="utf-8").write(t.replace(k, k + "\"planted\":" + sys.argv[2] + ","))' "$CANDIDATE" "$1"
+    reapprove
+}
+
+@test "c134 C-9: --publish refuses a candidate carrying 1.0, -0, 2^53 or 1E+3 with exit 2 and the path, before any write" {
+    local token
+    generate
+    cp "$CANDIDATE" "$CASE_DIR/candidate.clean"
+    for token in 1.0 -0 9007199254740992 1E+3; do
+        cp "$CASE_DIR/candidate.clean" "$CANDIDATE"
+        plant_in_candidate "$token"
+        snapshot_prewrite
+        export GH_MODE=ok
+        run publish
+        echo "token=$token status=$status" >&2
+        [ "$status" -eq 2 ]
+        [[ "$output" == *"Non-integer number ${token} at .prepared_state.planted"* ]]
+        assert_prewrite_unchanged
+    done
+}
+
+@test "c134 C-9: the real rc.8 candidate passes the publish-time number scan (10 integers)" {
+    fixture="$ROOT/tests/fixtures/post-merge/candidate-rc8.json"
+    source_copy
+    run bash -c 'source "$1"; number_domain_check "$2" ""' _ "$SOURCED" "$fixture"
+    [ "$status" -eq 0 ]
+    [ "$(python3 -I -c 'import json, sys
+n = []
+json.load(open(sys.argv[1]), parse_int=lambda t: n.append(t), parse_float=lambda t: n.append("float " + t))
+print(len(n), all(not x.startswith("float") for x in n))' "$fixture")" = "10 True" ]
+}
+
+@test "c134 C-9: the integer domain canonicalises identically on the stdlib and rfc8785 paths (rc.8 candidate)" {
+    python3 -c 'import rfc8785' 2>/dev/null || skip "rfc8785 not installed"
+    fixture="$ROOT/tests/fixtures/post-merge/candidate-rc8.json"
+    source_copy
+    bash -c 'source "$1"; jcs_stdlib_file "$2"' _ "$SOURCED" "$fixture" > "$CASE_DIR/stdlib"
+    python3 "$ROOT/.claude/scripts/lib/jcs-helper.py" < "$fixture" > "$CASE_DIR/rfc8785"
+    cmp "$CASE_DIR/stdlib" "$CASE_DIR/rfc8785"
+    cmp "$CASE_DIR/stdlib" "$fixture"
+    printf '{"a":9007199254740991,"b":-9007199254740991,"c":0,"d":-3}' > "$CASE_DIR/bounds.json"
+    bash -c 'source "$1"; jcs_stdlib_file "$2"' _ "$SOURCED" "$CASE_DIR/bounds.json" > "$CASE_DIR/b.stdlib"
+    python3 "$ROOT/.claude/scripts/lib/jcs-helper.py" < "$CASE_DIR/bounds.json" | cmp - "$CASE_DIR/b.stdlib"
+}

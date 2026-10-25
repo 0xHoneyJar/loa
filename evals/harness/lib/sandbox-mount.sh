@@ -150,10 +150,11 @@
 #       (cycle-133 C-10) the pinned framework under the session HOME for mount mode home-scope: a copy of
 #       <source-tree>/.claude/ in <home-root>/.claude/, redirected through LOA_FRAMEWORK_ROOT=<container-home> by the
 #       reversible rules R1-R5 of _sm_home_py (hook commands, shell project-root forms, Python root joins and path
-#       literals, relative skill text made absolute); tests/ and test/ copied untransformed; the user memory
+#       literals, relative skill text made absolute where it names a pinned framework path, cycle-134 sdd.md
+#       § 11.F); tests/ and test/ copied untransformed; the user memory
 #       <home-root>/.claude/CLAUDE.md importing CLAUDE.loa.md and every rules file by absolute path; verify proves
 #       reverse(copy) == the pinned bytes. Evidence mount=home-scope, framework_root, home_transform, home_residual,
-#       home_verify, home_hook_counts, home_mcp_servers (see the function). Exit 2 on a residual project-root
+#       home_verify, home_hook_counts, home_hook_groups, home_mcp_servers (see the function). Exit 2 on a residual project-root
 #       reference, an irreversible transform, an occupied HOME .claude/, a bad container home.
 #   SM_FRAMEWORK_ROOT (env): the directory whose .claude/ apply_arm_toggles edits and init_sandbox_beads' opt-out
 #       script runs from (home-scope: the session HOME); unset = <ws>, the cycle-132 behaviour.
@@ -1467,7 +1468,11 @@ check_mount_closed() {
 #                     (settings.json hook commands, shell, markdown)
 #   R2 shell root     $V/.claude, ${V}/.claude, "$V"/.claude for V in PROJECT_ROOT REPO_ROOT ROOT ROOT_DIR repo_root
 #                     _*REPO_ROOT → ${LOA_FRAMEWORK_ROOT:-$V}/.claude (shell and markdown)
-#   R3 markdown rel   a .claude/ path not preceded by a path character → <home>/.claude/ (absolute)
+#   R3 markdown rel   a .claude/ path not preceded by a path character → <home>/.claude/ (absolute), only where the text
+#                     names a pinned framework path (cycle-134 C-4, sdd.md § 11.F; r3_decide): not a path the pinned tree
+#                     does not hold (a project-owned path or a documentation example; on a fenced command line beside a
+#                     pinned path it is rewritten with it), not text in a file under a __tests__/ or fixtures/ directory
+#                     (data). The zone itself (`.claude/`) is pinned: under home-scope the System Zone is the HOME copy
 #   R4 python root    Path(X) / ".claude" → Path(<env> or X) / ".claude"; bare X / ".claude" for X in project_root
 #                     repo_root REPO_ROOT PROJECT_ROOT _project_root() _find_project_root() → pathlib.Path(<env> or X) / …
 #   R5 python literal a string literal that is exactly a .claude/… path (not a join operand) → os.path.join(<env>, it); a bare
@@ -1482,7 +1487,7 @@ check_mount_closed() {
 # on the root (an R6/R7/R8 form) refuses the mount.
 _sm_home_py() {
   python3 -I - "$@" <<'PY'
-import hashlib, json, os, re, sys
+import glob, hashlib, json, os, re, sys
 
 FW = "LOA_FRAMEWORK_ROOT"
 SKIP = {"tests", "test", "__pycache__", "node_modules", ".git"}
@@ -1494,6 +1499,55 @@ R1_REV = re.compile(r"\$\{" + FW + r":-(\$\(git rev-parse --show-toplevel\))\}")
 R2 = re.compile(r"\$(?:\{(" + V + r")\}|(" + V + r")(?![A-Za-z0-9_]))(\"?)/\.claude" + END)
 R2_REV = re.compile(r"\$\{" + FW + r":-(\$\{" + V + r"\}|\$" + V + r")\}")
 R3 = re.compile(r"(?<![A-Za-z0-9_./$~{}\\-])\.claude/")
+R3_TOK = re.compile(r"\.claude/[A-Za-z0-9_./*{}<>-]*")
+R3_DATA = {"__tests__", "fixtures"}
+R3_FENCE = re.compile(r"^\s*(?:```|~~~)")
+
+def r3_pinned(tok, tree):
+    # does a relative .claude/… token name an entry of the pinned tree <tree> (sdd.md § 11.F)? the zone itself does
+    tok = tok.rstrip(".")
+    below = tok[len(".claude/"):]
+    if ".." in below.split("/"):
+        return False
+    cut = min([i for i in (below.find("{"), below.find("<")) if i >= 0] or [-1])
+    if cut >= 0:                          # a placeholder: its literal directory must be a pinned one below .claude/
+        d = os.path.dirname(".claude/" + below[:cut])
+        return d != ".claude" and bool(glob.glob(d, root_dir=tree))
+    if "*" in below:
+        return bool(glob.glob(tok, root_dir=tree))
+    return os.path.exists(os.path.join(tree, tok))
+
+def r3_decide(text, rel, tree):
+    # [(line, col, token, decision)] for every R3 hit of a markdown file: rewrite | rewrite:line (an absent path on a
+    # fenced command line beside a pinned one: the command is rewritten whole) | drop:absent | drop:data
+    out, fence = [], False
+    data = bool(R3_DATA.intersection(rel.split("/")[:-1]))
+    for i, line in enumerate(text.split("\n"), 1):
+        if R3_FENCE.match(line):
+            fence = not fence
+        hits = [(m.start(), R3_TOK.match(line, m.start()).group(0)) for m in R3.finditer(line)]
+        pin = [r3_pinned(t, tree) for _, t in hits]
+        whole = (fence or R3_FENCE.match(line)) and any(pin)
+        for (col, tok), p in zip(hits, pin):
+            d = "drop:data" if data else "rewrite" if p else "rewrite:line" if whole else "drop:absent"
+            out.append((i, col, tok, d))
+    return out
+
+def r3_sub(text, rel, tree, home):
+    # R3 over a markdown file: <home>/ before every kept hit (r3_decide); returns (text, n)
+    by = {}
+    for i, col, _, d in r3_decide(text, rel, tree):
+        if d.startswith("rewrite"):
+            by.setdefault(i, []).append(col)
+    if not by:
+        return text, 0
+    lines = text.split("\n")
+    for i, cols in by.items():
+        l = lines[i - 1]
+        for col in sorted(cols, reverse=True):
+            l = l[:col] + home + "/" + l[col:]
+        lines[i - 1] = l
+    return "\n".join(lines), sum(len(v) for v in by.values())
 PYV = r"(?:project_root|repo_root|REPO_ROOT|PROJECT_ROOT|root|ROOT|walked)"
 ENV = '__import__("os").environ.get("' + FW + '")'
 R4A = re.compile(r"Path\(\s*(" + PYV + r")\s*\)(\s*/\s*[\"']\.claude[\"'/])")
@@ -1560,7 +1614,7 @@ def walk(root):
                 continue
             yield p
 
-def transform(text, k, home, rel=""):
+def transform(text, k, home, rel, tree):
     c = {}
     def sub(name, rx, rep, t):
         out, n = rx.subn(rep, t)
@@ -1573,7 +1627,9 @@ def transform(text, k, home, rel=""):
         text = sub("R2", R2, lambda m: ("${%s:-${%s}}" % (FW, m.group(1)) if m.group(1) else "${%s:-$%s}" % (FW, m.group(2)))
                    + m.group(3) + "/.claude", text)
     if k == "md":
-        text = sub("R3", R3, home + "/.claude/", text)
+        text, n = r3_sub(text, rel, tree, home)
+        if n:
+            c["R3"] = c.get("R3", 0) + n
     if k == "py":
         text = sub("R4", R4A, lambda m: "Path(%s or %s)%s" % (ENV, m.group(1), m.group(2)), text)
         text = sub("R4", R4B, lambda m: '__import__("pathlib").Path(%s or %s)%s' % (ENV, m.group(1), m.group(2)), text)
@@ -1670,7 +1726,7 @@ def cmd_transform(home_root, home, report):
         if FW in text or (home + "/.claude/") in text:
             refused = "%s already names %s or %s/.claude/ (the transform would not be reversible)" % (rel, FW, home)
             break
-        new, c = transform(text, k, home, rel)
+        new, c = transform(text, k, home, rel, home_root)
         if new != text:
             if reverse(new, k, home) != text:
                 refused = "%s: the transform is not reversible" % rel
@@ -1729,16 +1785,25 @@ def cmd_verify(home_root, source_root, home):
     print("ok %d files, %d redirected, reverse == pinned" % (len(want - extra), n))
 
 def cmd_hooks(settings):
-    """<event>:<n>,… — the hook commands per event the pinned user settings declare (home_hook_counts)"""
+    """line 1 <event>:<n>,… — the hook commands per event the pinned user settings declare (home_hook_counts);
+    line 2 <event>:<hex12>:<n>;… — per hook group (home_hook_groups, cycle-134 sdd.md § 3.2): hex12 = the first 12 hex
+    digits of SHA-256 over the group's matcher string ("" when it has none), n = its command count; groups with the same
+    (event, matcher) merged, counts summed; sorted by event, then hex"""
     try:
         s = json.load(open(settings, encoding="utf-8"))
     except (OSError, ValueError):
         s = {}
-    out = []
+    out, grp = [], {}
     for ev, groups in sorted((s.get("hooks") or {}).items()):
         n = sum(len(g.get("hooks") or []) for g in groups if isinstance(g, dict)) if isinstance(groups, list) else 0
         out.append("%s:%d" % (ev, n))
+        for g in (groups if isinstance(groups, list) else []):
+            if isinstance(g, dict):
+                m = g.get("matcher")
+                key = (ev, hashlib.sha256((m if isinstance(m, str) else "").encode("utf-8")).hexdigest()[:12])
+                grp[key] = grp.get(key, 0) + len(g.get("hooks") or [])
     print(",".join(out))
+    print(";".join("%s:%s:%d" % (ev, h, n) for (ev, h), n in sorted(grp.items())))
 
 cmd = sys.argv[1] if len(sys.argv) > 1 else ""
 if cmd == "transform" and len(sys.argv) == 5:
@@ -1760,7 +1825,8 @@ PY
 #   settings are the pinned .claude/settings.json (its hooks redirected). <report-json> receives the transform record.
 #   Evidence: mount=home-scope, framework_root=LOA_FRAMEWORK_ROOT=<container-home>, home_framework_files,
 #   home_transform=<rule>:<n>,…, home_transformed_files, home_residual, home_shell_relative_refs, home_verify=ok …,
-#   home_hook_counts=<event>:<n>,…, home_mcp_servers= (the HOME declares none).
+#   home_hook_counts=<event>:<n>,…, home_hook_groups=<event>:<hex12>:<n>;… (cycle-134 sdd.md § 3.2; the matcher's
+#   SHA-256 prefix, so no matcher text enters the grammar), home_mcp_servers= (the HOME declares none).
 #   Exit 2: a missing tree, a container home that is not an absolute plain path, an existing <home-root>/.claude with
 #   content, a residual project-root reference, an irreversible transform, a verify difference.
 mount_home_scope() {
@@ -1794,7 +1860,9 @@ mount_home_scope() {
   } > "$hr/.claude/CLAUDE.md"
   out="$(_sm_home_py verify "$hr" "$tree" "$ch")" || { _sm_err "mount_home_scope: verify: $out"; return 2; }
   _sm_evidence home_verify "$out"
-  _sm_evidence home_hook_counts "$(_sm_home_py hooks "$hr/.claude/settings.json")"
+  out="$(_sm_home_py hooks "$hr/.claude/settings.json")"
+  _sm_evidence home_hook_counts "$(printf '%s\n' "$out" | sed -n '1p')"
+  _sm_evidence home_hook_groups "$(printf '%s\n' "$out" | sed -n '2p')"
   _sm_evidence home_mcp_servers ""
   return 0
 }

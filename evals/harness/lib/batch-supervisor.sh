@@ -9,6 +9,7 @@
 #   batch-supervisor.sh stop    <batch-dir>
 #   batch-supervisor.sh status  <batch-dir>
 #   batch-supervisor.sh run     <batch-dir> --attempt-id ID [--lock-inherited] [--unit U]   (internal: the loop)
+#   batch-supervisor.sh record-job <jobs-dir> <name> <pgid> [fields…]   (the .jobs/ record writer; run-ablation.sh)
 #
 # launch   Precondition (exit 2, nothing written): `loginctl show-user <user> --property=Linger --value` is yes, or
 #          this process runs in a system-level scope (/proc/self/cgroup under system.slice); the repair named is
@@ -32,6 +33,14 @@
 #          containers, records the uncertain provider requests in `stopped` and never retries. Exit 2 when the batch
 #          has no supervisor record.
 # status   Prints supervisor/state.json.
+# record-job  Writes the .jobs/ record of a pipeline group (cycle-134 C-6, D-2.3; bd-ruo5b): first
+#          <jobs-dir>/<name>.ident, one line `<start_ticks>:<sha256 hex of /proc/<pgid>/cmdline>` of the group leader
+#          (pgid = leader pid; start_ticks is field 22 of /proc/<pgid>/stat), then <jobs-dir>/<name>.pgid, one line
+#          `<pgid> [fields…]` (run-ablation.sh: `<pgid> <epoch> <watchdog s>`), each through a temporary file and a
+#          rename. The identity is taken once the leader has finished exec'ing (its cmdline differs from the caller's,
+#          argv[0] is not setsid or env, two reads 50 ms apart agree; at most 5 s). A leader that exited (silent) or
+#          never settles (a warning on stderr) gets no .ident (an earlier .ident of the name is removed) and its .pgid
+#          is still written, so the record is stale for reclaim. Exit 0 written; 1 the .pgid write failed; 2 usage.
 #
 # The loop: runs the runner in its own session (its process group is owned), polls every $LOA_SUPERVISOR_POLL_S
 # (default 15) and declares the runner dead when it exits, or hung when it lives and no file under the batch
@@ -43,7 +52,8 @@
 # of the batch with that status or interrupted: the resume adds --rerun-status for each), incomplete (exit 1 with
 # trials left and no named cause). Before every resume: the runner's group and the .jobs/ groups are terminated
 # (on the same boot only — after a reboot a recorded pid may be another process: the stale .lock/ and .jobs/ are
-# removed unsignalled), containers named loa-abl-<batch>-* are removed (docker rm -f; the run ids are
+# removed unsignalled; on the same boot a .jobs/ group is signalled only when its identity matches, see Job records
+# below), containers named loa-abl-<batch>-* are removed (docker rm -f; the run ids are
 # <batch>-…, so this is every loa-abl-<run_id>-* of the batch), and the uncertain provider requests are reconciled:
 # the run dirs whose meta/pipeline.json was missing or running when the runner died, their cost-ledger.jsonl
 # request ids and ledger micro-USD go into the retry entry (the runner's resume charges such a trial its cap).
@@ -62,6 +72,19 @@
 # Env: LOA_SUPERVISOR_POLL_S, LOA_SUPERVISOR_HANG_S, LOA_SUPERVISOR_GRACE_S, LOA_SUPERVISOR_MODE (the --mode
 #   default), LOA_SUPERVISOR_LOGINCTL (default loginctl), LOA_SUPERVISOR_BOOT_ID_FILE (default
 #   /proc/sys/kernel/random/boot_id; tests), EVAL_DOCKER_BIN (when the runner args name no --docker-bin).
+# Job records (cycle-134 C-6, D-2.3; FR-7, bd-ruo5b): <batch>/.jobs/<name>.pgid `<pgid> …` and <name>.ident
+#   `<start_ticks>:<sha256 of the leader's cmdline>` (record-job; the .ident is published before the .pgid, so a
+#   .pgid without .ident is legacy — written before cycle-134 — or partial). reclaim on the same boot, per .pgid:
+#   no .ident → stale: never signalled, both files removed, one warning listing `<name> <pgid>` of every such record;
+#   the leader /proc/<pgid> gone (or a zombie) while the group has members → leaderless: never signalled (its
+#   identity cannot be verified), the member pids logged for the operator, the record removed; the leader's identity
+#   differs from the record (a reused pid) → stale: logged, never signalled, removed; it matches → kill_group with the
+#   identity re-read immediately before TERM (changed: nothing sent) and again before KILL (the leader alive with
+#   another identity: the KILL is not sent; the leader gone or a zombie while members remain: the KILL is sent — a pid
+#   is not reused while any process still has it as its process group id). A group with no process left is skipped.
+#   Residual window: numeric pgids cannot be checked and signalled atomically (no pidfd for a process group), so a
+#   pgid that exits and is reused between the identity read and kill(2) — microseconds — would be signalled; the two
+#   re-reads keep that window to the span of one read and one syscall.
 # Tested by evals/tests/batch-supervisor.bats (stub runners, loginctl, docker and systemd-run; no model call).
 # =============================================================================
 set -euo pipefail
@@ -92,6 +115,58 @@ ident_alive() {
   [[ "$b" == "$(boot_id)" ]] || return 1
   now="$(ticks_of "$p")" || return 1
   [[ "$now" == "$t" ]]
+}
+# leader_live <pid> → 0 when /proc/<pid> is a live process (not gone, not a zombie)
+leader_live() {
+  local st
+  [[ -r "/proc/$1/stat" ]] || return 1
+  st="$(awk '{ sub(/^.*\) /, ""); print $1 }' "/proc/$1/stat" 2>/dev/null)" || return 1
+  [[ -n "$st" && "$st" != Z && "$st" != X ]]
+}
+# job_ident <pgid> → `<start_ticks>:<sha256 hex of /proc/<pgid>/cmdline>` of the live group leader (1 when unreadable)
+job_ident() {
+  local p="$1" t h
+  [[ "$p" =~ ^[1-9][0-9]*$ ]] && leader_live "$p" || return 1
+  t="$(ticks_of "$p")" || return 1
+  [[ "$t" =~ ^[0-9]+$ ]] || return 1
+  h="$(sha256sum < "/proc/$p/cmdline" 2>/dev/null)" || return 1
+  h="${h%% *}"
+  [[ "$h" =~ ^[0-9a-f]{64}$ ]] || return 1
+  [[ "$(ticks_of "$p" 2>/dev/null)" == "$t" ]] || return 1   # the pid did not change hands between the two reads
+  printf '%s:%s' "$t" "$h"
+}
+# job_ident_settled <pgid> <caller pid> → job_ident once the leader has finished exec'ing (bounded: 100 × 50 ms)
+job_ident_settled() {
+  local p="$1" caller="$2" i=0 a b own arg0
+  own="$(sha256sum < "/proc/$caller/cmdline" 2>/dev/null)" || own=""
+  own="${own%% *}"
+  while (( i < 100 )); do
+    [[ -e "/proc/$p" ]] || return 1
+    a="$(job_ident "$p")" || return 1
+    arg0="$(tr '\0' '\n' < "/proc/$p/cmdline" 2>/dev/null | head -n 1)" || arg0=""
+    arg0="${arg0##*/}"
+    if [[ "${a#*:}" != "$own" && "$arg0" != setsid && "$arg0" != env && -n "$arg0" ]]; then
+      sleep 0.05
+      b="$(job_ident "$p")" || return 1
+      [[ "$a" == "$b" ]] && { printf '%s' "$a"; return 0; }
+    else
+      sleep 0.05
+    fi
+    i=$((i + 1))
+  done
+  return 1
+}
+# group_members <pgid> → newline list of the pids whose process group is <pgid>
+group_members() {
+  if command -v pgrep >/dev/null 2>&1; then pgrep -g "$1" 2>/dev/null || true; return 0; fi
+  local s l
+  local -a f
+  for s in /proc/[0-9]*/stat; do
+    read -r l 2>/dev/null < "$s" || continue
+    l="${l##*) }"; read -r -a f <<<"$l"
+    [[ "${f[2]:-}" == "$1" ]] && { s="${s#/proc/}"; printf '%s\n' "${s%/stat}"; }
+  done
+  return 0
 }
 
 # --- the record ------------------------------------------------------------------------------------------------------
@@ -225,20 +300,31 @@ stop_containers() {
     if "$d" rm -f "$n" >>"$LOGF" 2>&1; then printf '%s\n' "$n"; else log "WARN docker rm -f $n failed"; fi
   done
 }
-# kill_group <pgid> → 0 when the group was alive and has been terminated (TERM, KILL after the grace)
+# kill_group <pgid> [identity] → 0 when the group was alive and has been terminated (TERM, KILL after the grace).
+# With an identity (a .jobs/ record): re-read before TERM (changed: nothing sent, 1) and before KILL (the leader alive
+# with another identity: no KILL, 1); see Job records in the header for the residual window
 kill_group() {
-  local g="$1" i=0
+  local g="$1" want="${2:-}" i=0 now
   kill -0 -- "-$g" 2>/dev/null || return 1
+  if [[ -n "$want" ]]; then
+    now="$(job_ident "$g")" || now=""
+    [[ "$now" == "$want" ]] || { log "WARN kill_group: process group $g changed identity before TERM (${now:-leader gone}): not signalled"; return 1; }
+  fi
   kill -TERM -- "-$g" 2>/dev/null || true
   while (( i < GRACE_S * 10 )) && kill -0 -- "-$g" 2>/dev/null; do sleep 0.1; i=$((i + 1)); done
+  if [[ -n "$want" ]] && kill -0 -- "-$g" 2>/dev/null && leader_live "$g"; then
+    now="$(job_ident "$g")" || now=""
+    [[ "$now" == "$want" ]] || { log "WARN kill_group: process group $g changed identity before KILL (${now:-unreadable}): KILL not sent"; return 1; }
+  fi
   kill -KILL -- "-$g" 2>/dev/null || true
   return 0
 }
 # reclaim <recorded boot id> <runner pid> <runner ticks> → newline list of the terminated groups. Same boot: the
-# recorded runner (identity-checked) and every .jobs/ group still alive are terminated; another boot: nothing is
+# recorded runner (identity-checked) and every .jobs/ group still alive whose identity matches its record are
+# terminated (stale, legacy and leaderless records: see Job records in the header); another boot: nothing is
 # signalled (a recorded pid may now be any process) and the stale .lock/ and .jobs/ are removed
 reclaim() {
-  local rb="$1" rp="$2" rt="$3" f g _
+  local rb="$1" rp="$2" rt="$3" f g _ n id now members legacy="" nleg=0
   if [[ "$rb" != "$(boot_id)" ]]; then
     log "reclaim: recorded boot $rb is not this boot: stale .lock/ and .jobs/ removed, nothing signalled"
     rm -rf "$B/.lock" "$B/.jobs"
@@ -249,8 +335,25 @@ reclaim() {
     [[ -f "$f" ]] || continue
     read -r g _ < "$f" || continue
     [[ "$g" =~ ^[0-9]+$ ]] || continue
-    kill_group "$g" && printf '%s\n' "$g"
+    n="$(basename "$f" .pgid)"
+    if [[ ! -f "$B/.jobs/$n.ident" ]]; then   # legacy (before cycle-134) or partial: never signalled
+      legacy="$legacy${legacy:+, }$n $g"; nleg=$((nleg + 1)); rm -f "$f"; continue
+    fi
+    id=""; read -r id < "$B/.jobs/$n.ident" || true
+    if ! leader_live "$g"; then
+      members="$(group_members "$g")"
+      [[ -n "$members" ]] || { rm -f "$f" "$B/.jobs/$n.ident"; continue; }   # nothing of the group is left: the record goes too (no stale warning on a reused pid later)
+      log "WARN reclaim: .jobs/$n: process group $g is leaderless (its leader exited; the identity cannot be verified): not signalled, record removed; live members for the operator: ${members//$'\n'/ } (check them, then kill -TERM -- -$g)"
+      rm -f "$f" "$B/.jobs/$n.ident"; continue
+    fi
+    now="$(job_ident "$g")" || now=""
+    if [[ -z "$id" || "$now" != "$id" ]]; then
+      log "WARN reclaim: .jobs/$n: process group $g is not the recorded job (identity ${id:-empty} recorded, ${now:-unreadable} now): stale, not signalled, record removed"
+      rm -f "$f" "$B/.jobs/$n.ident"; continue
+    fi
+    kill_group "$g" "$id" && printf '%s\n' "$g"
   done
+  [[ $nleg -eq 0 ]] || log "WARN reclaim: $nleg .jobs record(s) carry no identity (.ident: written before cycle-134, or partial) and are stale: not signalled, removed: $legacy"
   return 0
 }
 # reconcile <reason class> <uncertain runs> <groups list> → the JSON retry/stop fields
@@ -533,6 +636,28 @@ cmd_stop() {
   else echo "stop requested: no live supervisor of $B (the record is $(sget .state))"; fi
 }
 
+cmd_record_job() {  # record-job <jobs-dir> <name> <pgid> [fields…] (header: record-job)
+  [[ $# -ge 3 ]] || die "usage: batch-supervisor.sh record-job <jobs-dir> <name> <pgid> [fields…]"
+  local d="$1" n="$2" p="$3" id
+  shift 3
+  [[ -d "$d" ]] || die "record-job: no directory $d"
+  [[ "$n" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]*$ ]] || die "record-job: the name must be [A-Za-z0-9_.-] ($n)"
+  [[ "$p" =~ ^[1-9][0-9]*$ ]] || die "record-job: the pgid must be a positive integer ($p)"
+  if id="$(job_ident_settled "$p" "$PPID")" && printf '%s\n' "$id" > "$d/$n.ident.tmp" 2>/dev/null && mv -f "$d/$n.ident.tmp" "$d/$n.ident"; then :
+  else
+    rm -f "$d/$n.ident.tmp" "$d/$n.ident" 2>/dev/null || true
+    # a leader that already exited needs no identity (nothing to reclaim): silent; a live one is named
+    leader_live "$p" && echo "batch-supervisor: WARN record-job: no identity for the live process group $p (not settled within 5 s, or $d/$n.ident unwritable): $d/$n.pgid is written without .ident, so reclaim treats it as stale and never signals it" >&2
+  fi
+  if { printf '%s' "$p"; [[ $# -eq 0 ]] || printf ' %s' "$@"; printf '\n'; } > "$d/$n.pgid.tmp" 2>/dev/null && mv -f "$d/$n.pgid.tmp" "$d/$n.pgid"; then
+    return 0
+  fi
+  rm -f "$d/$n.pgid.tmp" 2>/dev/null || true
+  echo "batch-supervisor: record-job: writing $d/$n.pgid failed" >&2
+  exit 1
+}
+
+if [[ "${1:-}" == record-job ]]; then shift; cmd_record_job "$@"; exit 0; fi
 cmd="${1:-}"; [[ $# -ge 2 ]] || die "usage: batch-supervisor.sh launch|restore|stop|status|run <batch-dir> [options] (see the header)"
 paths "$2"; shift 2
 MAXR_GIVEN=""; for a in "$@"; do [[ "$a" == --max-retries ]] && MAXR_GIVEN=1; [[ "$a" == -- ]] && break; done
@@ -542,5 +667,5 @@ case "$cmd" in
   run) cmd_run "$@" ;;
   stop) cmd_stop ;;
   status) [[ -f "$STATE_F" ]] || refuse "$B has no supervisor record"; jq '.' "$STATE_F" ;;
-  *) die "unknown command '$cmd' (launch | restore | stop | status | run)" ;;
+  *) die "unknown command '$cmd' (launch | restore | stop | status | run | record-job)" ;;
 esac

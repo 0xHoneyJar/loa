@@ -9,6 +9,8 @@
 # in the GitHub Actions runner, the inline workflow classifier falls
 # through to "other" — silently bypassing the full post-merge pipeline.
 
+bats_require_minimum_version 1.5.0
+
 setup() {
     export PROJECT_ROOT="$BATS_TEST_DIRNAME/../.."
     export WRAPPER="$PROJECT_ROOT/.claude/scripts/classify-merge-pr.sh"
@@ -211,7 +213,10 @@ STUB
 
 @test "R-005: conventional release(...) subject → cycle" {
     _stub_gh_empty
-    run "$WRAPPER" --merge-msg "release(v2.0.0): big milestone"
+    # KF-063 (cycle-134): a subject without a PR number is a push, not a
+    # merge, and classifies `other`; the squash-merged form of this subject
+    # carries GitHub's `(#NNN)` trailer, which is what the rule is about.
+    run "$WRAPPER" --merge-msg "release(v2.0.0): big milestone (#1300)"
     [ "$status" -eq 0 ]
     [[ "$output" == *"pr_type=cycle"* ]]
 }
@@ -228,4 +233,145 @@ STUB
     run "$WRAPPER" --merge-msg "Merge pull request #900 from 0xHoneyJar/fix/some-bug"
     [ "$status" -eq 0 ]
     [[ "$output" == *"pr_type=other"* ]]
+}
+
+# =========================================================================
+# KF-063 (bd-hyx0n, cycle-134 Task 1.6; sdd.md C-8, D-3.1, D-3.2b): a push
+# to main that is not a PR merge. The PR number comes only from GitHub's
+# own subject forms — the squash trailer `(#NNN)` at the end of the subject,
+# or the merge-commit prefix `Merge pull request #NNN` — validated as a
+# positive decimal; with no number the outcome is `other` (neither
+# post-merge job runs). Run 40112013975 classified the publisher's ledger
+# push (`chore(ledger): archive … after merge`) as cycle with an empty PR
+# number and --generate aborted on `--pr is required`.
+# =========================================================================
+
+@test "KF063-T1: ledger fast-forward subject → other, empty pr_number, stderr note" {
+    _stub_gh_empty
+    run --separate-stderr "$WRAPPER" --merge-msg "chore(ledger): archive cycle-133-follow-through after merge"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=other"* ]]
+    grep -qx 'pr_number=' <<<"$output"
+    [[ "$stderr" == *"[classify-merge-pr] no associated PR: a push, not a merge"* ]]
+    grep -qx 'pr_type=other' "$GITHUB_OUTPUT"
+    grep -qx 'pr_number=' "$GITHUB_OUTPUT"
+}
+
+@test "KF063-T2: cycle subject without a trailer → other (not cycle)" {
+    _stub_gh_empty
+    run --separate-stderr "$WRAPPER" --merge-msg "feat(cycle-134): post-ship fixes"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=other"* ]]
+    grep -qx 'pr_number=' <<<"$output"
+    [[ "$stderr" == *"no associated PR: a push, not a merge"* ]]
+}
+
+@test "KF063-T3: only the trailing (#NNN) counts — 'closes #12 (#345)' → 345" {
+    _stub_gh_empty
+    run "$WRAPPER" --merge-msg "fix: guard the parser, closes #12 (#345)"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=bugfix"* ]]
+    grep -qx 'pr_number=345' <<<"$output"
+}
+
+@test "KF063-T4: an issue reference without the trailer yields no number" {
+    _stub_gh_empty
+    run "$WRAPPER" --merge-msg "feat(cycle-134): closes #12"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=other"* ]]
+    grep -qx 'pr_number=' <<<"$output"
+}
+
+@test "KF063-T5: (#0) is not a PR number → empty → other" {
+    _stub_gh_empty
+    run "$WRAPPER" --merge-msg "feat(cycle-134): something (#0)"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=other"* ]]
+    grep -qx 'pr_number=' <<<"$output"
+}
+
+@test "KF063-T6: (#12a) is not a PR number → empty → other" {
+    _stub_gh_empty
+    run "$WRAPPER" --merge-msg "feat(cycle-134): something (#12a)"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=other"* ]]
+    grep -qx 'pr_number=' <<<"$output"
+}
+
+@test "KF063-T7: a leading zero is not a positive decimal → (#012) empty → other" {
+    _stub_gh_empty
+    run "$WRAPPER" --merge-msg "feat(cycle-134): something (#012)"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=other"* ]]
+    grep -qx 'pr_number=' <<<"$output"
+}
+
+@test "KF063-T8: trailing whitespace after the trailer is tolerated" {
+    _stub_gh_empty
+    run "$WRAPPER" --merge-msg "feat(cycle-134): post-ship fixes (#1295)   "
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=cycle"* ]]
+    grep -qx 'pr_number=1295' <<<"$output"
+}
+
+@test "KF063-T9: an explicit --pr-number is honoured with a cycle subject" {
+    _stub_gh_empty
+    run "$WRAPPER" --merge-msg "feat(cycle-134): post-ship fixes" --pr-number 7
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=cycle"* ]]
+    grep -qx 'pr_number=7' <<<"$output"
+}
+
+@test "KF063-T10: gh failure on a subject with the trailer keeps the subject classification and the number" {
+    _stub_gh_fail "error: HTTP 502"
+    run --separate-stderr "$WRAPPER" --merge-msg "feat(cycle-134): post-ship fixes (#1295)"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=cycle"* ]]
+    grep -qx 'pr_number=1295' <<<"$output"
+    [[ "$stderr" == *"[classify-merge-pr] WARN: gh pr view failed for PR #1295"* ]]
+    [[ "$stderr" != *"no associated PR"* ]]
+}
+
+@test "KF063-T11: GitHub's merge-commit subject keeps its number (the form this repository merges with)" {
+    _stub_gh_empty
+    run "$WRAPPER" --merge-msg "Merge pull request #1294 from 0xHoneyJar/chore/kf-063-post-merge-ledger-push — KF-063"
+    [ "$status" -eq 0 ]
+    grep -qx 'pr_number=1294' <<<"$output"
+    run "$WRAPPER" --merge-msg "Merge pull request #1274: cycle-126 — Full size"
+    [ "$status" -eq 0 ]
+    grep -qx 'pr_number=1274' <<<"$output"
+}
+
+@test "KF063-T12: a merge-commit subject with #0 or a non-decimal number yields no number" {
+    _stub_gh_empty
+    run "$WRAPPER" --merge-msg "Merge pull request #0 from acme/release/v1.0.0"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=other"* ]]
+    grep -qx 'pr_number=' <<<"$output"
+    run "$WRAPPER" --merge-msg "Merge pull request #12a from acme/release/v1.0.0"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=other"* ]]
+    grep -qx 'pr_number=' <<<"$output"
+}
+
+@test "KF063-T13: --merge-sha on the ledger fast-forward commit → other" {
+    _stub_gh_empty
+    repo="${TMPDIR_TEST}/repo"
+    git init -q "$repo"
+    git -C "$repo" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty \
+        -m "chore(ledger): archive cycle-133-follow-through after merge"
+    cd "$repo"
+    run --separate-stderr "$WRAPPER" --merge-sha HEAD
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_type=other"* ]]
+    grep -qx 'pr_number=' <<<"$output"
+    [[ "$stderr" == *"no associated PR: a push, not a merge"* ]]
+}
+
+@test "KF063-T14: a squash message with a body after the (#NNN) subject still yields the number (first line only; Bridgebuilder round 2 on PR #1296)" {
+    _stub_gh_empty
+    run --separate-stderr "$WRAPPER" --merge-msg $'feat(cycle-200): the thing (#1297)\n\n* commit one\n* commit two closes #12'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_number=1297"* ]]
+    [[ "$output" == *"pr_type=cycle"* ]]
 }

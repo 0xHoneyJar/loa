@@ -206,7 +206,7 @@ echo "{\"status\":\"running\"}" > "$BATCH_DIR/a1_full/x-t1/meta/pipeline.json"
 printf "%s\n" "{\"request_id\":\"req-b\",\"cost_micro_usd\":10}" "{\"request_id\":\"req-a\",\"cost_micro_usd\":5}" > "$BATCH_DIR/a1_full/x-t1/sandbox/.eval/cost-ledger.jsonl"
 echo "{\"status\":\"completed\"}" > "$BATCH_DIR/a1_full/y-t1/meta/pipeline.json"
 echo "{\"request_id\":\"req-done\"}" > "$BATCH_DIR/a1_full/y-t1/eval/cost-ledger.jsonl"
-setsid sleep 300 </dev/null >/dev/null 2>&1 & echo "$! 0" > "$BATCH_DIR/.jobs/j0001.pgid"; echo $! > "$T/pipeline-pid"
+setsid sleep 300 </dev/null >/dev/null 2>&1 & "'"$SUP"'" record-job "$BATCH_DIR/.jobs" j0001 "$!" 0; echo $! > "$T/pipeline-pid"
 echo ready > "$T/ready"; sleep 300'
   launch -- --batch b1 --docker-bin "$T/bin/docker"
   [ "$status" -eq 0 ]
@@ -215,8 +215,8 @@ echo ready > "$T/ready"; sleep 300'
   run "$SUP" stop "$B"
   [ "$status" -eq 0 ]
   wait_for 20 sup_done
-  ! kill -0 "$pp" 2>/dev/null
-  ! kill -0 "$rp" 2>/dev/null
+  ! kill -0 "$pp" 2>/dev/null || false
+  ! kill -0 "$rp" 2>/dev/null || false
   [ "$(S .state)" = stopped ]
   [ "$(S '.retries | length')" = 0 ]
   [ "$(S .stopped.reason_class)" = intentional_stop ]
@@ -262,6 +262,122 @@ echo ready > "$T/ready"; sleep 300'
   kill -0 "$p"
   [ "$(S .state)" = complete ]
   [ "$(S '.retries[0].reason_class')" = driver_lost ]
+}
+
+# --- cycle-134 C-6 (D-2.3, FR-7; bd-ruo5b): the .jobs/ record identity -------------------------------------------------
+# ident_of <pid> — the identity record-job writes: field 22 of /proc/<pid>/stat and the sha256 of /proc/<pid>/cmdline
+ident_of() { printf '%s:%s' "$(ticks_of "$1")" "$(sha256sum < "/proc/$1/cmdline" | cut -d' ' -f1)"; }
+# same_boot_record — a same-boot running supervisor record whose runner is gone (restore → driver_lost → reclaim)
+same_boot_record() {
+  mkdir -p "$B/supervisor" "$B/.jobs"
+  jq -n '{schema_version: 1, state: "running", owner_pid: null, boot_id: "11111111-2222-3333-4444-555555555555",
+    start_ticks: null, runner_pid: null, runner_start_ticks: null, attempt_id: "sv-old", unit: null, mode: "setsid", cap: 3, retries: []}' > "$B/supervisor/state.json"
+  printf '{"schema_version":1,"args":["--batch","b1"],"runner":"%s","max_retries":3}\n' "$T/runner" > "$B/supervisor/args.json"
+  echo '{"schema_version":1,"dry_run":false}' > "$B/MANIFEST.json"; echo '{"state":"running"}' > "$B/STATUS.json"
+  runner 'st complete; exit 0'
+}
+
+@test "BSV-14 record-job: .jobs/<name>.ident is <start_ticks>:<sha256 of the leader's cmdline>, published before .pgid; an exited pid gets no identity, silently (an earlier .ident of the name is removed), and its .pgid is still written" {
+  p="$(sleeper j1)"; J="$T/jobs"; mkdir -p "$J"
+  run "$SUP" record-job "$J" j0001 "$p" 1700000000 600
+  [ "$status" -eq 0 ]
+  [ "$(cat "$J/j0001.pgid")" = "$p 1700000000 600" ]
+  grep -Eqx '[0-9]+:[0-9a-f]{64}' "$J/j0001.ident"
+  [ "$(cat "$J/j0001.ident")" = "$(ident_of "$p")" ]
+  [ "$(cut -d: -f1 "$J/j0001.ident")" = "$(awk '{ sub(/^.*\) /, ""); print $20 }' "/proc/$p/stat")" ]
+  # ordering: the .pgid step fails (its temporary path is a directory) — the .ident is already published, the .pgid is not
+  mkdir -p "$J/j0002.pgid.tmp"
+  run "$SUP" record-job "$J" j0002 "$p" 1 2
+  [ "$status" -eq 1 ]
+  [ -f "$J/j0002.ident" ]
+  [ ! -e "$J/j0002.pgid" ]
+  # an exited process: no identity, the stale .ident of an earlier attempt is not paired with the new record
+  echo "1:feed" > "$J/j0003.ident"
+  run "$SUP" record-job "$J" j0003 999999999 1 2
+  [ "$status" -eq 0 ]
+  [ ! -e "$J/j0003.ident" ]
+  [ "$(cat "$J/j0003.pgid")" = "999999999 1 2" ]
+  [ -z "$output" ]   # an exited leader needs no identity: silent
+}
+
+@test "BSV-15 same boot, a .jobs/ group whose identity differs from its record (pgid reused) is not signalled: reported stale, record removed" {
+  same_boot_record
+  p="$(sleeper reused)"
+  "$SUP" record-job "$B/.jobs" j0001 "$p" 0
+  printf '1:%s\n' "$(cut -d: -f2 "$B/.jobs/j0001.ident")" > "$B/.jobs/j0001.ident"   # another start time
+  run "$SUP" restore "$B"
+  [ "$status" -eq 0 ]
+  wait_for 15 sup_done
+  kill -0 "$p"
+  [ ! -e "$B/.jobs/j0001.pgid" ]
+  [ ! -e "$B/.jobs/j0001.ident" ]
+  grep -q "WARN reclaim: .jobs/j0001: process group $p is not the recorded job" "$B/supervisor/supervisor.log"
+  [ "$(S '.retries[0].groups_terminated | length')" = 0 ]
+  [ "$(S .state)" = complete ]
+}
+
+@test "BSV-16 same boot, a .jobs/ group whose identity matches its record is terminated (TERM, then KILL after the grace) and listed in groups_terminated" {
+  same_boot_record
+  p="$(sleeper job)"
+  "$SUP" record-job "$B/.jobs" j0001 "$p" 0
+  [ "$(cat "$B/.jobs/j0001.ident")" = "$(ident_of "$p")" ]
+  run "$SUP" restore "$B"
+  [ "$status" -eq 0 ]
+  wait_for 15 sup_done
+  wait_for 5 "! kill -0 $p 2>/dev/null"
+  [ "$(S '.retries[0].groups_terminated | map(tostring) | join(",")')" = "$p" ]
+  [ "$(S .state)" = complete ]
+}
+
+@test "BSV-17 a .jobs/ record without .ident (written before cycle-134, or partial) is stale: never signalled, removed, one warning listing every such record (name pgid)" {
+  same_boot_record
+  p1="$(sleeper legacy1)" p2="$(sleeper legacy2)"
+  echo "$p1 0 0" > "$B/.jobs/j0001.pgid"; echo "$p2 0 0" > "$B/.jobs/j0002.pgid"
+  run "$SUP" restore "$B"
+  [ "$status" -eq 0 ]
+  wait_for 15 sup_done
+  kill -0 "$p1"; kill -0 "$p2"
+  [ ! -e "$B/.jobs/j0001.pgid" ]; [ ! -e "$B/.jobs/j0002.pgid" ]
+  [ "$(grep -c 'carry no identity' "$B/supervisor/supervisor.log")" = 1 ]
+  grep -q "carry no identity.*: j0001 $p1, j0002 $p2\$" "$B/supervisor/supervisor.log"
+  [ "$(S '.retries[0].groups_terminated | length')" = 0 ]
+}
+
+@test "BSV-18 a leaderless .jobs/ group (the leader exited, members remain) is not signalled: its live members are logged for the operator, the record removed" {
+  same_boot_record
+  mkdir -p "$T/pids"
+  setsid bash -c 'sleep 300 </dev/null >/dev/null 2>&1 & echo $! > "$1"; exit 0' _ "$T/pids/member" </dev/null >/dev/null 2>&1 &
+  lp=$!
+  wait_for 5 "[ -s '$T/pids/member' ]"
+  wait "$lp" 2>/dev/null || true
+  m="$(cat "$T/pids/member")"
+  [ "$(awk '{ sub(/^.*\) /, ""); print $3 }' "/proc/$m/stat")" = "$lp" ]
+  [ ! -e "/proc/$lp" ]
+  echo "$lp 0" > "$B/.jobs/j0001.pgid"; echo "1:feed" > "$B/.jobs/j0001.ident"
+  run "$SUP" restore "$B"
+  [ "$status" -eq 0 ]
+  wait_for 15 sup_done
+  kill -0 "$m"
+  [ ! -e "$B/.jobs/j0001.pgid" ]; [ ! -e "$B/.jobs/j0001.ident" ]
+  grep -q "WARN reclaim: .jobs/j0001: process group $lp is leaderless.*live members for the operator: $m" "$B/supervisor/supervisor.log"
+  [ "$(S '.retries[0].groups_terminated | length')" = 0 ]
+}
+
+@test "BSV-19 the identity is re-read before KILL: a leader that changes identity after TERM (it execs another program) does not get the KILL" {
+  same_boot_record
+  mkdir -p "$T/pids"
+  setsid bash -c 'trap "exec sleep 301" TERM; while :; do sleep 0.1; done' </dev/null >/dev/null 2>&1 &
+  p=$!; echo "$p" > "$T/pids/changer"
+  wait_for 5 "[ -e /proc/$p ]"
+  "$SUP" record-job "$B/.jobs" j0001 "$p" 0
+  grep -q 'bash' "/proc/$p/cmdline"
+  run "$SUP" restore "$B"
+  [ "$status" -eq 0 ]
+  wait_for 15 sup_done
+  kill -0 "$p"
+  [ "$(tr '\0' ' ' < "/proc/$p/cmdline")" = "sleep 301 " ]
+  grep -q "process group $p changed identity before KILL" "$B/supervisor/supervisor.log"
+  [ "$(S '.retries[0].groups_terminated | length')" = 0 ]
 }
 
 @test "BSV-11 systemd mode: the batch runs as systemd-run --user --unit loa-batch-<name> --collect, the unit is recorded" {
@@ -350,7 +466,7 @@ EOF
   [ "$(S '.retries[0].provider_request_ids | join(",")')" = req-inflight ]
   [ "$(S '.retries[0].uncertain_runs | join(",")')" = "a0_bare/refactor-v2-05-t1" ]
   [ "$(S '.retries[0].groups_terminated | length')" -ge 1 ]
-  ! kill -0 "$(cat "$T/orphan-pid")" 2>/dev/null
+  ! kill -0 "$(cat "$T/orphan-pid")" 2>/dev/null || false
   [ "$(cat "$T/docker.log")" = "rm -f loa-abl-b1-a0_bare-refactor-v2-05-t1-BARE" ]
   [ "$(jq -r '.run_id' "$T/res/runs.jsonl" | sort | uniq -d)" = "" ]
   [ "$(jq -r '.run_id' "$T/res/runs.jsonl" | sort | tr '\n' ,)" = "b1-a0_bare-bugfix-v2-02-t1,b1-a0_bare-refactor-v2-05-t1," ]

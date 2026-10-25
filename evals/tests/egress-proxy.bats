@@ -260,6 +260,37 @@ LOG
   [ "$(yq -o=json '.' "$REPO_ROOT/evals/suites/ablation-2.0.yaml" | jq -r '[.arms[].id] - (.egress.arms | keys) | length')" = 0 ]
 }
 
+# the proxy's base task allowance: the tasks tinyproxy runs besides one thread per client (C-5, D-2.2, FR-6)
+# observed: pids.current = 2 at idle (4 /proc entries) in loa-egress-proxy:259 on 2026-10-25 by the lead (docker exec cat /sys/fs/cgroup/pids.current); derivation: idle 2 + tinyproxy accept/log threads under load + margin → 16 (conservative; a concurrent-load measurement is out of scope, sdd.md § 11.G gpt IMP-012)
+BASE_ALLOWANCE=16
+
+# proxy_pids_limit — the --pids-limit of the proxy sidecar's `run` array in the launcher (one value, or the case fails)
+proxy_pids_limit() {
+  awk '/local -a run=\(run -d --name "\$PROXY"/ { on = 1 } on { print } on && /\)$/ { exit }' "$EPX" \
+    | grep -oE -- '--pids-limit [0-9]+' | awk '{ print $2 }'
+}
+# dockerfile_run_pids_limit — the --pids-limit of the documented `Run (lib/egress-proxy.sh up does this):` line
+dockerfile_run_pids_limit() {
+  awk '/^# Run \(lib\/egress-proxy.sh up does this\):/ { on = 1; next } on && /^#   docker network connect/ { exit } on { print }' \
+    "$REPO_ROOT/evals/harness/Dockerfile.proxy" | grep -oE -- '--pids-limit [0-9]+' | awk '{ print $2 }'
+}
+
+@test "EP-10 the proxy's pid limit covers its client ceiling: launcher --pids-limit >= MaxClients + BASE_ALLOWANCE (both read from the files), and the Dockerfile's documented run line names the same limit" {
+  local lim doc maxc
+  lim="$(proxy_pids_limit)"
+  doc="$(dockerfile_run_pids_limit)"
+  maxc="$(grep -E '^MaxClients [0-9]+$' "$REPO_ROOT/evals/harness/Dockerfile.proxy" | awk '{ print $2 }')"
+  echo "launcher=$lim dockerfile_run_line=$doc MaxClients=$maxc BASE_ALLOWANCE=$BASE_ALLOWANCE"
+  # exactly one value each (a second --pids-limit in the array, or a second MaxClients, is ambiguous)
+  [[ "$lim" =~ ^[0-9]+$ ]]
+  [[ "$doc" =~ ^[0-9]+$ ]]
+  [[ "$maxc" =~ ^[0-9]+$ ]]
+  [ "$lim" -ge $((maxc + BASE_ALLOWANCE)) ]
+  [ "$doc" = "$lim" ]
+  # the proxy image is started by one launch path (the guard and the probe carry their own limits)
+  [ "$(grep -c -- '--name "\$PROXY"' "$EPX")" = 1 ]
+}
+
 # =============================================================================
 # EGR — the release gate: real containers (never quarantined)
 # =============================================================================
