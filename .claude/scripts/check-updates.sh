@@ -31,7 +31,8 @@
 # operator; both coders counted it as DEGRADED-SILENTLY, and in 3 sessions it
 # was the whole case for that code. The exit-code contract survives for
 # programmatic callers behind --exit-status, which also runs the check when
-# stdout is not a terminal (as --notify does).
+# stdout is not a terminal (as --notify does). When stdout is not a terminal
+# the colour codes are dropped, so the notice lands in context as plain text.
 #
 # Environment:
 #   LOA_DISABLE_UPDATE_CHECK=1    Disable all checks
@@ -66,6 +67,13 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 BOLD='\033[1m'
+# Plain text when stdout is not a terminal: as the SessionStart hook the
+# notice is injected into the session as context, where escape codes are
+# noise (loa-kf-surface.sh strips control bytes from what it surfaces for the
+# same reason).
+if [[ ! -t 1 ]]; then
+    RED='' GREEN='' YELLOW='' BLUE='' CYAN='' NC='' BOLD=''
+fi
 
 # Global state
 FORCE_CHECK=false

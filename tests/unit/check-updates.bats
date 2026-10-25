@@ -534,3 +534,14 @@ EOF
     [[ "$status" -eq 1 ]]
     [[ "$output" == "$plain" ]]
 }
+
+@test "check-updates.sh --notify: plain text (no escape codes) when stdout is not a terminal" {
+    skip_if_not_available
+    write_cache_fixture true v0.99.0
+
+    # under bats stdout is a pipe, as it is under the SessionStart hook
+    run "$SCRIPT" --notify
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *$'\033'* ]]
+    [[ "$output" == *"/update-loa"* ]]
+}
