@@ -55,12 +55,7 @@ floor_files:
 # file at that sha alone and only when the change is additive against origin/main
 # (no deleted lines); any other drift fails. Remove the row once the change is on
 # origin/main (the file is then identical again). cycle-133 DEC: DEC-0946.
-floor_amendments:
-  - file: .claude/scripts/verdict-derive.sh
-    sha256: c58e33122457f4e632322cb80ca322d0bbc4e3499364960c1e3aa2bdcf4561a2
-    authority: DEC-0946
-    cycle: cycle-133-follow-through
-    reason: "C-11 finding contract: the Failure clause grammar and the blocking tally (the C-11 grammar and tally plus the round-1 unclosed-fence rule; additive)"
+floor_amendments: []
 
 # Fence-corpus rows (by their `rule` field) that must not change relative to
 # origin/main. A trailing `*` is a prefix match.

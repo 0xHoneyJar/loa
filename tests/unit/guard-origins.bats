@@ -13,7 +13,7 @@ bats_require_minimum_version 1.5.0
 # The sha256 of .claude/data/floor.yaml. An edit to the floor fails this suite
 # until the pin is updated deliberately, in the same change, with a reviewer:
 #   bash -c 'source .claude/scripts/compat-lib.sh; sha256_portable .claude/data/floor.yaml'
-FLOOR_SHA256="f6f5aa5cc12d7a9b5a111ed776210398c93514f7a3c5a40dcd07a05234cf57e8"
+FLOOR_SHA256="dca95764d8fa105f0a76f0afd9464690562f589fa5586876056bc92b9cf96afa"
 
 setup() {
   export LOA_AUDIT_REPLAY=1
