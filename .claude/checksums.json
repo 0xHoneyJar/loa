@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-25T07:44:57Z",
+  "generated": "2026-10-25T08:24:51Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1026,7 +1026,7 @@
     ".claude/scripts/check-thj-member.sh": "018532cadd36ddf283d4d53ee6ffa441865f60bfeb5851cfe69f8519ac8561d1",
     ".claude/scripts/check-updates.sh": "21b5c67eac9132c8202e3eb1659852ce5b22474fc0174a22b93ee6ddd4eb1fd8",
     ".claude/scripts/classify-commit-zone.sh": "6833d563210b251ab13d20d913ece37a2b6d0be8b71b4f256b6fc0a97d86b4e7",
-    ".claude/scripts/classify-merge-pr.sh": "c49ea11db38a572453b699c8f261646bbe600ec47fb868ca5fa9a79041e7367e",
+    ".claude/scripts/classify-merge-pr.sh": "2540054b0698b61d5cbc0ba79189bef982ba6d0b32040acaf0f54dd7efc1b038",
     ".claude/scripts/classify-pr-type.sh": "c7d5cbc08afa1f1e931d545902bd6fabcf71a85d9e9c537215fd59127862b152",
     ".claude/scripts/cleanup-context.sh": "3c5e4f78a1a02b0212a09a4fe4bca028dffc3aa7b30f202672fd04aa36c8e454",
     ".claude/scripts/cluster-events.sh": "ae6ceefd7e4d81cda75e7941d48ff4cb9552ef7810e662a6707ffbc7452914d3",
@@ -1247,7 +1247,7 @@
     ".claude/scripts/permission-audit.sh": "0d6b285d298d38f58234e74f647733c45f6d1587ee78c76a2f6814cae8498232",
     ".claude/scripts/pii-filter.sh": "000e60898cf5627af71fbb6ae96121e07af5a2c2aee22a114948d446bd15113f",
     ".claude/scripts/pipeline-self-review.sh": "a83bb87b350f8a167da182f6336ada3a85e3c30f754599934592f00a436c82e7",
-    ".claude/scripts/post-merge-orchestrator.sh": "cc13a786f29866223df5c7bae3bec0ad64da66ff02c15b75bab793bfb6df11bf",
+    ".claude/scripts/post-merge-orchestrator.sh": "ed384ac551bed1b290d8dca59b5c11384e0a512e251e5b34be1b93ce1bdcc56f",
     ".claude/scripts/post-pr-audit.sh": "80db891ebe06f9cc991b98c4d1e1e2668192be83cb3352f29be23f9c4c8a17af",
     ".claude/scripts/post-pr-context-clear.sh": "6fd99e8fc2b822e9f89ab35e74c3f857a217868f8aac9a5b8cd6df3b8e7037ea",
     ".claude/scripts/post-pr-e2e.sh": "b171c127f49e155f349519209745e7fbee6905a29988b1622121313315b20eda",

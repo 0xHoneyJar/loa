@@ -98,9 +98,12 @@ fi
 # trailing squash form `(#NNN)`, else the merge-commit prefix, as a positive
 # decimal; never the first `#NNN` anywhere (an issue reference is not a PR).
 if [[ -z "$PR_NUMBER" && -n "$MERGE_MSG" ]]; then
+    # the subject is the first line: a squash message carries a body after `<title> (#NNN)` and bash's `$` anchors the
+    # end of the whole string (Bridgebuilder round 2 on PR #1296, HIGH: a body would hide the trailer)
+    _pr_subject="${MERGE_MSG%%$'\n'*}"
     _pr_re_trailer='\(#([0-9]+)\)[[:space:]]*$'
     _pr_re_merge='^Merge pull request #([0-9]+)([[:space:]:]|$)'
-    if [[ "$MERGE_MSG" =~ $_pr_re_trailer ]] || [[ "$MERGE_MSG" =~ $_pr_re_merge ]]; then
+    if [[ "$_pr_subject" =~ $_pr_re_trailer ]] || [[ "$_pr_subject" =~ $_pr_re_merge ]]; then
         PR_NUMBER="${BASH_REMATCH[1]}"
     fi
     [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || PR_NUMBER=""

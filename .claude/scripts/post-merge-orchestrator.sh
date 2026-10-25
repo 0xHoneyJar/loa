@@ -1131,7 +1131,7 @@ phase_tag() {
     return 1
   fi
   if [[ -n "$remote_tag" ]]; then
-    if ! git -C "$PROJECT_ROOT" fetch --no-tags --quiet "${PUSH_URL:-origin}" \
+    if ! run_with_timeout 60 git -C "$PROJECT_ROOT" fetch --no-tags --quiet "${PUSH_URL:-origin}" \
         "+refs/tags/${tag}:refs/loa/post-merge/observed-tag" ||
         ! tag_identity_matches refs/loa/post-merge/observed-tag "$tag" "$target"; then
       fail_phase tag "Remote tag ${tag} of another identity appeared between validation and the push"
@@ -1696,7 +1696,7 @@ validate_tag_identity() {
     return 2
   fi
   [[ -n "$remote_tag" ]] || return 0
-  if ! git -C "$PROJECT_ROOT" fetch --no-tags --quiet "$url" \
+  if ! run_with_timeout 60 git -C "$PROJECT_ROOT" fetch --no-tags --quiet "$url" \
       "+refs/tags/${tag}:refs/loa/post-merge/observed-tag" 2>/dev/null; then
     echo "ERROR: Cannot fetch refs/tags/${tag} from ${url}: remote unreachable, identity unverified; restore access to the push destination, then re-run" >&2
     return 2
@@ -2255,8 +2255,9 @@ publish_candidate() (
         echo "ERROR: Invalid release candidate" >&2
         return 2
       fi
+      # a schema-1 candidate predates remote_push_url: the push destination is the configured one (Bridgebuilder round 2)
       validate_tag_identity "$(jq -r '.tag' "$PUBLISH_CANDIDATE")" "$(jq -r '.target_commit' "$PUBLISH_CANDIDATE")" \
-        "$(jq -r '.remote_push_url' "$PUBLISH_CANDIDATE")" || return 2
+        "$(jq -r '.remote_push_url // empty' "$PUBLISH_CANDIDATE" | grep . || printf '%s' "${PUSH_URL:-origin}")" || return 2
       echo "[PUBLISH] WARNING: publishing a schema_version 1 candidate under --allow-v1: ${ALLOW_V1_REASON}" >&2
       ;;
     2)

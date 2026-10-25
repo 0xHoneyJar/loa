@@ -342,7 +342,7 @@ reclaim() {
     id=""; read -r id < "$B/.jobs/$n.ident" || true
     if ! leader_live "$g"; then
       members="$(group_members "$g")"
-      [[ -n "$members" ]] || continue   # nothing of the group is left
+      [[ -n "$members" ]] || { rm -f "$f" "$B/.jobs/$n.ident"; continue; }   # nothing of the group is left: the record goes too (no stale warning on a reused pid later)
       log "WARN reclaim: .jobs/$n: process group $g is leaderless (its leader exited; the identity cannot be verified): not signalled, record removed; live members for the operator: ${members//$'\n'/ } (check them, then kill -TERM -- -$g)"
       rm -f "$f" "$B/.jobs/$n.ident"; continue
     fi

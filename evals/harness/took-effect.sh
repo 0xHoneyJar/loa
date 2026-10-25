@@ -774,6 +774,10 @@ def result_text(blk):
     return ""
 
 hook_bad = []
+def safe_txt(x, cap=120):
+    """transcript-derived text in a one-line message: as is when short and printable, else JSON-quoted and truncated"""
+    x = str(x)
+    return x if len(x) <= cap and not any(ord(ch) < 32 or ord(ch) == 127 for ch in x) else json.dumps(x[:cap])
 inits, hook_counts, hook_texts, user_texts, results, bash_cmds = [], {}, [], [], [], []
 trig = {}             # per transcript: the trigger counts of clause (g)'s hook rule (sdd.md § 11.H)
 tdir = os.path.join(run, "transcripts")
@@ -810,7 +814,7 @@ for tn in tfiles:
                 if not evn:
                     hook_bad.append("a hook_started without a hook_name in %s" % tn)
                 elif he != evn:
-                    hook_bad.append("hook %s in %s: hook_event %s is not the event of its name" % (hn, tn, he or "<none>"))
+                    hook_bad.append("hook %s in %s: hook_event %s is not the event of its name" % (safe_txt(hn), tn, safe_txt(he or "<none>", 80)))
                 else:
                     k = (tn, evn, q)
                     hook_counts[k] = hook_counts.get(k, 0) + 1
@@ -1433,12 +1437,12 @@ else:
             n = decl.get(evn, 0)
         if n == 0:
             fail("g", "-", "hook %s in %s names no pinned group (event %s, matcher query %s; %s)" % (
-                evn if q is None else "%s:%s" % (evn, q), tn, evn, "none" if q is None else q, src))
+                safe_txt(evn if q is None else "%s:%s" % (evn, q)), tn, safe_txt(evn, 80), "none" if q is None else safe_txt(q, 80), src))
             continue
         o = obs.setdefault((tn, evn, q if groups is not None else None), [0, n])
         o[0] += c
     for (tn, evn, q), (c, n) in sorted(obs.items(), key=lambda x: (x[0][0], x[0][1], x[0][2] or "")):
-        name = evn if q is None else "%s:%s" % (evn, q)
+        name = safe_txt(evn if q is None else "%s:%s" % (evn, q))   # untrusted transcript text: one-line evidence
         t = triggers(tn, evn, q)
         hook_ev.append("%s %s c=%d n=%d k=%s triggers=%s" % (re.sub(r"^events-|\.jsonl$", "", tn), name, c, n,
                                                            c // n if c % n == 0 else "-", "n/a" if t is None else t))

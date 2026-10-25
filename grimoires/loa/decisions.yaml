@@ -34610,3 +34610,42 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1000"
+    created_at: "2026-10-25T08:26:44Z"
+    updated_at: "2026-10-25T08:26:44Z"
+    phase: "implementation"
+    category: "release"
+    summary: "Bridgebuilder on PR #1296: round 1 degraded (** glob skips dot segments, bd-a8l0c); round 2 non-degraded REQUEST_CHANGES → HIGH + MEDIUMs fixed; no third round."
+    decision: "Round 1 (excludes as globs) ended incomplete_coverage: `evals/tests/fixtures/**` did not match the `pinned/.claude/…` fixture files (dot segments), 8 fell past the 50-file cap, and the planning docs came back no_patch — filed as bd-a8l0c. Round 2 with prefix excludes for the fixture trees and the planning docs: 2/2 voices, no degraded_reason, 18 findings (1 consensus, 4 disputed, 0 blocker), verdict REQUEST_CHANGES on one HIGH (0.35) and three MEDIUMs. The actionable ones were fixed on the PR head: the classifier matches the trailer on the subject's first line (KF063-T14), both tag fetches run under run_with_timeout 60, the v1 publish path falls back to the configured push URL when the candidate lacks remote_push_url, untrusted hook names are quoted/truncated in the validator's one-line messages, and reclaim removes the records of a fully-exited group. 'Validate producer number tokens before jq rewrites them' is dispositioned as already satisfied (the scan reads the run state, the producers' output, before jq assembles the candidate; DEC-0994). No third round: the plateau rule allows one and the meter-priced cap (DEC-0999) would be exceeded; the merge proceeds on review + audit APPROVED (rounds 1–3) and green CI, with the BB verdict recorded as REQUEST_CHANGES-then-fixed."
+    rationale: "G-4 asked for a trustworthy (non-degraded) verdict and got one; its findings were acted on at severity. A third round would re-price the whole diff for a one-line-per-finding delta."
+    alternatives_considered:
+      - option: "a third round after the fixes"
+        rejected_because: "≈ USD 8 meter-priced over a cap already amended once; the deltas are covered by the added and existing bats"
+      - option: "DEC the findings without fixing"
+        rejected_because: "four were one-line fixes with tests; the HIGH would hide a squash body's trailer in a future caller"
+    consequences:
+      positive:
+        - "a non-degraded verdict on the cycle's own PR (the first since C-1 landed)"
+        - "the exclude-glob gap is filed"
+      negative:
+        - "the posted verdict stays REQUEST_CHANGES on the PR; the fixes are documented in the triage comment, not re-reviewed by the Bridgebuilder"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9b9eebab"
+    source: "~/.cache/loa/cycle-134/bb/round1.log, round2.log; PR #1296 comments 6395257462, 6395257793, 6395295923; grimoires/loa/a2a/sprint-276/e2e.md § G-4; DEC-0999"
+    cycle: "cycle-134-post-ship-fixes"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-25T08:26:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "round2.log; the triage comment on PR #1296"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

@@ -367,3 +367,11 @@ STUB
     grep -qx 'pr_number=' <<<"$output"
     [[ "$stderr" == *"no associated PR: a push, not a merge"* ]]
 }
+
+@test "KF063-T14: a squash message with a body after the (#NNN) subject still yields the number (first line only; Bridgebuilder round 2 on PR #1296)" {
+    _stub_gh_empty
+    run --separate-stderr "$WRAPPER" --merge-msg $'feat(cycle-200): the thing (#1297)\n\n* commit one\n* commit two closes #12'
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"pr_number=1297"* ]]
+    [[ "$output" == *"pr_type=cycle"* ]]
+}
