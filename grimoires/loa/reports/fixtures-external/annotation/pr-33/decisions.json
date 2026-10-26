@@ -1,0 +1,3 @@
+{
+ "H01": {"base": "A", "anchors": "union", "reason": "anchors: union — 296, 304-305 (the predicate's signature and its Recurse arm) are agreed; A adds 306-310, the Alternatives arm of the same pattern_is_trailing_recursive predicate whose truth for any `**` suffix drives the separator elision at 148; verdict, group, severity, category and description agreed"}
+}

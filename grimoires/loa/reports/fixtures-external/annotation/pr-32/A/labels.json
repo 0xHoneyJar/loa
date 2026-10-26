@@ -1,0 +1,13 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "pydantic-core/src/serializers/fields.rs", "anchor_lines": [114, 341, 342, 343, 344],
+            "description": "The GC traverse implementation for GeneralFieldsSerializer omits extra_serializer, so Python objects held by the extra-fields serializer are not visited by the cycle collector, allowing uncollectable reference cycles (memory leak).",
+            "severity": "medium", "category": "resource"},
+    "H02": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "pydantic-core/src/serializers/fields.rs", "anchor_lines": [],
+            "description": "Removes the old incomplete impl_py_gc_traverse! block, replaced by the corrected one inserted after the struct definition.",
+            "severity": null, "category": null}
+  },
+  "incidents": {}
+}

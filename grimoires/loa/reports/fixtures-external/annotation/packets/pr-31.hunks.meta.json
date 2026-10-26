@@ -1,0 +1,54 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-31",
+  "hunk_count": 5,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "pydantic/json_schema.py",
+      "head_end": 1652,
+      "head_start": 1652,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "pydantic/json_schema.py",
+      "head_end": 1983,
+      "head_start": 1983,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H03": {
+      "cited_by": [],
+      "file": "pydantic/json_schema.py",
+      "head_end": 1988,
+      "head_start": 1988,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H04": {
+      "cited_by": [],
+      "file": "pydantic/json_schema.py",
+      "head_end": 3236,
+      "head_start": 3236,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H05": {
+      "cited_by": [],
+      "file": "pydantic/json_schema.py",
+      "head_end": 3242,
+      "head_start": 3242,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [
+    "I01"
+  ],
+  "incidents": "incidents/pr-31.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

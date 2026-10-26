@@ -1,9 +1,13 @@
 # approved-by: pending
 # fixture pr-31 | external https://github.com/pydantic/pydantic pull request #13890 | base bb6da4cfbb1f | head 32ffc8eef57d | fix b0cd9d347dc4..b0cd9d347dc4
-# seeded by evals/harness/seed-corpus-from-external.sh; the defects come from the blind annotation (labels v2), then --approve
-defect_id	severity	category	file	must_match	label_source	source
-F001	-	fix	pydantic/json_schema.py	-	fix	fix/b0cd9d347dc4:1652-1652
-F002	-	fix	pydantic/json_schema.py	config = cast('ConfigDict', getattr(cls, '__pydantic_config__', {}))	fix	fix/b0cd9d347dc4:1983-1983
-F003	-	fix	pydantic/json_schema.py	-	fix	fix/b0cd9d347dc4:1988-1988
-F004	-	fix	pydantic/json_schema.py	def _get_typed_dict_config(cls: type[Any] | None) -> ConfigDict:	fix	fix/b0cd9d347dc4:3236-3236
-F005	-	fix	pydantic/json_schema.py	-	fix	fix/b0cd9d347dc4:3242-3242
+# seeded by evals/harness/seed-corpus-from-external.sh; defects V01 … from the blind annotation (two Opus 5.5 annotators, annotation_merge.py; label_source fix-commit, review_driven false), fix rows carried; approval pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	medium	logic	pydantic/json_schema.py	config = cast('ConfigDict', getattr(cls, '__pydantic_config__', {}))	fix-commit+incident	hunk:H02;incident:I01	A,B	adjudicated	anchors: union (A adds 1983, the dataclass-schema config push that H02 changes and the incident cites together with the typed-dict lines 1985-1986); verdict, group D3, severity agreed; category logic (both annotators left the incident-only group D3 without a hunk to inherit from; the wrong behaviour is the config push ordered after the definitions cache lookup, as in H02's logic defect)	false
+V01	medium	logic	pydantic/json_schema.py	@L1985	fix-commit+incident	hunk:H02;incident:I01	A,B	adjudicated	anchors: union (A adds 1983, the dataclass-schema config push that H02 changes and the incident cites together with the typed-dict lines 1985-1986); verdict, group D3, severity agreed; category logic (both annotators left the incident-only group D3 without a hunk to inherit from; the wrong behaviour is the config push ordered after the definitions cache lookup, as in H02's logic defect)	false
+V01	medium	logic	pydantic/json_schema.py	json_schema = self.generate_inner(schema['schema']).copy()	fix-commit+incident	hunk:H02;incident:I01	A,B	adjudicated	anchors: union (A adds 1983, the dataclass-schema config push that H02 changes and the incident cites together with the typed-dict lines 1985-1986); verdict, group D3, severity agreed; category logic (both annotators left the incident-only group D3 without a hunk to inherit from; the wrong behaviour is the config push ordered after the definitions cache lookup, as in H02's logic defect)	false
+V02	medium	logic	pydantic/json_schema.py	@L3242	fix-commit	hunk:H05	A,B	agreed	-	false
+F001	-	fix	pydantic/json_schema.py	-	fix	fix/b0cd9d347dc4:1652-1652	-	-	-	-
+F002	-	fix	pydantic/json_schema.py	config = cast('ConfigDict', getattr(cls, '__pydantic_config__', {}))	fix	fix/b0cd9d347dc4:1983-1983	-	-	-	-
+F003	-	fix	pydantic/json_schema.py	-	fix	fix/b0cd9d347dc4:1988-1988	-	-	-	-
+F004	-	fix	pydantic/json_schema.py	def _get_typed_dict_config(cls: type[Any] | None) -> ConfigDict:	fix	fix/b0cd9d347dc4:3236-3236	-	-	-	-
+F005	-	fix	pydantic/json_schema.py	-	fix	fix/b0cd9d347dc4:3242-3242	-	-	-	-

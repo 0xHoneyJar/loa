@@ -1,0 +1,60 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-29",
+  "hunk_count": 6,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "crates/ruff_notebook/src/notebook.rs",
+      "head_end": 404,
+      "head_start": 400,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "crates/ruff_notebook/src/notebook.rs",
+      "head_end": 410,
+      "head_start": 410,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H03": {
+      "cited_by": [],
+      "file": "crates/ruff_notebook/src/notebook.rs",
+      "head_end": 502,
+      "head_start": 502,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H04": {
+      "cited_by": [],
+      "file": "crates/ruff_notebook/src/notebook.rs",
+      "head_end": 672,
+      "head_start": 672,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H05": {
+      "cited_by": [],
+      "file": "crates/ty_server/src/document/range.rs",
+      "head_end": 112,
+      "head_start": 112,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H06": {
+      "cited_by": [],
+      "file": "crates/ty_server/tests/e2e/notebook.rs",
+      "head_end": 661,
+      "head_start": 661,
+      "insertion": true,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [],
+  "incidents": "incidents/pr-29.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

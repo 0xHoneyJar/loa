@@ -1,14 +1,49 @@
 {
   "fixture": "pr-33",
+  "label_set": "v2",
   "approved": false,
   "approved_by": "pending",
   "record": {
     "sprint": null,
     "record_ref": null,
     "head_commit": "3eb97a715d9edb3409f0d75f560f37db5b3300f3",
-    "fix_commit": "58a647346a1c791aa6b6667cb53249f3882b1de2"
+    "fix_commit": "58a647346a1c791aa6b6667cb53249f3882b1de2",
+    "incidents_meta": {
+      "main_sha": "706259d6f8f15a9875ab3446baace78f89c102a6"
+    }
   },
-  "defects": [],
+  "defects": [
+    {
+      "id": "V01",
+      "file": "crates/nu-glob/src/dc_glob/compiler.rs",
+      "anchor_line": 148,
+      "anchors": [
+        148,
+        296,
+        304,
+        305,
+        306,
+        307,
+        308,
+        309,
+        310
+      ],
+      "must_match": "AstNode::Separator if pattern_is_trailing_recursive(&nodes[i + 1..]) => {}",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
+      "source_commit": "3eb97a71",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "anchors: union \u2014 296, 304-305 (the predicate's signature and its Recurse arm) are agreed; A adds 306-310, the Alternatives arm of the same pattern_is_trailing_recursive predicate whose truth for any `**` suffix drives the separator elision at 148; verdict, group, severity, category and description agreed",
+      "review_driven": false
+    }
+  ],
   "fix_regions": [
     {
       "id": "F001",

@@ -1,0 +1,24 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "crates/ruff_notebook/src/notebook.rs", "anchor_lines": [402, 403, 404],
+            "description": "cell_range indexes cell_offsets by the raw cell index among all cells, but offsets exist only for valid Python code cells, so notebooks with Markdown or cell-magic cells get the wrong range (or a range for a non-code cell).",
+            "severity": "high", "category": "logic"},
+    "H02": {"verdict": "not-defect", "not_defect_class": "docs", "group": null,
+            "file": "crates/ruff_notebook/src/notebook.rs", "anchor_lines": [],
+            "description": "Doc comment clarifying the index semantics of cell_content_range.", "severity": null, "category": null},
+    "H03": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "crates/ruff_notebook/src/notebook.rs", "anchor_lines": [],
+            "description": "Test-module import update for the new test.", "severity": null, "category": null},
+    "H04": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "crates/ruff_notebook/src/notebook.rs", "anchor_lines": [],
+            "description": "Adds a regression test for cell_range lookup by raw cell index.", "severity": null, "category": null},
+    "H05": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "crates/ty_server/src/document/range.rs", "anchor_lines": [],
+            "description": "Adds a cell_range helper that maps a cell URI to its raw index and uses Notebook::cell_range; no callers are visible, so intent is somewhat unclear, but it builds on the D1 fix.", "severity": null, "category": null},
+    "H06": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "crates/ty_server/tests/e2e/notebook.rs", "anchor_lines": [],
+            "description": "Adds an e2e test for cells after a cell-magic cell.", "severity": null, "category": null}
+  },
+  "incidents": {}
+}

@@ -1,0 +1,30 @@
+{
+  "hunks": {
+    "H01": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D2",
+            "file": "pydantic/json_schema.py", "anchor_lines": [],
+            "description": "Passes `config or {}` to _update_class_schema because the typed-dict config may now be None.",
+            "severity": null, "category": null},
+    "H02": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "pydantic/json_schema.py", "anchor_lines": [1983, 1985],
+            "description": "For a stdlib dataclass without __pydantic_config__, head pushes an empty config instead of None, so the parent's config is not inherited during JSON schema generation, unlike core schema generation.",
+            "severity": "medium", "category": "logic"},
+    "H03": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "pydantic/json_schema.py", "anchor_lines": [],
+            "description": "Passes `config or {}` to _update_class_schema because the dataclass config may now be None.",
+            "severity": null, "category": null},
+    "H04": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D2",
+            "file": "pydantic/json_schema.py", "anchor_lines": [],
+            "description": "Updates the return annotation to ConfigDict | None and adds a comment for the typed-dict config fix.",
+            "severity": null, "category": null},
+    "H05": {"verdict": "defect", "not_defect_class": null, "group": "D2",
+            "file": "pydantic/json_schema.py", "anchor_lines": [3242],
+            "description": "_get_typed_dict_config returns {} for a typed dict with no config, so the pushed empty config overrides the parent's config instead of inheriting it, as core schema generation does.",
+            "severity": "medium", "category": "logic"}
+  },
+  "incidents": {
+    "I01": {"verdict": "defect-at-head", "group": "D3", "file": "pydantic/json_schema.py",
+            "anchor_lines": [1985, 1986],
+            "description": "Class config (incl. json_schema_mode_override) is pushed inside dataclass/typed-dict schema generation, after the definitions cache lookup in generate_inner, so nested schemas can be cached under the wrong mode.",
+            "severity": "medium"}
+  }
+}

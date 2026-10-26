@@ -1,0 +1,49 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-30",
+  "hunk_count": 4,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/optimizer/optimizer.ts",
+      "head_end": 150,
+      "head_start": 150,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/optimizer/optimizer.ts",
+      "head_end": 155,
+      "head_start": 155,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H03": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/optimizer/optimizer.ts",
+      "head_end": 344,
+      "head_start": 340,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H04": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/optimizer/optimizer.ts",
+      "head_end": 363,
+      "head_start": 363,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [
+    "I01",
+    "I02",
+    "I03",
+    "I04"
+  ],
+  "incidents": "incidents/pr-30.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

@@ -1,0 +1,97 @@
+{
+  "fixtures": [
+    "pr-29",
+    "pr-30",
+    "pr-31",
+    "pr-32",
+    "pr-33",
+    "pr-34",
+    "pr-35",
+    "pr-36",
+    "pr-37",
+    "pr-38",
+    "pr-39",
+    "pr-40",
+    "pr-41"
+  ],
+  "grouping": {
+    "jaccard": 0.9322,
+    "pairs_a": 59,
+    "pairs_b": 55,
+    "pairs_both": 55
+  },
+  "hunks": {
+    "kappa": 0.9614,
+    "n": 58,
+    "po": 0.9828,
+    "table": [
+      [
+        19,
+        1
+      ],
+      [
+        0,
+        38
+      ]
+    ]
+  },
+  "incidents": {
+    "kappa": 0.6316,
+    "n": 14,
+    "po": 0.9286,
+    "table": [
+      [
+        1,
+        1
+      ],
+      [
+        0,
+        12
+      ]
+    ]
+  },
+  "localization": {
+    "file_mismatch": 0,
+    "median_distance": null,
+    "n": 20,
+    "overlap": 20,
+    "share": 1.0
+  },
+  "severity": {
+    "kappa": 1.0,
+    "labels": [
+      "critical",
+      "high",
+      "medium",
+      "low"
+    ],
+    "n": 20,
+    "po": 1.0,
+    "table": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        13,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        7,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  }
+}
