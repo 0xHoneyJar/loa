@@ -390,6 +390,40 @@ describe("LOA_EXCLUDE_PATTERNS", () => {
   });
 });
 
+// --- matchesExcludePattern dot-led segments (bd-a8l0c) ---
+
+describe("matchesExcludePattern — dot-led segments (bd-a8l0c)", () => {
+  it("** exclusion glob matches files under a dot-led directory in the named tree", () => {
+    assert.ok(matchesExcludePattern("evals/tests/fixtures/sandbox-mount/pinned/.claude/settings.json", ["evals/tests/fixtures/**"]));
+    assert.ok(matchesExcludePattern("evals/tests/fixtures/sandbox-mount/pinned/.claude/rows/r02.md", ["evals/tests/fixtures/**"]));
+  });
+
+  it("**/*.md matches a file under a dot-led directory", () => {
+    assert.ok(matchesExcludePattern("a/.hidden/b.md", ["**/*.md"]));
+  });
+
+  it("single * matches a dot-file at the start of a segment", () => {
+    assert.ok(matchesExcludePattern("fixtures/.hidden.json", ["fixtures/*.json"]));
+  });
+
+  it("** exclusion glob does not match a sibling tree", () => {
+    assert.ok(!matchesExcludePattern("evals/tests/other/x.md", ["evals/tests/fixtures/**"]));
+  });
+
+  it("single * stays within one path segment", () => {
+    assert.ok(!matchesExcludePattern("evals/tests/fixtures/a/b.md", ["evals/tests/fixtures/*.md"]));
+  });
+
+  it("exact pattern behaviour is unchanged (equality or substring)", () => {
+    assert.ok(matchesExcludePattern(".loa-version.json", [".loa-version.json"]));
+    assert.ok(matchesExcludePattern("x/.loa-version.json.bak", [".loa-version.json"]));
+  });
+
+  it("substring pattern behaviour is unchanged", () => {
+    assert.ok(matchesExcludePattern("grimoires/loa/prd.md", ["grimoires/"]));
+  });
+});
+
 // --- isLoaSystemZone (Bug 2 fix — issue #309) ---
 
 describe("isLoaSystemZone", () => {
