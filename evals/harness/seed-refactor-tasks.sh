@@ -17,7 +17,8 @@
 #               under the allowed roots that name a touched file (its basename,
 #               or a Python module's stem; at most 20), and their infrastructure
 #               (conftest.py up to the root, __init__.py, *.bash and *helper*
-#               files beside each test, root runner configs) — a plain tree
+#               files beside each test, root runner configs) — a plain tree;
+#               a file of git mode 100755 keeps its executable bit
 #   hidden/     reference.patch = the commit's diff (a/ b/ prefixes, patch -p1),
 #               manifest.json {"files": []} until the structural check exists
 #   task.yaml   source {kind: loa-history, fix_commit, base_commit, date,
@@ -37,9 +38,9 @@
 # Usage:
 #   seed-refactor-tasks.sh --since DATE [--select N] --out DIR [--repo DIR]
 #                          [--paths CSV] [--suite-version N] [--id-prefix P]
-#                          [--fixture-scope touched|roots] [--dry-run]
+#                          [--fixture-scope touched|roots] [--rev REV] [--dry-run]
 #
-#   options as seed-bugfix-tasks.sh (--select default 4; a commit without a
+#   options as seed-bugfix-tasks.sh (--rev likewise; --select default 4; a commit without a
 #   covering test is skipped and does not count; --id-prefix default refactor);
 #   LOA_SEED_BATS likewise
 #

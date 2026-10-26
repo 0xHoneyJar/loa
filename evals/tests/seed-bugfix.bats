@@ -11,7 +11,8 @@
 # allowed roots is skipped; usage errors are exit 2; --id-prefix names the ids
 # (bugfix-v3-01) and refuses a prefix outside [a-z0-9][a-z0-9-]{0,60}; a failed proof
 # leaves nothing staged, so the next candidate takes the freed id (SB-8); --fixture-scope
-# roots carries the whole allowed-roots slice and names the changed test files (SB-9).
+# roots carries the whole allowed-roots slice and names the changed test files (SB-9); a
+# fixture file of git mode 100755 keeps its executable bit (SB-10).
 # =============================================================================
 
 setup() {
@@ -135,7 +136,7 @@ commit_claude_fix() {
   [ "$(yq -r .source.fix_commit "$S/tasks/bugfix-01/task.yaml")" != "$SHA" ]
 }
 
-@test "SB-3 --dry-run lists candidates and refusals and writes nothing" {
+@test "SB-3 --dry-run lists candidates and refusals and writes nothing; --rev bounds the listing to a revision" {
   commit_clean_fix
   commit_claude_fix
   run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run
@@ -144,6 +145,15 @@ commit_claude_fix() {
   grep -q '^refused .*: .claude/x.sh$' <<<"$output"
   grep -q '1 candidate(s), 1 refused, 0 skipped; dry run, nothing written' <<<"$output"
   [ ! -e "$S" ]
+  # --rev lists the commits reachable from a revision: HEAD~1 leaves out the newest (the .claude/ fix)
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run --rev HEAD~1
+  [ "$status" -eq 0 ]
+  grep -q '^candidate ' <<<"$output"
+  ! grep -q '^refused' <<<"$output" || false
+  grep -q '1 candidate(s), 0 refused, 0 skipped; dry run, nothing written' <<<"$output"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run --rev no-such-branch
+  [ "$status" -eq 2 ]
+  grep -q 'rev is not a commit' <<<"$output"
 }
 
 @test "SB-4 a fix whose test is already green at the parent fails its proof: exit 1, nothing written" {
@@ -286,4 +296,28 @@ PY
   ! grep -qE 'test_rounding|half_away|hidden' "$D/TASK.md" || false
   run "$VS" --root "$S" --allow-partial
   [ "$status" -eq 0 ]
+}
+
+@test "SB-10 a fixture file of git mode 100755 keeps its executable bit (a shell tool the hidden bats test runs)" {
+  export LOA_SEED_BATS="${LOA_SEED_BATS:-$BATS_ROOT/bin/bats}"
+  [ -x "$LOA_SEED_BATS" ] || skip "no bats binary for the proof"
+  mkdir -p "$G/tools/greet/tests"
+  printf '#!/usr/bin/env bash\necho "hello $1"\n' > "$G/tools/greet/greet.sh"; chmod +x "$G/tools/greet/greet.sh"
+  cat > "$G/tools/greet/tests/greet.bats" <<'B'
+setup() { T="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/greet.sh"; }
+@test "greets" { run "$T" world; [ "$status" -eq 0 ]; [ "$output" = "hello world" ]; }
+B
+  gc add -A; gc commit -q -m "chore: a greeter"
+  printf '#!/usr/bin/env bash\necho "hello ${1:-stranger}"\n' > "$G/tools/greet/greet.sh"
+  cat >> "$G/tools/greet/tests/greet.bats" <<'B'
+@test "greets a stranger" { run "$T"; [ "$status" -eq 0 ]; [ "$output" = "hello stranger" ]; }
+B
+  gc add -A; gc commit -q -m "fix(greet): a missing name is a stranger"
+  FIX="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --rev HEAD
+  [ "$status" -eq 0 ]
+  grep -qx "proof bugfix-01 ${FIX:0:12}: red 1 failed / green 2 passed" <<<"$output"
+  [ -x "$S/tasks/bugfix-01/fixture/tools/greet/greet.sh" ]
+  [ ! -x "$S/tasks/bugfix-01/fixture/tools/greet/tests/greet.bats" ]
+  [ "$(yq -o=json -I=0 .test_command "$S/tasks/bugfix-01/task.yaml")" = '["bats","tools/greet/tests"]' ]
 }

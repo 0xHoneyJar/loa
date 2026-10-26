@@ -82,8 +82,8 @@ def under_roots(p, roots):
     return any(p == r or p.startswith(r + "/") for r in roots)
 
 
-def commits_since(repo, since):
-    raw = git(repo, "log", f"--since={since}", "--no-merges", "--format=%H%x1f%P%x1f%cs%x1f%s%x1e")
+def commits_since(repo, since, rev="HEAD"):
+    raw = git(repo, "log", rev, f"--since={since}", "--no-merges", "--format=%H%x1f%P%x1f%cs%x1f%s%x1e")
     for rec in raw.split("\x1e"):
         rec = rec.strip("\n")
         if not rec:
@@ -135,13 +135,16 @@ def tree_files(repo, commit, prefix=None):
 
 
 # ---------------------------------------------------------------- materialise
-def write_file(root, rel, data):
+def write_file(root, rel, data, mode=None):
+    """Write bytes under root; a blob of git mode 100755 keeps its executable bit (a shell tool the tests run)."""
     if not safe_path(rel):
         raise ValueError(f"unsafe path: {rel!r}")
     dest = os.path.join(root, rel)
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     with open(dest, "wb") as fh:
         fh.write(data)
+    if mode == "100755":
+        os.chmod(dest, 0o755)
 
 
 def put_from(repo, commit, rel, root, dest_rel=None, skip_links=False):
@@ -153,7 +156,7 @@ def put_from(repo, commit, rel, root, dest_rel=None, skip_links=False):
         if skip_links:
             return False
         raise ValueError(f"symlink in history: {rel}")
-    write_file(root, dest_rel or rel, data)
+    write_file(root, dest_rel or rel, data, mode)
     return True
 
 
@@ -562,6 +565,7 @@ def parse(argv):
     ap.add_argument("--select", type=int, default=4)
     ap.add_argument("--out", required=True)
     ap.add_argument("--repo")
+    ap.add_argument("--rev", default="HEAD")
     ap.add_argument("--paths", default=DEFAULT_PATHS)
     ap.add_argument("--suite-version", type=int, default=1)
     ap.add_argument("--id-prefix")
@@ -585,6 +589,10 @@ def parse(argv):
     a.repo = a.repo or a.repo_default
     if subprocess.run(["git", "-C", a.repo, "rev-parse", "--git-dir"], capture_output=True).returncode != 0:
         raise Usage(f"not a git repository: {a.repo}")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/~^-]{0,120}", a.rev) or a.rev.startswith("-") or \
+            subprocess.run(["git", "-C", a.repo, "rev-parse", "--verify", "--quiet", a.rev + "^{commit}"],
+                           capture_output=True).returncode != 0:
+        raise Usage(f"--rev is not a commit of {a.repo}: {a.rev!r}")
     roots = [r.strip().strip("/") for r in a.paths.split(",") if r.strip().strip("/")]
     if not roots or any(not safe_path(r) or mount_owned(r) for r in roots):
         raise Usage(f"--paths must be relative roots outside the mount-owned paths: {a.paths!r}")
@@ -602,7 +610,7 @@ def main(argv):
     SUITE_VERSION = a.suite_version
     name = f"seed-{a.mode}"
     cands, refused, skipped = [], 0, 0
-    for sha, parents, date, subject in commits_since(a.repo, a.since):
+    for sha, parents, date, subject in commits_since(a.repo, a.since, a.rev):
         if not SUBJECT[a.mode].match(subject):
             continue
         verdict, detail = classify(a.mode, a.repo, sha, parents, a.roots)

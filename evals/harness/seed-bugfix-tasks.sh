@@ -3,7 +3,8 @@
 # seed-bugfix-tasks.sh — cycle-130 bug-fix task seeder (SDD §5.14, Sprint 259 Task 2.2)
 #
 # Turns Loa fix commits into candidate bug-fix tasks for the ablation suite.
-# Lists the commits since DATE whose subject starts with `fix` or `bug`, whose
+# Lists the commits since DATE (reachable from --rev, default HEAD) whose subject
+# starts with `fix` or `bug`, whose
 # diff touched a test file (a path under a `tests/` directory, `test_*.py`,
 # `*_test.py` or `*.bats`) and whose touched files all lie under the allowed
 # roots; refuses by name any candidate touching .claude/, CLAUDE.md,
@@ -23,7 +24,8 @@
 #               repository slice the tests see: libraries in other directories,
 #               test fixtures, suite files; symlinks skipped, mount-owned paths
 #               never) — for a repository whose tests reach across directories,
-#               as Loa's harness tests do
+#               as Loa's harness tests do. A file of git mode 100755 keeps its
+#               executable bit in the fixture (a shell tool the tests run)
 #   hidden/     tests/<path> = each added or changed test at the commit,
 #               manifest.json {"files":[{src, dest}]}, reference.patch = the
 #               commit's diff of the non-test files (a/ b/ prefixes, patch -p1)
@@ -50,9 +52,11 @@
 # Usage:
 #   seed-bugfix-tasks.sh --since DATE [--select N] --out DIR [--repo DIR]
 #                        [--paths CSV] [--suite-version N] [--id-prefix P]
-#                        [--fixture-scope touched|roots] [--dry-run]
+#                        [--fixture-scope touched|roots] [--rev REV] [--dry-run]
 #
 #   --since DATE       YYYY-MM-DD; commits whose committer date is on or after it
+#   --rev REV          list the commits reachable from REV (default HEAD): a branch, tag or
+#                      sha; refused (exit 2) when it is not a commit of the repository
 #   --select N         tasks to materialise (default 4); refusals and skips do not
 #                      count, a failed proof does
 #   --out DIR          suite root; tasks go to DIR/tasks/<id>/
