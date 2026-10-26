@@ -4,7 +4,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ReviewPipeline, PRReviewTemplate, BridgebuilderContext, } from "./core/index.js";
 import { createLocalAdapters } from "./adapters/index.js";
-import { parseCLIArgs, resolveConfig, resolveRepos, formatEffectiveConfig, loadMultiModelConfig, validateApiKeys, readAgyGate, agyGateStartupLines, loaConfigPathFor, loadTrustedConfig, trustedConfigStartupLine, applyLocality, singleModelLocalityRefusal, headDriftRefusal, EXIT_TRUSTED_CONFIG_DRIFT, } from "./config.js";
+import { parseCLIArgs, resolveConfig, resolveRepos, formatEffectiveConfig, loadMultiModelConfig, validateApiKeys, readAgyGate, agyGateStartupLines, loaConfigPathFor, loadTrustedConfig, trustedConfigStartupLine, applyLocality, singleModelLocalityRefusal, headDriftRefusal, applyTrustedReviewScope, EXIT_TRUSTED_CONFIG_DRIFT, } from "./config.js";
 import { summarizeVoices, totalVoices, decideExitCode, degradedWarnLine } from "./core/run-outcome.js";
 import { executeMultiModelReview } from "./core/multi-model-pipeline.js";
 import { DEFAULT_LORE_PATH, loadLoreEntries } from "./core/lore-loader.js";
@@ -396,6 +396,10 @@ export async function main() {
         repo: config.repos.length === 1 ? `${config.repos[0].owner}/${config.repos[0].repo}` : undefined,
     });
     config.trusted = trusted;
+    // sprint-279 review round 1 (HIGH 3, bd-i4fyw): on a pull request the review-scope keys (protected_paths,
+    // exclude_patterns, fetch_missing_patches, max_content_fetches) follow the trusted source too — a PR head cannot
+    // widen or disable its own review; a differing head value is replaced with one WARN per key (not a refusal).
+    applyTrustedReviewScope(config, trusted, cliArgs);
     console.error(trustedConfigStartupLine(trusted));
     for (const line of trusted.warnings)
         console.error(line);
