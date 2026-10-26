@@ -231,6 +231,41 @@ class RegistrationV2Test(unittest.TestCase):
 
 
 @unittest.skipUnless(jcs_available(), "lib/jcs.sh needs the rfc8785 package")
+class PinnedInputsTest(RegistrationV2Test):
+    """A corpus or suite manifest extended after the cycle is not drift of the record: verify falls back to the
+    file at the registration's pin commit (registration.py sha256_file_or_pinned)."""
+
+    def build_at_head(self, out):
+        head = subprocess.run(["git", "-C", self.repo, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
+        argv = ["build", "--repo", self.repo, "--prereg", os.path.join(self.repo, "PREREGISTRATION.md"),
+                "--corpus-sums", os.path.join(self.repo, "SHA256SUMS"), "--suite-root", os.path.join(self.repo, "root"),
+                "--analysis-tree", "HEAD:evals/analysis/c132", "--pin", head,
+                "--suite-file", os.path.join(self.repo, "suite.yaml"), "--arms", "a1_full",
+                "--groups", '[["review-01"]]', "--looks", "[1]", "--boundary-constant", "1.08", "--cap-usd", "2500",
+                "--seed", "1", "--out", out]
+        return self.run_main(argv)
+
+    def test_extended_corpus_verifies_against_the_pin(self):
+        out = os.path.join(self.reg_dir, "REGISTRATION-1.json")
+        rc, so, se = self.build_at_head(out)
+        self.assertEqual(rc, 0, se)
+        with open(os.path.join(self.repo, "SHA256SUMS"), "a") as f:
+            f.write("1" * 64 + "  pr-99/fixture.yaml\n")   # a later fixture, uncommitted: the working tree differs from the pin
+        rc, so, se = self.verify(out)
+        self.assertEqual(rc, 0, so + se)
+        self.assertTrue(so.startswith("ok "), so)
+
+    def test_corpus_that_never_matched_the_pin_is_drift(self):
+        out = os.path.join(self.reg_dir, "REGISTRATION-1.json")
+        rc, so, se = self.build(out)   # pin abcdef1 is no commit of this repo: no pinned fallback
+        self.assertEqual(rc, 0, se)
+        with open(os.path.join(self.repo, "SHA256SUMS"), "a") as f:
+            f.write("1" * 64 + "  pr-99/fixture.yaml\n")
+        rc, so, se = self.verify(out)
+        self.assertEqual(rc, 1, so + se)
+        self.assertIn("drift: corpus_sha256sums_sha256", so)
+
+
 class Cycle132ChainTest(unittest.TestCase):
     def test_every_tracked_cycle_132_registration_verifies_unchanged(self):
         files = sorted(glob.glob(os.path.join(REPO, "grimoires", "loa", "evals", "ablation-2.0-c132", "REGISTRATION*.json")))

@@ -444,7 +444,7 @@ PY
 feed() { local f; for f in "$OUT/chunks/$1"/*.md; do printf '===== %s =====\n' "$(basename "$f")"; cat "$f"; printf '\n'; done; }
 codex_model_of() {  # codex_model_of <events file> → the model the session rollout names, else --codex-model
   local tid rf m
-  tid="$(jq -r 'select(.type == "thread.started") | .thread_id // empty' "$1" 2>/dev/null | head -1)"
+  tid="$(jq -r 'select(.type == "thread.started").thread_id // empty' "$1" 2>/dev/null | head -1)"
   if [[ -n "$tid" ]]; then
     rf="$(find "${CODEX_HOME:-$HOME/.codex}/sessions" -name "rollout-*-$tid.jsonl" 2>/dev/null | head -1)"
     if [[ -n "$rf" ]]; then
@@ -466,7 +466,7 @@ codex_lane() {
     printf '%s codex %s exit %s\n' "$(stamp)" "$c" "$rc" >> "$OUT/lanes.log"
     stamp > "$OUT/codex/$c.finished"
     usage="$(jq -c 'select(.type == "turn.completed") | .usage | {in: (.input_tokens // 0), out: (.output_tokens // 0), reasoning: (.reasoning_output_tokens // 0), cache_read: (.cached_input_tokens // 0)}' "$OUT/codex/$c.events.jsonl" 2>/dev/null | tail -1)"
-    tid="$(jq -r 'select(.type == "thread.started") | .thread_id // empty' "$OUT/codex/$c.events.jsonl" 2>/dev/null | head -1)"
+    tid="$(jq -r 'select(.type == "thread.started").thread_id // empty' "$OUT/codex/$c.events.jsonl" 2>/dev/null | head -1)"
     model="$(codex_model_of "$OUT/codex/$c.events.jsonl")"
     printf '%s\n' "$model" > "$OUT/codex/$c.model"
     ledger_row "codex-$c" codex-headless openai "$model" "${usage:-{\}}" "$((t1 - t0))" 0 "$([[ -n "$usage" ]] && echo actual || echo unknown)" unknown "$tid" cli:codex "$model"
