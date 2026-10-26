@@ -204,8 +204,8 @@ import hashlib, json, os, re, shutil, sys
 lib_dir, run, out, suite, task, repo, descs_path, chunk, run_id, forbid_json, suite_yaml = sys.argv[1:12]
 chunk = int(chunk)
 sys.path.insert(0, lib_dir)
-from judge_packets import (CTX, ProvenanceError, cited_section, citations, defect_section, describe, finding_section,  # noqa: E402
-                           finding_text, inside, load_descriptions, sources, strip_side)
+from judge_packets import (CTX, ProvenanceError, cited_section, citations, defect_section, defect_sites, describe,  # noqa: E402
+                           finding_section, finding_text, load_descriptions, path_matches, provenance_scan, sources, strip_side)
 
 
 def die(msg):
@@ -258,7 +258,14 @@ by_id = {}
 for p, a, b in cites:
     f = strip_side(p)
     fid = "F-" + hashlib.sha256(("%s:%d:" % (f, a)).encode("utf-8")).hexdigest()[:6]
-    by_id.setdefault(fid, (p, a, b))
+    by_id.setdefault(fid, []).append((p, a, b))
+
+
+def credits(c, d):
+    """the grader's pm3 rule: the citation's file is the defect's and its lines reach within ±3 of a site"""
+    return path_matches(c[0], d.get("file", "")) and any(not (c[2] < s - 3 or c[1] > s + 3) for s in defect_sites(d))
+
+
 jcs = lambda o: json.dumps(o, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 paras = sources(run)
 
@@ -300,17 +307,19 @@ for j, pr in enumerate(order, 1):
     fid, dk = pr["finding_id"], pr["defect_key"]
     if fid not in by_id:
         die("credited pair (%s, %s) has no citation in grading/gates-combined.md" % (fid, dk))
-    region = by_id[fid]
+    di = int(dk[1:]) - 1
+    if not 0 <= di < len(defects):
+        die("defect %s is not in the manifest" % dk)
+    d = defects[di]
+    # one finding id covers every citation of one file and start line (a bare line and a range, say); the pair's
+    # reference is the first of them that credits this defect — the grader's credited_pairs rule
+    region = next((c for c in by_id[fid] if credits(c, d)), by_id[fid][0])
     f = strip_side(region[0])
     ref = {"file": f, "anchor_line": region[1], "id": fid}
     if region[2] > region[1]:
         ref["anchor_line_end"] = region[2]
     if hashlib.sha256(jcs(ref).encode("utf-8")).hexdigest() != pr["finding_sha256"]:
         die("finding_sha256 of %s is not the hash of its citation %s:%d-%d" % (fid, f, region[1], region[2]))
-    di = int(dk[1:]) - 1
-    if not 0 <= di < len(defects):
-        die("defect %s is not in the manifest" % dk)
-    d = defects[di]
     L = ["# Judge item %s\n\n" % pid,
          "Does the finding describe the labelled defect? `describes`, `partially`, or `does-not-describe`.\n\n"]
     quoted = []
@@ -326,7 +335,6 @@ for j, pr in enumerate(order, 1):
         quoted.append(q)
     body = "".join(L)
     try:
-        from judge_packets import provenance_scan
         exempt = provenance_scan(body, quoted, fixture_dir, forbidden, strict)
     except ProvenanceError as e:
         die("packet %s would carry a provenance field (%s); nothing written" % (pid, e))

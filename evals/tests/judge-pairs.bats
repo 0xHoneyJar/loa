@@ -352,3 +352,15 @@ PY
   [[ "$output" == *"refused the enumeration"* ]]
   [ ! -e "$T/o/packets" ]
 }
+
+@test "JP-10 one finding id covers a bare line and a range starting there: the pair's packet cites the citation that credits the defect, as the grader's hash does" {
+  # f.sh:6 alone is four lines from D01's site (no credit); f.sh:6-8 reaches within ±3 → the pair's reference is the range
+  printf '# Review\n\nFirst at head/f.sh:6 the bound is wrong.\n\nThen head/f.sh:6-8 spans the loop head: THE RANGE.\n' > "$RUN/sandbox/review.md"
+  run "$JP" "$RUN" "${ARGS[@]}" --dry-run
+  echo "$output"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"1 credited pairs (1 findings, 1 defects)"* ]]
+  grep -qF '## Cited lines: head/f.sh:6-8 (±5)' "$T/out/packets/P0001.md"
+  grep -qF 'THE RANGE' "$T/out/packets/P0001.md"
+  [ "$(K '.items.P0001.region | join(":")')" = "head/f.sh:6:8" ]
+}

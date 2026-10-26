@@ -151,12 +151,16 @@ def finding_text(paras, region):
     CAP characters (then cut with " …")."""
     path, a, b = region
     base = re.escape(strip_side(path).rsplit("/", 1)[-1])
-    lines_re = r":(%d|%d)(?!\d)" % (a, b)
-    adjacent = re.compile(base + r"[`*)\]]{0,3}" + lines_re)
-    # the bare form the grader's parser also credits: `path:242` (also `:239-244`) — a `:line` not attached to a
-    # path, in a paragraph that names the file
-    bare = re.compile(r"(?<![\w/.\-])" + lines_re)
-    for pat, want_base in ((adjacent, False), (bare, True)):
+    # a range region first looks for its own `:a-b`, then either end line; a line region for `:a`
+    lines_res = ([r":%d-%d(?!\d)" % (a, b)] if b > a else []) + [r":(%d|%d)(?!\d)" % (a, b)]
+    attempts = []
+    for lines_re in lines_res:
+        attempts.append((re.compile(base + r"[`*)\]]{0,3}" + lines_re), False))
+    for lines_re in lines_res:
+        # the bare form the grader's parser also credits: `path:242` (also `:239-244`) — a `:line` not attached to a
+        # path, in a paragraph that names the file
+        attempts.append((re.compile(r"(?<![\w/.\-])" + lines_re), True))
+    for pat, want_base in attempts:
         for p in paras:
             if not pat.search(p) or (want_base and not re.search(base, p)):
                 continue
