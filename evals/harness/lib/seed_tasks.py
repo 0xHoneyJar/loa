@@ -589,6 +589,10 @@ def main(argv):
                     tdir, info = build_refactor(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots)
             except (ValueError, RuntimeError, OSError) as e:
                 tdir, info = None, str(e)
+            if tdir in ("secret", "skip", None):
+                # a candidate that is not written leaves nothing staged: its id is reused by the
+                # next one, and a stale <stage>/<tid> would make every later build fail with EEXIST
+                shutil.rmtree(os.path.join(stage, tid), ignore_errors=True)
             if tdir == "secret":
                 refused += 1
                 out(f"refused {sha[:12]}: {info}")

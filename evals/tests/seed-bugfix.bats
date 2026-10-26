@@ -9,7 +9,8 @@
 # writes nothing; --dry-run writes nothing; a fix whose test is already green
 # at the parent fails its proof (exit 1, nothing written); a fix outside the
 # allowed roots is skipped; usage errors are exit 2; --id-prefix names the ids
-# (bugfix-v3-01) and refuses a prefix outside [a-z0-9][a-z0-9-]{0,60}.
+# (bugfix-v3-01) and refuses a prefix outside [a-z0-9][a-z0-9-]{0,60}; a failed proof
+# leaves nothing staged, so the next candidate takes the freed id (SB-8).
 # =============================================================================
 
 setup() {
@@ -217,4 +218,23 @@ commit_claude_fix() {
   [ "$status" -eq 2 ]
   run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run --id-prefix 'a/b'
   [ "$status" -eq 2 ]
+}
+
+@test "SB-8 a failed proof leaves nothing staged: the next candidate takes the freed id instead of dying on EEXIST" {
+  commit_clean_fix
+  CLEAN="$(git -C "$G" rev-parse HEAD)"
+  # the newer candidate (tried first) fails its proof: its test is already green at the parent
+  printf '\ndef test_more():\n    assert round_half(0.2) == 0\n' >> "$G/tools/mathx/tests/test_rounding.py"
+  echo '# comment' >> "$G/tools/mathx/rounding.py"
+  gc add -A; gc commit -q -m "fix: a cosmetic change"
+  GREEN="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" --since 2000-01-01 --select 2 --out "$S" --repo "$G"
+  [ "$status" -eq 1 ]
+  grep -q "^proof-failed ${GREEN:0:12}: not red at base" <<<"$output"
+  ! grep -q 'File exists' <<<"$output" || false
+  grep -qx "proof bugfix-01 ${CLEAN:0:12}: red 2 failed / green 3 passed" <<<"$output"
+  grep -q "^wrote $S/tasks/bugfix-01\$" <<<"$output"
+  grep -q 'selected 2, written 1, proof failed 1' <<<"$output"
+  [ "$(ls "$S/tasks")" = "bugfix-01" ]
+  [ "$(yq -r .source.fix_commit "$S/tasks/bugfix-01/task.yaml")" = "$CLEAN" ]
 }
