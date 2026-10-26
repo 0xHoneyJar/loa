@@ -3,9 +3,21 @@ import type { BridgebuilderConfig, TruncationResult, LoaDetectionResult, Securit
 export declare const SECURITY_PATTERNS: SecurityPatternEntry[];
 export declare function isHighRisk(filename: string): boolean;
 export declare function getSecurityCategory(filename: string): string | undefined;
-/** Detect if Node 22+ path.matchesGlob is available (BB-F4). */
-export declare const hasNativeGlob: boolean;
-export declare function matchesExcludePattern(filename: string, patterns: string[]): boolean;
+/** cycle-135 C-1: a pattern with any of `*`, `?`, `{`, `[` is a glob; anything else names whole segments. */
+export declare function isWildcardPattern(pattern: string): boolean;
+/** Why `pattern` is outside the grammar, or null when it is inside (cycle-135 C-1). */
+export declare function excludePatternGrammarError(pattern: string): string | null;
+/**
+ * cycle-135 C-1 (bd-ow72o): the one loader every pattern source goes through. Trims; drops blank entries; strips one
+ * leading `./` or `/` (patterns are repository-relative); keeps a trailing `/` (the matcher ignores one); rejects a
+ * pattern outside the grammar with one WARN naming it (a rejected pattern is dropped and so matches nothing).
+ */
+export declare function normalizeExcludePatterns(raw: readonly string[], source: string): string[];
+/**
+ * True when `filename` matches any of `patterns` under the grammar above (cycle-135 C-1, bd-ow72o): non-wildcard →
+ * whole segments, wildcard → the segment-aware glob. Pure; no exceptions at match time.
+ */
+export declare function matchesExcludePattern(filename: string, patterns: readonly string[]): boolean;
 /**
  * The PR label that operators apply to opt into bridgebuilder self-review —
  * BB will admit framework files (`.claude/`, `grimoires/`, etc.) into the
@@ -42,7 +54,8 @@ export declare function deriveCallConfig<C extends Pick<BridgebuilderConfig, "se
     selfReview: boolean;
 };
 /** Default Loa framework exclude patterns.
- * Use ** for recursive directory matching (BB-F4). */
+ * Use ** for recursive directory matching (BB-F4). Non-wildcard entries name whole segments (cycle-135 C-1:
+ * `PROCESS.md` excludes `docs/PROCESS.md`, never `MYPROCESS.md`); the list goes through the one loader. */
 export declare const LOA_EXCLUDE_PATTERNS: string[];
 /**
  * Load `.reviewignore` operator-curated patterns from repo root.

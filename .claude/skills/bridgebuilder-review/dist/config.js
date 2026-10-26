@@ -6,6 +6,8 @@ import { isIPv6 } from "node:net";
 import { join } from "node:path";
 import { z } from "zod/v4";
 import { GENERATED_MODEL_REGISTRY } from "./config.generated.js";
+// cycle-135 C-1 (bd-ow72o): every exclusion-pattern source goes through the one loader.
+import { normalizeExcludePatterns } from "./core/truncation.js";
 const execFileAsync = promisify(execFile);
 /**
  * Zod schema for multi-model configuration (SDD Section 2.7).
@@ -1019,10 +1021,10 @@ export function agyGateStartupLines(gate, keyStatus) {
  * `bridgebuilder.exclude_patterns` and `--exclude`). Frozen review-PR fixtures and ablation grade trees are data, not
  * code under review; they made PR #1289's payload unreadable (KF-054). They apply under self-review too.
  */
-export const DEFAULT_EXCLUDE_PATTERNS = Object.freeze([
+export const DEFAULT_EXCLUDE_PATTERNS = Object.freeze(normalizeExcludePatterns([
     "evals/fixtures/review-prs/**",
     "grimoires/loa/reports/ablation-2.0/*-grades/**",
-]);
+], "DEFAULT_EXCLUDE_PATTERNS"));
 /** cycle-133 C-1: bounds for `bridgebuilder.gh_max_buffer_bytes` (default 64 MiB; 1 MiB … 512 MiB). */
 export const GH_MAX_BUFFER_BYTES_DEFAULT = 64 * 1024 * 1024;
 const GH_MAX_BUFFER_BYTES_MIN = 1024 * 1024;
@@ -1404,8 +1406,8 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
             DEFAULTS.dryRun,
         excludePatterns: [
             ...DEFAULT_EXCLUDE_PATTERNS,
-            ...(yaml.exclude_patterns ?? []),
-            ...(cliArgs.exclude ?? []),
+            ...normalizeExcludePatterns(yaml.exclude_patterns ?? [], "bridgebuilder.exclude_patterns"),
+            ...normalizeExcludePatterns(cliArgs.exclude ?? [], "--exclude"),
         ],
         ghMaxBufferBytes: resolveGhMaxBufferBytes(yaml.gh_max_buffer_bytes),
         sanitizerMode: yaml.sanitizer_mode ?? DEFAULTS.sanitizerMode,

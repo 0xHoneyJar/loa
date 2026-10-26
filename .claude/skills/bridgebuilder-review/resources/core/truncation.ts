@@ -8,7 +8,6 @@ import {
   constants as fsConstants,
 } from "node:fs";
 import { resolve } from "node:path";
-import path from "node:path";
 import type { PullRequestFile } from "../ports/git-provider.js";
 // cycle-124 FR-3 (SDD §2.1): yaml-derived budgets — Anthropic maxInput is
 // effective_input_ceiling − 20000 so BB never prepares more than cheval's
@@ -88,121 +87,162 @@ export function getSecurityCategory(filename: string): string | undefined {
   return match?.category;
 }
 
-// --- Pattern Matching (SDD Section 3.8) ---
+// --- Pattern Matching (SDD Section 3.8; cycle-135 C-1, bd-ow72o) ---
+//
+// One grammar, one matcher, every Node version (D-1.1a): `path.matchesGlob` is never consulted, so the result
+// cannot drift between Node 20 and Node 22. Patterns are repository-relative and normalised once where they are
+// loaded (`normalizeExcludePatterns`: config `exclude_patterns`, `--exclude`, `.reviewignore`, the defaults).
+//
+//   non-wildcard (no `*`, `?`, `{`, `[`) — gitignore-like whole segments (DEC-1013): one trailing `/` is ignored;
+//     without a `/` the pattern is one segment at any depth (`PROCESS.md` ⇢ `docs/PROCESS.md`, never
+//     `MYPROCESS.md`); with a `/` it is anchored at the root and covers the path and its subtree (`a/b` ⇢ `a/b/c`,
+//     never `x/a/b`).
+//   wildcard — `*` and `?` within one segment, `**` as a whole segment (zero or more segments), one level of
+//     `{a,b}` alternation, `[ab]` / `[a-z]` / `[!ab]` classes; all of them match dot-led names (bd-a8l0c).
+//   rejected at load with one WARN, and matching nothing if they reach the matcher anyway — a `!` negation line,
+//     backslash escapes, extglob `+( @( !( ?( *(`, nested or unbalanced braces, unterminated, empty or nested
+//     classes, a class whose range does not compile.
 
-/** Detect if Node 22+ path.matchesGlob is available (BB-F4). */
-export const hasNativeGlob: boolean =
-  typeof (path as Record<string, unknown>).matchesGlob === "function";
+/** cycle-135 C-1: a pattern with any of `*`, `?`, `{`, `[` is a glob; anything else names whole segments. */
+export function isWildcardPattern(pattern: string): boolean {
+  return /[*?{[]/.test(pattern);
+}
 
-/**
- * Simple glob matcher fallback for Node <22.
- * Supports: `*.ext`, `prefix*`, `prefix*suffix`, exact match, substring match,
- * `?` single character wildcards, and `**` recursive directory matching.
- */
-function simplifiedGlobMatch(filename: string, pattern: string): boolean {
-  // Handle ** recursive patterns: src/**/*.ts
-  if (pattern.includes("**")) {
-    // Convert glob to regex: ** matches any number of path segments
-    const escaped = pattern
-      .split("**")
-      .map((part) =>
-        part
-          .split("*")
-          .map((seg) => seg.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\?/g, "[^/]"))
-          .join("[^/]*"),
-      )
-      .join(".*");
-    return new RegExp(`^${escaped}$`).test(filename);
+/** cycle-135 C-1 (bd-ow72o): gitignore-like whole-segment match for a non-wildcard pattern (DEC-1013). */
+function segmentMatch(filename: string, pattern: string): boolean {
+  const p = pattern.endsWith("/") ? pattern.slice(0, -1) : pattern;
+  if (p === "") return false;
+  if (!p.includes("/")) return `/${filename}/`.includes(`/${p}/`);
+  return filename === p || filename.startsWith(`${p}/`);
+}
+
+/** Translate one non-globstar segment to a regex source; throws on a construct outside the grammar. */
+function translateGlobSegment(seg: string): string {
+  let out = "";
+  let inBrace = false;
+  for (let i = 0; i < seg.length; i++) {
+    const c = seg[i];
+    if (c === "*") {
+      while (seg[i + 1] === "*") i++; // `**` inside a segment is a plain `*`
+      out += "[^/]*";
+    } else if (c === "?") {
+      out += "[^/]";
+    } else if (c === "[") {
+      let j = i + 1;
+      const negate = seg[j] === "!";
+      if (negate) j++;
+      const close = seg.indexOf("]", j);
+      if (close <= j) throw new Error("unterminated or empty character class");
+      const body = seg.slice(j, close);
+      if (body.includes("[")) throw new Error("nested character class");
+      out += `[${negate ? "^" : ""}${body.replace(/[\^\]\\]/g, "\\$&")}]`;
+      i = close;
+    } else if (c === "{") {
+      if (inBrace) throw new Error("nested braces");
+      inBrace = true;
+      out += "(?:";
+    } else if (c === "}") {
+      if (!inBrace) throw new Error("unbalanced braces");
+      inBrace = false;
+      out += ")";
+    } else if (c === "," && inBrace) {
+      out += "|";
+    } else {
+      out += c.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+    }
   }
+  if (inBrace) throw new Error("unbalanced braces");
+  return out;
+}
 
-  // Handle ? single character wildcard (matches any char except /)
-  if (pattern.includes("?")) {
-    const escaped = pattern
-      .split("*")
-      .map((part) => part.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\?/g, "[^/]"))
-      .join("[^/]*");
-    return new RegExp(`^${escaped}$`).test(filename);
-  }
+/** Compile a wildcard pattern (segment-aware, dot-agnostic); throws on a construct outside the grammar. */
+function compileGlob(pattern: string): RegExp {
+  // Collapse consecutive globstar segments (a/**/**/b → a/**/b).
+  const segs = pattern.split("/").filter((seg, i, all) => !(seg === "**" && all[i - 1] === "**"));
+  let src = "";
+  segs.forEach((seg, i) => {
+    const first = i === 0;
+    const last = i === segs.length - 1;
+    if (seg === "**") {
+      if (first && last) src += ".*";
+      else if (first) src += "(?:[^/]*/)*";
+      else if (last) src += "(?:/.*)?";
+      else src += "/(?:[^/]*/)*";
+      return;
+    }
+    if (!first && segs[i - 1] !== "**") src += "/";
+    src += translateGlobSegment(seg);
+  });
+  return new RegExp(`^${src}$`); // a class range that does not compile (`[z-a]`) throws here
+}
 
-  // Original simplified matching for basic patterns
-  if (pattern.startsWith("*")) {
-    const suffix = pattern.slice(1);
-    if (filename.endsWith(suffix)) return true;
-  } else if (pattern.endsWith("*")) {
-    const prefix = pattern.slice(0, -1);
-    if (filename.startsWith(prefix)) return true;
-  } else if (pattern.includes("*")) {
-    const [before, after] = pattern.split("*", 2);
-    if (filename.startsWith(before) && filename.endsWith(after)) return true;
-  } else {
-    if (filename === pattern || filename.includes(pattern)) return true;
+/** Why `pattern` is outside the grammar, or null when it is inside (cycle-135 C-1). */
+export function excludePatternGrammarError(pattern: string): string | null {
+  if (pattern.startsWith("!")) return "negation (!) lines are not supported";
+  if (pattern.includes("\\")) return "backslash escapes are not supported";
+  if (/[+@!?*]\(/.test(pattern)) return "extglob is not supported";
+  if (isWildcardPattern(pattern)) {
+    try {
+      compileGlob(pattern);
+    } catch (err) {
+      return (err as Error).message;
+    }
   }
-  return false;
+  return null;
 }
 
 /**
- * Segment-aware glob match that ignores the shell dot-file rule (bd-a8l0c).
- * A `**` segment is a globstar and matches zero or more whole path segments;
- * `**` inside a segment is a plain `*`. `*` and `?` stay within one segment.
- * All of them match names that start with a dot. Compiled once per pattern.
- * Brace (`{a,b}`) and class (`[ab]`) forms are not translated (they are escaped
- * as literals), so such patterns keep the native dot-file rule.
+ * cycle-135 C-1 (bd-ow72o): the one loader every pattern source goes through. Trims; drops blank entries; strips one
+ * leading `./` or `/` (patterns are repository-relative); keeps a trailing `/` (the matcher ignores one); rejects a
+ * pattern outside the grammar with one WARN naming it (a rejected pattern is dropped and so matches nothing).
  */
-const dotSegmentGlobCache = new Map<string, RegExp>();
-
-function dotSegmentGlobMatch(filename: string, pattern: string): boolean {
-  let re = dotSegmentGlobCache.get(pattern);
-  if (!re) {
-    // Collapse consecutive globstar segments (a/**/**/b → a/**/b).
-    const segs = pattern.split("/").filter((seg, i, all) => !(seg === "**" && all[i - 1] === "**"));
-    let src = "";
-    segs.forEach((seg, i) => {
-      const first = i === 0;
-      const last = i === segs.length - 1;
-      if (seg === "**") {
-        if (first && last) src += ".*";
-        else if (first) src += "(?:[^/]*/)*";
-        else if (last) src += "(?:/.*)?";
-        else src += "/(?:[^/]*/)*";
-        return;
-      }
-      if (!first && segs[i - 1] !== "**") src += "/";
-      src += seg
-        .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-        .replace(/\*+/g, "*")
-        .replace(/\*/g, "[^/]*")
-        .replace(/\?/g, "[^/]");
-    });
-    re = new RegExp(`^${src}$`);
-    dotSegmentGlobCache.set(pattern, re);
+export function normalizeExcludePatterns(raw: readonly string[], source: string): string[] {
+  const out: string[] = [];
+  for (const entry of raw) {
+    const trimmed = entry.trim();
+    if (trimmed === "") continue;
+    const why = excludePatternGrammarError(trimmed);
+    if (why !== null) {
+      process.stderr.write(
+        `[bridgebuilder] WARN: ${source}: exclusion pattern ${JSON.stringify(trimmed)} rejected — ${why}; it matches nothing (bd-ow72o)\n`,
+      );
+      continue;
+    }
+    const stripped = trimmed.startsWith("./") ? trimmed.slice(2) : trimmed.startsWith("/") ? trimmed.slice(1) : trimmed;
+    if (stripped !== "") out.push(stripped);
   }
-  return re.test(filename);
+  return out;
 }
 
+/** One compiled predicate per pattern (memoized); a pattern outside the grammar compiles to "matches nothing". */
+const patternMatcherCache = new Map<string, (filename: string) => boolean>();
+
+function patternMatcher(pattern: string): (filename: string) => boolean {
+  let m = patternMatcherCache.get(pattern);
+  if (!m) {
+    if (excludePatternGrammarError(pattern) !== null) {
+      m = () => false;
+    } else if (isWildcardPattern(pattern)) {
+      const re = compileGlob(pattern);
+      m = (filename) => re.test(filename);
+    } else {
+      m = (filename) => segmentMatch(filename, pattern);
+    }
+    patternMatcherCache.set(pattern, m);
+  }
+  return m;
+}
+
+/**
+ * True when `filename` matches any of `patterns` under the grammar above (cycle-135 C-1, bd-ow72o): non-wildcard →
+ * whole segments, wildcard → the segment-aware glob. Pure; no exceptions at match time.
+ */
 export function matchesExcludePattern(
   filename: string,
-  patterns: string[],
+  patterns: readonly string[],
 ): boolean {
   for (const pattern of patterns) {
-    if (hasNativeGlob) {
-      // Node 22+: native path.matchesGlob() first (brace expansion, character
-      // classes). Exclusion globs are a denylist: a glob that names a tree
-      // excludes every file under it, dot-led segments included (`.claude`,
-      // `.github`, dot-files). The native matcher's shell dot-file rule
-      // (`*`/`**` never match a leading `.`) is wrong for a denylist, so a
-      // wildcard pattern it rejects is retried dot-agnostically (bd-a8l0c).
-      if ((path as unknown as { matchesGlob(p: string, g: string): boolean }).matchesGlob(filename, pattern)) {
-        return true;
-      }
-      // Fallback to simplified match for non-glob patterns (exact/substring)
-      if (!pattern.includes("*") && !pattern.includes("?")) {
-        if (filename === pattern || filename.includes(pattern)) return true;
-      } else if (dotSegmentGlobMatch(filename, pattern)) {
-        return true;
-      }
-    } else {
-      if (simplifiedGlobMatch(filename, pattern)) return true;
-    }
+    if (patternMatcher(pattern)(filename)) return true;
   }
   return false;
 }
@@ -256,8 +296,9 @@ export function deriveCallConfig<C extends Pick<BridgebuilderConfig, "selfReview
 // --- Loa Detection (Task 1.2 — SDD Section 3.1) ---
 
 /** Default Loa framework exclude patterns.
- * Use ** for recursive directory matching (BB-F4). */
-export const LOA_EXCLUDE_PATTERNS = [
+ * Use ** for recursive directory matching (BB-F4). Non-wildcard entries name whole segments (cycle-135 C-1:
+ * `PROCESS.md` excludes `docs/PROCESS.md`, never `MYPROCESS.md`); the list goes through the one loader. */
+export const LOA_EXCLUDE_PATTERNS = normalizeExcludePatterns([
   // Core framework (existing)
   ".claude/**",
   "grimoires/**",
@@ -274,7 +315,7 @@ export const LOA_EXCLUDE_PATTERNS = [
   "BUTTERFREEZONE.md",
   "INSTALLATION.md",
   "grimoires/**/NOTES.md",
-];
+], "LOA_EXCLUDE_PATTERNS");
 
 /**
  * Parse a `.reviewignore` file's user-curated patterns from disk.
@@ -394,10 +435,10 @@ function parseReviewignoreFile(repoRoot: string): string[] {
   }
 
   const patterns: string[] = [];
-  for (const rawLine of content.split("\n")) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const pattern = line.endsWith("/") ? `${line}**` : line;
+  // cycle-135 C-1 (bd-ow72o): lines go through the one loader; the former `/` → `/**` conversion is gone — a
+  // directory line is a non-wildcard segment pattern (FR-2: `.github/workflows/` is an explicit name).
+  const lines = content.split("\n").filter((l) => !l.trim().startsWith("#"));
+  for (const pattern of normalizeExcludePatterns(lines, ".reviewignore")) {
     if (!patterns.includes(pattern)) {
       patterns.push(pattern);
     }

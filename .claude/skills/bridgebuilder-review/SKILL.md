@@ -173,6 +173,28 @@ Set in `.loa.config.yaml` under `bridgebuilder:` section, or via environment var
 | max_output_tokens | — | `4000` |
 | persona_path | — | `grimoires/bridgebuilder/BEAUVOIR.md` |
 
+### Exclusion patterns (cycle-135 C-1, bd-ow72o)
+
+`exclude_patterns`, `--exclude`, `.reviewignore` lines and the built-in defaults share one grammar and one matcher, on
+every Node version (`path.matchesGlob` is never consulted). Patterns are repository-relative. Each is normalised
+when it is loaded: surrounding whitespace is trimmed, blank lines are dropped, and one leading `./` or `/` is
+stripped.
+
+- **A pattern without `*`, `?`, `{` or `[` names whole path segments**, like gitignore. One trailing `/` is ignored.
+  Without a `/` it matches that segment at any depth: `PROCESS.md` excludes `docs/PROCESS.md` but not
+  `MYPROCESS.md` or `PROCESS.md.old`. With a `/` it is anchored at the root and covers the path and its subtree:
+  `a/b` excludes `a/b` and `a/b/c` but not `x/a/b`. A `.reviewignore` line such as `secrets/` is such a pattern; it
+  is no longer rewritten to `secrets/**`.
+- **A wildcard pattern** uses `*` and `?` within one segment, `**` as a whole segment for zero or more segments,
+  one level of `{a,b}` alternation, and `[ab]`, `[a-z]` or `[!ab]` classes. All of them match names that start
+  with a dot: `**/*.{json,md}` excludes `.claude/x.json`.
+- **Rejected patterns** are dropped with one `WARN` naming them, so they match nothing: a `!` negation line,
+  backslash escapes, extglob (`+(`, `@(`, `!(`, `?(`, `*(`), nested or unbalanced braces, and unterminated, empty
+  or nested classes.
+
+A pattern that relied on substring matching stops matching: `.env` no longer excludes `.env.local`. Write `.env*`
+for that.
+
 ### Invocation trust contract (#1050)
 
 Run `/bridgebuilder` from a **trusted checkout** (your default branch or a clean clone) — never
