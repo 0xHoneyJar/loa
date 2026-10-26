@@ -36079,3 +36079,405 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1032"
+    created_at: "2026-10-26T05:51:21Z"
+    updated_at: "2026-10-26T05:51:21Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Matcher internals: translateGlobSegment + compileGlob + one memoized per-pattern predicate (patternMatcher) replace dotSegmentGlobMatch; grammar violations…"
+    decision: "The sprint-bug-278 segment/globstar translation is kept; braces and classes are added in a per-segment parser; a pattern reaching matchesExcludePattern without the loaders is checked once by excludePatternGrammarError and memoized as 'matches nothing'."
+    rationale: "Exported entry points (truncateFiles, matchesExcludePattern, core/index.ts) can receive raw patterns; 'rejected patterns match nothing' must hold for every caller, not only the loaders."
+    alternatives_considered:
+      - option: "trust the loaders only"
+        rejected_because: "a direct caller or test could bypass the grammar"
+    consequences:
+      positive:
+        - "one invariant everywhere"
+      negative:
+        - "one extra memoized check per pattern"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § A judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "4f926bcfd"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1033"
+    created_at: "2026-10-26T05:51:25Z"
+    updated_at: "2026-10-26T05:51:25Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Normalisation runs once at each loader (trim; one leading ./ or / stripped), never re-applied inside truncateFiles; [!..] is the only class negation ([^..]…"
+    decision: "Stripping is not idempotent ('//x' → '/x' → 'x'), so loaders normalise and truncateFiles matches as given; the WARN names the pattern JSON-quoted (log-injection safe); a brace containing '/' is unbalanced because patterns split on '/' first."
+    rationale: "One grammar with one negation form and explicit rejection of ambiguous shapes keeps results explainable."
+    alternatives_considered:
+      - option: "treat an unmatched { or [ literally"
+        rejected_because: "ambiguous and broadens matches"
+    consequences:
+      positive:
+        - "deterministic parsing"
+      negative:
+        - "operators with [^..] patterns must rewrite them to [!..] (WARN names them)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § A judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "4f926bcfd"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1034"
+    created_at: "2026-10-26T05:51:29Z"
+    updated_at: "2026-10-26T05:51:29Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Omission stats carry ' [pattern: <p>]' as a suffix for Loa-tier AND user-pattern exclusions (parsed by the coverage with / \\[pattern: (.+)\\]$/); types.ts…"
+    decision: "The excluding pattern rides on the existing stats string (exclusionReason keeps working); B strips it before classifying and falls back to the matching config pattern for exclusions without a suffix."
+    rationale: "TruncationResult.excluded lives in types.ts (lead-owned contract); a structured field would have needed a second contract commit mid-sprint."
+    alternatives_considered:
+      - option: "a structured pattern field on excluded[]"
+        rejected_because: "types.ts edit outside the implementers' allowlists"
+    consequences:
+      positive:
+        - "no contract churn; renderer gets the pattern"
+      negative:
+        - "a string grammar between two files (pinned by both sides' tests)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § A judgment calls, § B judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e6ba40f96, 625c5a901"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1035"
+    created_at: "2026-10-26T05:51:33Z"
+    updated_at: "2026-10-26T05:51:33Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "A protected file kept from a user wildcard and later stripped by the Loa tier stays in protectedKept and renders 'then omitted (excluded_loa)'…"
+    decision: "Protection composes across the three sites: a later explicit config pattern removes a .reviewignore-kept file from protectedKept (order independence across sources); the Loa tier's own strip is shown as the final status, not hidden."
+    rationale: "Dropping the entry would hide that a wildcard matched a protected file; the renderer's final-status annotation keeps the record honest."
+    alternatives_considered:
+      - option: "drop the entry when the Loa tier strips it"
+        rejected_because: "hides the wildcard match"
+    consequences:
+      positive:
+        - "the operator sees both facts"
+      negative:
+        - "a kept entry may also appear among omissions (annotated)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § A judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e6ba40f96"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1036"
+    created_at: "2026-10-26T05:51:38Z"
+    updated_at: "2026-10-26T05:51:38Z"
+    phase: "implementation"
+    category: "security"
+    summary: "reviewignoreBaseSha goes to truncateFiles through its config object and reviewignoreSource comes back on its result (intersection types, types.ts…"
+    decision: "One read of .reviewignore per selection; absence at the base WARNs and yields none (fails toward more review); an invalid repoRoot still throws (fail-closed); the lead wired the coverage record to the selection's reviewignoreSource (no second read)."
+    rationale: "Two reads could disagree in checkout mode; the base commit must exist in the reviewer's clone — otherwise no patterns apply, which is the safe direction."
+    alternatives_considered:
+      - option: "paged-fetch calls parseReviewignoreFile itself"
+        rejected_because: "reads the file twice; the two reads could disagree"
+    consequences:
+      positive:
+        - "single source of truth for the record"
+      negative:
+        - "two optional fields outside types.ts (candidate for the next contract tidy-up)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § A judgment calls, § lead wiring"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e6ba40f96, 9300f9b3d"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1037"
+    created_at: "2026-10-26T05:51:44Z"
+    updated_at: "2026-10-26T05:51:44Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Config validation: protected_paths grammar violations and a non-integer max_content_fetches are errors naming the entry (in resolveConfig, since the YAML…"
+    decision: "A silently dropped protected entry would weaken protection, so it errors; a malformed boolean mirrors gh_max_buffer_bytes's WARN-and-default; protected_paths: [] is the explicit opt-out; an empty key is treated as unset."
+    rationale: "Errors where silence would lower coverage, defaults where the safe value is obvious."
+    alternatives_considered:
+      - option: "WARN and drop invalid protected entries"
+        rejected_because: "weakens protection silently"
+    consequences:
+      positive:
+        - "misconfiguration surfaces at load"
+      negative:
+        - "a typo in protected_paths stops the review until fixed (intended)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § A judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e6ba40f96"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1038"
+    created_at: "2026-10-26T05:51:49Z"
+    updated_at: "2026-10-26T05:51:49Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Content fetch placement: selection first (truncateFiles), fetch for its '(diff unavailable)' survivors, re-run the selection only when a patch was…"
+    decision: "Eligibility = the first selection's patch-less added files (so excluded or capped files are never fetched, reusing A's matcher and protection); the cap is checked before the deadline; a remaining ≤ 0 records too_large without a provider call and does not count against the cap; empty content with additions > 0 is recorded fetch: error."
+    rationale: "Duplicating the exclusion logic before truncateFiles would risk fetching a file the cap later drops; 'never truncated' is read literally from FR-3."
+    alternatives_considered:
+      - option: "filter exclusions before truncateFiles"
+        rejected_because: "duplicates A's matcher; could fetch a capped file"
+      - option: "let the planner cut an oversized synthesized patch"
+        rejected_because: "contradicts 'never truncated'; reviews a fiction"
+    consequences:
+      positive:
+        - "one exclusion logic; honest omissions"
+      negative:
+        - "truncateFiles runs twice when a patch is synthesized (its WARNs may repeat)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § B judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "46237970c"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1039"
+    created_at: "2026-10-26T05:51:55Z"
+    updated_at: "2026-10-26T05:51:55Z"
+    phase: "implementation"
+    category: "security"
+    summary: "No Accept header on the contents request (DEC-1028 over the stale PRD 1.1 wording); stdout taken as a string and bytes come only from base64 (no buffer…"
+    decision: "assertContentsArgs handles endpoints under /repos/<o>/<r>/contents/ with exactly two arguments, the anchored regex, per-segment decode refusing %2F, re-encode-to-itself canonical check and a 2048 bound (a 140-char Unicode path exceeds the generic 200 once encoded); the envelope is ASCII JSON so decoding stdout as text before Buffer.from(base64) is byte-exact; BOM kept verbatim."
+    rationale: "The SDD's bytes-first wording aimed at not corrupting content; base64 transport makes the string path equivalent and keeps every existing exec double working."
+    alternatives_considered:
+      - option: "allowlist Accept: application/vnd.github+json"
+        rejected_because: "widens the surface for no behaviour change"
+      - option: "reuse the generic 200-char bound"
+        rejected_because: "long real paths would become fetch: error"
+    consequences:
+      positive:
+        - "one response contract; existing doubles untouched"
+      negative:
+        - "PRD 1.1's AC wording had to be corrected (1.3)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § B judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "46237970c"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1040"
+    created_at: "2026-10-26T05:52:00Z"
+    updated_at: "2026-10-26T05:52:00Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "maxBuffer = ceil(maxBytes × 4/3) + 4096 as specified: the real envelope's JSON-escaped newlines (+3.3 %) and link metadata (~1 KB) make files within ~3 % of…"
+    decision: "Keep the SDD formula this sprint; the ~3 % band (≈ 498–512 KB at the default) degrades to today's no_patch with fetch: too_large; a follow-up may use ceil(maxBytes × 4/3 × 62/60) + 4096."
+    rationale: "Erring toward too_large is the safe direction and the band is narrow; changing the formula without a measurement is guesswork."
+    alternatives_considered:
+      - option: "widen the buffer now"
+        rejected_because: "unmeasured; conservative behaviour is acceptable"
+    consequences:
+      positive:
+        - "never exceeds the byte bound"
+      negative:
+        - "a small band of near-limit files stays no_patch"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § B open items"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:52:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "46237970c"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1041"
+    created_at: "2026-10-26T05:52:05Z"
+    updated_at: "2026-10-26T05:52:05Z"
+    phase: "implementation"
+    category: "testing"
+    summary: "The workflow-guard matrix test evaluates a hand-transcribed shell mirror of both if: expressions read from the YAML with yq (unknown guard text fails the…"
+    decision: "A per-expression transcription rather than an expression translator (a parser in a test file would itself be untested); the orchestrator pin runs against a copy so a future validation reorder cannot write .run/ state into the checkout; docs enumerating the orchestrator's own --type grammar (three values) are left as they are because they describe a refusal the tests pin."
+    rationale: "Faithful, auditable mirrors; hermetic pins; documentation that stays true."
+    alternatives_considered:
+      - option: "a small expression-to-bash translator"
+        rejected_because: "an untested parser in a test file"
+      - option: "run the orchestrator pin against the worktree"
+        rejected_because: "could write state into the checkout"
+    consequences:
+      positive:
+        - "red on the old guard text for the behavioural reason"
+      negative:
+        - "a new guard shape needs a new mirror branch (intended)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § C judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:52:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "ba454a74f"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1042"
+    created_at: "2026-10-26T05:52:12Z"
+    updated_at: "2026-10-26T05:52:12Z"
+    phase: "implementation"
+    category: "process"
+    summary: "SDD imprecision corrected by C: post-merge-orchestrator.sh:377 assigns classify_pr_type's output directly (would yield housekeeping), but that branch is…"
+    decision: "The SDD 1.1 C-4 sentence 'maps unknown values to other' is amended to 'unreachable from main; the --type validation refuses housekeeping'; no code change."
+    rationale: "Documents must describe the code; the harmless imprecision is worth a row so the next reader does not rely on it."
+    alternatives_considered:
+      - option: "edit the orchestrator to map housekeeping explicitly"
+        rejected_because: "off-limits this sprint and unreachable code"
+    consequences:
+      positive:
+        - "accurate design record"
+      negative:
+        - "none"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § C judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:52:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "ba454a74f; grimoires/loa/a2a/sprint-279/reviewer.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
