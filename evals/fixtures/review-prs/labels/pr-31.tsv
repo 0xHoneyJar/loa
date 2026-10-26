@@ -1,0 +1,9 @@
+# approved-by: pending
+# fixture pr-31 | external https://github.com/pydantic/pydantic pull request #13890 | base bb6da4cfbb1f | head 32ffc8eef57d | fix b0cd9d347dc4..b0cd9d347dc4
+# seeded by evals/harness/seed-corpus-from-external.sh; the defects come from the blind annotation (labels v2), then --approve
+defect_id	severity	category	file	must_match	label_source	source
+F001	-	fix	pydantic/json_schema.py	-	fix	fix/b0cd9d347dc4:1652-1652
+F002	-	fix	pydantic/json_schema.py	config = cast('ConfigDict', getattr(cls, '__pydantic_config__', {}))	fix	fix/b0cd9d347dc4:1983-1983
+F003	-	fix	pydantic/json_schema.py	-	fix	fix/b0cd9d347dc4:1988-1988
+F004	-	fix	pydantic/json_schema.py	def _get_typed_dict_config(cls: type[Any] | None) -> ConfigDict:	fix	fix/b0cd9d347dc4:3236-3236
+F005	-	fix	pydantic/json_schema.py	-	fix	fix/b0cd9d347dc4:3242-3242

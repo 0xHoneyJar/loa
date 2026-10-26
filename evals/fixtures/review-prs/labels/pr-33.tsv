@@ -1,0 +1,10 @@
+# approved-by: pending
+# fixture pr-33 | external https://github.com/nushell/nushell pull request #18704 | base 43c46b696ebb | head 3eb97a715d9e | fix 58a647346a1c..58a647346a1c
+# seeded by evals/harness/seed-corpus-from-external.sh; the defects come from the blind annotation (labels v2), then --approve
+defect_id	severity	category	file	must_match	label_source	source
+F001	-	fix	crates/nu-glob/src/dc_glob/compiler.rs	// Separator immediately before a trailing-recursive suffix (`**`,	fix	fix/58a647346a1c:143-144
+F002	-	fix	crates/nu-glob/src/dc_glob/compiler.rs	AstNode::Separator if pattern_is_trailing_recursive(&nodes[i + 1..]) => {}	fix	fix/58a647346a1c:148-148
+F003	-	fix	crates/nu-glob/src/dc_glob/compiler.rs	/// `{**,README.md}` so non-directory matches are still emitted.	fix	fix/58a647346a1c:295-295
+F004	-	fix	crates/nu-glob/src/dc_glob/compiler.rs	-	fix	fix/58a647346a1c:315-315
+F005	-	fix	crates/nu-glob/src/dc_glob/mod.rs	-	fix	fix/58a647346a1c:685-685
+F006	-	fix	crates/nu-glob/src/dc_glob/mod.rs	-	fix	fix/58a647346a1c:1050-1050

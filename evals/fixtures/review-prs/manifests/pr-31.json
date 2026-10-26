@@ -1,0 +1,49 @@
+{
+  "fixture": "pr-31",
+  "approved": false,
+  "approved_by": "pending",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "32ffc8eef57d2cd92e732da280f0af6ca7cdb60a",
+    "fix_commit": "b0cd9d347dc4159043620fde554cbd63d08e3ad5"
+  },
+  "defects": [],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "pydantic/json_schema.py",
+      "start": 1652,
+      "end": 1652,
+      "source": "fix/b0cd9d347dc4:1652-1652"
+    },
+    {
+      "id": "F002",
+      "file": "pydantic/json_schema.py",
+      "start": 1983,
+      "end": 1983,
+      "source": "fix/b0cd9d347dc4:1983-1983"
+    },
+    {
+      "id": "F003",
+      "file": "pydantic/json_schema.py",
+      "start": 1988,
+      "end": 1988,
+      "source": "fix/b0cd9d347dc4:1988-1988"
+    },
+    {
+      "id": "F004",
+      "file": "pydantic/json_schema.py",
+      "start": 3236,
+      "end": 3236,
+      "source": "fix/b0cd9d347dc4:3236-3236"
+    },
+    {
+      "id": "F005",
+      "file": "pydantic/json_schema.py",
+      "start": 3242,
+      "end": 3242,
+      "source": "fix/b0cd9d347dc4:3242-3242"
+    }
+  ]
+}

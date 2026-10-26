@@ -1,0 +1,6 @@
+# approved-by: pending
+# fixture pr-32 | external https://github.com/pydantic/pydantic pull request #13624 | base c67a1397327c | head 4c5595f7f0f9 | fix 52fbbfa1dc14..52fbbfa1dc14
+# seeded by evals/harness/seed-corpus-from-external.sh; the defects come from the blind annotation (labels v2), then --approve
+defect_id	severity	category	file	must_match	label_source	source
+F001	-	fix	pydantic-core/src/serializers/fields.rs	-	fix	fix/52fbbfa1dc14:119-119
+F002	-	fix	pydantic-core/src/serializers/fields.rs	impl_py_gc_traverse!(GeneralFieldsSerializer {	fix	fix/52fbbfa1dc14:341-345

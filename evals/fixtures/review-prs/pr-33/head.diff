@@ -1,0 +1,784 @@
+diff --git a/crates/nu-command/tests/commands/glob.rs b/crates/nu-command/tests/commands/glob.rs
+index 302bcdd78..bd2692b94 100644
+--- a/crates/nu-command/tests/commands/glob.rs
++++ b/crates/nu-command/tests/commands/glob.rs
+@@ -231,6 +231,112 @@ fn glob_dc_glob_supports_depth_and_exclude() -> Result {
+     Ok(())
+ }
+ 
++/// Regression tests for https://github.com/nushell/nushell/issues/18600
++///
++/// With dc-glob:
++/// - bare `**` lists directories (including the start dir), not files
++/// - `**/*` lists files and dirs under the start, **not** the start itself
++/// - extra `/*` segments enforce a minimum path depth
++/// - `foo/**` includes the prefix directory itself (directories only)
++#[test]
++#[exp(nu_experimental::DC_GLOB)]
++fn glob_dc_glob_recursive_depth_semantics() -> Result {
++    Playground::setup("glob_dc_recursive_depth", |dirs, sandbox| {
++        sandbox.mkdir("1");
++        sandbox.mkdir("1/2");
++        sandbox.mkdir("1/2/3");
++        sandbox.within("1/2/3").with_files(&[EmptyFile("file.txt")]);
++        sandbox.mkdir("foo");
++        sandbox.mkdir("foo/bar");
++        sandbox
++            .within("foo")
++            .with_files(&[EmptyFile("sibling.txt")]);
++
++        // **/*: concrete membership — four entries under start, not the start itself
++        test()
++            .cwd(dirs.test())
++            .run(
++                "
++                let root = (pwd | path expand)
++                let paths = (glob '**/*' | each { path expand } | sort)
++                (
++                    ($paths | length) == 7
++                    and not ($paths | any {|p| $p == $root })
++                    and ($paths | any {|p| $p | str ends-with $'(char psep)1'})
++                    and ($paths | any {|p| $p | str ends-with $'(char psep)1(char psep)2'})
++                    and ($paths | any {|p| $p | str ends-with $'(char psep)1(char psep)2(char psep)3'})
++                    and ($paths | any {|p| $p | str ends-with 'file.txt'})
++                    and ($paths | any {|p| $p | str ends-with $'(char psep)foo'})
++                    and ($paths | any {|p| $p | str ends-with $'(char psep)foo(char psep)bar'})
++                    and ($paths | any {|p| $p | str ends-with 'sibling.txt'})
++                )
++                ",
++            )
++            .expect_value_eq(true)
++            .expect("**/* should list nested dirs/files under start, not the start dir");
++
++        // **/*/*/* → min depth 3 under the 1/ tree (and deeper under foo if any)
++        // With fixture: 1/2/3, 1/2/3/file.txt only at depth >= 3 from root for `1` tree.
++        // Overall tree also has foo/bar — depth 2 only. So still just 2 matches from 1/.
++        test()
++            .cwd(dirs.test())
++            .run(
++                "
++                let paths = (glob '**/*/*/*' | each { path expand } | sort)
++                (
++                    ($paths | length) == 2
++                    and ($paths | any {|p| $p | str ends-with $'(char psep)1(char psep)2(char psep)3'})
++                    and ($paths | any {|p| $p | str ends-with 'file.txt'})
++                )
++                ",
++            )
++            .expect_value_eq(true)
++            .expect("**/*/*/* should only match depth >= 3 paths");
++
++        // bare ** → directories only (start + 1 + 1/2 + 1/2/3 + foo + foo/bar)
++        test()
++            .cwd(dirs.test())
++            .run(
++                "
++                let root = (pwd | path expand)
++                let paths = (glob '**' | each { path expand } | sort)
++                (
++                    ($paths | length) == 6
++                    and ($paths | any {|p| $p == $root })
++                    and ($paths | any {|p| $p | str ends-with $'(char psep)1'})
++                    and ($paths | any {|p| $p | str ends-with $'(char psep)1(char psep)2'})
++                    and ($paths | any {|p| $p | str ends-with $'(char psep)1(char psep)2(char psep)3'})
++                    and ($paths | any {|p| $p | str ends-with $'(char psep)foo'})
++                    and ($paths | any {|p| $p | str ends-with $'(char psep)foo(char psep)bar'})
++                    and not ($paths | any {|p| $p | str ends-with 'file.txt'})
++                    and not ($paths | any {|p| $p | str ends-with 'sibling.txt'})
++                )
++                ",
++            )
++            .expect_value_eq(true)
++            .expect("bare ** should list start + nested dirs only, not files");
++
++        // foo/** includes foo itself and foo/bar, not files
++        test()
++            .cwd(dirs.test())
++            .run(
++                "
++                let paths = (glob 'foo/**' | each { path expand } | sort)
++                (
++                    ($paths | length) == 2
++                    and ($paths | any {|p| $p | str ends-with $'(char psep)foo'})
++                    and ($paths | any {|p| $p | str ends-with $'(char psep)foo(char psep)bar'})
++                    and not ($paths | any {|p| $p | str ends-with 'sibling.txt'})
++                )
++                ",
++            )
++            .expect_value_eq(true)
++            .expect("foo/** should include foo and nested dirs, not files");
++    });
++
++    Ok(())
++}
++
+ #[test]
+ #[exp(nu_experimental::DC_GLOB)]
+ fn glob_dc_glob_supports_follow_symlinks() -> Result {
+diff --git a/crates/nu-experimental/src/options/dc_glob.rs b/crates/nu-experimental/src/options/dc_glob.rs
+index 90b49bb25..ec2392bde 100644
+--- a/crates/nu-experimental/src/options/dc_glob.rs
++++ b/crates/nu-experimental/src/options/dc_glob.rs
+@@ -9,7 +9,7 @@ struct DcGlob;
+ 
+ impl ExperimentalOptionMarker for DcGlob {
+     const IDENTIFIER: &'static str = "dc-glob";
+-    const DESCRIPTION: &'static str = "Use dc-glob as the experimental glob expansion backend.";
++    const DESCRIPTION: &'static str = "Use dc-glob as the experimental glob expansion backend. Recursive patterns follow rust-lang/glob: bare `**` and `dir/**` match directories (including the pattern prefix / start dir); `**/*` matches entries under the start (not the start itself); extra `/*` segments enforce minimum depth.";
+     const STATUS: Status = Status::OptIn;
+     const SINCE: Version = (0, 112, 3);
+     const ISSUE: u32 = 18101;
+diff --git a/crates/nu-glob/src/dc_glob/compiler.rs b/crates/nu-glob/src/dc_glob/compiler.rs
+index e5500175a..844333fb8 100644
+--- a/crates/nu-glob/src/dc_glob/compiler.rs
++++ b/crates/nu-glob/src/dc_glob/compiler.rs
+@@ -44,6 +44,12 @@ pub enum Instruction {
+     AnyCharacter,
+     AnyString,
+     Characters(Box<[CharacterClass]>),
++    /// Succeed only at a path-component boundary (no unconsumed bytes left in
++    /// the current component). Clears a finished `Some([])` to `None`.
++    ///
++    /// Used at the start of a terminal `**` gadget so `foo/**` matches `foo`
++    /// but not `foobar` (leftover bytes in the same component).
++    ComponentBoundary,
+     Jump(ProgramOffset),
+     Alternative(ProgramOffset),
+     Increment(CounterId),
+@@ -71,6 +77,7 @@ impl std::fmt::Display for Instruction {
+             Instruction::Characters(character_classes) => {
+                 write!(f, "{:<WIDTH$} {:?}", "characters", character_classes)
+             }
++            Instruction::ComponentBoundary => f.write_str("component-boundary"),
+             Instruction::Jump(index) => {
+                 write!(f, "{:<WIDTH$} {:>05}", "jump", index)
+             }
+@@ -98,6 +105,11 @@ pub struct Program {
+     pub counters: u16,
+     pub absolute_prefix: Option<PathBuf>,
+     pub case_insensitive: bool,
++    /// True when the pattern ends with a bare recursive `**` (optionally after a
++    /// trailing separator). Such patterns match directories at any depth, including
++    /// the start directory, but not regular files — matching rust-lang/glob /
++    /// nu-glob recursive-ending behavior.
++    pub trailing_recursive: bool,
+ }
+ 
+ impl Program {
+@@ -121,6 +133,43 @@ impl std::fmt::Display for Program {
+     }
+ }
+ 
++/// Compile a sequence of AST nodes with the same `**/` folding and terminal-`**`
++/// handling as the top-level [`compile`] loop. Used for nested patterns inside
++/// alternatives and repeats so `{**}` / `foo/{**}` get a terminal recurse gadget.
++fn append_nodes(out: &mut Program, nodes: &[AstNode]) -> anyhow::Result<()> {
++    let mut i = 0;
++    while i < nodes.len() {
++        match &nodes[i] {
++            // Separator immediately before a trailing-recursive suffix (`**`,
++            // `{**}`, `foo/{**}`, …) is not emitted. The terminal recurse gadget
++            // starts with `ComponentBoundary` so path `foo` matches `foo/**`
++            // without requiring Separator to succeed at EOF (which would break
++            // `*/*` min-depth — issue #18600).
++            AstNode::Separator if pattern_is_trailing_recursive(&nodes[i + 1..]) => {}
++            AstNode::Recurse => {
++                let terminal = is_terminal_recurse(nodes, i);
++                // Fold the `/` in `**/` into the recurse gadget so a zero-length
++                // `**` does not require a mandatory Separator before the rest of
++                // the pattern (`**/foo` must match `foo`).
++                let absorbs_separator = matches!(nodes.get(i + 1), Some(AstNode::Separator));
++
++                if terminal {
++                    append_terminal_recurse_gadget(out)?;
++                } else {
++                    append_nonterminal_recurse_gadget(out)?;
++                }
++
++                if absorbs_separator {
++                    i += 1;
++                }
++            }
++            other => append_program(out, other)?,
++        }
++        i += 1;
++    }
++    Ok(())
++}
++
+ fn append_program(out: &mut Program, node: &AstNode) -> anyhow::Result<()> {
+     match node {
+         AstNode::Separator => {
+@@ -165,7 +214,9 @@ fn append_program(out: &mut Program, node: &AstNode) -> anyhow::Result<()> {
+             Ok(())
+         }
+         AstNode::Wildcard => append_wildcard_gadget(out),
+-        AstNode::Recurse => append_recurse_gadget(out),
++        // Bare Recurse without surrounding-node lookahead: non-terminal form.
++        // Prefer [`append_nodes`] / [`compile`] which fold `**/` and terminal `**`.
++        AstNode::Recurse => append_nonterminal_recurse_gadget(out),
+         AstNode::Alternatives { choices } => append_alternatives(out, choices),
+         AstNode::Repeat { min, max, pattern } => append_repeat(out, *min, *max, pattern),
+     }
+@@ -181,17 +232,87 @@ fn append_wildcard_gadget(out: &mut Program) -> anyhow::Result<()> {
+     Ok(())
+ }
+ 
+-fn append_recurse_gadget(out: &mut Program) -> anyhow::Result<()> {
+-    // The recurse gadget involves creating an alternative loop  with AnyString + Separator
++/// Non-terminal `**` / `**/` before more pattern: zero or more full `(component /)`.
++///
++/// The `/` after `**` in `**/foo` is absorbed by the compiler so a zero-length
++/// recurse does not require a mandatory Separator before `foo` (matching
++/// rust-lang/glob: `**/foo` matches `foo`).
++fn append_nonterminal_recurse_gadget(out: &mut Program) -> anyhow::Result<()> {
++    // (AnyString Separator)*
+     let start = out.here();
+     out.instructions.push(Instruction::Alternative(start + 2));
+-    out.instructions.push(Instruction::Jump(start + 5)); // the non-alternative target
++    out.instructions.push(Instruction::Jump(start + 5)); // skip body
+     out.instructions.push(Instruction::AnyString);
+     out.instructions.push(Instruction::Separator);
+     out.instructions.push(Instruction::Jump(start));
+     Ok(())
+ }
+ 
++/// Terminal bare `**`: match zero or more path components (final component needs no trailing `/`).
++///
++/// Layout:
++/// ```text
++///         ComponentBoundary                 // require finished component / boundary
++/// start:  Alternative(take) ; Jump(end)     // stop (empty or done)
++/// take:   AnyString
++///         Alternative(more) ; Jump(end)     // this component was the last
++/// more:   Separator ; Jump(start)           // more components follow
++/// end:
++/// ```
++///
++/// `ComponentBoundary` ensures `foo/**` matches `foo` and `foo/bar` but not
++/// `foobar` (leftover bytes in the same component after `Literal "foo"`).
++fn append_terminal_recurse_gadget(out: &mut Program) -> anyhow::Result<()> {
++    out.instructions.push(Instruction::ComponentBoundary);
++    let start = out.here();
++    out.instructions.push(Instruction::Alternative(start + 2)); // take
++    out.instructions.push(Instruction::Jump(start + 7)); // end
++    // take:
++    out.instructions.push(Instruction::AnyString);
++    out.instructions.push(Instruction::Alternative(start + 5)); // more
++    out.instructions.push(Instruction::Jump(start + 7)); // end after last component
++    // more:
++    out.instructions.push(Instruction::Separator);
++    out.instructions.push(Instruction::Jump(start));
++    // end: (next instruction follows)
++    Ok(())
++}
++
++/// True when `nodes[index]` is `Recurse` and nothing after it (except an optional
++/// trailing `Separator`) remains to match.
++fn is_terminal_recurse(nodes: &[AstNode], index: usize) -> bool {
++    let mut j = index + 1;
++    if matches!(nodes.get(j), Some(AstNode::Separator)) {
++        j += 1;
++    }
++    j >= nodes.len()
++}
++
++/// True when the pattern ends with a bare recursive `**` (directory-only expansion).
++///
++/// Also true for alternatives where **every** choice is trailing-recursive
++/// (e.g. `{**}`, `foo/{**}`, `{a/**,b/**}`), but not mixed choices like
++/// `{**,README.md}` so non-directory matches are still emitted.
++fn pattern_is_trailing_recursive(nodes: &[AstNode]) -> bool {
++    let mut end = nodes.len();
++    while end > 0 && matches!(&nodes[end - 1], AstNode::Separator) {
++        end -= 1;
++    }
++    if end == 0 {
++        return false;
++    }
++    match &nodes[end - 1] {
++        AstNode::Recurse => true,
++        AstNode::Alternatives { choices } => {
++            !choices.is_empty()
++                && choices
++                    .iter()
++                    .all(|choice| pattern_is_trailing_recursive(&choice.nodes))
++        }
++        _ => false,
++    }
++}
++
+ fn append_alternatives(out: &mut Program, choices: &[Pattern]) -> anyhow::Result<()> {
+     // To compile alternatives, we first set up (choices.len() - 1) Alternative instructions
+     let start = out.instructions.len();
+@@ -207,9 +328,7 @@ fn append_alternatives(out: &mut Program, choices: &[Pattern]) -> anyhow::Result
+             // instruction here
+             out.instructions[start + (index - 1)] = Instruction::Alternative(choice_start);
+         }
+-        for node in &choice.nodes {
+-            append_program(out, node)?;
+-        }
++        append_nodes(out, &choice.nodes)?;
+         // We also put a jump to the end
+         jumps.push(out.here());
+         out.instructions
+@@ -235,9 +354,7 @@ fn append_repeat(out: &mut Program, min: u32, max: u32, pattern: &Pattern) -> an
+     // This is the loop start - increase the counter
+     out.instructions.push(Instruction::Increment(counter_id));
+ 
+-    for node in &pattern.nodes {
+-        append_program(out, node)?;
+-    }
++    append_nodes(out, &pattern.nodes)?;
+ 
+     // If we have less than the minimum, another loop is required
+     out.instructions
+@@ -258,10 +375,9 @@ fn append_repeat(out: &mut Program, min: u32, max: u32, pattern: &Pattern) -> an
+ 
+ pub fn compile(pattern: &Pattern) -> anyhow::Result<Program> {
+     let mut program = Program::default();
+-    for node in &pattern.nodes {
+-        append_program(&mut program, node)?;
+-    }
++    append_nodes(&mut program, pattern.nodes.as_slice())?;
+     program.instructions.push(Instruction::Complete);
++    program.trailing_recursive = pattern_is_trailing_recursive(pattern.nodes.as_slice());
+     Ok(program)
+ }
+ 
+diff --git a/crates/nu-glob/src/dc_glob/globber.rs b/crates/nu-glob/src/dc_glob/globber.rs
+index 9508fb7d1..015c0f279 100644
+--- a/crates/nu-glob/src/dc_glob/globber.rs
++++ b/crates/nu-glob/src/dc_glob/globber.rs
+@@ -113,11 +113,69 @@ pub fn glob_with_options(
+             fast_path: fast_path.as_ref(),
+         };
+ 
++        // Patterns ending in bare `**` match the directory where traversal
++        // begins (rust-lang/glob / nu-glob recursive-ending behavior). For bare
++        // `**` that is the empty relative path; for `foo/**` it is `foo` (the
++        // literal prefix that `traversal_start_dir` advanced into). Apply the
++        // same exclude / depth / directory-only rules as complete-match emission.
++        if program.trailing_recursive {
++            maybe_emit_trailing_recursive_start(&current_dir, &state);
++        }
++
+         glob_to(&current_dir, 0, state)
+     });
+     rx.into_iter()
+ }
+ 
++/// Emit the traversal-start directory for patterns ending in bare `**`.
++///
++/// Walk depth for this candidate is 0 (the walk root). Uses the same exclude
++/// and `max_depth` gates as [`handle_path_candidate`].
++fn maybe_emit_trailing_recursive_start(current_dir: &Path, state: &WalkState<'_>) {
++    let program = state.program;
++    let match_path = if program.absolute_prefix.is_some() {
++        current_dir.to_path_buf()
++    } else {
++        current_dir
++            .strip_prefix(state.match_relative_to)
++            .map(|p| p.to_path_buf())
++            .unwrap_or_default()
++    };
++    let output_path = if program.absolute_prefix.is_some() {
++        current_dir.to_path_buf()
++    } else {
++        match_path.clone()
++    };
++
++    let result = path_matches(&match_path, program);
++    if !result.valid_as_complete_match {
++        return;
++    }
++
++    let match_options = MatchOptions::default();
++    let excluded = state.has_excludes
++        && state
++            .exclude_patterns
++            .iter()
++            .any(|exclude| exclude.matches_path_with(&match_path, match_options));
++    if excluded {
++        return;
++    }
++
++    // Walk depth for the start directory is 0. `max_depth` is `Option<usize>`,
++    // so depth 0 is always within range (same as `candidate_depth <= max` with 0).
++
++    // Trailing `**` is directory-only; only emit if the start path is a dir.
++    let is_dir = fs::metadata(current_dir)
++        .map(|m| m.is_dir())
++        .unwrap_or(false);
++    if !is_dir {
++        return;
++    }
++
++    let _ = state.tx.send(Ok(output_path));
++}
++
+ fn traversal_start_dir(program: &Program, base: &Path) -> PathBuf {
+     let mut out = base.to_path_buf();
+     let mut i = 0;
+@@ -423,10 +481,12 @@ fn handle_path_candidate<'a>(
+         }
+     }
+ 
+-    // If it is valid as a complete match, send it out
++    // If it is valid as a complete match, send it out.
++    // Trailing bare `**` is directory-only (matches rust-lang/glob and nu-glob).
+     if result.valid_as_complete_match
+         && !excluded
+         && options.max_depth.is_none_or(|max| candidate_depth <= max)
++        && (!program.trailing_recursive || is_dir)
+     {
+         state.tx.send(Ok(output_path_candidate.to_owned()))?;
+     }
+diff --git a/crates/nu-glob/src/dc_glob/matcher.rs b/crates/nu-glob/src/dc_glob/matcher.rs
+index 920ac9a71..4bcc9ff02 100644
+--- a/crates/nu-glob/src/dc_glob/matcher.rs
++++ b/crates/nu-glob/src/dc_glob/matcher.rs
+@@ -118,15 +118,42 @@ struct Matcher<'a> {
+ impl<'a> Matcher<'a> {
+     fn advance(&mut self, program: &Program) -> bool {
+         match &program.instructions[self.state.pc.0] {
+-            Instruction::Separator if !self.has_string() => {
+-                self.state.current_string = None;
+-                if self.state.path_components.peek().is_some() {
+-                    self.next()
+-                } else {
+-                    self.end_of_input()
++            // Separator between path components. Require that the previous
++            // component was opened and fully consumed (`Some(b"")`). A bare
++            // `None` means no component was bound yet — allowing Separator to
++            // succeed here used to make `*/*` match a single path segment by
++            // combining an empty `*` with a free Separator (issue #18600).
++            //
++            // At EOF after a finished component we do **not** advance the PC:
++            // that would let a following empty `*` complete-match (regressing
++            // #18600). Prefixed trailing `**` (`foo/**`) is handled by the
++            // compiler, which omits the Separator before a terminal recurse so
++            // path `foo` reaches the terminal gadget with `Some([])` and can
++            // complete without a Separator.
++            Instruction::Separator if !self.has_string() => match self.state.current_string {
++                // Finished matching inside a component; advance to the next path
++                // component when one remains.
++                Some([]) => {
++                    self.state.current_string = None;
++                    self.state.fresh_string = false;
++                    if self.state.path_components.peek().is_some() {
++                        self.next()
++                    } else {
++                        self.end_of_input()
++                    }
+                 }
+-            }
+-            // Collapse multiple separators with no consumption in between
++                // No finished component — do not invent path segments.
++                None => self.try_alternative(),
++                // Unreachable under `!has_string()` (non-empty is handled above).
++                Some(_) => {
++                    debug_assert!(
++                        false,
++                        "Separator with non-empty current_string under !has_string()"
++                    );
++                    self.try_alternative()
++                }
++            },
++            // Collapse multiple separators when a new component was just loaded.
+             Instruction::Separator if self.state.fresh_string => self.next(),
+             Instruction::Prefix(string) if !self.has_string() => {
+                 match self.state.path_components.next() {
+@@ -267,6 +294,17 @@ impl<'a> Matcher<'a> {
+                     self.next()
+                 }
+             }
++            Instruction::ComponentBoundary => {
++                // Require a path-component boundary: no unconsumed bytes in the
++                // current component. Clear a finished `Some([])` to `None`.
++                if self.has_string() {
++                    self.try_alternative()
++                } else {
++                    self.state.current_string = None;
++                    self.state.fresh_string = false;
++                    self.next()
++                }
++            }
+             Instruction::Complete => self.complete(),
+             _ => self.try_alternative(),
+         }
+diff --git a/crates/nu-glob/src/dc_glob/mod.rs b/crates/nu-glob/src/dc_glob/mod.rs
+index e691456fb..4e6030616 100644
+--- a/crates/nu-glob/src/dc_glob/mod.rs
++++ b/crates/nu-glob/src/dc_glob/mod.rs
+@@ -659,6 +659,50 @@ mod tests {
+                 .any(|i| matches!(i, Instruction::Separator)),
+             "recurse must produce Separator instruction"
+         );
++        assert!(
++            prog.trailing_recursive,
++            "bare ** must set trailing_recursive"
++        );
++    }
++
++    #[test]
++    fn compiler_star_star_slash_star_is_not_trailing_recursive() {
++        let prog = compile_pattern("**/*");
++        assert!(
++            !prog.trailing_recursive,
++            "**/* must not be treated as directory-only trailing **"
++        );
++    }
++
++    #[test]
++    fn compiler_prefixed_trailing_recursive_sets_flag() {
++        let prog = compile_pattern("foo/**");
++        assert!(
++            prog.trailing_recursive,
++            "foo/** must set trailing_recursive"
++        );
++    }
++
++    #[test]
++    fn compiler_nested_terminal_recurse_in_alternatives() {
++        // `{**}` should compile a terminal recurse gadget and be dir-only.
++        let prog = compile_pattern("{**}");
++        assert!(
++            prog.trailing_recursive,
++            "{{**}} must set trailing_recursive"
++        );
++        // Mixed alternatives: do not force directory-only for non-** branches.
++        let mixed = compile_pattern("{**,README.md}");
++        assert!(
++            !mixed.trailing_recursive,
++            "mixed {{**,file}} must not force directory-only expansion"
++        );
++        // Prefixed alternative of only trailing **.
++        let nested = compile_pattern("foo/{**}");
++        assert!(
++            nested.trailing_recursive,
++            "foo/{{**}} must set trailing_recursive"
++        );
+     }
+ 
+     #[test]
+@@ -818,6 +862,73 @@ mod tests {
+         assert!(matches_prefix("**/foo", "a/b"));
+     }
+ 
++    #[test]
++    fn matcher_bare_double_star_matches_any_depth() {
++        // Bare ** matches the empty path (start dir) and nested components.
++        assert!(matches_complete("**", ""));
++        assert!(matches_complete("**", "1"));
++        assert!(matches_complete("**", "1/2"));
++        assert!(matches_complete("**", "1/2/3"));
++    }
++
++    #[test]
++    fn matcher_star_slash_star_requires_two_components() {
++        // Regression for #18600: empty `*` must not skip a path component.
++        assert!(!matches_complete("*/*", "1"));
++        assert!(matches_complete("*/*", "1/2"));
++        assert!(!matches_complete("*/*", "1/2/3"));
++    }
++
++    #[test]
++    fn matcher_prefixed_trailing_double_star_matches_directory_itself() {
++        // `foo/**` must complete-match `foo` (zero further components after Separator).
++        assert!(matches_complete("foo/**", "foo"));
++        assert!(matches_complete("foo/**", "foo/bar"));
++        assert!(matches_complete("foo/**", "foo/bar/baz"));
++        assert!(!matches_complete("foo/**", "bar"));
++        assert!(!matches_complete("foo/**", "foobar"));
++        // #18600 guard still holds after Separator-at-EOF advance.
++        assert!(!matches_complete("*/*", "1"));
++    }
++
++    #[test]
++    fn matcher_nested_terminal_double_star_in_alternatives() {
++        assert!(matches_complete("{**}", ""));
++        assert!(matches_complete("{**}", "a/b"));
++        assert!(matches_complete("foo/{**}", "foo"));
++        assert!(matches_complete("foo/{**}", "foo/bar"));
++        assert!(!matches_complete("foo/{**}", "bar"));
++    }
++
++    #[test]
++    fn matcher_nested_recursive_stars_enforce_min_depth() {
++        // **/* matches paths at any depth (rust-lang/glob also matches the empty
++        // string; filesystem expansion still omits the start directory).
++        assert!(matches_complete("**/*", "1"));
++        assert!(matches_complete("**/*", "1/2"));
++        assert!(matches_complete("**/*", "1/2/3"));
++
++        // **/*/* requires at least two components
++        assert!(!matches_complete("**/*/*", "1"));
++        assert!(matches_complete("**/*/*", "1/2"));
++        assert!(matches_complete("**/*/*", "1/2/3"));
++
++        // **/*/*/* requires at least three components
++        assert!(!matches_complete("**/*/*/*", "1"));
++        assert!(!matches_complete("**/*/*/*", "1/2"));
++        assert!(matches_complete("**/*/*/*", "1/2/3"));
++        assert!(matches_complete("**/*/*/*", "1/2/3/4"));
++    }
++
++    #[test]
++    fn matcher_double_star_slash_literal_matches_at_any_depth() {
++        assert!(matches_complete("**/foo", "foo"));
++        assert!(matches_complete("**/foo", "a/foo"));
++        assert!(matches_complete("**/foo", "a/b/foo"));
++        assert!(!matches_complete("**/foo", "foo/bar"));
++        assert!(!matches_complete("**/foo", "bar"));
++    }
++
+     #[test]
+     fn matcher_literal_multi_component_path() {
+         assert!(matches_complete("foo/bar/baz", "foo/bar/baz"));
+@@ -844,6 +955,145 @@ mod tests {
+     // These test that traversal_start_dir correctly excludes filename-pattern
+     // literals from the starting directory (Bug #1 in the dc-glob regression report).
+ 
++    #[test]
++    fn glob_with_issue_18600_nested_depth_and_bare_double_star() {
++        // Fixture from https://github.com/nushell/nushell/issues/18600
++        // mkdir 0/1/2/3 && cd 0
++        let root = unique_test_dir("issue_18600");
++        fs::create_dir_all(root.join("1/2/3")).expect("failed to create nested dirs");
++        write_file(&root.join("1/2/3/file.txt"));
++
++        let options = GlobWalkOptions::default();
++
++        // bare ** → start dir + nested directories only (not files)
++        let paths = collect_ok_paths(
++            glob_with(root.as_path(), "**", &options).expect("glob ** should succeed"),
++        )
++        .expect("collect **");
++        assert!(
++            paths.iter().any(|p| p.is_empty()),
++            "bare ** should include the start directory, got {paths:?}"
++        );
++        assert!(paths.contains(&expected_path(&["1"])));
++        assert!(paths.contains(&expected_path(&["1", "2"])));
++        assert!(paths.contains(&expected_path(&["1", "2", "3"])));
++        assert!(
++            !paths.iter().any(|p| p.ends_with("file.txt")),
++            "bare ** must not list files, got {paths:?}"
++        );
++
++        // **/* → all entries under start, not including start itself
++        let paths = collect_ok_paths(
++            glob_with(root.as_path(), "**/*", &options).expect("glob **/* should succeed"),
++        )
++        .expect("collect **/*");
++        assert!(
++            !paths.iter().any(|p| p.is_empty()),
++            "**/* must not include the start directory, got {paths:?}"
++        );
++        assert!(paths.contains(&expected_path(&["1"])));
++        assert!(paths.contains(&expected_path(&["1", "2"])));
++        assert!(paths.contains(&expected_path(&["1", "2", "3"])));
++        assert!(paths.contains(&expected_path(&["1", "2", "3", "file.txt"])));
++
++        // **/*/* → min depth 2
++        let paths = collect_ok_paths(
++            glob_with(root.as_path(), "**/*/*", &options).expect("glob **/*/* should succeed"),
++        )
++        .expect("collect **/*/*");
++        assert!(!paths.contains(&expected_path(&["1"])));
++        assert!(paths.contains(&expected_path(&["1", "2"])));
++        assert!(paths.contains(&expected_path(&["1", "2", "3"])));
++        assert!(paths.contains(&expected_path(&["1", "2", "3", "file.txt"])));
++
++        // **/*/*/* → min depth 3
++        let paths = collect_ok_paths(
++            glob_with(root.as_path(), "**/*/*/*", &options).expect("glob **/*/*/* should succeed"),
++        )
++        .expect("collect **/*/*/*");
++        assert!(!paths.contains(&expected_path(&["1"])));
++        assert!(!paths.contains(&expected_path(&["1", "2"])));
++        assert!(paths.contains(&expected_path(&["1", "2", "3"])));
++        assert!(paths.contains(&expected_path(&["1", "2", "3", "file.txt"])));
++
++        let _ = fs::remove_dir_all(&root);
++    }
++
++    #[test]
++    fn glob_with_prefixed_trailing_double_star_emits_prefix_dir() {
++        // `foo/**` must include `foo` itself (not only descendants), directories only.
++        let root = unique_test_dir("prefixed_trailing");
++        fs::create_dir_all(root.join("foo/bar")).expect("failed to create nested dirs");
++        write_file(&root.join("foo/bar/file.txt"));
++        write_file(&root.join("foo/sibling.txt"));
++
++        let paths = collect_ok_paths(
++            glob_with(root.as_path(), "foo/**", &GlobWalkOptions::default())
++                .expect("glob foo/** should succeed"),
++        )
++        .expect("collect foo/**");
++
++        assert!(
++            paths.contains(&expected_path(&["foo"])),
++            "foo/** should include the prefix directory itself, got {paths:?}"
++        );
++        assert!(paths.contains(&expected_path(&["foo", "bar"])));
++        assert!(
++            !paths
++                .iter()
++                .any(|p| p.ends_with("file.txt") || p.ends_with("sibling.txt")),
++            "foo/** must not list files, got {paths:?}"
++        );
++
++        let _ = fs::remove_dir_all(&root);
++    }
++
++    #[test]
++    fn glob_with_trailing_double_star_respects_excludes_on_start() {
++        // Start-dir emit for trailing `**` must consult exclude_patterns.
++        let root = unique_test_dir("trailing_exclude");
++        fs::create_dir_all(root.join("foo/bar")).expect("create foo/bar");
++        fs::create_dir_all(root.join("other")).expect("create other");
++        fs::create_dir_all(root.join("1")).expect("create 1");
++
++        // Prefixed `foo/**`: excluding `foo` must suppress the start-dir emit and descendants.
++        let options = GlobWalkOptions {
++            excludes: vec!["foo".to_string(), "foo/**".to_string()],
++            ..Default::default()
++        };
++        let paths = collect_ok_paths(
++            glob_with(root.as_path(), "foo/**", &options).expect("glob foo/** should succeed"),
++        )
++        .expect("collect foo/** with excludes");
++
++        assert!(
++            !paths.iter().any(|p| {
++                p == &expected_path(&["foo"])
++                    || p.starts_with(&format!("foo{}", std::path::MAIN_SEPARATOR))
++            }),
++            "excluded foo/** must not emit foo or descendants, got {paths:?}"
++        );
++
++        // Bare `**` with nested excludes still emits the start directory.
++        let options = GlobWalkOptions {
++            excludes: vec!["1".to_string(), "1/**".to_string()],
++            ..Default::default()
++        };
++        let paths = collect_ok_paths(
++            glob_with(root.as_path(), "**", &options).expect("glob ** should succeed"),
++        )
++        .expect("collect ** with excludes");
++        assert!(
++            paths.iter().any(|p| p.is_empty()),
++            "bare ** should still emit start dir when only nested paths are excluded, got {paths:?}"
++        );
++        assert!(!paths.contains(&expected_path(&["1"])));
++        assert!(paths.contains(&expected_path(&["other"])));
++        assert!(paths.contains(&expected_path(&["foo"])));
++
++        let _ = fs::remove_dir_all(&root);
++    }
++
+     #[test]
+     fn glob_with_dir_prefix_literal_then_wildcard() {
+         // Pattern `dir/nu*` — "dir" is a directory literal, "nu*" is a filename

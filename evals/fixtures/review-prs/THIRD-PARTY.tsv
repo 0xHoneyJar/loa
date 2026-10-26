@@ -1,0 +1,6 @@
+fixture	source	pr	head	licence	licence_files
+pr-29	https://github.com/astral-sh/ruff	29307	867edce05c7e0b9136457ba5662f44327c734f46	MIT	upstream/LICENSE
+pr-30	https://github.com/vitejs/vite	23566	e0cc2455febb8db83de59e705429294e6ee2b44b	MIT	upstream/LICENSE
+pr-31	https://github.com/pydantic/pydantic	13890	32ffc8eef57d2cd92e732da280f0af6ca7cdb60a	MIT	upstream/LICENSE
+pr-32	https://github.com/pydantic/pydantic	13624	4c5595f7f0f9006fcae4f7c3f767b07b23762e35	MIT	upstream/LICENSE
+pr-33	https://github.com/nushell/nushell	18704	3eb97a715d9edb3409f0d75f560f37db5b3300f3	MIT	upstream/LICENSE

@@ -1,0 +1,1 @@
+# pr-32 external https://github.com/pydantic/pydantic #13624: files and hunks that did not become fix regions
