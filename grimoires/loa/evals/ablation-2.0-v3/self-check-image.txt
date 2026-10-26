@@ -1,26 +1,10 @@
-# ablation-grade.sh --self-check over /home/merlin/Documents/thj/code/loa-smol/work/build-variance/grimoires/loa/evals/ablation-2.0-v3, image loa-ablation:259, 2026-10-26T00:53:36Z, harness 6df8c6a3c
-self-check base bugfix-v3-01: PASS hidden 59/63
-# bugfix-v3-01 base: 22 s
-self-check reference bugfix-v3-01: PASS hidden 63/63
-# bugfix-v3-01 reference: 23 s
-self-check base bugfix-v3-02: PASS hidden 6/7
-# bugfix-v3-02 base: 1 s
-self-check reference bugfix-v3-02: PASS hidden 7/7
-# bugfix-v3-02 reference: 1 s
-self-check base bugfix-v3-03: PASS hidden 3/9
-# bugfix-v3-03 base: 1 s
-self-check reference bugfix-v3-03: PASS hidden 9/9
-# bugfix-v3-03 reference: 1 s
-self-check base bugfix-v3-04: PASS hidden 40/51
-# bugfix-v3-04 base: 18 s
-self-check reference bugfix-v3-04: PASS hidden 51/51
-# bugfix-v3-04 reference: 19 s
+# ablation-grade.sh --self-check over /home/merlin/Documents/thj/code/loa-smol/work/build-variance/grimoires/loa/evals/ablation-2.0-v3, image loa-ablation:259, 2026-10-26T01:43:26Z, harness 1af889db2
 self-check base bugfix-v3-05: PASS hidden 38/41
-# bugfix-v3-05 base: 18 s
+# bugfix-v3-05 base: 16 s
 self-check reference bugfix-v3-05: PASS hidden 41/41
-# bugfix-v3-05 reference: 18 s
+# bugfix-v3-05 reference: 16 s
 self-check base bugfix-v3-06: PASS hidden 36/39
-# bugfix-v3-06 base: 17 s
+# bugfix-v3-06 base: 15 s
 self-check reference bugfix-v3-06: PASS hidden 39/39
 # bugfix-v3-06 reference: 15 s
 self-check base bugfix-v3-07: PASS hidden 35/37
@@ -28,6 +12,6 @@ self-check base bugfix-v3-07: PASS hidden 35/37
 self-check reference bugfix-v3-07: PASS hidden 37/37
 # bugfix-v3-07 reference: 14 s
 self-check base bugfix-v3-08: PASS hidden 42/51
-# bugfix-v3-08 base: 17 s
+# bugfix-v3-08 base: 16 s
 self-check reference bugfix-v3-08: PASS hidden 51/51
-# bugfix-v3-08 reference: 17 s
+# bugfix-v3-08 reference: 16 s

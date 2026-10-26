@@ -1,3 +1,0 @@
-id: review-c
-type: review-catch
-review_catch: {fixture: review-prs/pr-93, manifest: manifests/pr-93.json}
