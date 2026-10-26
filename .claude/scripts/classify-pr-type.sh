@@ -17,19 +17,21 @@
 # Usage (standalone, for scripts that can't source):
 #   .claude/scripts/classify-pr-type.sh --title "<title>" --labels "<labels>"
 #
-# Output: one of "cycle", "bugfix", "other" (on stdout).
+# Output: one of "cycle", "bugfix", "housekeeping", "other" (on stdout) — the
+# grammar pr_type=<cycle|bugfix|housekeeping|other> (bd-nr5i6, cycle-135 C-4).
 # =============================================================================
 
 # classify_pr_type — classify a PR by title and labels
 #
 # Returns one of:
-#   cycle  — PR represents a full cycle (CHANGELOG, GT, RTFM, Release run)
-#   bugfix — PR is a bugfix (tag + simple release only)
-#   other  — PR doesn't match either (tag only)
+#   cycle        — PR represents a full cycle (CHANGELOG, GT, RTFM, Release run)
+#   bugfix       — PR is a bugfix (tag + simple release only)
+#   housekeeping — archive, ledger or decisions merge (no prepare job runs)
+#   other        — PR doesn't match any of the above (tag only)
 #
 # Rules (in precedence order):
 #   1. Label contains "cycle" (case-insensitive) → cycle
-#   1a. Housekeeping: merge from a chore/ branch, or chore(archive|ledger|decisions): → other
+#   1a. Housekeeping: merge from a chore/ branch, or chore(archive|ledger|decisions): → housekeeping
 #   2. Title matches cycle-NNN anywhere → cycle
 #   3. Title starts with one of the cycle prefixes
 #      (Run Mode, Sprint Plan, feat(sprint, feat(cycle) → cycle
@@ -49,16 +51,19 @@ classify_pr_type() {
         return 0
     fi
 
-    # bd-ahxmh: housekeeping merges are "other" even when they name a cycle.
+    # bd-ahxmh: housekeeping merges are not "cycle" even when they name a cycle.
     # The archive branch carries the cycle id by convention
     # (chore/cycle-NNN-archive), so the cycle-NNN rule below routed every
     # archive merge to the cycle release path. Live incident (post-merge.yml):
     # the cycle-133 and cycle-134 archive merges (PR #1293, PR #1297) each ran
     # the cycle release pipeline ("Prepare Release (Cycle)", runs 40112908074
-    # and 40182103691) although nothing was shipped. Housekeeping merges now
-    # take the Bugfix-or-Other job like any non-cycle merge (which still
-    # prepares an inspectable candidate under the publication contract;
-    # publication stays explicit). This sits before the cycle-NNN rule so a
+    # and 40182103691) although nothing was shipped. bd-nr5i6 (cycle-135
+    # C-4): they classify `housekeeping`, not `other` — housekeeping merges
+    # (archive, the orchestrator's ledger push, decisions confirmations)
+    # prepare nothing, and post-merge.yml runs neither prepare job for them
+    # (its simple-release guard is an allowlist of bugfix and other). A push
+    # without a PR still reports `other` (classify-merge-pr.sh, KF-063), and
+    # neither job runs for that either. This sits before the cycle-NNN rule so a
     # housekeeping subject never reaches it, and after the labels rule so a
     # `cycle` label still wins. The prefix
     # form is limited to the housekeeping scopes (archive, the orchestrator's
@@ -69,7 +74,7 @@ classify_pr_type() {
     # form anchors `chore/` to the first segment after the owner (`[^ /]+`),
     # so a `release/chore/…` branch still reaches the release rule below.
     if echo "$title" | grep -qE '^Merge pull request #[0-9]+ from [^ /]+/chore/|^chore\((archive|ledger|decisions)\):'; then
-        echo "other"
+        echo "housekeeping"
         return 0
     fi
 

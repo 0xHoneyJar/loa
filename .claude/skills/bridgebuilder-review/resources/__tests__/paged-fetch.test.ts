@@ -13,6 +13,8 @@ import { ReviewPipeline } from "../core/reviewer.js";
 import { BridgebuilderContext } from "../core/context.js";
 import { summarizeReviewVerdict } from "../core/review-verdict.js";
 import { DEGRADED_REASONS } from "../core/run-outcome.js";
+// cycle-135 (review round 1): the fetch-side set is the module's own, so a new fetch-side reason needs no table edit here
+import { FETCH_DEGRADED_REASONS } from "../core/degraded-reason.js";
 import { DEFAULT_EXCLUDE_PATTERNS } from "../config.js";
 import type { BridgebuilderConfig } from "../core/types.js";
 import type { PostReviewInput } from "../ports/review-poster.js";
@@ -256,11 +258,15 @@ describe("two-pass paged fetch (C-1)", () => {
       { filename: "evals/fixtures/review-prs/pr-9/head/src/auth/session.ts", status: "added", additions: 400, deletions: 0, patch: makePatch(2, 900) },
       { filename: "grimoires/loa/reports/ablation-2.0/c132-grades/run-1/grade.json", status: "added", additions: 50, deletions: 0, patch: makePatch(3, 300) },
     ] });
-    const res = await fetchPRFilesTwoPass(adapter(gh.exec), "o", "r", 7, { ...SEL, selfReview: true, loaAware: true });
+    // (review round 1) the fixture's base sha is not a real commit: the fail-closed base `.reviewignore` read would report
+    // base_unavailable and degrade the record by design; this test is about excluded files, so the provenance is injected
+    const res = await fetchPRFilesTwoPass(adapter(gh.exec), "o", "r", 7, { ...SEL, selfReview: true, loaAware: true }, { reviewignoreSource: () => "checkout" as const });
     assert.deepEqual(res.files.map((f) => f.filename), ["src/app.ts"]);
     const reasons = Object.fromEntries(res.coverage.omitted.map((o) => [o.file, o]));
-    assert.deepEqual(reasons["evals/fixtures/review-prs/pr-9/head/src/auth/session.ts"], { file: "evals/fixtures/review-prs/pr-9/head/src/auth/session.ts", reason: "excluded_pattern", reviewable: false });
+    assert.deepEqual(reasons["evals/fixtures/review-prs/pr-9/head/src/auth/session.ts"], { file: "evals/fixtures/review-prs/pr-9/head/src/auth/session.ts", reason: "excluded_pattern", reviewable: false, pattern: "evals/fixtures/review-prs/**" });
     assert.equal(reasons["grimoires/loa/reports/ablation-2.0/c132-grades/run-1/grade.json"].reason, "excluded_pattern");
+    // cycle-135 C-2 (consumer side): the omission names the default pattern that excluded it
+    assert.equal(reasons["grimoires/loa/reports/ablation-2.0/c132-grades/run-1/grade.json"].pattern, "grimoires/loa/reports/ablation-2.0/*-grades/**");
     assert.equal(res.coverage.degraded, false);
     assert.equal(res.coverage.mergeBlockedReason, undefined);
   });
@@ -343,7 +349,7 @@ describe("each degraded reason's verdict (C-1 × C-2 decision table)", () => {
       } else {
         assert.equal(v.verdict, "UNKNOWN");
         assert.equal(v.mergeBlocked, true);
-        assert.equal(v.mergeBlockedReason, ["files_payload_oversize", "files_list_truncated", "page_incomplete", "patch_fetch_rate_limited", "pr_head_moved"].includes(reason) ? "incomplete_coverage" : reason);
+        assert.equal(v.mergeBlockedReason, FETCH_DEGRADED_REASONS.has(reason) ? "incomplete_coverage" : reason);
       }
     });
     it(`${reason}: a HIGH finding still yields REQUEST_CHANGES (rule 1 first)`, () => {

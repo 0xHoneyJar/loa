@@ -90,19 +90,14 @@ normal merge authorization and checks.
 
 ### Large pull requests: the paged, SHA-pinned fetch (cycle-133 C-1, KF-054)
 
-The file list is read in two passes, never with `--paginate`. Pass 1 pages `pulls/N/files?per_page=100&page=K`
-and keeps names, stats and patch sizes only. The selection (Loa tier, `exclude_patterns`, `max_files_per_pr`, tier
-order) runs once over the complete list, and `max_diff_bytes` is planned on the recorded sizes. A file that fits is
-kept whole. The first that does not is kept cut and recorded `patch_truncated`; the rest are `byte_budget`. Pass 2
-re-reads only the pages that hold selected files. `pulls/N` is re-read before every page and after pass 2: a base or
-head move restarts the fetch once, and a second move degrades as `pr_head_moved`. One `gh` call receives one page,
-bounded by `gh_max_buffer_bytes`.
+Large PRs are fetched in two SHA-pinned passes (list, select within `max_files` / `max_diff_bytes`, re-read only the
+selected pages; a head move restarts once, a second degrades as `pr_head_moved`). Every review carries a **coverage
+record** (`verdicts[].coverage`; counts, omitted paths and a `<!-- bridgebuilder-coverage: {…} -->` marker in the posted
+review): `reviewed[]`, `omitted[]` (reason, `pattern`, `fetch`), `protected_kept`, `reviewignore_source`. An added file
+listed without a patch is read by content at the head sha and reviewed as an all-additions patch (`source: "contents"`),
+bounded by bytes, `max_content_fetches` (20) and 120 s; other outcomes stay `no_patch` with `omitted[].fetch` naming
+why (cycle-135, bd-w5pd9). See `resources/exclusions-and-coverage.md` for the fetch rules, fields and rendering.
 
-Every review carries a **coverage record**: `{base_sha, head_sha, changed_files, listed, reviewed: [{file, bytes,
-hunks}], omitted: [{file, reason, reviewable}], unknown_omitted, degraded, degraded_reasons, mergeBlockedReason,
-restarts}`. It is in full in the summary JSON (`verdicts[].coverage`). The posted review shows counts per reason, the
-first 20 omitted paths and a `<!-- bridgebuilder-coverage: {…} -->` marker with both SHAs. The marker holds the full
-record when it fits 20,000 characters, else the counts and the record's sha256.
 
 | Omission reason | Blocks the merge |
 |---|---|
@@ -173,6 +168,18 @@ Set in `.loa.config.yaml` under `bridgebuilder:` section, or via environment var
 | max_output_tokens | — | `4000` |
 | persona_path | — | `grimoires/bridgebuilder/BEAUVOIR.md` |
 
+### Exclusion patterns and protected paths (cycle-135, bd-ow72o / bd-i4fyw)
+
+One gitignore-like grammar and matcher for `exclude_patterns`, `--exclude`, `.reviewignore` and the defaults on every
+Node version: a pattern without `*`, `?`, `{`, `[` names whole segments (`PROCESS.md` ⇢ `docs/PROCESS.md`, never
+`MYPROCESS.md`); slashless wildcards float, wildcards with a `/` are root-anchored; negation, escapes, extglob and nested
+braces are rejected with a WARN. `protected_paths` (default `.github/workflows/**`, `.github/actions/**`,
+`.github/CODEOWNERS`, `.claude/settings.json`, `.claude/settings.local.json`, `.claude/hooks/**`, `.husky/**`,
+`.reviewignore`; `[]` disables) leave the review only through an explicit root-anchored name or full path; wildcards and
+floating names keep them (`protected_kept`). On a pull request these keys, `exclude_patterns`, `fetch_missing_patches`
+(`true`) and `max_content_fetches` (`20`) follow the trusted config, and `.reviewignore` is read from the PR base (a
+failed base copy → `base_unavailable`, review degraded). See `resources/exclusions-and-coverage.md` for the full rules.
+
 ### Invocation trust contract (#1050)
 
 Run `/bridgebuilder` from a **trusted checkout** (your default branch or a clean clone) — never
@@ -234,19 +241,6 @@ The completion banner prints `Done in Ns — completed/planned model(s) complete
 
 ## Trusted provider configuration (cycle-129 D-7.5, DEC-0170)
 
-`hounfour.providers` (keyless and insecure-endpoint declarations, `auth: "{env:VAR}"` key names, `dispatch_group`),
-`hounfour.locality` and `bridgebuilder.exit_on_degraded` are read only from trusted configuration:
-
-| Mode | Detected by | Read from |
-|------|-------------|-----------|
-| local | no PR context | the working tree's `.loa.config.yaml` |
-| pull request | `--pr`, `GITHUB_EVENT_NAME` = `pull_request`/`pull_request_target`, or `GITHUB_BASE_REF` set | 1. `BRIDGEBUILDER_TRUSTED_CONFIG` (YAML or JSON text set from a repository variable); 2. `.loa.config.yaml` at `refs/remotes/origin/<base>` (base from `GITHUB_BASE_REF`, else `gh pr view --json baseRefName`); 3. `refs/remotes/origin/main`; 4. none: no keyless or insecure provider is admitted |
-
-On a pull request the head checkout is read only to refuse: a keyless or `allow_insecure_endpoint`
-provider the trusted source does not declare that way fails with
-`head-only provider declaration refused: <name>`. A provider the trusted config does not declare at
-all still fails with `Unknown provider: <name>`. A provider declared `keyless: true` (or with a
-literal `auth`) needs no env var. Under `hounfour.locality: local_voices` every voice whose provider
-is not `dispatch_group: local` in the trusted config is dropped from the plan with
-`locality: local_voices refuses hosted hop <model_id> (<provider>); …` and never rerouted. In CI,
-fetch the base branch (`git fetch origin <base>`) before running so step 2 can answer.
+The full contract (sources, precedence, what a drifting PR head refuses with exit 5 and what it only WARNs about since
+cycle-135) is in `resources/exclusions-and-coverage.md` § Trusted provider configuration; read it when configuring
+providers or review scope for a pull-request run.

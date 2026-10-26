@@ -5,7 +5,26 @@ import type { BridgebuilderConfig, CoverageRecord, OmissionReason, ReviewItem, T
 /** GitHub's `pulls/N/files` lists at most this many files (30 pages of 100). */
 export declare const FILES_ENDPOINT_CAP = 3000;
 export type PagedGit = Required<Pick<IGitProvider, "getPR" | "getPRFilesPage">>;
-export type SelectionConfig = Pick<BridgebuilderConfig, "excludePatterns" | "maxDiffBytes" | "maxFilesPerPr" | "loaAware" | "repoRoot" | "selfReview">;
+/** cycle-135 C-3: the paged contract plus the optional content read (absent → no content fetch). */
+export type PagedContentGit = PagedGit & Pick<IGitProvider, "getFileContent">;
+export type SelectionConfig = Pick<BridgebuilderConfig, "excludePatterns" | "maxDiffBytes" | "maxFilesPerPr" | "loaAware" | "repoRoot" | "selfReview" | "protectedPaths" | "fetchMissingPatches" | "maxContentFetches">;
+/** cycle-135 C-3: default `max_content_fetches` and the total deadline for the content reads of one attempt. */
+export declare const DEFAULT_MAX_CONTENT_FETCHES = 20;
+export declare const CONTENT_FETCH_DEADLINE_MS = 120000;
+type ReviewignoreSource = NonNullable<CoverageRecord["reviewignore_source"]>;
+/** Test seams of the two-pass fetch (production passes none). */
+export interface TwoPassDeps {
+    /** cycle-135 C-3: the clock for the content-fetch deadline (default `Date.now`). */
+    now?: () => number;
+    /** cycle-135 C-2: the selection (default `truncateFiles`); tests substitute the producer of `protectedKept`. */
+    truncate?: (files: PullRequestFile[], config: SelectionConfig & {
+        reviewignoreBaseSha?: string;
+    }) => TruncationResult;
+    /** cycle-135 C-2: where `.reviewignore` is read from for this PR (default `defaultReviewignoreSource`). */
+    reviewignoreSource?: (repoRoot: string | undefined, opts: {
+        baseSha?: string;
+    }) => ReviewignoreSource | undefined;
+}
 export interface TwoPassResult {
     /** Selected files with their retained (possibly cut) patch text, in selection order. */
     files: PullRequestFile[];
@@ -25,6 +44,11 @@ export declare class PrHeadMoved extends Error {
 /** Cut a patch to at most `maxBytes` UTF-8 bytes, at the last line boundary when one exists (always a prefix). */
 export declare function cutPatch(patch: string, maxBytes: number): string;
 /**
+ * cycle-135 C-3: the patch for a whole added file — `@@ -0,0 +1,N @@` then every line with a `+` prefix (bytes
+ * verbatim, so CRLF keeps its `\r`), and git's `\ No newline at end of file` marker when the content lacks one.
+ */
+export declare function synthesizeAddedPatch(content: string): string;
+/**
  * Degradation from the coverage: a fetch-side reason is reported as itself; otherwise any omitted reviewable file or
  * any unknown (unlisted) file is `incomplete_coverage`. Either way the merge is blocked as incomplete_coverage.
  */
@@ -34,7 +58,7 @@ export declare function evaluateCoverage(input: {
     fetchReasons: DegradedReason[];
 }): Pick<CoverageRecord, "degraded" | "degraded_reasons" | "mergeBlockedReason">;
 /** The two-pass fetch with one restart on a base/head move (sdd.md C-1). */
-export declare function fetchPRFilesTwoPass(git: PagedGit, owner: string, repo: string, prNumber: number, config: SelectionConfig): Promise<TwoPassResult>;
+export declare function fetchPRFilesTwoPass(git: PagedContentGit, owner: string, repo: string, prNumber: number, config: SelectionConfig, deps?: TwoPassDeps): Promise<TwoPassResult>;
 /** Whether a provider implements the paged contract. */
 export declare function hasPagedContract(git: IGitProvider): git is IGitProvider & PagedGit;
 /**
@@ -49,4 +73,5 @@ export declare function truncationFor(item: ReviewItem, config: Parameters<typeo
 export declare function coverageMarker(coverage: CoverageRecord): string;
 /** The posted coverage section: pinned pair, counts per reason, the first 20 omitted paths, and the marker. */
 export declare function formatCoverageSection(coverage: CoverageRecord): string;
+export {};
 //# sourceMappingURL=paged-fetch.d.ts.map

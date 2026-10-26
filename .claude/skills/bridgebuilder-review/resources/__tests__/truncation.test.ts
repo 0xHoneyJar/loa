@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdirSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
+import { writeFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -13,6 +14,9 @@ import {
   SELF_REVIEW_LABEL,
   deriveCallConfig,
 } from "../core/truncation.js";
+// cycle-135 C-2 (bd-i4fyw): namespace access so a missing export fails its own case, not the whole file.
+import * as truncation from "../core/truncation.js";
+import * as configModule from "../config.js";
 import type { PullRequestFile } from "../ports/git-provider.js";
 
 function file(
@@ -59,15 +63,39 @@ describe("loadReviewIgnore", () => {
     }
   });
 
-  it("normalizes directory patterns (trailing / becomes /**)", () => {
+  // cycle-135 C-1 (bd-ow72o): formerly "trailing / becomes /**"; the conversion is gone — a directory line is a
+  // non-wildcard segment pattern (FR-2: `.github/workflows/` is an explicit name).
+  it("keeps directory patterns as written (no / → /** conversion)", () => {
     const tmpDir = join(tmpdir(), `loa-test-${Date.now()}`);
     mkdirSync(tmpDir, { recursive: true });
     try {
       writeFileSync(join(tmpDir, ".reviewignore"), "vendor/\nbuild/\n");
       const patterns = loadReviewIgnore(tmpDir);
-      assert.ok(patterns.includes("vendor/**"), "should normalize vendor/ to vendor/**");
-      assert.ok(patterns.includes("build/**"), "should normalize build/ to build/**");
+      assert.ok(patterns.includes("vendor/"), "vendor/ stays vendor/");
+      assert.ok(patterns.includes("build/"), "build/ stays build/");
+      assert.ok(!patterns.includes("vendor/**") && !patterns.includes("build/**"), "no ** conversion");
     } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  // (Bridgebuilder round 2, PR #1302): a leading `/` is kept — it is the root anchor; only `./` is stripped
+  it("normalises .reviewignore lines through the one loader (./ stripped, leading / kept as the root anchor, ! rejected)", () => {
+    const tmpDir = join(tmpdir(), `loa-test-norm-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(tmpDir, { recursive: true });
+    const original = process.stderr.write;
+    let err = "";
+    (process.stderr as unknown as { write: (c: unknown) => boolean }).write = (c: unknown) => {
+      err += String(c);
+      return true;
+    };
+    try {
+      writeFileSync(join(tmpDir, ".reviewignore"), "/abs.md\n./rel/\n  spaced.txt  \n!negated.md\n+(a|b).md\n");
+      const patterns = loadReviewIgnoreUserPatterns(tmpDir);
+      assert.deepEqual(patterns, ["/abs.md", "rel/", "spaced.txt"]);
+      assert.ok(err.includes("!negated.md") && err.includes("+(a|b).md"), err);
+    } finally {
+      process.stderr.write = original;
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
@@ -156,13 +184,14 @@ describe("truncateFiles", () => {
       assert.equal(result.included[0].filename, "src/main.ts");
     });
 
-    it("excludes files matching substring pattern", () => {
-      const files = [file(".env.local", 1, 0), file("src/config.ts", 3, 1)];
+    // cycle-135 C-1 (bd-ow72o): formerly "excludes files matching substring pattern" (`.env` excluded `.env.local`).
+    // A non-wildcard pattern now names a whole segment: `.env` excludes `.env` and `config/.env`, not `.env.local`.
+    it("non-wildcard pattern excludes the whole segment only (no substring match)", () => {
+      const files = [file(".env.local", 1, 0), file("config/.env", 1, 0), file(".env", 1, 0), file("src/config.ts", 3, 1)];
       const config = { ...defaultConfig, excludePatterns: [".env"] };
       const result = truncateFiles(files, config);
 
-      assert.equal(result.included.length, 1);
-      assert.equal(result.included[0].filename, "src/config.ts");
+      assert.deepEqual(result.included.map((f) => f.filename).sort(), [".env.local", "src/config.ts"]);
     });
 
     it("excluded-by-pattern files appear in excluded list with annotation", () => {
@@ -536,7 +565,8 @@ describe("truncateFiles", () => {
           "secrets/\nvendor/internal-blob.bin\n# comment\n",
         );
         const patterns = loadReviewIgnoreUserPatterns(tmpDir);
-        assert.deepEqual(patterns.sort(), ["secrets/**", "vendor/internal-blob.bin"]);
+        // cycle-135 C-1: directory lines are kept as written (no `/` → `/**` conversion)
+        assert.deepEqual(patterns.sort(), ["secrets/", "vendor/internal-blob.bin"]);
         // CRITICAL: must NOT include LOA defaults like ".claude/**"
         assert.equal(patterns.includes(".claude/**"), false);
         assert.equal(patterns.includes("grimoires/**"), false);
@@ -1242,3 +1272,721 @@ describe("truncateFiles", () => {
     });
   });
 });
+
+// --- cycle-135 C-2 (bd-i4fyw): protected paths and .reviewignore provenance ---
+
+type ProtectedConfig = typeof defaultConfig & {
+  loaAware?: boolean;
+  selfReview?: boolean;
+  repoRoot?: string;
+  protectedPaths?: string[];
+  reviewignoreBaseSha?: string;
+};
+
+function run(files: PullRequestFile[], extra: Partial<ProtectedConfig>) {
+  const config: ProtectedConfig = { ...defaultConfig, loaAware: false, ...extra };
+  return truncateFiles(files, config as Parameters<typeof truncateFiles>[1]) as ReturnType<typeof truncateFiles> & {
+    protectedKept?: Array<{ file: string; pattern: string }>;
+    reviewignoreSource?: "base" | "checkout" | "base_unavailable" | "none";
+  };
+}
+
+function names(list: Array<{ filename: string }>): string[] {
+  return list.map((f) => f.filename);
+}
+
+function tmpRepoDir(tag: string): string {
+  return mkdtempSync(join(tmpdir(), `loa-c135-${tag}-`));
+}
+
+function captureStderr<T>(fn: () => T): { value: T; err: string } {
+  const original = process.stderr.write;
+  let err = "";
+  (process.stderr as unknown as { write: (c: unknown) => boolean }).write = (c: unknown) => {
+    err += String(c);
+    return true;
+  };
+  try {
+    return { value: fn(), err };
+  } finally {
+    process.stderr.write = original;
+  }
+}
+
+const CI = ".github/workflows/ci.yml";
+
+describe("protected paths (cycle-135 C-2, bd-i4fyw)", () => {
+  it("DEFAULT_PROTECTED_PATHS is the SDD C-2 list", () => {
+    assert.deepEqual(truncation.DEFAULT_PROTECTED_PATHS, [
+      ".github/workflows/**",
+      ".github/actions/**",
+      ".github/CODEOWNERS",
+      ".claude/settings.json",
+      ".claude/settings.local.json",
+      ".claude/hooks/**",
+      ".husky/**",
+      ".reviewignore",
+    ]);
+  });
+
+  it("**/*.yml keeps .github/workflows/ci.yml and records the pattern", () => {
+    const r = run([file(CI, 3, 1), file("config/app.yml", 2, 0), file("src/a.ts", 1, 0)], { excludePatterns: ["**/*.yml"] });
+    assert.ok(names(r.included).includes(CI), "protected workflow stays in the review set");
+    assert.ok(!names(r.included).includes("config/app.yml"), "unprotected yml still excluded");
+    assert.deepEqual(r.protectedKept, [{ file: CI, pattern: "**/*.yml" }]);
+  });
+
+  for (const order of [["**/*.yml", CI], [CI, "**/*.yml"]]) {
+    it(`an exact name excludes the protected file whatever the order (${order.join(", ")})`, () => {
+      const r = run([file(CI, 3, 1), file("src/a.ts", 1, 0)], { excludePatterns: order });
+      assert.ok(!names(r.included).includes(CI));
+      assert.ok(names(r.excluded).includes(CI));
+      assert.ok(!(r.protectedKept ?? []).some((k) => k.file === CI));
+    });
+  }
+
+  for (const order of [["**/*.yml", ".github/workflows/"], [".github/workflows/", "**/*.yml"]]) {
+    it(`the .reviewignore line .github/workflows/ is an explicit name (${order.join(", ")})`, () => {
+      const root = tmpRepoDir("ri-dir");
+      try {
+        writeFileSync(join(root, ".reviewignore"), order.join("\n") + "\n");
+        const r = run([file(CI, 3, 1), file("src/a.ts", 1, 0)], { loaAware: true, repoRoot: root });
+        assert.ok(!names(r.included).includes(CI));
+        assert.ok(names(r.excluded).includes(CI));
+        assert.ok(!(r.protectedKept ?? []).some((k) => k.file === CI));
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+  }
+
+  it(".reviewignore wildcard keeps the protected file in the default Loa mode and under self-review", () => {
+    const root = tmpRepoDir("ri-wild");
+    try {
+      writeFileSync(join(root, ".reviewignore"), "**/*.yml\n");
+      for (const selfReview of [false, true]) {
+        const r = run([file(CI, 3, 1), file("config/app.yml", 2, 0), file("src/a.ts", 1, 0)], {
+          loaAware: true,
+          selfReview,
+          repoRoot: root,
+        });
+        assert.ok(names(r.included).includes(CI), `selfReview=${selfReview}`);
+        assert.ok(!names(r.included).includes("config/app.yml"), `selfReview=${selfReview}`);
+        assert.deepEqual(r.protectedKept, [{ file: CI, pattern: "**/*.yml" }], `selfReview=${selfReview}`);
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("an exact config pattern wins over protection a .reviewignore wildcard granted (order-independent across sources)", () => {
+    const root = tmpRepoDir("ri-cross");
+    try {
+      writeFileSync(join(root, ".reviewignore"), "**/*.yml\n");
+      const r = run([file(CI, 3, 1), file("src/a.ts", 1, 0)], { loaAware: true, repoRoot: root, excludePatterns: [CI] });
+      assert.ok(!names(r.included).includes(CI));
+      assert.ok(!(r.protectedKept ?? []).some((k) => k.file === CI));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("protected-kept files come first in the selection order (file cap 1)", () => {
+    // src/auth.ts is high-risk and larger: without protected-first it would take the one slot.
+    const r = run([file("src/auth.ts", 500, 0), file(CI, 1, 0)], { excludePatterns: ["**/*.yml"], maxFilesPerPr: 1 });
+    assert.deepEqual(names(r.included), [CI]);
+    assert.ok(names(r.excluded).includes("src/auth.ts"));
+  });
+
+  it("protectedPaths: [] disables protection", () => {
+    const r = run([file(CI, 3, 1), file("src/a.ts", 1, 0)], { excludePatterns: ["**/*.yml"], protectedPaths: [] });
+    assert.ok(!names(r.included).includes(CI));
+    assert.deepEqual(r.protectedKept ?? [], []);
+  });
+
+  it("a custom list protects only its entries", () => {
+    const action = ".github/actions/setup/action.yml";
+    const r = run([file(CI, 3, 1), file(action, 2, 0)], { excludePatterns: ["**/*.yml"], protectedPaths: [CI] });
+    assert.ok(names(r.included).includes(CI));
+    assert.ok(!names(r.included).includes(action));
+    assert.deepEqual(r.protectedKept, [{ file: CI, pattern: "**/*.yml" }]);
+  });
+
+  it("partitionUserExclusions is order-independent and records the pattern", () => {
+    const files = [file(CI, 1, 0), file("config/app.yml", 1, 0), file("src/a.ts", 1, 0)];
+    const prot = [".github/workflows/**"];
+    const a = truncation.partitionUserExclusions(files, ["**/*.yml"], prot);
+    assert.deepEqual(a.protectedKept, [{ file: CI, pattern: "**/*.yml" }]);
+    assert.deepEqual(a.excluded, [{ file: "config/app.yml", pattern: "**/*.yml" }]);
+    for (const user of [["**/*.yml", CI], [CI, "**/*.yml"]]) {
+      const b = truncation.partitionUserExclusions(files, user, prot);
+      assert.deepEqual(b.protectedKept, [], user.join(","));
+      assert.deepEqual(b.excluded, [{ file: CI, pattern: CI }, { file: "config/app.yml", pattern: "**/*.yml" }], user.join(","));
+    }
+  });
+
+  it("omissions carry the excluding pattern in the stats suffix", () => {
+    const r = run([file("config/app.yml", 2, 0), file("src/a.ts", 1, 0)], { excludePatterns: ["**/*.yml"] });
+    const ex = r.excluded.find((e) => e.filename === "config/app.yml");
+    assert.ok(ex && ex.stats.endsWith("(excluded by pattern) [pattern: **/*.yml]"), ex?.stats);
+  });
+
+  it("the Loa tier still strips .claude/settings.json without self-review, naming its default pattern", () => {
+    const root = tmpRepoDir("loa-tier");
+    try {
+      const r = run([file(".claude/settings.json", 2, 0), file("src/a.ts", 1, 0)], { loaAware: true, repoRoot: root });
+      assert.ok(!names(r.included).includes(".claude/settings.json"));
+      const ex = r.excluded.find((e) => e.filename === ".claude/settings.json");
+      assert.ok(ex && /\(Loa framework, summary only\) \[pattern: \.claude\/\*\*\]$/.test(ex.stats), ex?.stats);
+      assert.deepEqual(r.protectedKept ?? [], []);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("protected_paths and the fetch keys in config (cycle-135 C-2, bd-i4fyw)", () => {
+  it("validateProtectedPaths strips a leading ./, keeps a leading / (root anchor) and trims the rest", () => {
+    assert.deepEqual(configModule.validateProtectedPaths(["/.github/x/**", "./.husky/**", " ci.yml "]), [
+      "/.github/x/**",
+      ".husky/**",
+      "ci.yml",
+    ]);
+    assert.deepEqual(configModule.validateProtectedPaths([]), []);
+  });
+
+  for (const [bad, needle] of [
+    [[42], "42"],
+    [[""], "[0]"],
+    [["ok/**", "   "], "[1]"],
+    [["a/../b"], "a/../b"],
+    [[".."], ".."],
+    [["+(a|b).yml"], "+(a|b).yml"],
+  ] as Array<[unknown[], string]>) {
+    it(`validateProtectedPaths rejects ${JSON.stringify(bad)} with an error naming the entry`, () => {
+      assert.throws(
+        () => configModule.validateProtectedPaths(bad),
+        (e: Error) => e.message.includes("protected_paths") && e.message.includes(needle),
+      );
+    });
+  }
+
+  it("validateProtectedPaths rejects a non-list value", () => {
+    assert.throws(() => configModule.validateProtectedPaths("ci.yml"), /protected_paths/);
+  });
+
+  it("resolveConfig carries protected_paths, fetch_missing_patches and max_content_fetches", async () => {
+    const { config } = await configModule.resolveConfig(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"], protected_paths: ["/ci.yml"], fetch_missing_patches: false, max_content_fetches: 5 } as never,
+    );
+    assert.deepEqual(config.protectedPaths, ["/ci.yml"]); // (round 2: a leading / is kept as the root anchor)
+    assert.equal(config.fetchMissingPatches, false);
+    assert.equal(config.maxContentFetches, 5);
+  });
+
+  it("resolveConfig leaves the three keys undefined when unset (the readers default them)", async () => {
+    const { config } = await configModule.resolveConfig({}, {}, { enabled: true, repos: ["test/repo"] });
+    assert.equal(config.protectedPaths, undefined);
+    assert.equal(config.fetchMissingPatches, undefined);
+    assert.equal(config.maxContentFetches, undefined);
+  });
+
+  it("resolveConfig rejects an invalid protected_paths entry", async () => {
+    await assert.rejects(
+      configModule.resolveConfig({}, {}, { enabled: true, repos: ["test/repo"], protected_paths: ["a/../b"] } as never),
+      /protected_paths.*a\/\.\.\/b/,
+    );
+  });
+
+  it("resolveConfig rejects a negative or fractional max_content_fetches", async () => {
+    for (const bad of [-1, 1.5]) {
+      await assert.rejects(
+        configModule.resolveConfig({}, {}, { enabled: true, repos: ["test/repo"], max_content_fetches: bad } as never),
+        /max_content_fetches/,
+      );
+    }
+  });
+});
+
+describe(".reviewignore provenance (cycle-135 C-2, bd-i4fyw)", () => {
+  function git(root: string, ...args: string[]): string {
+    return execFileSync(
+      "git",
+      ["-C", root, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", ...args],
+      { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] },
+    ).trim();
+  }
+
+  /** A repo with two commits: base has `.reviewignore` = base-only.md, head (the checkout) = head-only.md + src/**. */
+  function twoCommitRepo(): { root: string; base: string } {
+    const root = tmpRepoDir("prov");
+    git(root, "init", "-q");
+    writeFileSync(join(root, ".reviewignore"), "base-only.md\n");
+    git(root, "add", ".reviewignore");
+    git(root, "commit", "-q", "-m", "base");
+    const base = git(root, "rev-parse", "HEAD");
+    writeFileSync(join(root, ".reviewignore"), "head-only.md\nsrc/**\n");
+    git(root, "add", ".reviewignore");
+    git(root, "commit", "-q", "-m", "head");
+    return { root, base };
+  }
+
+  it("reads the base version when a base sha is given", () => {
+    const { root, base } = twoCommitRepo();
+    try {
+      assert.deepEqual(truncation.parseReviewignoreFile(root, { baseSha: base }), { patterns: ["base-only.md"], source: "base" });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reads the checkout version without a base sha", () => {
+    const { root } = twoCommitRepo();
+    try {
+      assert.deepEqual(truncation.parseReviewignoreFile(root), { patterns: ["head-only.md", "src/**"], source: "checkout" });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("is none when the file is absent from the checkout", () => {
+    const root = tmpRepoDir("prov-absent");
+    try {
+      assert.deepEqual(truncation.parseReviewignoreFile(root), { patterns: [], source: "none" });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // sprint-279 review round 1 (HIGH 1): a failed base read falls back to the checkout copy and reports
+  // `base_unavailable` (the review degrades as reviewignore_unavailable) — formerly `none` with zero patterns.
+  it("falls back to the checkout copy as base_unavailable with one WARN when the base read fails", () => {
+    const { root } = twoCommitRepo();
+    try {
+      git(root, "rm", "-q", ".reviewignore");
+      git(root, "commit", "-q", "-m", "drop");
+      const noFile = git(root, "rev-parse", "HEAD");
+      writeFileSync(join(root, ".reviewignore"), "checkout-only.md\n");
+      // (Bridgebuilder round 1, PR #1302: `noFile` — a readable base that lacks the file — is `none`, see the next tests)
+      for (const sha of ["0".repeat(40), "abc123", "--output=/tmp/x"]) {
+        const { value, err } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: sha }));
+        assert.deepEqual(value, { patterns: ["checkout-only.md"], source: "base_unavailable" }, sha);
+        const warns = err.split("\n").filter((l) => l.includes("WARN"));
+        assert.equal(warns.length, 1, `${sha}: ${err}`);
+        assert.ok(warns[0].includes("checkout copy governs") && warns[0].includes("base_unavailable"), warns[0]);
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("an unknown base commit with no checkout file is base_unavailable with no patterns (never none)", () => {
+    const root = tmpRepoDir("prov-unknown-none");
+    try {
+      git(root, "init", "-q");
+      const { value, err } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: "1".repeat(40) }));
+      assert.deepEqual(value, { patterns: [], source: "base_unavailable" });
+      assert.ok(/WARN/.test(err), err);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("is none when the file is absent at the base and in the checkout", () => {
+    const { root } = twoCommitRepo();
+    try {
+      git(root, "rm", "-q", ".reviewignore");
+      git(root, "commit", "-q", "-m", "drop");
+      const noFile = git(root, "rev-parse", "HEAD");
+      const { value } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: noFile }));
+      assert.deepEqual(value, { patterns: [], source: "none" });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // Bridgebuilder round 1 (PR #1302, anthropic MEDIUM): a readable base that lacks `.reviewignore` is a definitive answer —
+  // no patterns apply, even when the PR adds the file (its patterns take effect after merge); the review is not degraded.
+  it("absent at a readable base with a checkout copy is none — the PR's new file is not applied — with one WARN", () => {
+    const { root } = twoCommitRepo();
+    try {
+      git(root, "rm", "-q", ".reviewignore");
+      git(root, "commit", "-q", "-m", "drop");
+      const noFile = git(root, "rev-parse", "HEAD");
+      writeFileSync(join(root, ".reviewignore"), "added-by-the-pr.md\n");
+      const { value, err } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: noFile }));
+      assert.deepEqual(value, { patterns: [], source: "none" });
+      const warns = err.split("\n").filter((l) => l.includes("WARN"));
+      assert.equal(warns.length, 1, err);
+      assert.ok(warns[0].includes("absent at the base") && warns[0].includes("not applied"), warns[0]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  function symlinkAtBaseRepo(): { root: string; base: string } {
+    const root = tmpRepoDir("prov-link");
+    git(root, "init", "-q");
+    writeFileSync(join(root, "target"), "x.md\n");
+    symlinkSync("target", join(root, ".reviewignore"));
+    git(root, "add", "target", ".reviewignore");
+    git(root, "commit", "-q", "-m", "link");
+    return { root, base: git(root, "rev-parse", "HEAD") };
+  }
+
+  it("a symlink at the base is base_unavailable with the checkout read (a regular checkout file governs)", () => {
+    const { root, base } = symlinkAtBaseRepo();
+    try {
+      unlinkSync(join(root, ".reviewignore"));
+      writeFileSync(join(root, ".reviewignore"), "regular.md\n");
+      const { value, err } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: base }));
+      assert.deepEqual(value, { patterns: ["regular.md"], source: "base_unavailable" });
+      assert.ok(/WARN/.test(err) && err.includes("120000"), err);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("a symlink at the base and in the checkout still throws ESYMLINKREJECTED (the checkout refusal is unchanged)", () => {
+    const { root, base } = symlinkAtBaseRepo();
+    try {
+      captureStderr(() =>
+        assert.throws(
+          () => truncation.parseReviewignoreFile(root, { baseSha: base }),
+          (e: NodeJS.ErrnoException) => e.code === "ESYMLINKREJECTED",
+        ),
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("an invalid repoRoot still throws EBADREPOROOT with a base sha", () => {
+    assert.throws(
+      () => truncation.parseReviewignoreFile("/nonexistent/c135/r1", { baseSha: "1".repeat(40) }),
+      (e: NodeJS.ErrnoException) => e.code === "EBADREPOROOT",
+    );
+  });
+
+  it("truncateFiles applies the checkout patterns and reports base_unavailable when the base is missing", () => {
+    const { root } = twoCommitRepo();
+    try {
+      const files = [file("src/a.ts", 3, 0), file("head-only.md", 1, 0)];
+      const r = captureStderr(() => run(files, { loaAware: true, repoRoot: root, reviewignoreBaseSha: "2".repeat(40) })).value;
+      assert.equal(r.reviewignoreSource, "base_unavailable");
+      assert.ok(!names(r.included).includes("src/a.ts"), "checkout src/** applies (fail closed)");
+      assert.ok(!names(r.included).includes("head-only.md"));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("truncateFiles applies the base patterns: a line the PR adds does not affect its own review", () => {
+    const { root, base } = twoCommitRepo();
+    try {
+      const files = [file("src/a.ts", 3, 0), file("base-only.md", 1, 0), file(".reviewignore", 2, 1)];
+      const withBase = run(files, { loaAware: true, repoRoot: root, reviewignoreBaseSha: base });
+      assert.ok(names(withBase.included).includes("src/a.ts"), "head-added src/** must not apply");
+      assert.ok(!names(withBase.included).includes("base-only.md"), "base pattern applies");
+      assert.ok(names(withBase.included).includes(".reviewignore"), "the file itself is reviewed");
+      assert.equal(withBase.reviewignoreSource, "base");
+      const checkout = run(files, { loaAware: true, repoRoot: root });
+      assert.ok(!names(checkout.included).includes("src/a.ts"));
+      assert.equal(checkout.reviewignoreSource, "checkout");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+// --- sprint-279 review round 1 (bd-ow72o, bd-i4fyw) ---
+
+describe("explicit = root-anchored or the full path (review round 1, HIGH 2)", () => {
+  const SETTINGS = ".claude/settings.json";
+  for (const [line, target] of [
+    ["ci.yml", CI],
+    ["workflows", CI],
+    [".github", CI],
+    [".github/", CI],
+    ["settings.json", SETTINGS],
+    [".claude/", SETTINGS],
+  ] as Array<[string, string]>) {
+    it(`a floating segment line ${line} keeps protected ${target} and records it`, () => {
+      const r = run([file(target, 3, 1), file("src/a.ts", 1, 0)], { excludePatterns: [line] });
+      assert.ok(names(r.included).includes(target), `${line} must not remove ${target}`);
+      assert.deepEqual(r.protectedKept, [{ file: target, pattern: line }]);
+    });
+  }
+
+  for (const line of [CI, ".github/workflows/", ".github/workflows", "/.github/workflows/ci.yml"]) {
+    it(`a root-anchored line ${line} excludes the protected workflow`, () => {
+      const pats = truncation.normalizeExcludePatterns([line], "test");
+      const r = run([file(CI, 3, 1), file("src/a.ts", 1, 0)], { excludePatterns: pats });
+      assert.ok(!names(r.included).includes(CI));
+      assert.deepEqual(r.protectedKept ?? [], []);
+    });
+  }
+
+  it("a full-path match of a root-level protected file is explicit (.reviewignore names itself)", () => {
+    const r = run([file(".reviewignore", 1, 0), file("src/a.ts", 1, 0)], { excludePatterns: [".reviewignore"] });
+    assert.ok(!names(r.included).includes(".reviewignore"));
+    assert.deepEqual(r.protectedKept ?? [], []);
+  });
+
+  it("a floating segment line still excludes an unprotected file", () => {
+    const r = run([file("docs/ci.yml", 1, 0), file("src/a.ts", 1, 0)], { excludePatterns: ["ci.yml"] });
+    assert.ok(!names(r.included).includes("docs/ci.yml"));
+  });
+
+  it("partitionUserExclusions: floating segment + root-anchored line, both orders → excluded by the anchored line", () => {
+    const files = [file(CI, 1, 0)];
+    for (const user of [["ci.yml", ".github/workflows/"], [".github/workflows/", "ci.yml"]]) {
+      const p = truncation.partitionUserExclusions(files, user, [".github/workflows/**"]);
+      assert.deepEqual(p.excluded, [{ file: CI, pattern: ".github/workflows/" }], user.join(","));
+      assert.deepEqual(p.protectedKept, [], user.join(","));
+    }
+  });
+});
+
+describe("slashless wildcards float (review round 1, MEDIUM 4)", () => {
+  it("*.pem matches keys/a.pem and a.pem; **/*.pem the same", () => {
+    for (const p of ["*.pem", "**/*.pem"]) {
+      assert.ok(matchesExcludePatternNs("keys/a.pem", [p]), p);
+      assert.ok(matchesExcludePatternNs("a.pem", [p]), p);
+      assert.ok(!matchesExcludePatternNs("keys/a.pem.bak", [p]), p);
+    }
+  });
+
+  it("*.md matches docs/x.md; a wildcard with / stays root-anchored", () => {
+    assert.ok(matchesExcludePatternNs("docs/x.md", ["*.md"]));
+    assert.ok(!matchesExcludePatternNs("x/docs/a.md", ["docs/*.md"]));
+  });
+
+  it("a protected path matched by a floating wildcard is kept", () => {
+    const r = run([file(CI, 2, 0), file("config/app.yml", 1, 0)], { excludePatterns: ["*.yml"] });
+    assert.ok(names(r.included).includes(CI));
+    assert.ok(!names(r.included).includes("config/app.yml"));
+    assert.deepEqual(r.protectedKept, [{ file: CI, pattern: "*.yml" }]);
+  });
+
+  it("no default pattern is a slashless wildcard (the defaults keep their meaning)", () => {
+    for (const p of [...LOA_EXCLUDE_PATTERNS, ...configModule.DEFAULT_EXCLUDE_PATTERNS, ...truncation.DEFAULT_PROTECTED_PATHS]) {
+      assert.ok(!(truncation.isWildcardPattern(p) && !p.includes("/")), p);
+    }
+  });
+});
+
+function matchesExcludePatternNs(f: string, p: string[]): boolean {
+  return truncation.matchesExcludePattern(f, p);
+}
+
+describe("structured pattern field on excluded[] (review round 1, LOW 5)", () => {
+  const SUFFIX = / \[pattern: (.+)\]$/;
+  for (const [pattern, name] of [
+    ["[ab].md", "a.md"],
+    ["a}b", "a}b"],
+    ["x]", "x]"],
+    ["**/*.{a,b}", "d/x.a"],
+    ["src/[ab]", "src/a"],
+    ["**/[!x]]", "q/y]"],
+  ] as Array<[string, string]>) {
+    it(`round-trips ${pattern} through the field and the stats suffix`, () => {
+      const r = run([file(name, 1, 0), file("keep.ts", 1, 0)], { excludePatterns: [pattern], protectedPaths: [] });
+      const ex = r.excluded.find((e) => e.filename === name) as { stats: string; pattern?: string } | undefined;
+      assert.ok(ex, `${pattern} must exclude ${name}`);
+      assert.equal(ex.pattern, pattern);
+      assert.equal(SUFFIX.exec(ex.stats)?.[1], pattern);
+    });
+  }
+
+  it("the .reviewignore sites and the Loa tier set the field", () => {
+    const root = tmpRepoDir("field");
+    try {
+      writeFileSync(join(root, ".reviewignore"), "secrets/\n");
+      for (const selfReview of [false, true]) {
+        const r = run([file("secrets/k.env", 1, 0), file(".claude/x.md", 1, 0), file("src/a.ts", 1, 0)], {
+          loaAware: true,
+          selfReview,
+          repoRoot: root,
+        });
+        const byName = new Map(r.excluded.map((e) => [e.filename, (e as { pattern?: string }).pattern]));
+        assert.equal(byName.get("secrets/k.env"), "secrets/", `selfReview=${selfReview}`);
+        if (!selfReview) assert.equal(byName.get(".claude/x.md"), ".claude/**");
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("max_content_fetches with an empty value (review round 1, LOW 6)", () => {
+  it("is treated as unset with a WARN", async () => {
+    const dir = tmpRepoDir("yaml-empty");
+    const cwd = process.cwd();
+    try {
+      writeFileSync(join(dir, ".loa.config.yaml"), "bridgebuilder:\n  max_content_fetches:\n  max_prs: 3\n");
+      process.chdir(dir);
+      const original = process.stderr.write;
+      let err = "";
+      (process.stderr as unknown as { write: (c: unknown) => boolean }).write = (c: unknown) => {
+        err += String(c);
+        return true;
+      };
+      let yaml: Record<string, unknown>;
+      try {
+        yaml = (await configModule.loadYamlConfig()) as Record<string, unknown>;
+      } finally {
+        process.stderr.write = original;
+      }
+      assert.equal(yaml.max_content_fetches, undefined);
+      assert.equal(yaml.max_prs, 3);
+      assert.ok(err.includes("max_content_fetches") && /WARN/.test(err), err);
+    } finally {
+      process.chdir(cwd);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("trusted-config precedence for the review-scope keys (review round 1, HIGH 3)", () => {
+  const TRUSTED_YAML = "bridgebuilder:\n  max_prs: 5\n";
+  const HEAD_YAML =
+    "bridgebuilder:\n  protected_paths: []\n  exclude_patterns:\n    - .github/workflows/ci.yml\n" +
+    "  fetch_missing_patches: false\n  max_content_fetches: 0\n";
+
+  function prDeps(trustedText: string | undefined, head: string): configModule.TrustedConfigDeps {
+    return {
+      env: { GITHUB_EVENT_NAME: "pull_request", GITHUB_BASE_REF: "main" },
+      readWorkingTree: () => head,
+      refExists: (_root, ref) => trustedText !== undefined && ref === "refs/remotes/origin/main",
+      gitShow: () => trustedText,
+      prBaseRef: () => undefined,
+      parse: configModule.yqTrustedView,
+    };
+  }
+
+  /** The head YAML as resolveConfig sees it (the regex parser's shape). */
+  const HEAD_PARSED = {
+    enabled: true,
+    repos: ["test/repo"],
+    protected_paths: [],
+    exclude_patterns: [".github/workflows/ci.yml"],
+    fetch_missing_patches: false,
+    max_content_fetches: 0,
+  };
+
+  it("a trusted source governs: the head's four keys are ignored, one WARN per key; --exclude stays additive", async () => {
+    const { config } = await configModule.resolveConfig({ exclude: ["cli-only/**"] }, {}, HEAD_PARSED as never);
+    const trusted = configModule.loadTrustedConfig({ pr: 1 }, prDeps(TRUSTED_YAML, HEAD_YAML));
+    assert.equal(trusted.source, "base-ref");
+    const { err } = captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, { exclude: ["cli-only/**"] }));
+    assert.equal(config.protectedPaths, undefined, "the default list applies");
+    assert.deepEqual(config.excludePatterns, [...configModule.DEFAULT_EXCLUDE_PATTERNS, "cli-only/**"]);
+    assert.equal(config.fetchMissingPatches, undefined);
+    assert.equal(config.maxContentFetches, undefined);
+    for (const key of ["protected_paths", "exclude_patterns", "fetch_missing_patches", "max_content_fetches"]) {
+      const lines = err.split("\n").filter((l) => l.includes("WARN") && l.includes(`bridgebuilder.${key}`));
+      assert.equal(lines.length, 1, `${key}: ${err}`);
+    }
+  });
+
+  it("the trusted source's own values for the four keys apply", async () => {
+    const trustedText =
+      "bridgebuilder:\n  protected_paths:\n    - /.github/**\n  exclude_patterns:\n    - vendor/**\n" +
+      "  fetch_missing_patches: false\n  max_content_fetches: 3\n";
+    const { config } = await configModule.resolveConfig({}, {}, { enabled: true, repos: ["test/repo"] });
+    const trusted = configModule.loadTrustedConfig({ pr: 1 }, prDeps(trustedText, "bridgebuilder:\n  max_prs: 1\n"));
+    captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, {}));
+    assert.deepEqual(config.protectedPaths, ["/.github/**"]); // (round 2: a leading / is kept as the root anchor)
+    assert.deepEqual(config.excludePatterns, [...configModule.DEFAULT_EXCLUDE_PATTERNS, "vendor/**"]);
+    assert.equal(config.fetchMissingPatches, false);
+    assert.equal(config.maxContentFetches, 3);
+  });
+
+  // Bridgebuilder round 1 (PR #1302, anthropic HIGH; bd-ous65): with no readable trusted source the scope keys fail
+  // CLOSED to their defaults — the PR head cannot widen its own review through a shallow checkout.
+  it("no trusted source on a pull request: the defaults apply, the head's values are ignored with WARNs (fail closed)", async () => {
+    const { config } = await configModule.resolveConfig({ exclude: ["cli/**"] }, {}, HEAD_PARSED as never);
+    const trusted = captureStderr(() => configModule.loadTrustedConfig({ pr: 1 }, prDeps(undefined, HEAD_YAML))).value;
+    assert.equal(trusted.source, "none");
+    const { err } = captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, { exclude: ["cli/**"] }));
+    assert.equal(config.protectedPaths, undefined, "protected_paths falls to the default list");
+    assert.equal(config.fetchMissingPatches, undefined, "fetch_missing_patches falls to the default (true)");
+    assert.equal(config.maxContentFetches, undefined, "max_content_fetches falls to the default (20)");
+    assert.ok(!config.excludePatterns.includes(".github/workflows/ci.yml"), "the head's exclude_patterns are dropped");
+    assert.ok(config.excludePatterns.includes("cli/**"), "--exclude stays additive");
+    assert.ok(/no trusted config could be read/.test(err) && /fall to their defaults/.test(err), err);
+    for (const key of ["protected_paths", "exclude_patterns", "fetch_missing_patches", "max_content_fetches"]) {
+      assert.ok(err.includes(`bridgebuilder.${key}:`), `WARN names ${key}: ${err}`);
+    }
+  });
+
+  it("local mode: the working tree is the trusted source, nothing changes and nothing is warned", async () => {
+    const { config } = await configModule.resolveConfig({}, {}, HEAD_PARSED as never);
+    const deps = { ...prDeps(TRUSTED_YAML, HEAD_YAML), env: {} };
+    const trusted = configModule.loadTrustedConfig({}, deps);
+    assert.equal(trusted.mode, "local");
+    const { err } = captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, {}));
+    assert.deepEqual(config.protectedPaths, []);
+    assert.equal(err, "");
+  });
+
+  it("matching head and trusted values warn nothing", async () => {
+    const { config } = await configModule.resolveConfig({}, {}, { enabled: true, repos: ["test/repo"] });
+    const trusted = configModule.loadTrustedConfig({ pr: 1 }, prDeps(TRUSTED_YAML, TRUSTED_YAML));
+    const { err } = captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, {}));
+    assert.equal(err, "");
+  });
+});
+
+// Bridgebuilder round 1 (PR #1302, anthropic HIGH): a wildcard pattern with a trailing `/` is a directory line, like
+// gitignore — it covers the directory's subtree (`**/fixtures/` ⇢ `**/fixtures/**`); before this fix it matched nothing.
+describe("wildcard directory lines (trailing slash)", () => {
+  it("a wildcard pattern with a trailing slash covers the directory's subtree", () => {
+    assert.equal(truncation.matchesExcludePattern("a/fixtures/x.ts", ["**/fixtures/"]), true);
+    assert.equal(truncation.matchesExcludePattern("evals/tests/fixtures/p/q.json", ["**/fixtures/"]), true);
+    assert.equal(truncation.matchesExcludePattern("docs/x.yml", ["**/fixtures/"]), false);
+    assert.equal(truncation.matchesExcludePattern("docs/a/b.md", ["docs/*/"]), true);
+    assert.equal(truncation.matchesExcludePattern("x/docs/a/b.md", ["docs/*/"]), false);
+  });
+  it("the pattern is recorded as written and stays a wildcard", () => {
+    assert.equal(truncation.isWildcardPattern("**/fixtures/"), true);
+    assert.deepEqual(truncation.normalizeExcludePatterns(["**/fixtures/"], "test"), ["**/fixtures/"]);
+  });
+});
+
+// Bridgebuilder round 2 (PR #1302, anthropic MEDIUM): gitignore's root anchor — a leading `/` pins a pattern to the
+// repository root, so a single-segment name or a slashless wildcard can stop floating (`/README.md`, `/*.yml`).
+describe("root anchor (leading slash)", () => {
+  const file = (filename: string): PullRequestFile => ({ filename, status: "modified", additions: 1, deletions: 0 });
+  it("a leading / anchors a non-wildcard name to the root (and still covers its subtree)", () => {
+    assert.equal(truncation.matchesExcludePattern("README.md", ["/README.md"]), true);
+    assert.equal(truncation.matchesExcludePattern("docs/README.md", ["/README.md"]), false);
+    assert.equal(truncation.matchesExcludePattern("vendor/a.js", ["/vendor"]), true);
+    assert.equal(truncation.matchesExcludePattern("src/vendor/a.js", ["/vendor"]), false);
+  });
+  it("a leading / anchors a wildcard to the root", () => {
+    assert.equal(truncation.matchesExcludePattern("a.yml", ["/*.yml"]), true);
+    assert.equal(truncation.matchesExcludePattern("d/a.yml", ["/*.yml"]), false);
+    assert.equal(truncation.matchesExcludePattern("d/a.yml", ["*.yml"]), true);
+  });
+  it("a root-anchored name is explicit for protection and is recorded as written", () => {
+    const files = [file(".reviewignore"), file("tests/fixtures/x/.reviewignore")];
+    const p = truncation.partitionUserExclusions(files, ["/.reviewignore"], truncation.DEFAULT_PROTECTED_PATHS);
+    assert.deepEqual(p.excluded, [{ file: ".reviewignore", pattern: "/.reviewignore" }]);
+    assert.deepEqual(p.protectedKept, []);
+    assert.deepEqual(truncation.normalizeExcludePatterns(["/.reviewignore", "./x.md"], "test"), ["/.reviewignore", "x.md"]);
+  });
+});
+
+// Bridgebuilder round 2 (PR #1302, openai MEDIUM): a negated class never matches the path separator.
+describe("negated character classes stay inside one segment", () => {
+  it("[!a] does not match /", () => {
+    assert.equal(truncation.matchesExcludePattern("x/y", ["x[!a]y"]), false);
+    assert.equal(truncation.matchesExcludePattern("xby", ["x[!a]y"]), true);
+    assert.equal(truncation.matchesExcludePattern("xay", ["x[!a]y"]), false);
+  });
+});
+

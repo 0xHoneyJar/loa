@@ -2489,7 +2489,14 @@ main() {
   # Validate PR type
   case "$PR_TYPE" in
     cycle|bugfix|other) ;;
-    *) echo "ERROR: Invalid --type: ${PR_TYPE} (expected cycle|bugfix|other)" >&2; exit 1 ;;
+    *)
+      echo "ERROR: Invalid --type: ${PR_TYPE} (expected cycle|bugfix|other)" >&2
+      # cycle-135 C-4 (bd-nr5i6): a downstream post-merge.yml that still carries the legacy negative-list guard
+      # (`pr_type != 'cycle'`) reaches this refusal on every housekeeping merge — name the repair.
+      if [[ "$PR_TYPE" == "housekeeping" ]]; then
+        echo "HINT: housekeeping merges prepare nothing; refresh .github/workflows/post-merge.yml so simple-release runs only for (pr_type == 'bugfix' || pr_type == 'other') && pr_number != '' (cycle-135, bd-nr5i6)" >&2
+      fi
+      exit 1 ;;
   esac
 
   # Validate PR number is numeric (H-04)

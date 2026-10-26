@@ -65,7 +65,7 @@ capabilities_json() {
     {path: ".claude/scripts/golden-path.sh",               purpose: "sourced function library backing /loa /plan /build /review /ship (NOT executable — teaches when executed)", json: "none", help: "false", flags: [], notes: "source it; then golden_* functions"},
     {path: ".claude/scripts/beads/beads-health.sh",        purpose: "beads (br) task-tracking health", json: "flag", help: "true", flags: ["--json"], notes: "exits nonzero on DEGRADED — gate semantics"},
     {path: ".claude/scripts/semver-bump.sh",               purpose: "compute next semver from conventional commits since last tag", json: "default", help: "true", flags: ["--from-tag","--from-changelog","--downstream"]},
-    {path: ".claude/scripts/classify-merge-pr.sh",         purpose: "classify a merged PR (cycle|bugfix|other) from merge subject", json: "none", help: "true", flags: ["--merge-sha","--merge-msg","--pr-number"], notes: "key=value lines on stdout"},
+    {path: ".claude/scripts/classify-merge-pr.sh",         purpose: "classify a merged PR (cycle|bugfix|housekeeping|other) from merge subject", json: "none", help: "true", flags: ["--merge-sha","--merge-msg","--pr-number"], notes: "key=value lines on stdout"},
     {path: ".claude/scripts/release-notes-gen.sh",         purpose: "generate release notes for a version/PR", json: "none", help: "true", flags: ["--version","--pr","--type"]},
     {path: ".claude/scripts/post-merge-orchestrator.sh",   purpose: "post-merge pipeline (classify→semver→changelog→tag→release)", json: "default", help: "true", flags: ["--pr","--type","--sha","--dry-run"]},
     {path: ".claude/scripts/grimoire-index.sh",            purpose: "regenerate the grimoire INDEX (KF/vision/lore catalog)", json: "flag", help: "true", flags: []},
