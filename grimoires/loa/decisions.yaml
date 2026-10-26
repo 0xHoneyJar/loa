@@ -36481,3 +36481,415 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1043"
+    created_at: "2026-10-26T06:58:11Z"
+    updated_at: "2026-10-26T06:58:11Z"
+    phase: "review"
+    category: "security"
+    summary: "Base .reviewignore read fails closed: on any base failure the checkout copy governs as base_unavailable and the review degrades; none only if both lack it."
+    decision: "none is reserved for 'absent at a readable base and absent in the checkout'; every other base failure applies the checkout patterns and degrades the review (reviewignore_unavailable, fetch-side, merge-blocking); a checkout symlink still throws; an invalid repoRoot still throws."
+    rationale: "Dissent A's BLOCKING: the round-0 none dropped the operator's deny list (secrets/, vendor/) whenever the base commit was not in the clone — content would reach the model; applying the checkout copy keeps the deny list and the degrade keeps a PR-head edit visible."
+    alternatives_considered:
+      - option: "none with zero patterns (round 0)"
+        rejected_because: "fails open on the leak axis"
+      - option: "read the base .reviewignore through the contents API"
+        rejected_because: "async provider access inside the synchronous selection — a follow-up bead"
+    consequences:
+      positive:
+        - "no leak, no silent hiding"
+      negative:
+        - "a clone without the base commit always degrades (operators fetch the base ref)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:11Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "8d22e449a"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1044"
+    created_at: "2026-10-26T06:58:17Z"
+    updated_at: "2026-10-26T06:58:17Z"
+    phase: "review"
+    category: "security"
+    summary: "Explicit (protection-defeating) pattern = non-wildcard that is root-anchored (a / after one trailing / ignored) or the full path; floating names keep the file."
+    decision: "isExplicitFor uses the same anchoring test as segmentMatch, so '.github/' and '.claude/' are floating segment names (kept) while '.github/workflows/' is explicit (excludes); the recorded pattern for an excluded unprotected file is the first explicit match, else the first non-wildcard, else the first match."
+    rationale: "Dissent A: a floating segment line defeated protection with no record; matcher-consistent anchoring is the only reading an operator can predict."
+    alternatives_considered:
+      - option: "any non-wildcard pattern is explicit (round 0)"
+        rejected_because: "ci.yml or .github removes a protected file silently"
+      - option: "'contains / after normalisation' literally"
+        rejected_because: "would make .github/ explicit although the matcher treats it as floating"
+    consequences:
+      positive:
+        - "protection holds against every floating line"
+      negative:
+        - "an operator must write the anchored path to exclude a protected file (documented)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "8d22e449a"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1045"
+    created_at: "2026-10-26T06:58:23Z"
+    updated_at: "2026-10-26T06:58:23Z"
+    phase: "review"
+    category: "security"
+    summary: "On a PR the review-scope keys (protected_paths, exclude_patterns, fetch_missing_patches, max_content_fetches) follow the trusted config; drift is one WARN/key."
+    decision: "loadTrustedConfig's yq view gains reviewScope; applyTrustedReviewScope replaces the head's effective values (defaults applied before comparing) and is called from main.ts after config.trusted = trusted; an invalid trusted protected_paths/exclude_patterns is a config error, an invalid fetch_missing_patches a WARN + default; local mode and no-source runs are unchanged."
+    rationale: "Dissent A: a PR head's .loa.config.yaml could set protected_paths: [] and exclude its own workflow; the provider keys already had a trusted-source precedence — scope keys get the same source but a WARN instead of exit 5, because they change what is reviewed, not who reviews."
+    alternatives_considered:
+      - option: "refuse the run on scope drift like provider drift"
+        rejected_because: "a legitimate exclusion change in a PR would block every review of that PR"
+      - option: "call loadTrustedConfig from resolveConfig"
+        rejected_because: "two git reads and a possible second gh pr view; breaks the resolveConfig tests under CI env"
+    consequences:
+      positive:
+        - "a PR cannot widen or disable its own review scope"
+      negative:
+        - "a scope change takes effect after it merges"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "8d22e449a + the lead's main.ts wiring commit"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1046"
+    created_at: "2026-10-26T06:58:30Z"
+    updated_at: "2026-10-26T06:58:30Z"
+    phase: "review"
+    category: "implementation"
+    summary: "Slashless wildcards float (gitignore semantics): compileGlob adds an implicit **/ at compile time; patterns are recorded as written; no default is slashless."
+    decision: "gitignore semantics for both pattern kinds: *.pem matches keys/a.pem; the one flipped case (**.md vs a/b.md → true) is relabelled with the round."
+    rationale: "Dissent A: the asymmetry (PROCESS.md floats, *.md does not) misleads .reviewignore authors with gitignore habits about nested secrets."
+    alternatives_considered:
+      - option: "document the anchoring instead"
+        rejected_because: "the mistake is silent and leaks content"
+      - option: "insert **/ at normalisation"
+        rejected_because: "records and WARNs would show a pattern the operator did not write"
+    consequences:
+      positive:
+        - "one mental model for all patterns"
+      negative:
+        - "a slashless wildcard excludes more than before (protection still applies)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "8d22e449a"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1047"
+    created_at: "2026-10-26T06:58:36Z"
+    updated_at: "2026-10-26T06:58:36Z"
+    phase: "review"
+    category: "implementation"
+    summary: "Content-fetch budget: candidates join a 0-byte placement selection; reads follow selection order and charge the bytes ahead; a file that cannot fit is budget."
+    decision: "Reads happen in selection order (ties keep listing order); the no-call bound is remaining < 16 + 2 × additions − 1 (the smallest patch those additions can make); the selection runs twice whenever a candidate exists; too_large stays for encoding none, size over the bound and a buffer overflow."
+    rationale: "Dissent B: the round-0 formula ignored GitHub patch bytes ahead, so a tiny file could be read and then dropped as too_large — a misreport and a wasted call; reusing the real selection avoids re-implementing truncateFiles' tiers."
+    alternatives_considered:
+      - option: "re-implement the selection order inside paged-fetch"
+        rejected_because: "A's tiers would drift"
+      - option: "keep listing-order reads"
+        rejected_because: "cannot know the bytes ahead"
+    consequences:
+      positive:
+        - "no wasted provider call; honest outcomes"
+      negative:
+        - "two selections per attempt with candidates"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "04b552529"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1048"
+    created_at: "2026-10-26T06:58:41Z"
+    updated_at: "2026-10-26T06:58:41Z"
+    phase: "review"
+    category: "implementation"
+    summary: "RATE_LIMITED, FORBIDDEN or HTTP 401/403 on a contents read stops the loop: error for that file, aborted for the rest; 404 or a bad envelope stays per-file."
+    decision: "The adapter maps a token without contents read to NETWORK with httpStatus 403, so paged-fetch reads httpStatus structurally in addition to the RATE_LIMITED / FORBIDDEN codes."
+    rationale: "Dissent B: twenty identical failures would spend the rate-limit budget and the deadline before pass 2 fails the same way."
+    alternatives_considered:
+      - option: "stop on any error"
+        rejected_because: "a moved path (404) is per-file and should not abort the others"
+    consequences:
+      positive:
+        - "bounded cost under a refusal"
+      negative:
+        - "one more structural read of the error"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "04b552529"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1049"
+    created_at: "2026-10-26T06:58:47Z"
+    updated_at: "2026-10-26T06:58:47Z"
+    phase: "review"
+    category: "process"
+    summary: "Inline anchors on contents-sourced files: no change needed — postReview sends body, event and commit_id only (pinned); findings are body text, not comments."
+    decision: "The MEDIUM is closed by evidence: PostReviewInput has no comments field and the gh allowlist refuses JSON-typed fields, so no path anchors a line today; a pin keeps it so."
+    rationale: "The risk existed only if findings were posted as inline review comments; they are body text."
+    alternatives_considered:
+      - option: "emit contents-sourced findings as summary-only anyway"
+        rejected_because: "nothing to change; a pin is cheaper and truthful"
+    consequences:
+      positive:
+        - "no speculative code"
+      negative:
+        - "if inline comments are ever added, the pin and this row name the constraint"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "04b552529"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1050"
+    created_at: "2026-10-26T06:58:54Z"
+    updated_at: "2026-10-26T06:58:54Z"
+    phase: "review"
+    category: "testing"
+    summary: "Lead landing: the Loa-aware excluded-files fixture test injects checkout provenance via the test seam; its fake base sha now degrades the record by design."
+    decision: "paged-fetch.test.ts passes { reviewignoreSource: () => \"checkout\" } in the one test whose subject is exclusion, not provenance; every other test that runs the real selection against a fake base sha keeps the degrade."
+    rationale: "The fail-closed base read is correct; the fixture is not a repository; the seam exists for exactly this."
+    alternatives_considered:
+      - option: "assert the degrade in that test"
+        rejected_because: "changes the test's subject"
+      - option: "give the fixture a real git base"
+        rejected_because: "the fixture pins fixed sha strings"
+    consequences:
+      positive:
+        - "the test keeps its meaning"
+      negative:
+        - "one more seam use in tests"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "04b552529"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1051"
+    created_at: "2026-10-26T06:59:02Z"
+    updated_at: "2026-10-26T06:59:02Z"
+    phase: "review"
+    category: "testing"
+    summary: "The orchestrator HINT pin matches the line's stable prefix, not the whole line; the bogus-type case checks only the absence of the housekeeping hint."
+    decision: "Rewording the quoted guard expression at the line's end will not break the pin; other refusals may gain their own hints without touching this test."
+    rationale: "A full-line pin duplicates the orchestrator's text and turns harmless rewording red."
+    alternatives_considered:
+      - option: "pin the full line"
+        rejected_because: "brittle duplication"
+    consequences:
+      positive:
+        - "pins the action, not the prose"
+      negative:
+        - "a change to the prefix wording still needs the test updated (intended)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:59:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "74ff045cf"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1052"
+    created_at: "2026-10-26T07:06:31Z"
+    updated_at: "2026-10-26T07:06:31Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 279 audit: no audit-type dissent run; the three permitted runs were spent at review round 0 on the three code diffs (sprint-276 precedent)."
+    decision: "Lead-only audit (Fable 5.1) over the full sprint diff; the review-round payloads already carried the security questions (fail-open base read, protection bypass by floating names, PR-head scope keys) and all three were fixed and pinned."
+    rationale: "The cap is ≤3 dissent runs per sprint (feedback_model_mix); spending them where the code diffs were largest found three HIGHs; a fourth run would break the cap for a smaller expected yield."
+    alternatives_considered:
+      - option: "a fourth run of --type audit"
+        rejected_because: "exceeds the per-sprint cap"
+      - option: "skip one review run to keep an audit run"
+        rejected_because: "the review runs were already spent when round 1 landed"
+    consequences:
+      positive:
+        - "cap honoured; security questions answered by tests"
+      negative:
+        - "no independent voice over the round-1 patches themselves"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "audit-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/auditor-sprint-feedback.md § Dissent"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T07:06:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:audit-sprint"
+        evidence: "b02459e5a"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1053"
+    created_at: "2026-10-26T07:22:55Z"
+    updated_at: "2026-10-26T07:22:55Z"
+    phase: "review"
+    category: "process"
+    summary: "PB-9 breach after landing (SKILL.md 24,710 B): the cycle-135 rules, paged-fetch detail and trusted-provider contract move to a resources reference."
+    decision: "resources/exclusions-and-coverage.md holds the full text verbatim; SKILL.md keeps ~1 KB pointers whose lines carry a guard word (See / when) so the resource is not charged; SKILL.md is 15,245 B."
+    rationale: "tools/check-prompt-budget.sh caps every SKILL.md at 16,384 B charged with unconditionally-read resources; the sprint added 110 lines of operator-facing rules that belong in a reference, and the pre-cycle prompt was already at 15,762 B so pointers alone could not fit."
+    alternatives_considered:
+      - option: "trim the new text in place"
+        rejected_because: "the rules (explicit-name, outcomes table, provenance) are the operator contract and must stay findable"
+      - option: "raise the budget"
+        rejected_because: "the cap is the always-loaded prompt surface gate (cycle-124 FR-8); raising it is a framework decision, not a sprint fix"
+    consequences:
+      positive:
+        - "prompt back under budget with 1.1 KB margin; the contract is complete in one reference file"
+      negative:
+        - "an operator must open the reference for the full grammar"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b6d0a07b"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § Post-gate addendum"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T07:22:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "b6d0a07b4"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
