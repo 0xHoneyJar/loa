@@ -18,16 +18,26 @@
 #               test infrastructure the tests rely on (conftest.py up to the
 #               root, __init__.py, *.bash and *helper* files beside each test,
 #               root pytest.ini / pyproject.toml / setup.cfg / tox.ini) — a
-#               plain tree, no .git
+#               plain tree, no .git. With --fixture-scope roots the context is
+#               instead EVERY file under the allowed roots at the parent (the
+#               repository slice the tests see: libraries in other directories,
+#               test fixtures, suite files; symlinks skipped, mount-owned paths
+#               never) — for a repository whose tests reach across directories,
+#               as Loa's harness tests do
 #   hidden/     tests/<path> = each added or changed test at the commit,
 #               manifest.json {"files":[{src, dest}]}, reference.patch = the
 #               commit's diff of the non-test files (a/ b/ prefixes, patch -p1)
 #   task.yaml   source {kind: loa-history, fix_commit, base_commit, date};
-#               grader_protected = the infrastructure files; regression_command
-#               null; test_command = python3 -m pytest -q <test dirs> | bats <test dirs>
-#   TASK.md     the subject line, the observed failure count, the test command;
-#               never the diff, never a test name (the subject is sanitised:
-#               no paths, file names, test names or the word for grader files)
+#               grader_protected = the infrastructure files (roots scope: plus
+#               every file under a top-level fixture/tests/, as validate-suite.sh
+#               requires); regression_command null; test_command = python3 -m
+#               pytest -q <test dirs> | bats <test dirs> (roots scope: the
+#               changed test FILES — the directories hold the suite's other tests)
+#   TASK.md     the subject line, the observed failure count, the test command
+#               (roots scope: the test directory and the runner, `bats <file>`,
+#               since the exact command would name a hidden test file); never the
+#               diff, never a test name (the subject is sanitised: no paths, file
+#               names, test names or the word for grader files)
 # A task is built in a private temporary directory and moved into place only
 # after its proof passed: the test command, with the hidden tests overlaid, is
 # red at base and green with the reference patch, run on the host under
@@ -39,7 +49,8 @@
 #
 # Usage:
 #   seed-bugfix-tasks.sh --since DATE [--select N] --out DIR [--repo DIR]
-#                        [--paths CSV] [--suite-version N] [--id-prefix P] [--dry-run]
+#                        [--paths CSV] [--suite-version N] [--id-prefix P]
+#                        [--fixture-scope touched|roots] [--dry-run]
 #
 #   --since DATE       YYYY-MM-DD; commits whose committer date is on or after it
 #   --select N         tasks to materialise (default 4); refusals and skips do not
@@ -51,6 +62,8 @@
 #   --suite-version N  suite_version written to task.yaml (default 1)
 #   --id-prefix P      task id prefix, [a-z0-9][a-z0-9-]{0,60} (default bugfix): ids are
 #                      <P>-NN, the next free number under <out>/tasks/
+#   --fixture-scope S  touched (default: the touched files' directories) or roots (the
+#                      whole allowed-roots slice at the parent; see fixture/ above)
 #   --dry-run          list candidates, refusals and skips; write nothing
 #   LOA_SEED_BATS      bats binary used for the proof when bats is not on PATH
 #

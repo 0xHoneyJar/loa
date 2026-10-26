@@ -10,7 +10,8 @@
 # at the parent fails its proof (exit 1, nothing written); a fix outside the
 # allowed roots is skipped; usage errors are exit 2; --id-prefix names the ids
 # (bugfix-v3-01) and refuses a prefix outside [a-z0-9][a-z0-9-]{0,60}; a failed proof
-# leaves nothing staged, so the next candidate takes the freed id (SB-8).
+# leaves nothing staged, so the next candidate takes the freed id (SB-8); --fixture-scope
+# roots carries the whole allowed-roots slice and names the changed test files (SB-9).
 # =============================================================================
 
 setup() {
@@ -237,4 +238,52 @@ commit_claude_fix() {
   grep -q 'selected 2, written 1, proof failed 1' <<<"$output"
   [ "$(ls "$S/tasks")" = "bugfix-01" ]
   [ "$(yq -r .source.fix_commit "$S/tasks/bugfix-01/task.yaml")" = "$CLEAN" ]
+}
+
+@test "SB-9 --fixture-scope roots: the fixture is the whole allowed-roots slice, the command names the changed test file, the brief names no test" {
+  # a helper in another directory, present at the parent and untouched by the fix: the touched-scope fixture misses it
+  mkdir -p "$G/tools/common"
+  cat > "$G/tools/common/util.py" <<'PY'
+import math
+
+
+def half_away(x):
+    return int(math.copysign(math.floor(abs(x) + 0.5), x))
+PY
+  gc add -A; gc commit -q -m "chore: a shared helper"
+  cat > "$G/tools/mathx/rounding.py" <<'PY'
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "common"))
+from util import half_away  # noqa: E402
+
+
+def round_half(x):
+    """Round to the nearest integer, halves away from zero."""
+    return half_away(x)
+PY
+  cat >> "$G/tools/mathx/tests/test_rounding.py" <<'PY'
+
+def test_negative_half():
+    assert round_half(-2.5) == -3
+PY
+  gc add -A; gc commit -q -m "fix(mathx): negative halves round away from zero"
+  FIX="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G"
+  [ "$status" -eq 1 ]
+  grep -q "^proof-failed ${FIX:0:12}: not green at reference" <<<"$output"
+  [ ! -e "$S/tasks" ]
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --fixture-scope roots --suite-version "$(yq -r .suite_version "$REPO_ROOT/evals/suites/ablation-2.0.yaml")"
+  [ "$status" -eq 0 ]
+  grep -qx "proof bugfix-01 ${FIX:0:12}: red 1 failed / green 2 passed" <<<"$output"
+  D="$S/tasks/bugfix-01"
+  # the roots slice: the helper's directory is in, docs/ (outside the roots) is out
+  [ "$(cd "$D/fixture" && find . -type f | sort | tr '\n' ' ')" = "./tools/common/util.py ./tools/mathx/rounding.py ./tools/mathx/tests/conftest.py ./tools/mathx/tests/test_rounding.py " ]
+  [ "$(yq -o=json -I=0 .test_command "$D/task.yaml")" = '["python3","-m","pytest","-q","tools/mathx/tests/test_rounding.py"]' ]
+  [ "$(yq -o=json -I=0 .grader_protected "$D/task.yaml")" = '["tools/mathx/tests/conftest.py"]' ]
+  grep -q 'Run the tests under `tools/mathx/tests` that cover the code you change, with `python3 -m pytest -q <file>`' "$D/TASK.md"
+  ! grep -qE 'test_rounding|half_away|hidden' "$D/TASK.md" || false
+  run "$VS" --root "$S" --allow-partial
+  [ "$status" -eq 0 ]
 }

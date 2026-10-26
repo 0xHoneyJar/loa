@@ -144,12 +144,14 @@ def write_file(root, rel, data):
         fh.write(data)
 
 
-def put_from(repo, commit, rel, root, dest_rel=None):
+def put_from(repo, commit, rel, root, dest_rel=None, skip_links=False):
     b = blob(repo, commit, rel)
     if b is None:
         return False
     mode, data = b
     if mode == "120000":
+        if skip_links:
+            return False
         raise ValueError(f"symlink in history: {rel}")
     write_file(root, dest_rel or rel, data)
     return True
@@ -186,6 +188,38 @@ def sibling_files(repo, commit, sources, roots, exclude):
                 and not mount_owned(f) and under_roots(f, roots):
             out.append(f)
     return sorted(out)
+
+
+def root_files(repo, commit, roots, exclude):
+    """--fixture-scope roots: every file under the allowed roots at commit (the repository slice the tests
+    see), minus exclude; mount-owned paths never (and symlinks are skipped by the caller: a frozen suite holds none)."""
+    out = set()
+    for r in roots:
+        for f in tree_files(repo, commit, r):
+            if f not in exclude and safe_path(f) and not mount_owned(f):
+                out.add(f)
+    return sorted(out)
+
+
+def fixture_tests(fx):
+    """Every file under the fixture's top-level tests/ (validate-suite.sh: grader_protected names each of them)."""
+    out = []
+    t = os.path.join(fx, "tests")
+    if os.path.isdir(t) and not os.path.islink(t):
+        for r, _, fs in os.walk(t):
+            for f in fs:
+                out.append(os.path.relpath(os.path.join(r, f), fx))
+    return sorted(out)
+
+
+def copy_scope(repo, parent, fx, scope, sources, roots, exclude):
+    """The fixture's context files: the touched files' directory siblings (touched) or the whole roots slice (roots)."""
+    if scope == "roots":
+        for p in root_files(repo, parent, roots, exclude):
+            put_from(repo, parent, p, fx, skip_links=True)
+    else:
+        for p in sibling_files(repo, parent, sources, roots, exclude):
+            put_from(repo, parent, p, fx)
 
 
 def counts(output, runner):
@@ -367,7 +401,7 @@ def test_dirs(paths):
 
 
 # ---------------------------------------------------------------- build one task
-def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets, roots):
+def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets, roots, scope="touched"):
     tdir = os.path.join(stage, tid)
     fx = os.path.join(tdir, "fixture")
     os.makedirs(fx)
@@ -377,11 +411,12 @@ def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets
     runner = runner.pop()
     for p in sources:
         put_from(repo, parent, p, fx)
-    for p in sibling_files(repo, parent, sources, roots, set(sources) | set(tests_am)):
-        put_from(repo, parent, p, fx)
+    copy_scope(repo, parent, fx, scope, sources, roots, set(sources) | set(tests_am))
     for p in tests_am:
         put_from(repo, parent, p, fx)          # the base version of a changed test (absent when added)
     protected = [h for h in helper_files(repo, parent, tests_am) if h not in tests_am and h not in sources]
+    if scope == "roots":
+        protected = sorted(set(protected) | set(fixture_tests(fx)) - set(sources))
     for h in protected:
         put_from(repo, parent, h, fx)
     hidden = os.path.join(tdir, "hidden")
@@ -394,7 +429,9 @@ def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets
                parent, sha, "--", *sources, binary=True)
     write_file(hidden, "reference.patch", diff)
     runnable = [p for p in tests_am if runner_of(p)]
-    test_cmd = (["python3", "-m", "pytest", "-q"] if runner == "pytest" else ["bats"]) + test_dirs(runnable)
+    runner_argv = ["python3", "-m", "pytest", "-q"] if runner == "pytest" else ["bats"]
+    # roots: the test directories hold the suite's other tests too, so the command names the changed files
+    test_cmd = runner_argv + (runnable if scope == "roots" else test_dirs(runnable))
 
     # proof: red at base, green at reference (hidden tests overlaid on both)
     work = tempfile.mkdtemp(prefix="seed-proof.")
@@ -425,18 +462,23 @@ def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets
     source = {"kind": "loa-history", "fix_commit": sha, "base_commit": parent, "date": date}
     write_file(tdir, "task.yaml", task_yaml(tid, "bugfix", source, criterion, success, test_cmd,
                                            "hidden/reference.patch", protected, SUITE_VERSION).encode())
+    if scope == "roots":   # the brief may not name a hidden test file: the directory and the runner only
+        run_line = (f"Run the tests under `{'`, `'.join(test_dirs(runnable))}` that cover the code you change, "
+                    f"with `{' '.join(runner_argv)} <file>`.")
+    else:
+        run_line = f"Run the tests with `{' '.join(test_cmd)}`."
     task_md = (f"# Task: {rest}\n\n"
                f"**Bug (observed):** with the code as it is, {fail_b} of {fail_b + pass_b} checks for this behaviour fail "
                f"when the test command below runs.\n\n"
                f"**Expected:** {rest}. Every check passes and behaviour elsewhere is unchanged.\n\n"
-               f"Fix the bug in place and add a regression test of your own. Run the tests with `{' '.join(test_cmd)}`.\n")
+               f"Fix the bug in place and add a regression test of your own. {run_line}\n")
     write_file(tdir, "TASK.md", task_md.encode())
     if not secrets_clean(no_secrets, tdir):
         return "secret", "a secret pattern in the materialised task"
     return tdir, proof
 
 
-def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secrets, roots):
+def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secrets, roots, scope="touched"):
     sources = [p for s, p in files if not is_test(p)]
     tests = covering_tests(repo, parent, sources, roots)
     runners = {runner_of(t) for t in tests}
@@ -450,11 +492,12 @@ def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secre
     os.makedirs(fx)
     for p in sources:
         put_from(repo, parent, p, fx)
-    for p in sibling_files(repo, parent, sources, roots, set(sources) | set(tests)):
-        put_from(repo, parent, p, fx)
+    copy_scope(repo, parent, fx, scope, sources, roots, set(sources) | set(tests))
     for t in tests:
         put_from(repo, parent, t, fx)
     protected = [h for h in helper_files(repo, parent, tests) if h not in tests and h not in sources]
+    if scope == "roots":
+        protected = sorted(set(protected) | set(fixture_tests(fx)) - set(sources))
     for h in protected:
         put_from(repo, parent, h, fx)
     hidden = os.path.join(tdir, "hidden")
@@ -462,7 +505,7 @@ def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secre
                parent, sha, binary=True)
     write_file(hidden, "reference.patch", diff)
     write_file(hidden, "manifest.json", b'{"files": []}\n')
-    test_cmd = (["python3", "-m", "pytest", "-q"] if runner == "pytest" else ["bats"]) + test_dirs(tests)
+    test_cmd = (["python3", "-m", "pytest", "-q"] if runner == "pytest" else ["bats"]) + (tests if scope == "roots" else test_dirs(tests))
 
     work = tempfile.mkdtemp(prefix="seed-proof.")
     try:
@@ -522,6 +565,7 @@ def parse(argv):
     ap.add_argument("--paths", default=DEFAULT_PATHS)
     ap.add_argument("--suite-version", type=int, default=1)
     ap.add_argument("--id-prefix")
+    ap.add_argument("--fixture-scope", choices=("touched", "roots"), default="touched")
     ap.add_argument("--dry-run", action="store_true")
     try:
         a = ap.parse_args(argv)
@@ -584,9 +628,9 @@ def main(argv):
             tid = next_id(tasks_dir, a.id_prefix, taken)
             try:
                 if a.mode == "bugfix":
-                    tdir, info = build_bugfix(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots)
+                    tdir, info = build_bugfix(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots, a.fixture_scope)
                 else:
-                    tdir, info = build_refactor(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots)
+                    tdir, info = build_refactor(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots, a.fixture_scope)
             except (ValueError, RuntimeError, OSError) as e:
                 tdir, info = None, str(e)
             if tdir in ("secret", "skip", None):

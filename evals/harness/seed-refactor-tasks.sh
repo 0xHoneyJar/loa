@@ -12,7 +12,8 @@
 # first N, newest first) it writes <out>/tasks/<prefix>-NN/ (next free number;
 # the prefix is `refactor`, or the --id-prefix given):
 #   fixture/    from the PARENT commit: the touched source files, the other
-#               non-test files in their directories, the tests
+#               non-test files in their directories (--fixture-scope roots: every
+#               file under the allowed roots instead, as seed-bugfix-tasks.sh), the tests
 #               under the allowed roots that name a touched file (its basename,
 #               or a Python module's stem; at most 20), and their infrastructure
 #               (conftest.py up to the root, __init__.py, *.bash and *helper*
@@ -24,7 +25,9 @@
 #               the commit); test_command = the covering tests; structural_check
 #               null — the structural assertion is authored BY HAND (then listed
 #               in manifest.json and set in structural_check; validate-suite.sh
-#               refuses a refactor task without one)
+#               refuses a refactor task without one); roots scope: test_command
+#               names the covering test files and grader_protected adds every
+#               file under a top-level fixture/tests/
 #   TASK.md     the subject line and the test command; never the diff
 # The proof — the fixture's own covering tests green at base AND green with
 # the reference patch, run under `env -i PATH HOME=<fresh tmp> LC_ALL=C` plus
@@ -33,7 +36,8 @@
 #
 # Usage:
 #   seed-refactor-tasks.sh --since DATE [--select N] --out DIR [--repo DIR]
-#                          [--paths CSV] [--suite-version N] [--id-prefix P] [--dry-run]
+#                          [--paths CSV] [--suite-version N] [--id-prefix P]
+#                          [--fixture-scope touched|roots] [--dry-run]
 #
 #   options as seed-bugfix-tasks.sh (--select default 4; a commit without a
 #   covering test is skipped and does not count; --id-prefix default refactor);
