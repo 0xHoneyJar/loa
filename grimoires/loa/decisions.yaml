@@ -35855,3 +35855,227 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1026"
+    created_at: "2026-10-26T04:51:39Z"
+    updated_at: "2026-10-26T04:51:39Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "One glob grammar, one matcher: the segment matcher is the only wildcard matcher (no path.matchesGlob); * ** ? {a,b} [..]; other constructs rejected with a WARN"
+    decision: "Supersedes D-1.1's native-then-fallback OR: matchesExcludePattern uses segmentMatch for non-wildcard patterns and dotSegmentGlobMatch (with one-level braces and character classes) for wildcard patterns on every Node version; path.matchesGlob is no longer called; a pattern using extglob (+( @( !( ?( *( ), nested braces or backslash escapes is rejected when patterns are loaded, with one WARN naming it, and matches nothing. The opts.native seam is dropped; parity is by construction and the grammar is pinned by tests."
+    rationale: "Flatline SKP-003 (PRD and SDD): OR-ing a native matcher with a fallback cannot give identical results where the native one is absent; one grammar implemented once is the only way to make Node 20 and Node 22 agree, and the supported subset covers every pattern this repository and the defaults use."
+    alternatives_considered:
+      - option: "keep native first, fallback second (D-1.1)"
+        rejected_because: "divergent results for extglob and escapes between runtimes; the parity promise could not be tested"
+      - option: "ship minimatch as a dependency"
+        rejected_because: "a new dependency in a security-sensitive path; the subset is small enough to own"
+    consequences:
+      positive:
+        - "identical results on every Node; the grammar is a one-paragraph contract; one code path to audit"
+      negative:
+        - "extglob and escaped patterns stop working (none in use; rejected loudly)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e37b56a9"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:51:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "flatline cycle-135-sdd-review.json SKP-003; truncation.ts:94-200"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1027"
+    created_at: "2026-10-26T04:51:42Z"
+    updated_at: "2026-10-26T04:51:42Z"
+    phase: "architecture"
+    category: "security"
+    summary: ".reviewignore read from the PR base sha (git show <base>:.reviewignore) when a base is known, else the checkout; source and PR-modified flag recorded"
+    decision: "parseReviewignoreFile(repoRoot, {baseSha?}): with a base sha, the patterns come from `git show <base_sha>:.reviewignore` (bounded, same validation as the file read; absent in base → no patterns); without one (local dry runs) from the checkout file as today. coverage.reviewignore_source ∈ {base, checkout, none}; when the PR's file list contains .reviewignore, coverage.reviewignore_changed_in_pr = true and the file is in the review set (protected). .loa.config.yaml stays checkout-sourced this cycle (protected against wildcard removal; full config provenance is bd-idex8)."
+    rationale: "Flatline SKP-001 (SDD) and SKP-001b (PRD): in this repository the Bridgebuilder runs on a checkout of the PR branch, so the PR author owns .reviewignore; a non-wildcard line there would exclude any protected file by design. Reading the base version removes that lever with one bounded git read."
+    alternatives_considered:
+      - option: "protect .reviewignore only (PRD 1.1)"
+        rejected_because: "the added line is visible but the hidden file is still not reviewed"
+      - option: "read the whole config from base too"
+        rejected_because: "the config load path is large; one cycle item — tracked as bd-idex8"
+    consequences:
+      positive:
+        - "a PR cannot tune its own exclusions through .reviewignore"
+      negative:
+        - "a legitimate .reviewignore change takes effect after it merges, not in its own PR (documented)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e37b56a9"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:51:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "truncation.ts:277-350; paged-fetch.ts coverage record"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1028"
+    created_at: "2026-10-26T04:51:46Z"
+    updated_at: "2026-10-26T04:51:46Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "Content fetch via the JSON contents endpoint (default media type), base64 decoded; size checked before decoding; encoding none / over budget → too_large"
+    decision: "getFileContent runs gh api /repos/<o>/<r>/contents/<path>?ref=<sha> (no -H), parses the JSON object, requires type == 'file' and encoding == 'base64', refuses when size > maxBytes or encoding is 'none' (GitHub's > 1 MiB case) as too_large, decodes the content, applies the binary test, and returns text with bytes = decoded length. maxBuffer covers the base64 envelope (ceil(maxBytes × 4/3) + 4096)."
+    rationale: "Flatline SKP-005: sniffing a raw body for JSON is ambiguous (a raw JSON file can look like a contents response); the JSON envelope is an unambiguous contract and carries size for an early refusal."
+    alternatives_considered:
+      - option: "raw media type with a JSON fallback (D-1.3)"
+        rejected_because: "ambiguous detection; two response shapes to test"
+    consequences:
+      positive:
+        - "one response format; size known before decoding; no header allowlisting"
+      negative:
+        - "~33 % larger transfer (base64) within the bounded buffer"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e37b56a9"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:51:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "github-cli.ts:150-200; GitHub REST contents API"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1029"
+    created_at: "2026-10-26T04:51:50Z"
+    updated_at: "2026-10-26T04:51:50Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "simple-release guard is an allowlist: (pr_type == 'bugfix' || 'other') && pr_number != ''; unknown, empty or malformed values run neither job (pinned)"
+    decision: "post-merge.yml: simple-release if: (needs.classify.outputs.pr_type == 'bugfix' || needs.classify.outputs.pr_type == 'other') && needs.classify.outputs.pr_number != ''; full-pipeline unchanged (== 'cycle'); post-merge-workflow-guards.bats pins housekeeping, an unknown value and an empty value as skipped by both jobs."
+    rationale: "Flatline SKP-001 (SDD): a negative list accepts any unexpected value; the allowlist makes the error-handling statement (an unknown value skips both jobs) true by construction."
+    alternatives_considered:
+      - option: "!= cycle && != housekeeping (D-1.4)"
+        rejected_because: "an unexpected value would prepare a candidate"
+    consequences:
+      positive:
+        - "unknown values prepare nothing"
+      negative:
+        - "a new legitimate type needs a guard edit (intended)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e37b56a9"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:51:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "post-merge.yml:106-109"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1030"
+    created_at: "2026-10-26T04:51:53Z"
+    updated_at: "2026-10-26T04:51:53Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "Content fetch bounds: only files surviving exclusion are fetched; max_content_fetches (default 20), 120 s deadline, 30 s per call; fetch_missing_patches knob"
+    decision: "Pass 1 applies the Loa tier and user exclusions (with protection) before any content fetch; at most max_content_fetches files (config, default 20) are fetched sequentially within a 120 s deadline, each under the adapter's 30 s timeout and the per-file byte bound; the synthesized patch's encoded bytes are budgeted against max_diff_bytes and an oversized one is left no_patch (never truncated); the outcome of an attempted fetch is recorded on the omission (fetch: binary | too_large | error | skipped_cap | deadline); bridgebuilder.fetch_missing_patches: false disables the fetch entirely."
+    rationale: "Flatline SDD review (gpt IMP-006/007, opus IMP-005/009/010) and sprint review SKP-002: a fetch per patch-less file without a cap or deadline is an unbounded cost a PR author can trigger; excluded files must never be fetched; operators need an off switch and an audit trail of what was attempted."
+    alternatives_considered:
+      - option: "cap at max_files_per_pr only (D-1.3)"
+        rejected_because: "50 bounded fetches is still minutes of network time on a hostile PR"
+      - option: "truncate an oversized synthesized patch"
+        rejected_because: "a cut patch of an added file reviews a fiction; the omission is honest"
+    consequences:
+      positive:
+        - "bounded cost; visible outcomes; operator control"
+      negative:
+        - "two new config keys to document"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e37b56a9"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:51:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "paged-fetch.ts:14-66; config.ts:1100-1142"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1031"
+    created_at: "2026-10-26T04:51:57Z"
+    updated_at: "2026-10-26T04:51:57Z"
+    phase: "architecture"
+    category: "testing"
+    summary: "Guardrails take the minimum CPU time of three runs of the measured synchronous call; the quadratic negative control is defined (O(n²) over 100 files)"
+    decision: "Each guardrail repeats the measured synchronous call three times, records process.cpuUsage deltas, and asserts the minimum against the unchanged threshold; the report-only negative control is a deliberately O(n²) loop over the 100-file list that must trip the 100 ms bound."
+    rationale: "Flatline SDD review (opus IMP-019, gpt IMP-018): process.cpuUsage includes parallel GC and JIT threads, so a single sample can exceed wall time; the minimum of three removes that noise while a real algorithmic regression still trips every run."
+    alternatives_considered:
+      - option: "single sample"
+        rejected_because: "GC/JIT noise can trip the bound once"
+      - option: "raise the threshold"
+        rejected_because: "hides a 5× regression"
+    consequences:
+      positive:
+        - "noise-immune, regression-sensitive"
+      negative:
+        - "the measured work runs three times (milliseconds)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e37b56a9"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:51:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "progressive-truncation.test.ts:548-590"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
