@@ -35285,3 +35285,311 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1011"
+    created_at: "2026-10-26T04:27:01Z"
+    updated_at: "2026-10-26T04:27:01Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "cycle-135 scope: the five follow-ups of the 2026-10-26 micro-sprints (bd-ow72o, bd-i4fyw, bd-w5pd9, bd-nr5i6, bd-oglcu); glob braces, fix/ routing, releases out"
+    decision: "One cycle, one sprint, for exactly the five beads the shipped-micro-sprints summary listed as to-dos; nothing else is pulled in."
+    rationale: "The operator's instruction of 2026-10-26 ('yes approve and then also work on the other things also') answers that summary; its 'other things' are those five beads. Three are design work (bd-i4fyw, bd-nr5i6, bd-w5pd9), so the golden path, not /bug, is the sanctioned route."
+    alternatives_considered:
+      - option: "two /bug micro-sprints for bd-ow72o and bd-oglcu now, the design items later"
+        rejected_because: "the operator asked for all of them; splitting doubles the ceremony and leaves the security item's semantics undecided"
+      - option: "fold the brace/class glob translation in"
+        rejected_because: "a documented limitation with no observed failure; widens the matcher change beyond what the audit asked"
+    consequences:
+      positive:
+        - "one PR, one Bridgebuilder round, one record stage"
+      negative:
+        - "a red gate on one item holds the other four"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/context/cycle-135-brief.md § Scope"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1012"
+    created_at: "2026-10-26T04:27:05Z"
+    updated_at: "2026-10-26T04:27:05Z"
+    phase: "discovery"
+    category: "process"
+    summary: "Grounding by direct file:line reads of the five areas (brief § Grounding facts); no /ride — the May reality snapshot is stale and the areas are small."
+    decision: "The PRD and SDD cite the lead's 2026-10-26 reads (truncation.ts, paged-fetch.ts, github-cli.ts, classify-pr-type.sh, post-merge.yml, the bats and node:test files) instead of a /ride run."
+    rationale: "grimoires/loa/reality/ dates from May 2026 (stale under the 7-day rule); an unattended /ride of the whole repository buys nothing for five local changes whose code the lead read in full the same day."
+    alternatives_considered:
+      - option: "run /ride first"
+        rejected_because: "20+ minutes of whole-repo analysis for five files already read; cycle-134 took the same route (DEC-0968)"
+    consequences:
+      positive:
+        - "every requirement names the lines it changes"
+      negative:
+        - "no fresh repo-wide reality for other readers"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/context/cycle-135-brief.md § Grounding facts"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1013"
+    created_at: "2026-10-26T04:27:09Z"
+    updated_at: "2026-10-26T04:27:09Z"
+    phase: "discovery"
+    category: "security"
+    summary: "Exclusion semantics: non-wildcard patterns match whole path segments (gitignore-like; no '/' any depth, with '/' root-anchored), never substrings; one matcher"
+    decision: "For patterns without *, ?, { or [: no slash → the pattern equals one whole segment at any depth (PROCESS.md matches docs/PROCESS.md, not MYPROCESS.md); a slash → anchored at the repository root (a/b matches a/b and a/b/…, not x/a/b). Wildcard patterns: native path.matchesGlob then the dot-agnostic segment matcher where native exists, the segment matcher alone otherwise; simplifiedGlobMatch retires."
+    rationale: "The substring test is the hiding path the sprint-bug-278 audit found (util.loa-version.json.ts, x/.loa-version.json.bak); gitignore semantics are what .reviewignore's name promises and what operators write; one matcher ends the Node-version divergence the Bridgebuilder flagged."
+    alternatives_considered:
+      - option: "exact filename or basename equality only"
+        rejected_because: "a/b patterns would stop matching their subtree; .reviewignore directory entries are the common case"
+      - option: "keep substring matching behind an explicit marker (leading *)"
+        rejected_because: "two grammars; the default stays unsafe for whoever does not read the docs"
+      - option: "keep the Node < 22 fallback as is"
+        rejected_because: "two runtimes would still give different exclusion sets for the same .reviewignore"
+    consequences:
+      positive:
+        - "no substring hiding path; predictable, documented semantics; the same result on Node 20 and 22"
+      negative:
+        - "a default or operator pattern that relied on substring matching (none known) stops matching"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "truncation.ts:182-200, 261-278, 395 (2026-10-26 read)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1014"
+    created_at: "2026-10-26T04:27:13Z"
+    updated_at: "2026-10-26T04:27:13Z"
+    phase: "discovery"
+    category: "security"
+    summary: "Protected paths (CI workflows/actions, agent settings/hooks, git hooks) survive wildcard user exclusions; configurable list; kept files named in the coverage re"
+    decision: "Default protected set: .github/workflows/**, .github/actions/**, .claude/settings.json, .claude/settings.local.json, .claude/hooks/**, .husky/**. A wildcard pattern from --exclude, exclude_patterns or .reviewignore that matches a protected path leaves the file in the review set and the coverage record lists it as protected_kept with the pattern; a non-wildcard (segment-anchored) pattern naming the path still excludes it (explicit intent); the Loa tier is untouched (the self-review label governs framework files). bridgebuilder.protected_paths, when set, replaces the default ([] disables)."
+    rationale: "After sprint-bug-278 a broad **/*.yml exclusion also removes CI workflows on Node ≥ 22; those are the files an attacker edits first. Protecting them against accidental (wildcard) exclusion while honouring an explicit name keeps operator intent legible."
+    alternatives_considered:
+      - option: "no protected list; rely on the coverage record"
+        rejected_because: "the record is visible only after the review; the files are already out of the prompt"
+      - option: "protect against every pattern including exact names"
+        rejected_because: "an operator who names a path explicitly means it; the list would be impossible to override"
+      - option: "apply the list to the Loa tier too"
+        rejected_because: "the Loa tier deliberately strips framework files unless self-review is on; changing that is a different decision"
+    consequences:
+      positive:
+        - "accidental loss of CI/agent-config coverage becomes impossible by default and visible when overridden"
+      negative:
+        - "a repository whose CI lives elsewhere gains nothing; an operator who wants to exclude workflows must name them or set the list"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:13Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "truncation.ts:1292-1318, 1442, 1515 (user-pattern call sites); paged-fetch.ts coverage record"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1015"
+    created_at: "2026-10-26T04:27:17Z"
+    updated_at: "2026-10-26T04:27:17Z"
+    phase: "discovery"
+    category: "implementation"
+    summary: "Patch-less added files: content fetched (bounded) via gh api contents at the head sha, reviewed as an all-additions patch; other patch-less statuses stay no_pat"
+    decision: "For a file with status added, no patch and additions > 0: GET /repos/{o}/{r}/contents/{path}?ref=<head_sha> with the raw media type (an allowlisted gh api shape), bounded by the planned bytes / max_diff_bytes; UTF-8 text → a synthesized '@@ -0,0 +1,N @@' patch of '+' lines reviewed like any other and marked source: contents in the coverage record; binary, over-budget or a failed fetch → no_patch as today. Other statuses without a patch are unchanged."
+    rationale: "For an added file the whole content is the diff, so a bounded content fetch recovers exactly what the patch would have shown; modified files without a patch would need a base fetch and a diff — a different, larger change with no observed failure."
+    alternatives_considered:
+      - option: "treat docs no_patch as non-degrading"
+        rejected_because: "lowers coverage honesty; the operator would not see what was not reviewed"
+      - option: "raise max_diff_bytes / the file cap"
+        rejected_because: "GitHub omits the patch by its own size rule, not ours"
+      - option: "fetch content for every patch-less file and diff against base"
+        rejected_because: "two fetches and a diff per file; no observed failure for modified files"
+    consequences:
+      positive:
+        - "large added docs and generated files are reviewed instead of degrading the round"
+      negative:
+        - "one more gh api shape in the allowlist; a bounded network read per patch-less added file"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "paged-fetch.ts:39-150, 240-280; github-cli.ts:150-307 (2026-10-26 read); PR #1296 round 1"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1016"
+    created_at: "2026-10-26T04:27:21Z"
+    updated_at: "2026-10-26T04:27:21Z"
+    phase: "discovery"
+    category: "implementation"
+    summary: "A fourth classifier value housekeeping (rule 1a) that both post-merge prepare jobs skip; the KF-063 no-PR guard keeps other; the orchestrator is unchanged."
+    decision: "classify_pr_type returns housekeeping for a merge from an owner/chore/… branch or a chore(archive|ledger|decisions): subject; classify-merge-pr.sh passes it through (a push without a PR stays other); post-merge.yml guards simple-release with pr_type != 'cycle' && pr_type != 'housekeeping' && pr_number != '' and leaves full-pipeline as is; notify carries the value; the orchestrator's own classifier branch maps unknown values to other and is not changed."
+    rationale: "sprint-bug-277 moved these merges to other, whose job still prepares a candidate (merge b880a1cd, run 40255620297). Nothing release-related should run for archive, ledger and decisions merges; a distinct value keeps 'other' meaning 'ordinary non-cycle merge'."
+    alternatives_considered:
+      - option: "keep other and add a workflow step that skips preparation when the subject looks like housekeeping"
+        rejected_because: "duplicates the classifier's rule in YAML; two places to drift"
+      - option: "run the prepare job but discard the artifact"
+        rejected_because: "spends the job for nothing and leaves an artifact an operator could publish"
+    consequences:
+      positive:
+        - "no candidate, no prepare job for housekeeping merges; the classifier output is self-describing"
+      negative:
+        - "every consumer of pr_type must accept a fourth value (checked: the workflow jobs, notify, the orchestrator branch)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "classify-pr-type.sh:42-90; post-merge.yml:109, 187, 258-270; post-merge-orchestrator.sh:377-387 (2026-10-26 read)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1017"
+    created_at: "2026-10-26T04:27:25Z"
+    updated_at: "2026-10-26T04:27:25Z"
+    phase: "discovery"
+    category: "testing"
+    summary: "The Bridgebuilder performance guardrails measure CPU time (process.cpuUsage) with their existing thresholds, so host load cannot fail the suite."
+    decision: "Both guardrails in progressive-truncation.test.ts (the <500 ms progressiveTruncate case and the <100 ms detectLoa + applyLoaTierExclusion case) measure user+system CPU time of the process around the call instead of performance.now()."
+    rationale: "The <100 ms case failed in roughly one of two full-suite runs on a loaded host (102–146 ms) and passed 5/5 alone: wall-clock measures the host, not the code. CPU time keeps the regression intent (an algorithmic blow-up still trips it)."
+    alternatives_considered:
+      - option: "loosen the thresholds"
+        rejected_because: "keeps the load dependence; a 500 ms bound hides a 5× regression"
+      - option: "move the guardrails to an opt-in perf suite"
+        rejected_because: "nothing runs them then; the regression signal is lost"
+    consequences:
+      positive:
+        - "deterministic under load; the thresholds keep their meaning"
+      negative:
+        - "CPU time of the whole process includes concurrent GC work (small, bounded)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "progressive-truncation.test.ts:548-590; bd-oglcu observations 2026-10-26"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1018"
+    created_at: "2026-10-26T04:27:29Z"
+    updated_at: "2026-10-26T04:27:29Z"
+    phase: "discovery"
+    category: "process"
+    summary: "Cycle shape: one sprint (global 279), three Opus implementers (matcher+protected; fetch+guardrails; classifier+workflow), one PR, BB round, record, archive, no"
+    decision: "As cycle-134: implementers in worktrees produce patches (test first), the lead lands them under the bounded marker with manifests and dist regenerated, runs ≤ 3 dissent runs per sprint, review and audit, ships one PR from feature/cycle-135-review-coverage (no cycle id in the merge subject is not needed: the branch merge classifies cycle by the cycle id, which is right for a cycle ship), Bridgebuilder round, record stage, archive. No release: the rc.8 soak continues."
+    rationale: "The machinery is proven twice this week; the five items are small and independent enough for three parallel implementers with disjoint path allowlists (A and B share truncation.ts only through the exported matcher — B reads, never edits)."
+    alternatives_considered:
+      - option: "one implementer for everything"
+        rejected_because: "serialises five independent changes; the review gets one 500-line patch"
+      - option: "publish an rc after the merge"
+        rejected_because: "rc.8 soaks; the operator decides releases (DEC-0967 shape)"
+    consequences:
+      positive:
+        - "parallel, reviewable patches; one ship ceremony"
+      negative:
+        - "three worktrees and briefs to maintain"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/context/cycle-135-brief.md § Operator instruction, § Standing rules"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
