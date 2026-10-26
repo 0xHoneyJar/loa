@@ -29,6 +29,7 @@
 #
 # Rules (in precedence order):
 #   1. Label contains "cycle" (case-insensitive) → cycle
+#   1a. Housekeeping: merge from a chore/ branch, or chore(archive|ledger|decisions): → other
 #   2. Title matches cycle-NNN anywhere → cycle
 #   3. Title starts with one of the cycle prefixes
 #      (Run Mode, Sprint Plan, feat(sprint, feat(cycle) → cycle
@@ -45,6 +46,24 @@ classify_pr_type() {
 
     if echo "$labels" | grep -qi "cycle"; then
         echo "cycle"
+        return 0
+    fi
+
+    # bd-ahxmh: housekeeping merges are "other" even when they name a cycle.
+    # The archive branch carries the cycle id by convention
+    # (chore/cycle-NNN-archive), so the cycle-NNN rule below routed every
+    # archive merge to the cycle release path. Live incident (post-merge.yml):
+    # the cycle-133 and cycle-134 archive merges (PR #1293, PR #1297) each
+    # prepared a spurious candidate (runs 40112908074 and 40182103691). This
+    # sits before the cycle-NNN rule so a housekeeping subject never reaches
+    # it, and after the labels rule so a `cycle` label still wins. The prefix
+    # form is limited to the housekeeping scopes (archive, the orchestrator's
+    # own ledger push, decisions): a bare `chore:` or `chore(release):` that
+    # names a cycle can be a release (PR #747, `chore(release): v1.130.0 …
+    # (cycle-098 …)`) and keeps the cycle route. Case-sensitive on purpose:
+    # lowercase `chore` is the convention here, `Chore` is not.
+    if echo "$title" | grep -qE '^Merge pull request #[0-9]+ from [^ ]+/chore/|^chore\((archive|ledger|decisions)\):'; then
+        echo "other"
         return 0
     fi
 

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-25T08:24:51Z",
+  "generated": "2026-10-26T00:03:39Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1027,7 +1027,7 @@
     ".claude/scripts/check-updates.sh": "21b5c67eac9132c8202e3eb1659852ce5b22474fc0174a22b93ee6ddd4eb1fd8",
     ".claude/scripts/classify-commit-zone.sh": "6833d563210b251ab13d20d913ece37a2b6d0be8b71b4f256b6fc0a97d86b4e7",
     ".claude/scripts/classify-merge-pr.sh": "2540054b0698b61d5cbc0ba79189bef982ba6d0b32040acaf0f54dd7efc1b038",
-    ".claude/scripts/classify-pr-type.sh": "c7d5cbc08afa1f1e931d545902bd6fabcf71a85d9e9c537215fd59127862b152",
+    ".claude/scripts/classify-pr-type.sh": "b02b69f21456828ce914dcf63b3860a3f9d439fd471d16dba0e7b605e555f99f",
     ".claude/scripts/cleanup-context.sh": "3c5e4f78a1a02b0212a09a4fe4bca028dffc3aa7b30f202672fd04aa36c8e454",
     ".claude/scripts/cluster-events.sh": "ae6ceefd7e4d81cda75e7941d48ff4cb9552ef7810e662a6707ffbc7452914d3",
     ".claude/scripts/cluster-skills.sh": "d5f0bcea3b9baa90efed618748f114ed0fa15fa434d8cd1256de144a27a25fee",
