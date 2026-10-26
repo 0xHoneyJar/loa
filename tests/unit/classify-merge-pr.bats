@@ -375,3 +375,39 @@ STUB
     [[ "$output" == *"pr_number=1297"* ]]
     [[ "$output" == *"pr_type=cycle"* ]]
 }
+
+# =========================================================================
+# HK-T1..HK-T3: housekeeping pass-through (bd-nr5i6, cycle-135 C-4)
+# =========================================================================
+# classify_pr_type's rule 1a returns `housekeeping` for a chore/ branch merge
+# or a chore(archive|ledger|decisions): subject; the wrapper passes it through
+# when the merge has a PR number, so post-merge.yml runs neither prepare job.
+# Without a PR number the KF-063 guard still forces `other` (KF063-T1 pins the
+# publisher's ledger push). HK-T3 is a pin (passes before and after): a
+# `cycle` label still overrides the subject.
+
+@test "HK-T1: archive merge-commit subject with its PR number → pr_type=housekeeping" {
+    _stub_gh_empty
+    run "$WRAPPER" --merge-msg "Merge pull request #1297 from 0xHoneyJar/chore/cycle-134-archive — cycle-134 archive"
+    [ "$status" -eq 0 ]
+    grep -qx 'pr_type=housekeeping' <<<"$output"
+    grep -qx 'pr_number=1297' <<<"$output"
+    grep -qx 'pr_type=housekeeping' "$GITHUB_OUTPUT"
+    grep -qx 'pr_number=1297' "$GITHUB_OUTPUT"
+}
+
+@test "HK-T2: squash-form chore(decisions): subject with the (#NNN) trailer → pr_type=housekeeping" {
+    _stub_gh_json '{"title": "chore(decisions): confirm cycle-134 rows", "labels": []}'
+    run "$WRAPPER" --merge-msg "chore(decisions): confirm cycle-134 rows (#1298)"
+    [ "$status" -eq 0 ]
+    grep -qx 'pr_type=housekeeping' <<<"$output"
+    grep -qx 'pr_number=1298' <<<"$output"
+}
+
+@test "HK-T3: housekeeping subject with a cycle label → cycle (labels keep precedence; pin)" {
+    _stub_gh_json '{"title": "x", "labels": [{"name": "cycle"}]}'
+    run "$WRAPPER" --merge-msg "Merge pull request #9 from o/chore/cycle-1-archive — x"
+    [ "$status" -eq 0 ]
+    grep -qx 'pr_type=cycle' <<<"$output"
+    grep -qx 'pr_number=9' <<<"$output"
+}
