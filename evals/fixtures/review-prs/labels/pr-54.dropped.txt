@@ -1,0 +1,2 @@
+# pr-54 external https://github.com/vitejs/vite #23879: files and hunks that did not become fix regions
+packages/vite/src/node/__tests__/plugins/assetImportMetaUrl.spec.ts: the fix touches it but the PR did not change it; no fix region

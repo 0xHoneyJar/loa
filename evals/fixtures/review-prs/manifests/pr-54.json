@@ -1,0 +1,56 @@
+{
+  "fixture": "pr-54",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "deep-name 2026-10-26",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "901975bec5a687bb951d1b7c0f50aeefb7596e48",
+    "fix_commit": "e954a9cda0b5254be495a937333a0be1b8503d8f",
+    "incidents_meta": {
+      "main_sha": "e954a9cda0b5254be495a937333a0be1b8503d8f"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "packages/vite/src/node/plugins/assetImportMetaUrl.ts",
+      "anchor_line": 151,
+      "anchors": [
+        151,
+        152
+      ],
+      "must_match": "if (tryStatSync(file)?.isFile()) {",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H02",
+      "source_commit": "901975be",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "packages/vite/src/node/plugins/assetImportMetaUrl.ts",
+      "start": 5,
+      "end": 5,
+      "source": "fix/e954a9cda0b5:5-5"
+    },
+    {
+      "id": "F002",
+      "file": "packages/vite/src/node/plugins/assetImportMetaUrl.ts",
+      "start": 151,
+      "end": 152,
+      "source": "fix/e954a9cda0b5:151-152"
+    }
+  ]
+}

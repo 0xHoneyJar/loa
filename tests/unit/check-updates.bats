@@ -427,3 +427,121 @@ EOF
     run "$SCRIPT" --check --json
     [[ "$status" -eq 0 ]]
 }
+
+# =============================================================================
+# Exit-code contract (hook visibility repair, 2026-10-26)
+# =============================================================================
+#
+# As the SessionStart hook (--notify) an available update must ride on exit 0:
+# Claude Code records a non-zero hook exit as hook_non_blocking_error and the
+# notice never reaches the session (measured in 18 of 25 sampled sessions —
+# see the script header). The old exit-1 contract lives behind --exit-status.
+# Every case below reads a fresh cache file, so no network is touched.
+
+# Helper: write a fresh cache file.
+#   $1 = update_available (true|false), $2 = remote version, $3 = is_major_update
+write_cache_fixture() {
+    local available="$1" remote="$2" major="${3:-false}"
+    mkdir -p "$LOA_CACHE_DIR"
+    cat > "$LOA_CACHE_DIR/update-check.json" << EOF
+{
+  "last_check": "2026-01-17T00:00:00Z",
+  "local_version": "0.13.0",
+  "remote_version": "$remote",
+  "remote_url": "https://github.com/0xHoneyJar/loa/releases/tag/$remote",
+  "update_available": $available,
+  "is_major_update": $major,
+  "ttl_hours": 24
+}
+EOF
+    touch "$LOA_CACHE_DIR/update-check.json"
+}
+
+@test "check-updates.sh --help documents --exit-status and exit 1 only with it" {
+    skip_if_not_available
+
+    run "$SCRIPT" --help
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"--exit-status"* ]]
+    [[ "$output" == *"only with --exit-status"* ]]
+}
+
+@test "check-updates.sh --notify (hook mode): update available prints the notice on stdout and exits 0" {
+    skip_if_not_available
+    write_cache_fixture true v0.99.0
+
+    run "$SCRIPT" --notify
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"0.99.0"* ]]
+    [[ "$output" == *"/update-loa"* ]]
+}
+
+@test "check-updates.sh --notify (hook mode): major update still exits 0" {
+    skip_if_not_available
+    write_cache_fixture true v1.0.0 true
+
+    run "$SCRIPT" --notify
+    [[ "$status" -eq 0 ]]
+    [[ "$output" == *"MAJOR"* ]]
+}
+
+@test "check-updates.sh --notify (hook mode): up to date exits 0 with no output" {
+    skip_if_not_available
+    write_cache_fixture false v0.13.0
+
+    run "$SCRIPT" --notify
+    [[ "$status" -eq 0 ]]
+    [[ -z "$output" ]]
+}
+
+@test "check-updates.sh --exit-status: update available exits 1 (programmatic contract)" {
+    skip_if_not_available
+    write_cache_fixture true v0.99.0
+
+    # stdout is not a tty under bats: --exit-status alone must still run the check
+    run "$SCRIPT" --exit-status
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == *"/update-loa"* ]]
+}
+
+@test "check-updates.sh --exit-status: up to date exits 0" {
+    skip_if_not_available
+    write_cache_fixture false v0.13.0
+
+    run "$SCRIPT" --exit-status
+    [[ "$status" -eq 0 ]]
+}
+
+@test "check-updates.sh --quiet --exit-status: silent probe, exit 1 on update" {
+    skip_if_not_available
+    write_cache_fixture true v0.99.0
+
+    run "$SCRIPT" --quiet --exit-status
+    [[ "$status" -eq 1 ]]
+    [[ -z "$output" ]]
+}
+
+@test "check-updates.sh --json: output unchanged; exit 0 without --exit-status, 1 with it" {
+    skip_if_not_available
+    write_cache_fixture true v0.99.0
+
+    run "$SCRIPT" --json --notify
+    [[ "$status" -eq 0 ]]
+    local plain="$output"
+    echo "$plain" | jq -e '.update_available == true' > /dev/null
+
+    run "$SCRIPT" --json --notify --exit-status
+    [[ "$status" -eq 1 ]]
+    [[ "$output" == "$plain" ]]
+}
+
+@test "check-updates.sh --notify: plain text (no escape codes) when stdout is not a terminal" {
+    skip_if_not_available
+    write_cache_fixture true v0.99.0
+
+    # under bats stdout is a pipe, as it is under the SessionStart hook
+    run "$SCRIPT" --notify
+    [[ "$status" -eq 0 ]]
+    [[ "$output" != *$'\033'* ]]
+    [[ "$output" == *"/update-loa"* ]]
+}

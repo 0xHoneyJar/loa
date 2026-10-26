@@ -10,12 +10,12 @@
 # Usage:
 #   ablation-grade.sh <run-dir> <task-id> [--suite-root DIR] [--tasks-dir tasks|smoke]
 #                     [--out FILE] [--json] [--executor container|host]
-#                     [--image loa-ablation:259] [--docker-bin D]
+#                     [--image loa-ablation:259] [--docker-bin D] [--suite-file F]
 #                     [--allow-unfrozen] [--allow-partial] [--judge-verdicts FILE [--run-id ID]]
 #   ablation-grade.sh --self-check base|reference|noisy --task-yaml F [--suite-root DIR]
-#                     [--executor …] [--image …] [--docker-bin D] [--json]
+#                     [--executor …] [--image …] [--docker-bin D] [--json] [--suite-file F]
 #                     [--allow-unfrozen] [--allow-partial]
-#   ablation-grade.sh --union <cell-dir> --task-id T [--suite-root DIR] [--tasks-dir T]
+#   ablation-grade.sh --union <cell-dir> --task-id T [--suite-root DIR] [--tasks-dir T] [--suite-file F]
 #                     [--out FILE] [--json] [--allow-unfrozen] [--allow-partial] [--judge-verdicts FILE [--run-id ID]]
 #
 # Options:
@@ -34,6 +34,10 @@
 #                      MANIFEST.sha256 yet (task authoring only); grade.json records
 #                      suite_frozen: false. Without it a drift is exit 2 (DEC-0414).
 #   --allow-partial    passed to freeze.sh --check (fewer than four tasks per type)
+#   --suite-file F     passed to freeze.sh --check (→ validate-suite.sh: the suite_version the tasks must
+#                      carry, the arm ids); default: the validator's own default, evals/suites/ablation-2.0.yaml.
+#                      A suite root frozen against another suite file (ablation-2.0-v3.yaml, suite_version 3)
+#                      cannot be graded without it: the check reads a version mismatch as a drift
 #   --self-check MODE  base | reference | noisy (noisy: review-catch only), see below
 #   --task-yaml F      the task to self-check (<root>/<tasks|smoke>/<id>/task.yaml)
 #   --union DIR        (1.3.2) grade a matched cell (see "Union" below); --task-id names its task
@@ -515,6 +519,7 @@ ap = argparse.ArgumentParser(prog="ablation-grade.sh", add_help=False)
 ap.add_argument("run_dir", nargs="?")
 ap.add_argument("task_id", nargs="?")
 ap.add_argument("--suite-root")
+ap.add_argument("--suite-file")
 ap.add_argument("--tasks-dir", choices=["tasks", "smoke"])
 ap.add_argument("--out")
 ap.add_argument("--json", action="store_true")
@@ -864,6 +869,8 @@ def freeze_check(suite_root):
         cmd.append("--smoke")
     if A.allow_partial:
         cmd.append("--allow-partial")
+    if A.suite_file:
+        cmd += ["--suite-file", A.suite_file]
     p = run(cmd)
     if p.returncode == 0:
         return True

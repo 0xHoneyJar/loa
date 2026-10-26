@@ -1,0 +1,92 @@
+{
+  "fixture": "pr-29",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "deep-name 2026-10-26",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "867edce05c7e0b9136457ba5662f44327c734f46",
+    "fix_commit": "4d6a7db787130c5a4a95bd835369babd78e4a1f6",
+    "incidents_meta": {
+      "main_sha": "e139fbd6e8ddd5a1653d2f2c15c1123c090a3456"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "crates/ruff_notebook/src/notebook.rs",
+      "anchor_line": 402,
+      "anchors": [
+        402,
+        403,
+        404
+      ],
+      "must_match": "pub fn cell_range(&self, cell: OneIndexed) -> Option<TextRange> {",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
+      "source_commit": "867edce0",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "crates/ruff_notebook/src/notebook.rs",
+      "start": 400,
+      "end": 401,
+      "source": "fix/4d6a7db78713:400-401"
+    },
+    {
+      "id": "F002",
+      "file": "crates/ruff_notebook/src/notebook.rs",
+      "start": 403,
+      "end": 404,
+      "source": "fix/4d6a7db78713:403-404"
+    },
+    {
+      "id": "F003",
+      "file": "crates/ruff_notebook/src/notebook.rs",
+      "start": 410,
+      "end": 410,
+      "source": "fix/4d6a7db78713:410-410"
+    },
+    {
+      "id": "F004",
+      "file": "crates/ruff_notebook/src/notebook.rs",
+      "start": 502,
+      "end": 502,
+      "source": "fix/4d6a7db78713:502-502"
+    },
+    {
+      "id": "F005",
+      "file": "crates/ruff_notebook/src/notebook.rs",
+      "start": 672,
+      "end": 672,
+      "source": "fix/4d6a7db78713:672-672"
+    },
+    {
+      "id": "F006",
+      "file": "crates/ty_server/src/document/range.rs",
+      "start": 112,
+      "end": 112,
+      "source": "fix/4d6a7db78713:112-112"
+    },
+    {
+      "id": "F007",
+      "file": "crates/ty_server/tests/e2e/notebook.rs",
+      "start": 661,
+      "end": 661,
+      "source": "fix/4d6a7db78713:661-661"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+ "I01": {
+  "base": "A",
+  "anchors": "union",
+  "reason": "anchors: union (A adds 1983, the dataclass-schema config push that H02 changes and the incident cites together with the typed-dict lines 1985-1986); verdict, group D3, severity agreed; category logic (both annotators left the incident-only group D3 without a hunk to inherit from; the wrong behaviour is the config push ordered after the definitions cache lookup, as in H02's logic defect)",
+  "category": "logic"
+ }
+}

@@ -1,0 +1,88 @@
+diff --git a/pydantic/json_schema.py b/pydantic/json_schema.py
+index 3ecb9e382..fb352a3a3 100644
+--- a/pydantic/json_schema.py
++++ b/pydantic/json_schema.py
+@@ -372,6 +372,16 @@ class GenerateJsonSchema:
+         Raises:
+             PydanticUserError: Raised if the JSON schema generator has already been used to generate a JSON schema.
+         """
++        return self._generate_definitions([(key, mode, schema, None) for key, mode, schema in inputs])
++
++    def _generate_definitions(
++        self, inputs: Sequence[tuple[JsonSchemaKeyT, JsonSchemaMode, core_schema.CoreSchema, ConfigDict | None]]
++    ) -> tuple[dict[tuple[JsonSchemaKeyT, JsonSchemaMode], JsonSchemaValue], dict[DefsRef, JsonSchemaValue]]:
++        """Same as `generate_definitions()`, but with an additional config for each input.
++
++        This config is used for core schemas that don't carry their own config (e.g. the core schema
++        of a type adapter).
++        """
+         if self._used:
+             raise PydanticUserError(
+                 'This JSON schema generator has already been used to generate a JSON schema. '
+@@ -379,16 +389,18 @@ class GenerateJsonSchema:
+                 code='json-schema-already-used',
+             )
+ 
+-        for _, mode, schema in inputs:
++        for _, mode, schema, config in inputs:
+             self._mode = mode
+-            self.generate_inner(schema)
++            with self._config_wrapper_stack.push(config):
++                self.generate_inner(schema)
+ 
+         definitions_remapping = self._build_definitions_remapping()
+ 
+         json_schemas_map: dict[tuple[JsonSchemaKeyT, JsonSchemaMode], DefsRef] = {}
+-        for key, mode, schema in inputs:
++        for key, mode, schema, config in inputs:
+             self._mode = mode
+-            json_schema = self.generate_inner(schema)
++            with self._config_wrapper_stack.push(config):
++                json_schema = self.generate_inner(schema)
+             json_schemas_map[(key, mode)] = definitions_remapping.remap_json_schema(json_schema)
+ 
+         json_schema = {'$defs': self.definitions}
+diff --git a/pydantic/type_adapter.py b/pydantic/type_adapter.py
+index 2bce1b638..426a6cae4 100644
+--- a/pydantic/type_adapter.py
++++ b/pydantic/type_adapter.py
+@@ -761,9 +761,11 @@ class TypeAdapter(Generic[T]):
+                 assert not isinstance(adapter.core_schema, _mock_val_ser.MockCoreSchema), (
+                     'this is a bug! please report it'
+                 )
+-            inputs_.append((key, mode, adapter.core_schema))
++            # The configuration provided to the type adapter (if any) is not part of the core schema,
++            # so we need to explicitly make it available to the JSON Schema generator:
++            inputs_.append((key, mode, adapter.core_schema, adapter._config))
+ 
+-        json_schemas_map, definitions = schema_generator_instance.generate_definitions(inputs_)
++        json_schemas_map, definitions = schema_generator_instance._generate_definitions(inputs_)
+ 
+         json_schema: dict[str, Any] = {}
+         if definitions:
+diff --git a/tests/test_type_adapter.py b/tests/test_type_adapter.py
+index 1038a8291..9bd3ca362 100644
+--- a/tests/test_type_adapter.py
++++ b/tests/test_type_adapter.py
+@@ -561,6 +561,21 @@ def test_ta_config_used_for_json_schema() -> None:
+     assert ta.json_schema() == {'type': 'array', 'items': {'type': 'string', 'format': 'base64url'}}
+ 
+ 
++def test_ta_config_used_for_json_schemas() -> None:
++    ta_bytes = TypeAdapter(Annotated[bytes, Field(default=b'\xff')], config=ConfigDict(ser_json_bytes='base64'))
++    ta_str = TypeAdapter(str, config=ConfigDict(str_max_length=10))
++    ta_no_config = TypeAdapter(bytes)
++
++    schemas, _ = TypeAdapter.json_schemas(
++        [('bytes', 'validation', ta_bytes), ('str', 'validation', ta_str), ('no_config', 'validation', ta_no_config)]
++    )
++    assert schemas == {
++        ('bytes', 'validation'): {'type': 'string', 'format': 'base64url', 'default': '_w=='},
++        ('str', 'validation'): {'type': 'string', 'maxLength': 10},
++        ('no_config', 'validation'): {'type': 'string', 'format': 'binary'},
++    }
++
++
+ def defer_build_test_models(config: ConfigDict) -> list[Any]:
+     class Model(BaseModel):
+         model_config = config

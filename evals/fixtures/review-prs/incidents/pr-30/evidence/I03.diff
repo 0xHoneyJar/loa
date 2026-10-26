@@ -1,0 +1,19 @@
+commit a7d56967ef0050a09c0507e63a18164bc7a0d486
+Date: 2026-10-15T19:35:37+09:00
+
+fix(optimizer): skip patches dir hash for nub lockfile (#23761)
+
+diff --git a/packages/vite/src/node/optimizer/index.ts b/packages/vite/src/node/optimizer/index.ts
+index e16218186..1128124f2 100644
+--- a/packages/vite/src/node/optimizer/index.ts
++++ b/packages/vite/src/node/optimizer/index.ts
+@@ -1267,7 +1267,8 @@ const lockfileFormats = [
+   },
+   {
+     path: 'nub.lock',
+-    checkPatchesDir: 'patches',
++    // Included in lockfile (`patchedDependencies` has patch hashes)
++    checkPatchesDir: false,
+     manager: 'nub',
+   },
+ 

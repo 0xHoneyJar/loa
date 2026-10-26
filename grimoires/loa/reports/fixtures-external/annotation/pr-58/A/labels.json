@@ -1,0 +1,21 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "crates/nu-glob/src/dc_glob/globber.rs", "anchor_lines": [354],
+            "description": "For absolute glob patterns the walker strips the output-relative prefix, emitting relative paths instead of the absolute paths the pattern implies.",
+            "severity": "high", "category": "logic"},
+    "H02": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "crates/nu-glob/src/dc_glob/mod.rs", "anchor_lines": [],
+            "description": "Updates test to expect absolute nested paths for absolute recursive patterns.",
+            "severity": null, "category": null},
+    "H03": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "crates/nu-glob/src/dc_glob/mod.rs", "anchor_lines": [],
+            "description": "Updates test comment to describe absolute-path output for absolute patterns.",
+            "severity": null, "category": null},
+    "H04": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "crates/nu-glob/src/dc_glob/mod.rs", "anchor_lines": [],
+            "description": "Updates test assertion to expect an absolute output path.",
+            "severity": null, "category": null}
+  },
+  "incidents": {}
+}

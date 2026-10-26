@@ -1,0 +1,244 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-57",
+  "hunk_count": 29,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "libs/npm_cache/Cargo.toml",
+      "head_end": 5,
+      "head_start": 5,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "libs/npm_cache/Cargo.toml",
+      "head_end": 18,
+      "head_start": 18,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H03": {
+      "cited_by": [],
+      "file": "libs/npm_cache/lib.rs",
+      "head_end": 81,
+      "head_start": 81,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H04": {
+      "cited_by": [],
+      "file": "libs/npm_cache/lib.rs",
+      "head_end": 97,
+      "head_start": 97,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H05": {
+      "cited_by": [],
+      "file": "libs/npm_cache/lib.rs",
+      "head_end": 103,
+      "head_start": 103,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H06": {
+      "cited_by": [],
+      "file": "libs/npm_cache/lib.rs",
+      "head_end": 330,
+      "head_start": 330,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H07": {
+      "cited_by": [],
+      "file": "libs/npm_cache/lib.rs",
+      "head_end": 348,
+      "head_start": 348,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H08": {
+      "cited_by": [],
+      "file": "libs/npm_cache/lib.rs",
+      "head_end": 378,
+      "head_start": 378,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H09": {
+      "cited_by": [],
+      "file": "libs/npm_cache/lib.rs",
+      "head_end": 383,
+      "head_start": 383,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H10": {
+      "cited_by": [],
+      "file": "libs/npm_cache/lib.rs",
+      "head_end": 412,
+      "head_start": 412,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H11": {
+      "cited_by": [],
+      "file": "libs/npm_cache/lib.rs",
+      "head_end": 417,
+      "head_start": 417,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H12": {
+      "cited_by": [],
+      "file": "libs/npm_cache/lib.rs",
+      "head_end": 458,
+      "head_start": 458,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H13": {
+      "cited_by": [],
+      "file": "libs/npm_cache/lib.rs",
+      "head_end": 573,
+      "head_start": 571,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H14": {
+      "cited_by": [],
+      "file": "libs/npm_cache/lib.rs",
+      "head_end": 865,
+      "head_start": 865,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H15": {
+      "cited_by": [],
+      "file": "libs/npm_cache/lib.rs",
+      "head_end": 878,
+      "head_start": 878,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H16": {
+      "cited_by": [],
+      "file": "libs/npm_installer/local.rs",
+      "head_end": 688,
+      "head_start": 688,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H17": {
+      "cited_by": [],
+      "file": "libs/npm_installer/local.rs",
+      "head_end": 764,
+      "head_start": 763,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H18": {
+      "cited_by": [],
+      "file": "libs/npm_installer/local.rs",
+      "head_end": 769,
+      "head_start": 769,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H19": {
+      "cited_by": [],
+      "file": "libs/npm_installer/local.rs",
+      "head_end": 781,
+      "head_start": 778,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H20": {
+      "cited_by": [],
+      "file": "libs/npm_installer/local.rs",
+      "head_end": 826,
+      "head_start": 823,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H21": {
+      "cited_by": [],
+      "file": "libs/npm_installer/local.rs",
+      "head_end": 858,
+      "head_start": 855,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H22": {
+      "cited_by": [],
+      "file": "libs/npm_installer/local.rs",
+      "head_end": 912,
+      "head_start": 909,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H23": {
+      "cited_by": [],
+      "file": "libs/npm_installer/local.rs",
+      "head_end": 959,
+      "head_start": 959,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H24": {
+      "cited_by": [],
+      "file": "libs/npm_installer/local.rs",
+      "head_end": 1058,
+      "head_start": 1058,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H25": {
+      "cited_by": [],
+      "file": "libs/npm_installer/local.rs",
+      "head_end": 1678,
+      "head_start": 1678,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H26": {
+      "cited_by": [],
+      "file": "libs/npm_installer/local.rs",
+      "head_end": 1690,
+      "head_start": 1689,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H27": {
+      "cited_by": [],
+      "file": "libs/npm_installer/local.rs",
+      "head_end": 2366,
+      "head_start": 2366,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H28": {
+      "cited_by": [],
+      "file": "libs/npm_installer/local.rs",
+      "head_end": 2385,
+      "head_start": 2385,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H29": {
+      "cited_by": [],
+      "file": "libs/npm_installer/local.rs",
+      "head_end": 2391,
+      "head_start": 2391,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [],
+  "incidents": "incidents/pr-57.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

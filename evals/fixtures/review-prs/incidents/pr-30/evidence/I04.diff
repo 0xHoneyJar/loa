@@ -1,0 +1,19 @@
+commit 8e890e1ce438bfbc07ea4931ce332e40589940fa
+Date: 2026-10-21T14:40:21+09:00
+
+fix(optimizer): skip patches dir check for yarn.lock fallback (#23725)
+
+diff --git a/packages/vite/src/node/optimizer/index.ts b/packages/vite/src/node/optimizer/index.ts
+index eeeb1f1b9..6e7240498 100644
+--- a/packages/vite/src/node/optimizer/index.ts
++++ b/packages/vite/src/node/optimizer/index.ts
+@@ -1298,7 +1298,8 @@ const lockfilePaths = lockfileFormats.map((l) => l.path)
+ const fallbackLockfileFormats = [
+   {
+     path: 'yarn.lock',
+-    checkPatchesDir: '.yarn/patches',
++    // Included in lockfile
++    checkPatchesDir: false,
+     manager: 'yarn',
+   },
+ ]

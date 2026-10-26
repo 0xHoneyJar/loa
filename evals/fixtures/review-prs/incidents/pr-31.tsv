@@ -1,0 +1,2 @@
+id	kind	ref	date	files	excerpt
+I01	fix-commit	141c1e3df86e	2026-10-11T18:21:14Z	pydantic/json_schema.py	Fix JSON Schema cache key mismatch with nested `json_schema_mode_override` (#13980)

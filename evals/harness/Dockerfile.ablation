@@ -26,13 +26,36 @@
 #
 # Digest pinned 2026-02-11 (same base as Dockerfile.sandbox):
 #   docker manifest inspect node:20.11.0-bookworm-slim | jq '.manifests[0].digest'
+#
+# The node variant (2026-10-26, the TypeScript build path; README § how a build suite is seeded from history): a
+# build task seeded from a TypeScript repository runs `node --test --experimental-strip-types …` (Node >= 22.6) or
+# `npx vitest run …`, and the sandbox has no egress to install anything. Three build args, all defaulting to the
+# pinned recipe above so a plain build is still 259:
+#   BASE_IMAGE   the base (default node 20.11.0 at the digest above)
+#   NODE_TOOLS   1 adds pnpm and vitest globally (exact versions PNPM_VERSION / VITEST_VERSION) and sets npm's
+#                yes=false and update-notifier=false in the global npmrc, so `npx vitest` finds the global vitest when
+#                the fixture has none and a missing package fails by name instead of reaching for the registry
+#   IMAGE_TAG    the org.loa.image label (default 259)
+# Build the variant (never rebuild the pinned 259 for this; same digest query for the base, node:22.23.4-bookworm-slim):
+#   docker build -t loa-ablation:node-dev \
+#     --build-arg BASE_IMAGE=node:22.23.4-bookworm-slim@sha256:ea11b74b986d520137cdef9a5346e447a00f275ecc4abc0055b7151226231e09 \
+#     --build-arg NODE_TOOLS=1 --build-arg IMAGE_TAG=node-dev - < evals/harness/Dockerfile.ablation
+# Limits: the image carries no project dependencies — a fixture whose tests import packages beyond node's builtins and
+# the fixture's own files cannot run here without a node_modules mount the executor does not offer; the global vitest
+# serves fixtures that import nothing but `vitest` and their own files. A different base changes the batch's versions
+# (image_digest, node), so the variant is a different pipeline version, never a drop-in for a pinned batch.
 
-FROM node:20.11.0-bookworm-slim@sha256:8ea90c4f037cc3c2f566eb46c53eaac005129113487eda4090058fe554578104 AS base
+ARG BASE_IMAGE=node:20.11.0-bookworm-slim@sha256:8ea90c4f037cc3c2f566eb46c53eaac005129113487eda4090058fe554578104
+FROM ${BASE_IMAGE} AS base
 
 ARG CLAUDE_CODE_VERSION=2.1.299
 ARG CODEX_VERSION=0.162.1
 ARG PYTEST_VERSION=9.0.2
 ARG BATS_VERSION=v1.13.0
+ARG NODE_TOOLS=0
+ARG PNPM_VERSION=10.28.0
+ARG VITEST_VERSION=3.2.7
+ARG IMAGE_TAG=259
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
@@ -89,6 +112,14 @@ RUN git clone --depth 1 --branch "${BATS_VERSION}" https://github.com/bats-core/
 # Disable npm lifecycle scripts for anything the agent installs later
 RUN npm config set ignore-scripts true
 
+# NODE_TOOLS=1 (the node variant, see the header): pnpm and vitest at exact versions, npm never installing on its own
+RUN if [ "${NODE_TOOLS}" = "1" ]; then \
+      npm install -g --no-fund --no-audit "pnpm@${PNPM_VERSION}" "vitest@${VITEST_VERSION}" && \
+      npm cache clean --force && \
+      npm config set --location=global yes=false update-notifier=false && \
+      printf '%s\n' "pnpm ${PNPM_VERSION}" "vitest ${VITEST_VERSION}" > /etc/loa-node-tools; \
+    fi
+
 # Non-root user (as Dockerfile.sandbox). At run time /home/evaluser is replaced by the
 # per-run HOME bind mount and the process runs as the host uid (--user).
 RUN groupadd -r evaluser && useradd -r -g evaluser -d /home/evaluser -s /bin/bash evaluser
@@ -115,7 +146,7 @@ ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     http_proxy=http://loa-egress-unset.invalid:8888 \
     NO_PROXY= \
     no_proxy=
-LABEL org.loa.image="loa-ablation:259" org.loa.claude_code_version="${CLAUDE_CODE_VERSION}" org.loa.codex_version="${CODEX_VERSION}"
+LABEL org.loa.image="loa-ablation:${IMAGE_TAG}" org.loa.claude_code_version="${CLAUDE_CODE_VERSION}" org.loa.codex_version="${CODEX_VERSION}"
 
 USER evaluser
 WORKDIR /workspace
@@ -127,6 +158,13 @@ RUN bash --version && git --version && jq --version && node --version && \
     test "$(claude --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)" = "${CLAUDE_CODE_VERSION}" && \
     echo "Claude Code ${CLAUDE_CODE_VERSION} (pinned)" && \
     echo "All tools verified"
+# the node variant: pnpm and vitest answer, and npx reaches the global vitest from a tree that has none
+RUN if [ "${NODE_TOOLS}" = "1" ]; then \
+      pnpm --version && vitest --version && \
+      cd /tmp && npx vitest --version && \
+      node --experimental-strip-types -e 'const n: number = 1; console.log("type stripping ok", n)' && \
+      echo "node tools verified: $(tr '\n' ' ' < /etc/loa-node-tools)"; \
+    fi
 
 ENTRYPOINT []
 CMD ["/bin/bash"]

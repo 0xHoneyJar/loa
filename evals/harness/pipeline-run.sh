@@ -199,7 +199,12 @@
 # closed-mount overlay path (an overlay_sha256= line: the PR's own version of a .claude/ file). Anywhere else, or for
 # an id the PR does not name, the launch is refused as before (exit 2, infrastructure_error). The task brief and every
 # phase prompt stay fully strict: any arm id there is a leak (leak_scan). A PR that built the arms names them all, so
-# its text says nothing about which arm runs.
+# its text says nothing about which arm runs. Build tasks have the same exception for their fixture (suite v3, cut from
+# Loa's own ablation analysis code, which names every arm): an id the task's pristine fixture at the suite root names
+# (arm_ids_fixture_native=<sorted comma list>|none in arm-evidence) may appear in a sandbox file whose pristine fixture
+# copy names it (fixture_derived); the fixture is the same for every arm, so it says nothing about which arm runs.
+# Anywhere else — a file the fixture does not hold, or a fixture file whose pristine copy lacks the id — the launch is
+# refused as before.
 #
 # mount_cheval (cycle-132 bd-56nn6, KF-050): after materialisation and before the first phase of a
 # mounted arm, `python3 -I -B -c 'import loa_cheval, loa_cheval.providers'` runs on the host with
@@ -906,6 +911,23 @@ if [[ -d "$WS/pr" ]]; then
 fi
 pr_native_csv="$(printf '%s' "$PR_NATIVE" | sed '/^$/d' | LC_ALL=C sort -u | paste -sd, - || true)"
 printf 'arm_ids_pr_native=%s\n' "${pr_native_csv:-none}" >> "$ARM_EVIDENCE_FILE"
+# suite v3 (cycle-134 repair, TASK C): the arm ids a build task's own fixture names. The fixture is the same tree for
+# every arm, so an id it names tells the agent nothing about which arm runs. FIXTURE_NATIVE: every id of the suite that
+# occurs in the pristine fixture at the suite root (never the sandbox copy); review-catch tasks keep the PR rule only
+FIXTURE_NATIVE=""
+if [[ "$KIND" != review-catch && -n "${FIXTURE_DIR:-}" && -d "$FIXTURE_DIR" ]]; then
+  while IFS= read -r id; do
+    [[ -n "$id" ]] || continue
+    if grep -rIqF -e "$id" "$FIXTURE_DIR" 2>/dev/null; then FIXTURE_NATIVE="$FIXTURE_NATIVE$id"$'\n'; fi
+  done <<<"$ALL_ARM_IDS"
+fi
+fixture_native_csv="$(printf '%s' "$FIXTURE_NATIVE" | sed '/^$/d' | LC_ALL=C sort -u | paste -sd, - || true)"
+printf 'arm_ids_fixture_native=%s\n' "${fixture_native_csv:-none}" >> "$ARM_EVIDENCE_FILE"
+fixture_derived() {  # fixture_derived <path relative to the sandbox> — the pristine fixture copy of this path names the running arm
+  [[ -n "${FIXTURE_DIR:-}" && -f "$FIXTURE_DIR/$1" && ! -L "$FIXTURE_DIR/$1" ]] && grep -qIF -e "$ARM" "$FIXTURE_DIR/$1"
+}
+ARM_FIXTURE_NATIVE=false
+grep -qxF -e "$ARM" <<<"$FIXTURE_NATIVE" && ARM_FIXTURE_NATIVE=true
 # the PR-derived files: anything under pr/; the review skill's report the mount library writes from pr/PR.md
 # (write_sandbox_grimoire: grimoires/loa/a2a/<sprint>/reviewer.md); the closed-mount overlay's answer paths
 # (overlay_answer_paths: each path of an overlay_sha256= evidence line, the PR's own version of a .claude/ file).
@@ -922,6 +944,7 @@ while IFS= read -r arm_hit; do
   [[ -n "$arm_hit" ]] || continue
   rel="${arm_hit#"$WS"/}"
   if [[ "$ARM_PR_NATIVE" == true ]] && pr_derived "$rel"; then continue; fi
+  if [[ "$ARM_FIXTURE_NATIVE" == true && "$KIND" != review-catch ]] && fixture_derived "$rel"; then continue; fi
   infra "arm id appears in the sandbox: $rel"
 done < <(grep -rIl --exclude-dir=.git -F -e "$ARM" "$WS" 2>/dev/null | LC_ALL=C sort || true)
 if [[ "$HS" == true ]]; then

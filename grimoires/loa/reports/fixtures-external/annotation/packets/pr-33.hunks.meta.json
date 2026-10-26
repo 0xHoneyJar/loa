@@ -1,0 +1,52 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-33",
+  "hunk_count": 5,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "crates/nu-glob/src/dc_glob/compiler.rs",
+      "head_end": 148,
+      "head_start": 143,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "crates/nu-glob/src/dc_glob/compiler.rs",
+      "head_end": 295,
+      "head_start": 295,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H03": {
+      "cited_by": [],
+      "file": "crates/nu-glob/src/dc_glob/compiler.rs",
+      "head_end": 315,
+      "head_start": 315,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H04": {
+      "cited_by": [],
+      "file": "crates/nu-glob/src/dc_glob/mod.rs",
+      "head_end": 685,
+      "head_start": 685,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H05": {
+      "cited_by": [],
+      "file": "crates/nu-glob/src/dc_glob/mod.rs",
+      "head_end": 1050,
+      "head_start": 1050,
+      "insertion": true,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [],
+  "incidents": "incidents/pr-33.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

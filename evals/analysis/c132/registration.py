@@ -111,6 +111,20 @@ def sha256_file(path):
     return h.hexdigest()
 
 
+def sha256_file_or_pinned(repo, rec, rel, registered):
+    """sha256 of <repo>/<rel>; when it differs from `registered`, the sha256 of <rel> at the registration's pin
+    commit (a later extension of the corpus or suite is not drift of the record). Returns the working-tree hash
+    when the pin is absent, not a commit, or lacks the path, so the caller reports drift as before."""
+    now = sha256_file(os.path.join(repo, rel))
+    if now == registered or not re.fullmatch(r"[0-9a-f]{7,40}", str(rec.get("pin") or "")):
+        return now
+    p = subprocess.run(["git", "-C", repo, "show", f"{rec['pin']}:{rel}"], capture_output=True)
+    if p.returncode != 0:
+        return now
+    pinned = hashlib.sha256(p.stdout).hexdigest()
+    return pinned if pinned == registered else now
+
+
 def inside(repo, path):
     """the path relative to repo; an input outside it is refused (the record carries no absolute path)"""
     real, root = os.path.realpath(path), os.path.realpath(repo)
@@ -422,8 +436,13 @@ def verify(a):
         if now != rec.get(field):
             drift.append((field, rec.get(field), now))
     check("preregistration_sha256", lambda: sha256_file(p("preregistration_path")))
-    check("corpus_sha256sums_sha256", lambda: sha256_file(p("corpus_sums_path")))
-    check("suite_manifest_sha256", lambda: sha256_file(os.path.join(p("suite_root"), "MANIFEST.sha256")))
+    # The corpus and the suite manifest grow after a cycle closes (new fixtures, new tasks). The record binds
+    # them AT THE PIN: when the working-tree file no longer hashes to the registered value, the file at the
+    # registration's pin commit is checked instead (`git show <pin>:<path>`), and only a mismatch there is drift.
+    check("corpus_sha256sums_sha256", lambda: sha256_file_or_pinned(repo, rec, rec.get("corpus_sums_path") or "",
+                                                                     rec.get("corpus_sha256sums_sha256")))
+    check("suite_manifest_sha256", lambda: sha256_file_or_pinned(repo, rec, os.path.join(rec.get("suite_root") or "", "MANIFEST.sha256"),
+                                                                 rec.get("suite_manifest_sha256")))
     check("analysis_tree_sha256", lambda: git_tree(repo, rec.get("analysis_tree")))
     check("arms", lambda: arm_records(p("suite_file"), p("suite_root"), [x.get("id") for x in rec.get("arms") or []],
                                       [x for g in rec.get("groups") or [] if isinstance(g, list) for x in g]))

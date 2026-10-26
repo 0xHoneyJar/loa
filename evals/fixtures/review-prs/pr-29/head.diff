@@ -1,0 +1,164 @@
+diff --git a/crates/ruff_notebook/src/notebook.rs b/crates/ruff_notebook/src/notebook.rs
+index 13347c7eb..040fb505e 100644
+--- a/crates/ruff_notebook/src/notebook.rs
++++ b/crates/ruff_notebook/src/notebook.rs
+@@ -397,12 +397,6 @@ impl Notebook {
+         &self.cell_offsets
+     }
+ 
+-    /// Returns the start offset of the cell at index `cell` in the concatenated
+-    /// text document.
+-    pub fn cell_offset(&self, cell: OneIndexed) -> Option<TextSize> {
+-        self.cell_offsets.get(cell.to_zero_indexed()).copied()
+-    }
+-
+     /// Returns the text range in the concatenated document of the cell
+     /// with index `cell`.
+     pub fn cell_range(&self, cell: OneIndexed) -> Option<TextRange> {
+@@ -412,6 +406,17 @@ impl Notebook {
+         Some(TextRange::new(start, end))
+     }
+ 
++    /// Returns the text range in the concatenated document of the contents of the cell with
++    /// index `cell`, excluding the synthetic newline that separates it from the next cell.
++    pub fn cell_content_range(&self, cell: OneIndexed) -> Option<TextRange> {
++        let range = self.cell_range(cell)?;
++        let end = range
++            .end()
++            .checked_sub(TextSize::of(SYNTHETIC_CELL_SEPARATOR))?;
++
++        Some(TextRange::new(range.start(), end))
++    }
++
+     /// Return `true` if the notebook has a trailing newline, `false` otherwise.
+     pub fn trailing_newline(&self) -> bool {
+         self.trailing_newline
+diff --git a/crates/ty_server/src/document/range.rs b/crates/ty_server/src/document/range.rs
+index fb34bbe6e..2ee0b785d 100644
+--- a/crates/ty_server/src/document/range.rs
++++ b/crates/ty_server/src/document/range.rs
+@@ -144,11 +144,11 @@ impl PositionExt for lsp_types::Position {
+             let notebook_document = db.notebook_document(file)?;
+             let cell_index = notebook_document.cell_index_by_uri(uri)?;
+ 
+-            let cell_start_offset = notebook.cell_offset(cell_index).unwrap_or_default();
++            let cell_range = notebook.cell_content_range(cell_index)?;
+             let cell_relative_line = OneIndexed::from_zero_indexed(u32_index_to_usize(self.line));
+ 
+             let cell_start_location =
+-                index.source_location(cell_start_offset, source.as_str(), encoding.into());
++                index.source_location(cell_range.start(), source.as_str(), encoding.into());
+             assert_eq!(cell_start_location.character_offset, OneIndexed::MIN);
+ 
+             // Absolute position into the concatenated notebook source text.
+@@ -158,7 +158,15 @@ impl PositionExt for lsp_types::Position {
+                     .saturating_add(cell_relative_line.to_zero_indexed()),
+                 character_offset: OneIndexed::from_zero_indexed(u32_index_to_usize(self.character)),
+             };
+-            return Some(index.offset(absolute_position, &source, encoding.into()));
++            let offset = index.offset(absolute_position, &source, encoding.into());
++
++            // A position beyond the end of the cell (past the end of its last line, or on a line
++            // after it) would otherwise resolve to the cell separator or into the next cell.
++            // Clients can send such positions, e.g., a completion request using the position from
++            // before the user deleted the last character in the cell. Clamp it to the end of the
++            // cell, like an out-of-range position in a regular file is clamped to the end of the
++            // file.
++            return Some(offset.min(cell_range.end()));
+         }
+ 
+         Some(lsp_position_to_text_size(*self, &source, &index, encoding))
+diff --git a/crates/ty_server/tests/e2e/notebook.rs b/crates/ty_server/tests/e2e/notebook.rs
+index 2da9e5224..94a4dcd4b 100644
+--- a/crates/ty_server/tests/e2e/notebook.rs
++++ b/crates/ty_server/tests/e2e/notebook.rs
+@@ -599,6 +599,66 @@ fn completion_past_end_of_empty_last_cell() -> anyhow::Result<()> {
+     Ok(())
+ }
+ 
++/// A position past the end of a cell resolves to the end of that cell, not to the start of the
++/// next cell.
++#[test]
++fn hover_past_end_of_cell() -> anyhow::Result<()> {
++    let mut server = TestServerBuilder::new()?
++        .build()
++        .wait_until_workspaces_are_initialized();
++
++    let mut builder = NotebookBuilder::virtual_file("test.ipynb");
++    let empty_cell = builder.add_python_cell("");
++    builder.add_python_cell("x = 1\n");
++    builder.open(&mut server);
++
++    server.collect_publish_diagnostic_notifications(2);
++
++    for position in [Position::new(0, 1), Position::new(1, 0)] {
++        let id = server.send_request::<lsp_types::HoverRequest>(lsp_types::HoverParams {
++            text_document_position_params: lsp_types::TextDocumentPositionParams {
++                text_document: TextDocumentIdentifier {
++                    uri: empty_cell.clone(),
++                },
++                position,
++            },
++            work_done_progress_params: lsp_types::WorkDoneProgressParams::default(),
++        });
++        let hover = server.await_response::<lsp_types::HoverRequest>(&id);
++        assert_eq!(hover, None, "expected no hover at {position:?}");
++    }
++
++    Ok(())
++}
++
++/// A range that ends past the end of a cell covers only that cell, so a request for the first
++/// cell's inlay hints doesn't return the hints from the second cell.
++#[test]
++fn inlay_hints_range_past_end_of_cell() -> anyhow::Result<()> {
++    let mut server = TestServerBuilder::new()?
++        .enable_inlay_hints(true)
++        .build()
++        .wait_until_workspaces_are_initialized();
++
++    let mut builder = NotebookBuilder::virtual_file("test.ipynb");
++    let first_cell = builder.add_python_cell("x = 1\n");
++    let second_cell = builder.add_python_cell("def f(a: int) -> int:\n    return a\n\ny = f(1)\n");
++    builder.open(&mut server);
++
++    server.collect_publish_diagnostic_notifications(2);
++
++    let range = Range::new(Position::new(0, 0), Position::new(10, 0));
++
++    // The second cell has hints of its own.
++    let second_cell_hints = inlay_hints_for_cell(&mut server, &second_cell, range);
++    assert!(!second_cell_hints.is_empty());
++
++    let first_cell_hints = inlay_hints_for_cell(&mut server, &first_cell, range);
++    assert_eq!(first_cell_hints, vec![]);
++
++    Ok(())
++}
++
+ #[test]
+ fn undefined_reveal_fix_stays_in_cell() -> anyhow::Result<()> {
+     let mut server = TestServerBuilder::new()?
+@@ -658,6 +718,22 @@ fn invalid_syntax_with_syntax_errors_disabled() -> anyhow::Result<()> {
+     Ok(())
+ }
+ 
++fn inlay_hints_for_cell(
++    server: &mut TestServer,
++    cell_uri: &lsp_types::Uri,
++    range: Range,
++) -> Vec<lsp_types::InlayHint> {
++    server
++        .send_request_await::<lsp_types::InlayHintRequest>(lsp_types::InlayHintParams {
++            text_document: TextDocumentIdentifier {
++                uri: cell_uri.clone(),
++            },
++            range,
++            work_done_progress_params: lsp_types::WorkDoneProgressParams::default(),
++        })
++        .unwrap_or_default()
++}
++
+ fn semantic_tokens_full_for_cell(
+     server: &mut TestServer,
+     cell_uri: &lsp_types::Uri,

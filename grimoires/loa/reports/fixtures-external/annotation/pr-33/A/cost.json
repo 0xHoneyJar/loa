@@ -1,0 +1,19 @@
+{
+  "model": "global.anthropic.claude-opus-5-5",
+  "result_cost_usd": 0.0811096,
+  "ledger_rows": 0,
+  "ledger_cost_usd": 0,
+  "cost_source": "result",
+  "total_cost_usd": 0.08111,
+  "num_turns": 5,
+  "subtype": "success",
+  "is_error": null,
+  "cap_usd": 3,
+  "cap_hit": false,
+  "cap_turn": null,
+  "estimate_usd": 0.06115,
+  "watchdog": true,
+  "timed_out": false,
+  "cli_exit": 0,
+  "metering": "metered"
+}

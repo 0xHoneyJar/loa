@@ -1,0 +1,68 @@
+{
+  "base_commit": "d88a88b4ff25a276247675e6706476e6367d7407",
+  "files": {
+    "base": [
+      {
+        "blob": "13347c7eb617e430dffea8692217e2af3a19b2e0",
+        "path": "crates/ruff_notebook/src/notebook.rs",
+        "sha256": "8b23e46751543622e2e0e93fedac461bf590eccc4c02d476517cc7f6608485d2",
+        "size": 31293
+      },
+      {
+        "blob": "fb34bbe6ecdf061efab1ee44eae175f4d7926df9",
+        "path": "crates/ty_server/src/document/range.rs",
+        "sha256": "ed950dac8db92a7178c4ec645fa2b7d1c31aa11ee1bc757a455fbdca48b2add3",
+        "size": 13352
+      },
+      {
+        "blob": "2da9e5224408430a4ff85d76f44d7e1a74f5c396",
+        "path": "crates/ty_server/tests/e2e/notebook.rs",
+        "sha256": "79adfffc7b78a32d1c6ab65eea3625255ca1d311a8a14d1d52625db68513f1d0",
+        "size": 23398
+      }
+    ],
+    "head": [
+      {
+        "blob": "040fb505e27573bfe7c1967d809e89bf07aff196",
+        "path": "crates/ruff_notebook/src/notebook.rs",
+        "sha256": "c4a7b2c575d917bb83a64e4766e8773bf54386a18e21aad078af6d4edfd416ad",
+        "size": 31523
+      },
+      {
+        "blob": "2ee0b785df9b93634a55aa54a8f71da37206aa30",
+        "path": "crates/ty_server/src/document/range.rs",
+        "sha256": "4a28f6f6b50e05db01b29486931d186b4ed4de4d820735e5bcb824feeef86855",
+        "size": 13898
+      },
+      {
+        "blob": "94a4dcd4bd1cfffa36d661981dfe7e84b9124c9b",
+        "path": "crates/ty_server/tests/e2e/notebook.rs",
+        "sha256": "4123f6946d776fc2ee2730df494eb5fce2b577f6e5ff44b3a66c49d53267fd79",
+        "size": 26163
+      }
+    ]
+  },
+  "fix_commit": "4d6a7db787130c5a4a95bd835369babd78e4a1f6",
+  "fix_first": "4d6a7db787130c5a4a95bd835369babd78e4a1f6",
+  "fix_parent": "eb9e9bdcf988fffcd619dcf5d2a2bd74d75be1c6",
+  "fixture": "pr-29",
+  "head_commit": "867edce05c7e0b9136457ba5662f44327c734f46",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "655a0c76fc5539b2f8e63b673741a5fd0e0c5799",
+      "path": "LICENSE",
+      "sha256": "2597d854122b77ddc71971564ca2350a37608575ce324adc5650a2b2051c8f18",
+      "size": 20731
+    }
+  ],
+  "merge_commit": "eb9e9bdcf988fffcd619dcf5d2a2bd74d75be1c6",
+  "pr": 29307,
+  "pr_base_sha": "d88a88b4ff25a276247675e6706476e6367d7407",
+  "pr_url": "https://github.com/astral-sh/ruff/pull/29307",
+  "schema_version": 1,
+  "skipped": [],
+  "source_url": "https://github.com/astral-sh/ruff",
+  "trees": "committed",
+  "visibility": "public"
+}

@@ -1,0 +1,6 @@
+# pr-29 external https://github.com/astral-sh/ruff #29307: files and hunks that did not become fix regions
+crates/ty_server/src/document.rs: the fix touches it but the PR did not change it; no fix region
+crates/ty_server/src/server/api/requests/folding_range.rs: the fix touches it but the PR did not change it; no fix region
+crates/ty_server/src/server/api/requests/semantic_tokens.rs: the fix touches it but the PR did not change it; no fix region
+crates/ty_server/tests/e2e/snapshots/e2e__notebook__cells_after_cell_magic_hover.snap: the fix touches it but the PR did not change it; no fix region
+crates/ty_server/tests/e2e/snapshots/e2e__notebook__cells_after_cell_magic_tokens.snap: the fix touches it but the PR did not change it; no fix region

@@ -1,0 +1,26 @@
+{
+  "changed_files": 4,
+  "counts": {
+    "bridgebuilder": 0,
+    "fix-commit": 2,
+    "issue": 0,
+    "kf": 0
+  },
+  "fixture": "pr-55",
+  "gh": "skipped",
+  "gh_queries": [],
+  "main_ref": "origin/main",
+  "main_sha": "e954a9cda0b5254be495a937333a0be1b8503d8f",
+  "maturity_days": 4,
+  "merge_commit": "4d16e7c14d5e1c361f148238b1e81131238ab8e9",
+  "merge_date": "2026-10-21T05:23:42Z",
+  "pr": 23793,
+  "record_refs": [],
+  "scanned_at": "2026-10-26T05:22:06Z",
+  "truncated": false,
+  "window": {
+    "from": "2026-10-21T05:23:42Z",
+    "rule": "merge date to scan date (SDD D-7.8), capped at 30 days",
+    "to": "2026-10-26T05:22:06Z"
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-59",
+  "hunk_count": 5,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "pydantic-core/src/validators/model_fields.rs",
+      "head_end": 631,
+      "head_start": 631,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "tests/types/test_model.py",
+      "head_end": 2,
+      "head_start": 1,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H03": {
+      "cited_by": [],
+      "file": "tests/types/test_model.py",
+      "head_end": 11,
+      "head_start": 10,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H04": {
+      "cited_by": [],
+      "file": "tests/types/test_model.py",
+      "head_end": 18,
+      "head_start": 18,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H05": {
+      "cited_by": [],
+      "file": "tests/types/test_model.py",
+      "head_end": 106,
+      "head_start": 88,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [],
+  "incidents": "incidents/pr-59.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

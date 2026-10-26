@@ -1,0 +1,18 @@
+commit a63eb8722e7d47d1efb710b6410c8d5e5a04a18f
+Date: 2026-10-22T12:59:34+09:00
+
+fix(deps): update rolldown-related dependencies (#23868)
+
+diff --git a/packages/vite/src/node/__tests__/build.spec.ts b/packages/vite/src/node/__tests__/build.spec.ts
+index fa828612d..a30417aed 100644
+--- a/packages/vite/src/node/__tests__/build.spec.ts
++++ b/packages/vite/src/node/__tests__/build.spec.ts
+@@ -1362,7 +1362,7 @@ test.for([true, false])(
+       ([client, ssr, custom1, custom2] as RolldownOutput[]).map(
+         (o) => o.output[0].code.split('\n').length,
+       ),
+-    ).toEqual([1, 8, 1, 8])
++    ).toEqual([1, 7, 1, 7])
+   },
+ )
+ 

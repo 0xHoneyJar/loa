@@ -1,0 +1,12 @@
+# approved-by: pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	high	logic	crates/ruff_notebook/src/notebook.rs	pub fn cell_range(&self, cell: OneIndexed) -> Option<TextRange> {	fix-commit	hunk:H01	A,B	agreed	-	false
+V01	high	logic	crates/ruff_notebook/src/notebook.rs	let start = self.cell_offsets.get(cell.to_zero_indexed()).copied()?;	fix-commit	hunk:H01	A,B	agreed	-	false
+V01	high	logic	crates/ruff_notebook/src/notebook.rs	let end = self.cell_offsets.get(cell.to_zero_indexed() + 1).copied()?;	fix-commit	hunk:H01	A,B	agreed	-	false
+F001	-	fix	crates/ruff_notebook/src/notebook.rs	/// Returns the text range in the concatenated document of the cell	fix	fix/4d6a7db78713:400-401	-	-	-	-
+F002	-	fix	crates/ruff_notebook/src/notebook.rs	let start = self.cell_offsets.get(cell.to_zero_indexed()).copied()?;	fix	fix/4d6a7db78713:403-404	-	-	-	-
+F003	-	fix	crates/ruff_notebook/src/notebook.rs	/// index `cell`, excluding the synthetic newline that separates it from the next cell.	fix	fix/4d6a7db78713:410-410	-	-	-	-
+F004	-	fix	crates/ruff_notebook/src/notebook.rs	use ruff_text_size::TextSize;	fix	fix/4d6a7db78713:502-502	-	-	-	-
+F005	-	fix	crates/ruff_notebook/src/notebook.rs	-	fix	fix/4d6a7db78713:672-672	-	-	-	-
+F006	-	fix	crates/ty_server/src/document/range.rs	-	fix	fix/4d6a7db78713:112-112	-	-	-	-
+F007	-	fix	crates/ty_server/tests/e2e/notebook.rs	-	fix	fix/4d6a7db78713:661-661	-	-	-	-

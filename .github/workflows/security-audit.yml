@@ -113,6 +113,7 @@ jobs:
         with:
           languages: typescript, javascript
           queries: security-extended
+          config-file: ./.github/codeql/codeql-config.yml
 
       - name: Autobuild
         if: steps.check-code.outputs.has_code == 'true'

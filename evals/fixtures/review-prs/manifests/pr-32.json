@@ -1,0 +1,59 @@
+{
+  "fixture": "pr-32",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "deep-name 2026-10-26",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "4c5595f7f0f9006fcae4f7c3f767b07b23762e35",
+    "fix_commit": "52fbbfa1dc14a9b1fc40a1e246a3cbf2ce4987d1",
+    "incidents_meta": {
+      "main_sha": "37dc34b4f001191b4f3db707cc52bac95baf17f0"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "pydantic-core/src/serializers/fields.rs",
+      "anchor_line": 114,
+      "anchors": [
+        114,
+        341,
+        342,
+        343,
+        344
+      ],
+      "must_match": "@L114",
+      "severity": "medium",
+      "category": "resource",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
+      "source_commit": "4c5595f7",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "pydantic-core/src/serializers/fields.rs",
+      "start": 119,
+      "end": 119,
+      "source": "fix/52fbbfa1dc14:119-119"
+    },
+    {
+      "id": "F002",
+      "file": "pydantic-core/src/serializers/fields.rs",
+      "start": 341,
+      "end": 345,
+      "source": "fix/52fbbfa1dc14:341-345"
+    }
+  ]
+}

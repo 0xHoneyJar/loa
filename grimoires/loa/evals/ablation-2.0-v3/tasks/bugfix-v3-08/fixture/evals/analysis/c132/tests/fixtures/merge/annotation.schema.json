@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "test-fixture:annotation.schema.json",
+  "title": "annotation label file (test fixture copy of the shape in sdd.md §1.4; the shipped schema is evals/harness/schemas/annotation.schema.json)",
+  "type": "object",
+  "required": ["hunks", "incidents"],
+  "additionalProperties": false,
+  "properties": {
+    "hunks": {"type": "object", "additionalProperties": false,
+              "patternProperties": {"^H[0-9]{2,}$": {"$ref": "#/$defs/hunk"}}},
+    "incidents": {"type": "object", "additionalProperties": false,
+                  "patternProperties": {"^I[0-9]{2,}$": {"$ref": "#/$defs/incident"}}}
+  },
+  "$defs": {
+    "anchors": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+    "group": {"anyOf": [{"type": "string", "pattern": "^D[0-9]+$"}, {"type": "null"}]},
+    "severity": {"enum": ["critical", "high", "medium", "low", null]},
+    "hunk": {"type": "object", "required": ["verdict", "group", "file", "anchor_lines", "description", "severity", "category"],
+             "additionalProperties": false,
+             "properties": {"verdict": {"enum": ["defect", "not-defect"]},
+                            "not_defect_class": {"enum": ["test", "docs", "refactor", "style", "follow-on"]},
+                            "group": {"$ref": "#/$defs/group"}, "file": {"type": ["string", "null"]},
+                            "anchor_lines": {"$ref": "#/$defs/anchors"}, "description": {"type": ["string", "null"]},
+                            "severity": {"$ref": "#/$defs/severity"}, "category": {"type": ["string", "null"]}}},
+    "incident": {"type": "object", "required": ["verdict", "group", "file", "anchor_lines", "description", "severity"],
+                 "additionalProperties": false,
+                 "properties": {"verdict": {"enum": ["defect-at-head", "not-at-head"]},
+                                "group": {"$ref": "#/$defs/group"}, "file": {"type": ["string", "null"]},
+                                "anchor_lines": {"$ref": "#/$defs/anchors"}, "description": {"type": ["string", "null"]},
+                                "severity": {"$ref": "#/$defs/severity"}, "category": {"type": ["string", "null"]}}}
+  }
+}

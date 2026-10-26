@@ -1,0 +1,104 @@
+{
+  "base_commit": "43c46b696ebb51e072125a34ddccfedb1a856d0f",
+  "files": {
+    "base": [
+      {
+        "blob": "302bcdd781ca05f405a0d2fed8d4f421052809fd",
+        "path": "crates/nu-command/tests/commands/glob.rs",
+        "sha256": "e1627a6e91b5c6bdb70ffffe3fb8320b59b44568c730c72171f843e4c0b1a943",
+        "size": 14052
+      },
+      {
+        "blob": "90b49bb25daa4208176b41c531e435e3a94b3309",
+        "path": "crates/nu-experimental/src/options/dc_glob.rs",
+        "sha256": "5d12d6588e8953e0facb8ac14138a873d02bfe42f19a25bacca6203f45aa5f98",
+        "size": 598
+      },
+      {
+        "blob": "e5500175a3dfc5febf44d5aefa681a9206247d72",
+        "path": "crates/nu-glob/src/dc_glob/compiler.rs",
+        "sha256": "11c78e0177340ce532a5b326ba8aa0d4b5da1f4c63c30dd86a1416ba0b47e4e3",
+        "size": 9262
+      },
+      {
+        "blob": "9508fb7d1748c1aed3aa4137c3d3c4a751427ec4",
+        "path": "crates/nu-glob/src/dc_glob/globber.rs",
+        "sha256": "76ea3eed55293dc8aac1777a5a04611075e46d5704796ed21f5fb3669ea6bf99",
+        "size": 14518
+      },
+      {
+        "blob": "920ac9a7160e81a156fca392786d8bd008f26ed4",
+        "path": "crates/nu-glob/src/dc_glob/matcher.rs",
+        "sha256": "e2dc3a27db7dd307bc9c0a7227c76bc2651259be64dc673dad621fada8522923",
+        "size": 11701
+      },
+      {
+        "blob": "e691456fb99dc06b9995c8b3b8fd39d34cc9580e",
+        "path": "crates/nu-glob/src/dc_glob/mod.rs",
+        "sha256": "54f574455021c6adfe90d5d863f55ce4e7c5f11b8947057163c958d06979ed8e",
+        "size": 34166
+      }
+    ],
+    "head": [
+      {
+        "blob": "bd2692b94d9e85939a4ca63a1f62f66f545c8e45",
+        "path": "crates/nu-command/tests/commands/glob.rs",
+        "sha256": "41119959949deeb7e4be884d23c2095d81d1bbc81c6af98e64a564273f0ea588",
+        "size": 18823
+      },
+      {
+        "blob": "ec2392bdeb8ac49f2a18753779593b5634f59b4d",
+        "path": "crates/nu-experimental/src/options/dc_glob.rs",
+        "sha256": "12a58ad646a03a0c86bb1fa3cb8bb520d0e9ec4dfd98b912c61dccfba81ff9b3",
+        "size": 831
+      },
+      {
+        "blob": "844333fb8713fb5de8ba26ec8c7e511c06769947",
+        "path": "crates/nu-glob/src/dc_glob/compiler.rs",
+        "sha256": "20d716f1273d84155dcfd97bd95b0ad14c3bd38629f981da72d42163bdf9f990",
+        "size": 14530
+      },
+      {
+        "blob": "015c0f27952c6d365d92d9618e57559ab91e9c6d",
+        "path": "crates/nu-glob/src/dc_glob/globber.rs",
+        "sha256": "882e021f471c7f852a435a30b39a7fd1f7ca30345abb3e22793761e202c77344",
+        "size": 16723
+      },
+      {
+        "blob": "4bcc9ff02037c795c7324679236877ac64ec0090",
+        "path": "crates/nu-glob/src/dc_glob/matcher.rs",
+        "sha256": "1c2db1af9d669294f69f6c593ac3f8238fcbc330ba7c1c8ae63bafc3b180bc59",
+        "size": 13789
+      },
+      {
+        "blob": "4e6030616f8c0533ae2017da3a288dbd46c9a7d5",
+        "path": "crates/nu-glob/src/dc_glob/mod.rs",
+        "sha256": "be64c358f9f70dcba0d163cc72cce0805f743c1cee8e4905c28dc2dd83ffcdf1",
+        "size": 44289
+      }
+    ]
+  },
+  "fix_commit": "58a647346a1c791aa6b6667cb53249f3882b1de2",
+  "fix_first": "58a647346a1c791aa6b6667cb53249f3882b1de2",
+  "fix_parent": "8c790f00346b5151ef7b50ccc8019b42523fa6b1",
+  "fixture": "pr-33",
+  "head_commit": "3eb97a715d9edb3409f0d75f560f37db5b3300f3",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "1ecbafd78cadc79bad0e1d4105292830a19612d9",
+      "path": "LICENSE",
+      "sha256": "ff5dcaaba6140ec57cafdd4f707cd0d329e727477cf7d5b9ba7a244ec2678b79",
+      "size": 1094
+    }
+  ],
+  "merge_commit": "7b6e1afe81ba9dec84f960194f3836382718428e",
+  "pr": 18704,
+  "pr_base_sha": "43c46b696ebb51e072125a34ddccfedb1a856d0f",
+  "pr_url": "https://github.com/nushell/nushell/pull/18704",
+  "schema_version": 1,
+  "skipped": [],
+  "source_url": "https://github.com/nushell/nushell",
+  "trees": "committed",
+  "visibility": "public"
+}

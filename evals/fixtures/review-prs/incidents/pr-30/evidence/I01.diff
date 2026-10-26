@@ -1,0 +1,20 @@
+commit a2bd6fa897c35c8a691671a7d70061c1cdd5c688
+Date: 2026-09-29T16:16:50+09:00
+
+fix(optimizer): preserve excluded optional peer require fallbacks (#23600)
+
+Co-authored-by: sapphi-red <green@sapphi.red>
+
+diff --git a/packages/vite/src/node/optimizer/index.ts b/packages/vite/src/node/optimizer/index.ts
+index 1ab4291bd..929683868 100644
+--- a/packages/vite/src/node/optimizer/index.ts
++++ b/packages/vite/src/node/optimizer/index.ts
+@@ -833,7 +833,7 @@ async function prepareRolldownOptimizerRun(
+ 
+   const plugins = await asyncFlatten(arraify(pluginsFromConfig))
+   if (external.length) {
+-    plugins.push(rolldownCjsExternalPlugin(external, platform))
++    plugins.push(rolldownCjsExternalPlugin(external, platform, environment))
+   }
+   plugins.push(...rolldownDepPlugin(environment, flatIdDeps, external))
+ 

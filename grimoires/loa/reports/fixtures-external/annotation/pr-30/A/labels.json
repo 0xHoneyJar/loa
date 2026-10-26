@@ -1,0 +1,28 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "packages/vite/src/node/optimizer/optimizer.ts", "anchor_lines": [149, 150, 151, 152, 153, 154, 155, 156],
+            "description": "close() does not clear the pending debounce timer, so a rerun can still fire after the optimizer is closed, and pending processing promises are only settled if such a run happens.",
+            "severity": "medium", "category": "concurrency"},
+    "H02": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "packages/vite/src/node/optimizer/optimizer.ts", "anchor_lines": [149, 155, 156, 340, 341],
+            "description": "close() never resolves depOptimizationProcessing or the enqueued processing promises; it relies on a later runOptimizer call seeing `closed`, so waiters can hang forever when no run follows the close.",
+            "severity": "medium", "category": "concurrency"},
+    "H03": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "packages/vite/src/node/optimizer/optimizer.ts", "anchor_lines": [],
+            "description": "Removes the promise resolution from the closed branch of runOptimizer because close() now does it.", "severity": null, "category": null},
+    "H04": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "packages/vite/src/node/optimizer/optimizer.ts", "anchor_lines": [],
+            "description": "Removes the duplicate enqueued-promise resolution after a cancelled run because close() now does it.", "severity": null, "category": null}
+  },
+  "incidents": {
+    "I01": {"verdict": "not-at-head", "group": null, "file": "packages/vite/src/node/optimizer/index.ts",
+            "anchor_lines": [], "description": "Optional peer require fallback handling in the rolldown CJS external plugin; the packet shows no head code for this and it is unrelated to the reviewed close/processing logic.", "severity": null},
+    "I02": {"verdict": "not-at-head", "group": null, "file": "packages/vite/src/node/optimizer/index.ts",
+            "anchor_lines": [], "description": "Adds a yarn.lock fallback for the lockfile hash, a later enhancement unrelated to the change's hunks.", "severity": null},
+    "I03": {"verdict": "not-at-head", "group": null, "file": "packages/vite/src/node/optimizer/index.ts",
+            "anchor_lines": [], "description": "nub.lock patches-dir handling in lockfile formats; nothing in the packet shows this head code or ties it to the change.", "severity": null},
+    "I04": {"verdict": "not-at-head", "group": null, "file": "packages/vite/src/node/optimizer/index.ts",
+            "anchor_lines": [], "description": "Fixes the yarn.lock fallback added later by I02, so the behaviour did not exist at head.", "severity": null}
+  }
+}

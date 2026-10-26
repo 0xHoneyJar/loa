@@ -1,0 +1,58 @@
+{
+ "H01": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": "packages/vite/src/node/optimizer/optimizer.ts",
+  "description": "close() does not clear the pending debounce timer, so a rerun can still fire after the optimizer is closed, and pending processing promises are only settled if such a run happens.",
+  "severity": "medium",
+  "category": "concurrency",
+  "reason": "group: B's split kept — a debounced rerun firing after close() (H01) and waiters never settled by close() (H02) are two wrong behaviours of close(), one group each (DEC-0717 one wrong behaviour per group); category: a rerun after close is an ordering fault, the un-cleared timer is its mechanism (A); anchors, severity agreed",
+  "anchor_lines": [
+   149,
+   150,
+   151,
+   152,
+   153,
+   154,
+   155,
+   156
+  ]
+ },
+ "H02": {
+  "verdict": "defect",
+  "group": "D2",
+  "file": "packages/vite/src/node/optimizer/optimizer.ts",
+  "description": "close() never resolves depOptimizationProcessing or the enqueued processing promises; it relies on a later runOptimizer call seeing `closed`, so waiters can hang forever when no run follows the close.",
+  "severity": "medium",
+  "category": "concurrency",
+  "reason": "group D2 (B's split, see H01: the hanging waiters are a separate wrong behaviour from the stray rerun); anchors: union of in-hunk sites (150 is the start of close() that B added); verdict, severity, category agreed",
+  "anchor_lines": [
+   149,
+   150,
+   155,
+   156,
+   340,
+   341
+  ]
+ },
+ "H03": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": "packages/vite/src/node/optimizer/optimizer.ts",
+  "description": "Removes the promise resolution from the closed branch of runOptimizer because close() now does it.",
+  "severity": null,
+  "category": null,
+  "reason": "follow-on of D2: the closed-branch promise resolution moves into close(); both annotators call it follow-on, the group follows the D1/D2 split",
+  "anchor_lines": []
+ },
+ "H04": {
+  "verdict": "not-defect",
+  "group": "D2",
+  "file": "packages/vite/src/node/optimizer/optimizer.ts",
+  "description": "Removes the duplicate enqueued-promise resolution after a cancelled run because close() now does it.",
+  "severity": null,
+  "category": null,
+  "reason": "follow-on of D2: the redundant post-run resolution is removed because close() now settles the promises; both annotators call it follow-on, the group follows the D1/D2 split",
+  "anchor_lines": []
+ }
+}

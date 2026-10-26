@@ -1,0 +1,14 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "packages/vite/src/node/optimizer/index.ts", "anchor_lines": [1270],
+            "description": "The nub.lock entry checks a 'patches' directory even though patch hashes are already in the lockfile, which makes the optimizer cache hash depend on an unrelated directory and can invalidate the cache when nothing changed.",
+            "severity": "low", "category": "logic"}
+  },
+  "incidents": {
+    "I01": {"verdict": "defect-at-head", "group": "D2", "file": "packages/vite/src/node/optimizer/index.ts",
+            "anchor_lines": [1297],
+            "description": "The yarn.lock fallback lockfile entry checks '.yarn/patches' even though patches are already recorded in the lockfile, which can invalidate the cache when nothing changed.",
+            "severity": "low"}
+  }
+}

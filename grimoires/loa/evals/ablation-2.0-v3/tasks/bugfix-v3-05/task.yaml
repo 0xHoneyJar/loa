@@ -1,0 +1,16 @@
+id: bugfix-v3-05
+schema_version: 1
+type: bug-fix
+source: {kind: "loa-history", fix_commit: "350e52cf2ccd221b134389c76f9565cfa5e53ce8", base_commit: "c57a531586794c7da0d6028d8dbb03a6f27b3797", date: "2026-10-22", origin: "touched paths left out of the task (--ignore-paths): evals/tests/analysis-c132.bats, grimoires/loa/decisions.yaml, grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-9.md"}
+post_cutoff: true
+fixture: tasks/bugfix-v3-05/fixture
+criterion: "the sensitivity family re-includes oracle-exposed full-pipeline cells by the form of their exposure (read only, diff, all) with per-arm, group and task counts, never a cell with a second invalidity, and validity reasons carry the form"
+success_criterion: "hidden/tests/evals/analysis/c132/tests/test_reads.py (overlaid at evals/analysis/c132/tests/test_reads.py) passes 41 of 41 under python3 -m pytest -q evals/analysis/c132/tests/test_reads.py; red at base (3 failed), green with hidden/reference.patch"
+test_command: ["python3", "-m", "pytest", "-q", "evals/analysis/c132/tests/test_reads.py"]
+regression_command: null
+reference_patch: hidden/reference.patch
+grader_protected: ["evals/analysis/c132/tests/_path.py", "evals/analysis/c132/tests/fixtures/merge/annotation.schema.json", "evals/analysis/c132/tests/fixtures/power-mini/candidates.tsv", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-91/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-92/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-93/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-94/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/rows.jsonl", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-a/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-b/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-c/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-d/task.yaml", "evals/analysis/c132/tests/synth.py"]
+structural_check: null
+bounds: {max_turns: {}, timeout_min: {}}
+review_catch: null
+suite_version: 3
