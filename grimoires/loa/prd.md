@@ -1,6 +1,6 @@
 # Product Requirements Document: Review-coverage follow-ups (cycle-135)
 
-**Version:** 1.2
+**Version:** 1.3
 **Date:** 2026-10-26
 **Author:** PRD Architect Agent (Claude Fable 5.1, unattended)
 **Status:** Draft — autonomous run (operator instruction 2026-10-26, quoted verbatim in the brief: "yes approve and then also work on the other things also")
@@ -162,7 +162,7 @@ Benign or not: controls file names and contents, never the operator's patterns. 
 - [ ] With a provider double that lists an added file without a patch and serves its content: the file is in the review set with the synthesized patch, `reviewed[].source == "contents"`, and the coverage is not degraded by it.
 - [ ] Binary content, content over the planned bytes, and a provider error each leave the file as `no_patch` (reviewable omission) exactly as today, with a test each.
 - [ ] A modified file without a patch is still `no_patch` (pinned).
-- [ ] `assertAllowedArgs` admits only the exact `api /repos/<o>/<r>/contents/<path>?ref=<sha>` shape with the `Accept` header the adapter sets; tests reject a path with `..` (plain and percent-encoded), an empty segment, a leading `/`, a `?`, `#` or control character in the path, a query other than `ref`, a non-hex or short ref, and a different `Accept` value; a Unicode path segment is encoded and accepted.
+- [ ] `assertAllowedArgs` admits only the exact `api /repos/<o>/<r>/contents/<path>?ref=<sha>` shape with no headers (the default JSON media type; 1.2 → 1.3: the 1.1 wording still named an `Accept` header, which DEC-1028 removed — implementer B followed the SDD); tests reject a path with `..` (plain and percent-encoded), an empty or `.` segment, a leading `/`, a `?`, `#` or control character in the path, an encoded separator, an option-like owner/repo, a query other than `ref`, a non-hex or short ref, and any `-H`/`--header`; a Unicode path segment is encoded and accepted.
 - [ ] Oversized (over `maxBuffer`) and stalled (over the timeout) responses are terminated and leave the file `no_patch`, tested through the adapter with a stub executor; several patch-less files competing for the remaining aggregate budget: the later ones stay `no_patch`; the synthesized bytes include the hunk header and `+` prefixes.
 - [ ] An integration test drives the two-pass fetch end to end with a provider double (listing without a patch → content → selection → pass 2 → coverage), not only the synthesis helper.
 - [ ] The JSON envelope is validated strictly (`type`, `encoding`, `size`, `content`); a raw text file whose content looks like a contents envelope is reviewed as text (it arrives base64-encoded inside the real envelope); malformed base64 → error → `no_patch`; the lead's Q-1 read-only probe (one call, Task 1.0) records the envelope shape in the contract commit's report.
