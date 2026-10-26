@@ -221,8 +221,9 @@ export declare function loadTrustedConfig(opts: {
  * `exclude_patterns`, `fetch_missing_patches` and `max_content_fetches` come from that source, so a PR cannot widen
  * or narrow its own review (e.g. `protected_paths: []`). A head value whose effect differs is replaced with one WARN
  * naming the key. These keys change review scope, not provider identity, so drift is warned, not refused (no exit
- * 5). `--exclude` stays additive (the operator's argv). Local mode or no trusted source: unchanged. main.ts calls
- * this right after `loadTrustedConfig`.
+ * 5). `--exclude` stays additive (the operator's argv). Local mode: unchanged. No readable trusted source on a pull
+ * request (Bridgebuilder round 1, PR #1302, bd-ous65): the four keys fall to their defaults with one WARN — fail closed,
+ * so a shallow checkout cannot be used to widen the PR's own review. main.ts calls this right after `loadTrustedConfig`.
  */
 export declare function applyTrustedReviewScope(config: BridgebuilderConfig, trusted: TrustedConfig & {
     reviewScope?: TrustedReviewScope;

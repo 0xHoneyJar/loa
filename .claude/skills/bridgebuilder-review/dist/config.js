@@ -691,8 +691,9 @@ export function loadTrustedConfig(opts, deps = defaultTrustedConfigDeps) {
         mode, source, ...(ref ? { ref } : {}), providers, headOnlyRefused, locality, exitOnDegraded, warnings,
         ...(writerRoleAllowlist ? { writerRoleAllowlist } : {}),
         aliases: stringAliases(view.aliases), headDrift,
-        // sprint-279 review round 1 (HIGH 3): on a pull request with a trusted source, the review-scope keys it states
-        ...(mode === "pull-request" && source !== "none"
+        // sprint-279 review round 1 (HIGH 3): on a pull request, the review-scope keys the trusted source states; with no
+        // readable source (Bridgebuilder round 1, PR #1302, bd-ous65) an all-null scope, so the keys fail closed to the defaults
+        ...(mode === "pull-request"
             ? { reviewScope: view.scope ?? { protected_paths: null, exclude_patterns: null, fetch_missing_patches: null, max_content_fetches: null } }
             : {}),
     };
@@ -702,14 +703,19 @@ export function loadTrustedConfig(opts, deps = defaultTrustedConfigDeps) {
  * `exclude_patterns`, `fetch_missing_patches` and `max_content_fetches` come from that source, so a PR cannot widen
  * or narrow its own review (e.g. `protected_paths: []`). A head value whose effect differs is replaced with one WARN
  * naming the key. These keys change review scope, not provider identity, so drift is warned, not refused (no exit
- * 5). `--exclude` stays additive (the operator's argv). Local mode or no trusted source: unchanged. main.ts calls
- * this right after `loadTrustedConfig`.
+ * 5). `--exclude` stays additive (the operator's argv). Local mode: unchanged. No readable trusted source on a pull
+ * request (Bridgebuilder round 1, PR #1302, bd-ous65): the four keys fall to their defaults with one WARN — fail closed,
+ * so a shallow checkout cannot be used to widen the PR's own review. main.ts calls this right after `loadTrustedConfig`.
  */
 export function applyTrustedReviewScope(config, trusted, cli) {
     const scope = trusted.reviewScope;
     if (trusted.mode !== "pull-request" || scope === undefined)
         return;
     const where = trustedSourceDescription(trusted);
+    if (trusted.source === "none") {
+        process.stderr.write("[bridgebuilder] WARN: no trusted config could be read on this pull request — the review-scope keys (protected_paths, " +
+            "exclude_patterns, fetch_missing_patches, max_content_fetches) fall to their defaults (fail closed); the PR head's values are ignored (bd-ous65)\n");
+    }
     const show = (v) => (v === undefined ? "unset" : JSON.stringify(v).slice(0, 300));
     const warn = (key, head, value) => process.stderr.write(`[bridgebuilder] WARN: bridgebuilder.${key}: the PR head's value (${show(head)}) differs from ${where} ` +
         `(${show(value)}) — the trusted value governs (review scope: warned, not refused; bd-i4fyw)\n`);

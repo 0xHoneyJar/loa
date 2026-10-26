@@ -18,7 +18,7 @@
  */
 import { GitProviderError } from "../ports/git-provider.js";
 import { createHash } from "node:crypto";
-import { deriveCallConfig, matchesExcludePattern, truncateFiles } from "./truncation.js";
+import { deriveCallConfig, isWildcardPattern, matchesExcludePattern, truncateFiles } from "./truncation.js";
 import { FETCH_DEGRADED_REASONS, orderDegradedReasons } from "./degraded-reason.js";
 /** GitHub's `pulls/N/files` lists at most this many files (30 pages of 100). */
 export const FILES_ENDPOINT_CAP = 3000;
@@ -34,7 +34,6 @@ export const CONTENT_FETCH_DEADLINE_MS = 120_000;
  */
 /** cycle-135 C-2: the ` [pattern: <p>]` suffix A's selection appends to an exclusion's stats (to the final `]`). */
 const PATTERN_SUFFIX = / \[pattern: (.+)\]$/;
-const WILDCARD = /[*?{[]/;
 /**
  * The pattern that excluded a file: the stats suffix when the selection wrote one; else, for a config
  * `exclude_patterns` exclusion, the matching pattern with a non-wildcard one first (sdd.md § 5.2's precedence).
@@ -46,7 +45,7 @@ function exclusionPattern(stats, filename, excludePatterns) {
     if (!/\(excluded by pattern\)/.test(stats))
         return undefined;
     const matching = (excludePatterns ?? []).filter((p) => matchesExcludePattern(filename, [p]));
-    return matching.find((p) => !WILDCARD.test(p)) ?? matching[0];
+    return matching.find((p) => !isWildcardPattern(p)) ?? matching[0];
 }
 /** Omission reasons that count against coverage when the file is a reviewable code file. */
 export const REVIEWABLE_OMISSION_REASONS = new Set([

@@ -101,7 +101,8 @@ export function getSecurityCategory(filename: string): string | undefined {
 //   wildcard — `*` and `?` within one segment, `**` as a whole segment (zero or more segments), one level of
 //     `{a,b}` alternation, `[ab]` / `[a-z]` / `[!ab]` classes; all of them match dot-led names (bd-a8l0c). A
 //     wildcard without a `/` floats like gitignore (an implicit leading `**/`, inserted in compileGlob; the pattern
-//     itself is recorded as written): `*.pem` ⇢ `keys/a.pem`; a wildcard with a `/` is root-anchored.
+//     itself is recorded as written): `*.pem` ⇢ `keys/a.pem`; a wildcard with a `/` is root-anchored. A trailing
+//     `/` is a directory line and covers the subtree (`**/fixtures/` ⇢ `**/fixtures/**`).
 //   rejected at load with one WARN, and matching nothing if they reach the matcher anyway — a `!` negation line,
 //     backslash escapes, extglob `+( @( !( ?( *(`, nested or unbalanced braces, unterminated, empty or nested
 //     classes, a class whose range does not compile.
@@ -162,7 +163,10 @@ function translateGlobSegment(seg: string): string {
 function compileGlob(pattern: string): RegExp {
   // sprint-279 review round 1 (MEDIUM 4): a slashless wildcard floats — `*.pem` is `**/*.pem` (gitignore semantics,
   // matching the non-wildcard segment rule); no default pattern is a slashless wildcard.
-  const effective = pattern.includes("/") ? pattern : `**/${pattern}`;
+  let effective = pattern.includes("/") ? pattern : `**/${pattern}`;
+  // Bridgebuilder round 1 (PR #1302): a trailing `/` is a directory line, like gitignore — it covers the subtree
+  // (`**/fixtures/` ⇢ `**/fixtures/**`); before, the trailing empty segment made the pattern match nothing.
+  if (effective.endsWith("/")) effective = `${effective}**`;
   // Collapse consecutive globstar segments (a/**/**/b → a/**/b).
   const segs = effective.split("/").filter((seg, i, all) => !(seg === "**" && all[i - 1] === "**"));
   let src = "";
@@ -408,8 +412,10 @@ export type ReviewignoreSource = "base" | "checkout" | "base_unavailable" | "non
  * cycle-135 C-2 (bd-i4fyw, DEC-1027): with `opts.baseSha` the base version is read (`git show <sha>:.reviewignore`,
  * the same line validation) so a PR cannot change the exclusions its own review applies. A failed base read fails
  * CLOSED (sprint-279 review round 1, HIGH 1): the checkout copy governs and the source is `base_unavailable` (the
- * review degrades as reviewignore_unavailable), with one WARN naming why; `none` only when the base and the checkout
- * both lack the file. Without a base sha the checkout file is read as before.
+ * review degrades as reviewignore_unavailable), with one WARN naming why. A readable base that LACKS the file is a
+ * definitive answer (Bridgebuilder round 1, PR #1302): no patterns apply and the source is `none` — a copy the PR adds
+ * is reported in a WARN, never applied (its patterns take effect after merge). Without a base sha the checkout file is
+ * read as before.
  *
  * @throws Error when the checkout `.reviewignore` exists but cannot be read or parsed, or repoRoot is invalid.
  */
@@ -446,17 +452,22 @@ export function parseReviewignoreFile(
   if (opts.baseSha === undefined) return readCheckoutReviewignore(repoRoot);
   const base = readBaseReviewignore(repoRoot, opts.baseSha);
   if (base.ok) return { patterns: base.patterns, source: "base" };
-  const warn = (): void => {
-    process.stderr.write(
-      `[bridgebuilder] WARN: .reviewignore at base ${JSON.stringify(opts.baseSha)} not read — ${base.why}; the checkout copy governs (source: base_unavailable, the review degrades as reviewignore_unavailable; bd-i4fyw)\n`,
-    );
-  };
-  if (!base.absent) warn(); // before the checkout read, so the reason survives a checkout refusal (which throws)
-  const checkout = readCheckoutReviewignore(repoRoot);
   if (base.absent) {
-    if (checkout.source === "none") return checkout; // neither the base nor the checkout has the file
-    warn();
+    // Bridgebuilder round 1 (PR #1302): a readable base without the file is definitive — no patterns apply. The checkout
+    // is still read (a symlink there is still refused); a copy the PR adds is reported, never applied.
+    const checkout = readCheckoutReviewignore(repoRoot);
+    if (checkout.source !== "none") {
+      process.stderr.write(
+        `[bridgebuilder] WARN: .reviewignore is absent at the base ${JSON.stringify(opts.baseSha)}; the checkout copy (added or kept by this PR) is not applied — its patterns take effect after merge (source: none; bd-i4fyw)\n`,
+      );
+    }
+    return { patterns: [], source: "none" };
   }
+  // before the checkout read, so the reason survives a checkout refusal (which throws)
+  process.stderr.write(
+    `[bridgebuilder] WARN: .reviewignore at base ${JSON.stringify(opts.baseSha)} not read — ${base.why}; the checkout copy governs (source: base_unavailable, the review degrades as reviewignore_unavailable; bd-i4fyw)\n`,
+  );
+  const checkout = readCheckoutReviewignore(repoRoot);
   return { patterns: checkout.patterns, source: "base_unavailable" };
 }
 

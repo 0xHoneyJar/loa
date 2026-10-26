@@ -19,7 +19,7 @@
 import { GitProviderError } from "../ports/git-provider.js";
 import type { FileContentResult, IGitProvider, PullRequestFile, PullRequestRef } from "../ports/git-provider.js";
 import { createHash } from "node:crypto";
-import { deriveCallConfig, matchesExcludePattern, truncateFiles } from "./truncation.js";
+import { deriveCallConfig, isWildcardPattern, matchesExcludePattern, truncateFiles } from "./truncation.js";
 import { FETCH_DEGRADED_REASONS, orderDegradedReasons, type DegradedReason } from "./degraded-reason.js";
 import type { BridgebuilderConfig, CoverageRecord, OmissionReason, ReviewItem, TruncationResult } from "./types.js";
 
@@ -62,7 +62,6 @@ export interface TwoPassDeps {
 
 /** cycle-135 C-2: the ` [pattern: <p>]` suffix A's selection appends to an exclusion's stats (to the final `]`). */
 const PATTERN_SUFFIX = / \[pattern: (.+)\]$/;
-const WILDCARD = /[*?{[]/;
 
 /**
  * The pattern that excluded a file: the stats suffix when the selection wrote one; else, for a config
@@ -73,7 +72,7 @@ function exclusionPattern(stats: string, filename: string, excludePatterns: read
   if (m) return m[1];
   if (!/\(excluded by pattern\)/.test(stats)) return undefined;
   const matching = (excludePatterns ?? []).filter((p) => matchesExcludePattern(filename, [p]));
-  return matching.find((p) => !WILDCARD.test(p)) ?? matching[0];
+  return matching.find((p) => !isWildcardPattern(p)) ?? matching[0];
 }
 
 type FetchOutcome = NonNullable<CoverageRecord["omitted"][number]["fetch"]>;

@@ -103,8 +103,10 @@ export type ReviewignoreSource = "base" | "checkout" | "base_unavailable" | "non
  * cycle-135 C-2 (bd-i4fyw, DEC-1027): with `opts.baseSha` the base version is read (`git show <sha>:.reviewignore`,
  * the same line validation) so a PR cannot change the exclusions its own review applies. A failed base read fails
  * CLOSED (sprint-279 review round 1, HIGH 1): the checkout copy governs and the source is `base_unavailable` (the
- * review degrades as reviewignore_unavailable), with one WARN naming why; `none` only when the base and the checkout
- * both lack the file. Without a base sha the checkout file is read as before.
+ * review degrades as reviewignore_unavailable), with one WARN naming why. A readable base that LACKS the file is a
+ * definitive answer (Bridgebuilder round 1, PR #1302): no patterns apply and the source is `none` — a copy the PR adds
+ * is reported in a WARN, never applied (its patterns take effect after merge). Without a base sha the checkout file is
+ * read as before.
  *
  * @throws Error when the checkout `.reviewignore` exists but cannot be read or parsed, or repoRoot is invalid.
  */
