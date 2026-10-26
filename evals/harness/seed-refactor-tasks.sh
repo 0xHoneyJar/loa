@@ -32,7 +32,8 @@
 #   TASK.md     the subject line and the test command; never the diff
 # The proof — the fixture's own covering tests green at base AND green with
 # the reference patch, run under `env -i PATH HOME=<fresh tmp> LC_ALL=C` plus
-# PYTHONUSERBASE and PYTHONDONTWRITEBYTECODE=1 — and a clean
+# PYTHONUSERBASE and PYTHONDONTWRITEBYTECODE=1 under the grader's deadline
+# (LOA_EVAL_GRADE_TIMEOUT_S, default 120 s; the process group dies at it) — and a clean
 # evals/graders/no-secrets.sh scan come before the task is moved into place.
 #
 # Usage:
@@ -42,7 +43,7 @@
 #
 #   options as seed-bugfix-tasks.sh (--rev likewise; --select default 4; a commit without a
 #   covering test is skipped and does not count; --id-prefix default refactor);
-#   LOA_SEED_BATS likewise
+#   LOA_SEED_BATS and LOA_EVAL_GRADE_TIMEOUT_S likewise
 #
 # Output (stdout, one line each):
 #   candidate <sha12> <date> <subject>

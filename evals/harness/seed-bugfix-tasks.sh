@@ -44,9 +44,12 @@
 # after its proof passed: the test command, with the hidden tests overlaid, is
 # red at base and green with the reference patch, run on the host under
 # `env -i PATH HOME=<fresh tmp> LC_ALL=C` plus PYTHONUSERBASE (the host's user
-# base, so a user-site pytest is found) and PYTHONDONTWRITEBYTECODE=1, and
-# evals/graders/no-secrets.sh passes on the whole task directory (a hit is a
-# refusal). The selecting lead still rewrites TASK.md's observed behaviour and
+# base, so a user-site pytest is found) and PYTHONDONTWRITEBYTECODE=1, each run
+# under the grader's per-command deadline (LOA_EVAL_GRADE_TIMEOUT_S, 1-9999 s,
+# default 120 as in ablation-grade.sh; at the deadline the run's whole process
+# group is killed and the proof fails with exit 124 — a task the grader could not
+# finish is never written), and evals/graders/no-secrets.sh passes on the whole
+# task directory (a hit is a refusal). The selecting lead still rewrites TASK.md's observed behaviour and
 # the criterion by hand before a task is frozen.
 #
 # Usage:
@@ -70,6 +73,7 @@
 #                      whole allowed-roots slice at the parent; see fixture/ above)
 #   --dry-run          list candidates, refusals and skips; write nothing
 #   LOA_SEED_BATS      bats binary used for the proof when bats is not on PATH
+#   LOA_EVAL_GRADE_TIMEOUT_S  the proof's per-run deadline (default 120 s; usage error outside 1-9999)
 #
 # Output (stdout, one line each):
 #   candidate <sha12> <date> <subject>

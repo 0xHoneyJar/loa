@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import site
 import subprocess
 import sys
@@ -27,7 +28,7 @@ TYPE = {"bugfix": "bug-fix", "refactor": "refactor"}
 ID_PREFIX = {"bugfix": "bugfix", "refactor": "refactor"}
 INFRA_ROOT_FILES = ("pytest.ini", "pyproject.toml", "setup.cfg", "tox.ini")
 CUTOFF = "2026-08-01"
-RUN_TIMEOUT = 120
+RUN_TIMEOUT = 120   # the proof's per-run deadline in seconds; LOA_EVAL_GRADE_TIMEOUT_S (the grader's) overrides it, see parse()
 MAX_COVERING_TESTS = 20
 
 
@@ -246,11 +247,20 @@ def run_tests(tree, cmd, runner):
     elif runner == "bats" and os.environ.get("LOA_SEED_BATS"):
         argv[0] = os.environ["LOA_SEED_BATS"]
     try:
-        p = subprocess.run(argv, cwd=tree, env=env, capture_output=True, timeout=RUN_TIMEOUT)
-        text = (p.stdout + p.stderr).decode("utf-8", "replace")
-        rc = p.returncode
-    except subprocess.TimeoutExpired:
-        text, rc = "timeout", 124
+        # its own session: at the deadline the whole group dies (bats leaves grandchildren that would
+        # otherwise hold the pipe open and run the rest of the suite before the call returns)
+        p = subprocess.Popen(argv, cwd=tree, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             start_new_session=True)
+        try:
+            out, _ = p.communicate(timeout=RUN_TIMEOUT)
+            text, rc = out.decode("utf-8", "replace"), p.returncode
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            p.communicate()
+            text, rc = "timeout", 124
     except OSError as e:
         text, rc = f"cannot run {argv[0]}: {e}", 127
     finally:
@@ -583,6 +593,12 @@ def parse(argv):
         raise Usage("--select must be at least 1")
     if a.suite_version < 1:
         raise Usage("--suite-version must be at least 1")
+    t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
+    if t:
+        if not re.fullmatch(r"[1-9][0-9]{0,3}", t):
+            raise Usage(f"LOA_EVAL_GRADE_TIMEOUT_S must be 1-9999 seconds, got {t!r}")
+        global RUN_TIMEOUT
+        RUN_TIMEOUT = int(t)
     a.id_prefix = a.id_prefix or ID_PREFIX[a.mode]
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,60}", a.id_prefix):
         raise Usage(f"--id-prefix must match [a-z0-9][a-z0-9-]{{0,60}}, got {a.id_prefix!r}")

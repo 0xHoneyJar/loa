@@ -12,7 +12,8 @@
 # (bugfix-v3-01) and refuses a prefix outside [a-z0-9][a-z0-9-]{0,60}; a failed proof
 # leaves nothing staged, so the next candidate takes the freed id (SB-8); --fixture-scope
 # roots carries the whole allowed-roots slice and names the changed test files (SB-9); a
-# fixture file of git mode 100755 keeps its executable bit (SB-10).
+# fixture file of git mode 100755 keeps its executable bit (SB-10); the proof runs under the
+# grader's deadline and kills the whole process group at it (SB-11).
 # =============================================================================
 
 setup() {
@@ -320,4 +321,33 @@ B
   [ -x "$S/tasks/bugfix-01/fixture/tools/greet/greet.sh" ]
   [ ! -x "$S/tasks/bugfix-01/fixture/tools/greet/tests/greet.bats" ]
   [ "$(yq -o=json -I=0 .test_command "$S/tasks/bugfix-01/task.yaml")" = '["bats","tools/greet/tests"]' ]
+}
+
+@test "SB-11 the proof runs under the grader's deadline: a slow suite fails with exit 124 and leaves no process behind" {
+  export LOA_SEED_BATS="${LOA_SEED_BATS:-$BATS_ROOT/bin/bats}"
+  [ -x "$LOA_SEED_BATS" ] || skip "no bats binary for the proof"
+  mkdir -p "$G/tools/slow/tests"
+  printf '#!/usr/bin/env bash\necho "slow $1"\n' > "$G/tools/slow/slow.sh"; chmod +x "$G/tools/slow/slow.sh"
+  cat > "$G/tools/slow/tests/slow.bats" <<'B'
+setup() { T="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/slow.sh"; }
+@test "slow" { sleep 37; run "$T" x; [ "$output" = "slow x" ]; }
+B
+  gc add -A; gc commit -q -m "chore: a slow tool"
+  printf '#!/usr/bin/env bash\necho "slow ${1:-y}"\n' > "$G/tools/slow/slow.sh"
+  printf '@test "default" { sleep 37; run "$T"; [ "$output" = "slow y" ]; }\n' >> "$G/tools/slow/tests/slow.bats"
+  gc add -A; gc commit -q -m "fix(slow): a default name"
+  FIX="$(git -C "$G" rev-parse HEAD)"
+  s=$SECONDS
+  LOA_EVAL_GRADE_TIMEOUT_S=3 run "$SEED" --since 2000-01-01 --out "$S" --repo "$G"
+  [ "$status" -eq 1 ]
+  grep -qx "proof-failed ${FIX:0:12}: not red at base (exit 124, 0 failed, 0 passed)" <<<"$output"
+  [ $((SECONDS - s)) -lt 30 ]
+  [ ! -e "$S/tasks" ]
+  # -x: the whole command line is exactly `sleep 37` (a shell whose argv quotes this file is not a survivor);
+  # SIGKILL delivery is asynchronous, so allow a few seconds
+  for _ in 1 2 3 4 5; do pgrep -x -f 'sleep 37' >/dev/null || break; sleep 1; done
+  ! pgrep -x -f 'sleep 37' >/dev/null || false
+  LOA_EVAL_GRADE_TIMEOUT_S=abc run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run
+  [ "$status" -eq 2 ]
+  grep -q 'LOA_EVAL_GRADE_TIMEOUT_S must be 1-9999' <<<"$output"
 }
