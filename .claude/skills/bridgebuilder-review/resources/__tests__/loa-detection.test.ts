@@ -2,7 +2,6 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import * as path from "node:path";
 import { tmpdir } from "node:os";
 import {
   detectLoa,
@@ -15,6 +14,7 @@ import {
   matchesExcludePattern,
   SECURITY_PATTERNS,
   isLoaSystemZone,
+  hasNativeGlob,
 } from "../core/truncation.js";
 import type { PullRequestFile } from "../ports/git-provider.js";
 
@@ -413,7 +413,6 @@ describe("matchesExcludePattern — dot-led segments (bd-a8l0c)", () => {
 
   // Holds on the native-glob branch only: the Node < 22 fallback's single-`*`
   // branch (simplifiedGlobMatch prefix/suffix check) crosses `/`.
-  const hasNativeGlob = typeof (path as Record<string, unknown>).matchesGlob === "function";
   it("single * stays within one path segment (Node 22+ native-glob branch)", { skip: !hasNativeGlob }, () => {
     assert.ok(!matchesExcludePattern("evals/tests/fixtures/a/b.md", ["evals/tests/fixtures/*.md"]));
   });
@@ -445,6 +444,11 @@ describe("matchesExcludePattern — dot-led segments (bd-a8l0c)", () => {
     assert.ok(!matchesExcludePattern("a/b.md", ["**.md"]));
     assert.ok(matchesExcludePattern("b.md", ["**.md"]));
     assert.ok(!matchesExcludePattern("src/a/b.ts", ["src/**.ts"]));
+  });
+
+  it("brace and class patterns are not dot-agnostic (known limitation)", () => {
+    assert.ok(!matchesExcludePattern(".hidden.ts", ["**/*.{ts,js}"]));
+    assert.ok(!matchesExcludePattern(".hidden/apple.md", ["**/[ab]*.md"]));
   });
 
   it("consecutive globstars collapse to one (a/**/**/b.md)", () => {

@@ -3,6 +3,8 @@ import type { BridgebuilderConfig, TruncationResult, LoaDetectionResult, Securit
 export declare const SECURITY_PATTERNS: SecurityPatternEntry[];
 export declare function isHighRisk(filename: string): boolean;
 export declare function getSecurityCategory(filename: string): string | undefined;
+/** Detect if Node 22+ path.matchesGlob is available (BB-F4). */
+export declare const hasNativeGlob: boolean;
 export declare function matchesExcludePattern(filename: string, patterns: string[]): boolean;
 /**
  * The PR label that operators apply to opt into bridgebuilder self-review —

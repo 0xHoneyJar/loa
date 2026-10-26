@@ -62,7 +62,7 @@ export function getSecurityCategory(filename) {
 }
 // --- Pattern Matching (SDD Section 3.8) ---
 /** Detect if Node 22+ path.matchesGlob is available (BB-F4). */
-const hasNativeGlob = typeof path.matchesGlob === "function";
+export const hasNativeGlob = typeof path.matchesGlob === "function";
 /**
  * Simple glob matcher fallback for Node <22.
  * Supports: `*.ext`, `prefix*`, `prefix*suffix`, exact match, substring match,
@@ -116,6 +116,8 @@ function simplifiedGlobMatch(filename, pattern) {
  * A `**` segment is a globstar and matches zero or more whole path segments;
  * `**` inside a segment is a plain `*`. `*` and `?` stay within one segment.
  * All of them match names that start with a dot. Compiled once per pattern.
+ * Brace (`{a,b}`) and class (`[ab]`) forms are not translated (they are escaped
+ * as literals), so such patterns keep the native dot-file rule.
  */
 const dotSegmentGlobCache = new Map();
 function dotSegmentGlobMatch(filename, pattern) {
