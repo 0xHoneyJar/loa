@@ -1,0 +1,112 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/classify-pr-type.sh:classify_pr_type",
+      "anchor_type": "line",
+      "anchor_line": 77,
+      "anchor_line_end": 77,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/classify-pr-type.sh:classify_pr_type",
+      "cross_file_justification": "The classifier is shipped to downstream repositories via the Loa submodule / mount scripts, while post-merge.yml is scaffolded once and preserved on re-mount (lib/scaffold-post-merge-workflow.sh idempotency, per the Q-3 inventory). A downstream that bumps the scripts but keeps its old `pr_type != 'cycle'` guard will route housekeeping merges into simple-release, which invokes post-merge-orchestrator.sh with `--type housekeeping`; that is refused with exit 1 (`Invalid --type`, pinned by PMOT-T1).",
+      "description": "Before this diff a housekeeping merge in a downstream repo classified `other` and simple-release prepared an inert candidate (green run). After this diff the same merge, under the still-common legacy negative-list guard, calls the orchestrator with `--type housekeeping`, which exits 1 and fires the Discord notify. Every archive / ledger / decisions-confirm merge in such a repo becomes a red Post-Merge Pipeline run until the operator hand-refreshes post-merge.yml. The implementer and lead both acknowledge this and defer to a CHANGELOG note; there is no in-code signal to downstream operators.",
+      "failure_mode": "Downstream repos with a preserved pre-bd-nr5i6 post-merge.yml get a failing workflow run plus a notify ping on every housekeeping merge after updating the Loa scripts. Nothing is corrupted, but the failure is recurring and the only remediation is a manual workflow edit the operator has to discover from the CHANGELOG.",
+      "suggested_fix": "Keep the orchestrator refusal, but add an upgrade signal that reaches downstream: (a) make the scaffold's re-mount path detect the legacy `pr_type != 'cycle'` guard text and print a WARN with the new allowlist line, and/or (b) have the orchestrator's `Invalid --type: housekeeping` branch print one extra stderr line pointing at the post-merge.yml allowlist change (bd-nr5i6) so the red run is self-explanatory. Also make the CHANGELOG note an explicit upgrade step rather than a Changed bullet.",
+      "anchor_status": "valid",
+      "failure_scenario": "Downstream repos with a preserved pre-bd-nr5i6 post-merge.yml get a failing workflow run plus a notify ping on every housekeeping merge after updating the Loa scripts. Nothing is corrupted, but the failure is recurring and the only remediation is a manual workflow edit the operator has to discover from the CHANGELOG.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/post-merge-workflow-guards.bats:PMWG-T8",
+      "anchor_type": "line",
+      "anchor_line": 139,
+      "anchor_line_end": 143,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "PMWG-T8 runs `actionlint \"$WORKFLOW\"` with default options. actionlint's default also runs shellcheck over every `run:` block and pyflakes over python steps in the workflow, so the test asserts far more than the new guard expression. Both the implementer and the lead report that actionlint was not installed on any host that ran the suite, so this test has never executed; it has only skipped. The FR-4 acceptance criterion 'passes actionlint when it is installed' is therefore unverified at merge time. If CI has actionlint, any pre-existing SC2086-style finding in the ~280-line workflow's run scripts turns this new test red on a change that did not touch those scripts; if CI lacks it, the criterion is permanently vacuous.",
+      "failure_mode": "Either a surprise red in CI on an environment that happens to have actionlint (unrelated shellcheck findings in existing `run:` blocks), or a permanently skipped test that satisfies the PRD AC only on paper.",
+      "suggested_fix": "Run actionlint once before landing (e.g. `go run github.com/rhysd/actionlint/cmd/actionlint@latest .github/workflows/post-merge.yml` or the official Docker image) and record the result in the report. Narrow the test to what it is meant to pin: `actionlint -shellcheck= -pyflakes= \"$WORKFLOW\"` so it validates workflow and expression syntax without widening into shellcheck on unrelated steps. Optionally install actionlint in the CI job that runs the pipeline bats files so the skip never masks it.",
+      "anchor_status": "valid",
+      "failure_scenario": "Either a surprise red in CI on an environment that happens to have actionlint (unrelated shellcheck findings in existing `run:` blocks), or a permanently skipped test that satisfies the PRD AC only on paper.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-279",
+    "timestamp": "2026-10-26T06:10:25Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 19228,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "0a9612223e9e460e7b94865bc1c00cc57b903f283d358d45df6dc3c1d819122a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

@@ -15,15 +15,20 @@
 #   classify-merge-pr.sh --merge-msg "<commit subject>" [--pr-number <n>]
 #
 # Output (stdout):
-#   pr_type=<cycle|bugfix|other>
+#   pr_type=<cycle|bugfix|housekeeping|other>
 #   pr_number=<n|empty>
+#
+# `housekeeping` (bd-nr5i6, cycle-135 C-4) is classify_pr_type's value for an
+# archive, ledger or decisions merge; the wrapper passes it through when the
+# merge has a PR number, and post-merge.yml runs neither prepare job for it.
 #
 # PR number (KF-063, cycle-134 C-8): taken only from GitHub's own subject
 # forms — the squash trailer `(#NNN)` at the END of the subject, else the
 # merge-commit prefix `Merge pull request #NNN` — and validated as a positive
 # decimal (no leading zero, > 0); anything else (an issue reference such as
 # `closes #12`, `(#0)`, `(#12a)`) yields no number. With no number and no
-# explicit --pr-number the commit is a push, not a merge: pr_type=other and
+# explicit --pr-number the commit is a push, not a merge: pr_type=other (never
+# housekeeping, even for a housekeeping subject such as the ledger push) and
 # one stderr note `[classify-merge-pr] no associated PR: a push, not a merge`
 # (the post-merge jobs both require a PR number, so neither runs). An
 # explicit --pr-number is honoured as given.
@@ -51,7 +56,7 @@ Usage: classify-merge-pr.sh --merge-sha <sha> [--pr-number <n>]
 
 Classifies a merged PR by inspecting the merge commit subject (PRIMARY) and
 optionally enriching with gh pr view labels (SECONDARY). Output:
-  pr_type=<cycle|bugfix|other>
+  pr_type=<cycle|bugfix|housekeeping|other>
   pr_number=<n|empty>
 EOF
 }

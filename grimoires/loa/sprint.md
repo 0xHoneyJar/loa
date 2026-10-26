@@ -1,153 +1,124 @@
-# Sprint Plan: Post-ship fixes (cycle-134)
+# Sprint Plan: Review-coverage follow-ups (cycle-135)
 
 **Version:** 1.1
-**Date:** 2026-10-25
+**Date:** 2026-10-26
 **Author:** Sprint Planner Agent (Claude Fable 5.1, unattended)
-**PRD Reference:** `grimoires/loa/prd.md` (1.2, FR-1 … FR-10, G-1 … G-5)
-**SDD Reference:** `grimoires/loa/sdd.md` (1.2, C-1 … C-10, D-1.1 … D-4.3)
-**Ledger:** cycle `cycle-134-post-ship-fixes`, sprint global 276 (local sprint-1)
-**Execution:** `/run sprint-plan` with one PR per sprint (DEC-0960: `consolidate_pr: false` for this run / `--no-consolidate`); Opus 5.5 implementers A–D in linked worktrees returning `git diff --cached --binary` patches with a "Judgment calls" section; the lead lands A → B → C → D, reviews and audits (dissent ≤ 3), ships.
-**Task kinds:** every task carries `kind: mechanical | judgment` (DEC-0144); the lead's tasks are `judgment`; no `operator` task exists — the operator's instruction of 2026-10-25 authorises the cycle end to end (brief § The operator's instruction).
-**Spend:** USD 20 cap (DEC-0969): Bridgebuilder round(s) on the sprint PR; Flatline and dissent on subscription routes at USD 0; the Q-1 one-turn session (cents) is the lead's; implementers make no live model calls.
-**Flatline:** `grimoires/loa/a2a/flatline/cycle-134-sprint-review.json` (codex-headless + claude-headless, cross-scoring degraded — KF-041 shape; 9 skeptic blockers and 38 medium items, every one read and dispositioned in the Appendix; 1.1 integrates the accepted ones)
-**System Zone authorization:** DEC-0824 carries over — `.claude/` and `.github/` writes (Task 1.6, 1.7) under the bounded zone marker (scope framework, reason, expiry ≤ 2 h, re-issued per write session) with `checksums.json` and REPO-MAP regenerated in the landing commit.
+**PRD Reference:** `grimoires/loa/prd.md` (1.2, FR-1 … FR-6, G-1 … G-5)
+**SDD Reference:** `grimoires/loa/sdd.md` (1.1, C-1 … C-5, D-1.1 … D-2.2, D-1.1a … D-1.5a)
+**Flatline:** `grimoires/loa/a2a/flatline/cycle-135-sprint-review.json` (2/2 voices, cross-scoring degraded — KF-041 shape; 4 skeptic blockers and 38 medium items, every one read; dispositions in the Appendix)
+**Ledger:** cycle `cycle-135-review-coverage-followups`, sprint global 279 (local sprint-1)
+**Execution:** `/run sprint-plan --no-consolidate` (one PR for the one sprint, DEC-0960); Opus 5.5 implementers A, B, C in linked worktrees returning `git diff --cached` patches (test patch first, then fix patch); the lead lands, reviews, audits and ships; implementers make no live model calls and never commit, push or stash.
+**Task kinds:** every task carries `kind: mechanical | judgment` (DEC-0144); the lead's tasks are `judgment`; no `operator` task exists — the operator's instruction of 2026-10-26 ("yes approve and then also work on the other things also") authorises the cycle; the operator confirms the proposed rows at the close.
+**Spend:** USD 40 cap in the meter's unit (DEC-1018, DEC-0999 shape): Flatline reviews, dissent runs and the Bridgebuilder round on subscription routes; real charges ≈ 0; stop the Bridgebuilder when the remaining budget is under USD 8.
+**System Zone authorization:** DEC-0824 carries over — `.claude/skills/bridgebuilder-review/**`, `.claude/scripts/classify-pr-type.sh`, `.claude/scripts/classify-merge-pr.sh`, `.github/workflows/post-merge.yml` under the bounded zone marker (scope framework, reason, expiry ≤ 2 h, re-issued per write session), `checksums.json`, REPO-MAP and the Bridgebuilder `dist/` regenerated in every landing commit.
 
 ---
 
 ## Executive Summary
 
-One sprint closes the nine defects the cycle-133 Bridgebuilder round and the rc.8 ship surfaced: the home-scope validator's two clause (g) gaps and its driver-trusted integrity record (FR-1, FR-2, FR-4), the over-broad mount rewrite rules (FR-5), the proxy pid limit, the supervisor's reclaim identity and the seeder's unfetched blobs (FR-6 … FR-8), the publish orchestrator's exit-code contract and float policy (FR-9), and the red post-merge run on the publisher's own ledger push (FR-3, KF-063). Four Opus implementers work in parallel on disjoint files; the lead lands, reviews, audits and ships one PR shaped for a non-degraded Bridgebuilder verdict; no release is cut (DEC-0967).
+One sprint closes the five follow-ups of the 2026-10-26 micro-sprints: segment-anchored exclusion matching with one matcher on every Node version (FR-1), protected paths that wildcard exclusions cannot remove (FR-2), bounded content fetch for added files without a patch (FR-3), a `housekeeping` classifier value that both prepare jobs skip (FR-4), CPU-time test guardrails (FR-5), and the ship (FR-6). Three implementers work in parallel on disjoint files from a lead-authored contract commit; the lead lands in the order A → B → C, runs review and audit with at most three dissent runs, and ships one PR with a Bridgebuilder round, a record stage and the archive. No release.
 
-**Total Sprints:** 1
-**Sprint Duration:** 1 day
-**Estimated Completion:** 2026-10-26
-
-> Sources: prd.md § Executive Summary, § Scope & Prioritization; sdd.md § 8
+> Sources: prd.md § Executive Summary; sdd.md § 8
 
 ---
 
 ## Sprint Overview
 
-| Sprint | Global | Theme | Key Deliverables | Dependencies |
-|--------|--------|-------|------------------|--------------|
-| 1 | 276 | The nine fixes and the ship | C-1 … C-9 with tests; CHANGELOG `[Unreleased]`; the host-local regression against D-4.3; one PR → Bridgebuilder → merge → record → archive | None |
+| Sprint | Global | Goal | Implementers |
+|---|---|---|---|
+| 1 | 279 | The five follow-ups fixed, tested first, shipped | A (matcher, protected paths), B (content fetch, coverage rendering, guardrails), C (classifier, workflow), lead |
 
-> Sources: sdd.md § 1.4, § 8
+> Sources: sdd.md § 8 (Development Phases)
 
 ---
 
-## Sprint 1: The nine fixes and the ship (global 276)
-
-**Duration:** 1 day
-**Dates:** 2026-10-25 – 2026-10-26
+## Sprint 1: The five follow-ups and the ship (global 279)
 
 ### Sprint Goal
 
-Fix every in-scope defect with a test that fails before and passes after, keep the recorded smoke evidence's verdicts as pre-registered, and ship the sprint as one PR with a non-degraded Bridgebuilder verdict — no release.
+Every in-scope bead closed with a red-first test and a commit; the Bridgebuilder's exclusion matching safe and predictable, protected paths kept and named, patch-less added files reviewed, housekeeping merges preparing nothing, the test suite deterministic under load; one PR merged with a non-degraded Bridgebuilder verdict, recorded and archived.
 
 ### Deliverables
 
-- [x] C-1, C-2, C-3: `took-effect.sh` hook rule (group identity + equation), transcript completeness (JSONL policy), integrity cross-check against the pin; `evals/tests/took-effect-{hooks,transcripts,integrity}.bats` → **[G-2]**
-- [x] C-4: R3/R5 corpus table (sdd.md § 11.F) and narrowed rules, `sandbox-mount-rules.bats`; `cmd_hooks` emits `home_hook_groups`; the bead correction on the verify claim → **[G-1]**
-- [x] C-5, C-6, C-7: proxy pid limit with the pair-pinning test; `.jobs/<name>.ident` and identity-checked reclaim; seeder fix-diff blobs in the bounded fetch with a `file://` fixture → **[G-1]**
-- [x] C-8: classifier trailing-`(#NNN)` extraction, empty number → other, cycle job guarded on `pr_number`; classifier and workflow-guard bats → **[G-3]**
-- [x] C-9: both tag identity checks pre-write (exit 2), race → 1, integer domain at generate and publish, unreachable remote → 2; `post-merge-publication.bats` → **[G-1]**
-- [x] CHANGELOG `[Unreleased]` entries; the host-local regression report against D-4.3; nine beads closed with commit and test → **[G-1, G-2]**
-- [ ] One PR, Bridgebuilder verdict with no `degraded_reason`, CI green, admin merge, record branch stage, archive; no tag → **[G-4, G-5]**
+- [ ] Contract commit (lead): `types.ts` fields `TruncationResult.protectedKept`, `CoverageRecord.protected_kept`, `reviewed[].source`; dist and manifests regenerated (D-2.1)
+- [ ] A: `truncation.ts` matcher (C-1), protected paths and config (C-2 producer side), tests, SKILL.md text
+- [ ] B: `paged-fetch.ts` content fetch (C-3), coverage copy and rendering of `protectedKept`, `github-cli.ts` + `git-provider.ts` method and allowlist shape, CPU-time guardrails (C-5), tests
+- [ ] C: `classify-pr-type.sh` `housekeeping`, `classify-merge-pr.sh` comment, `post-merge.yml` guard, bats in both directions, orchestrator refusal pinned (C-4)
+- [ ] Lead: landing commits (red then fix per implementer), CHANGELOG `[Unreleased]` entries, DEC rows from the implementers' judgment calls, review and audit, PR, Bridgebuilder round, merge, record, archive
 
 ### Acceptance Criteria
 
-- [ ] PRD FR-1 AC 1–4 (fixture passes with 2 Bash invocations and 1 configured hook; k = 0 passes; unknown group fails; non-multiple fails; k above triggers fails; grammar confirmed on a real event; regression verdicts per D-4.3)
-- [ ] PRD FR-2 AC 1–3 (JSONL policy fixtures both ways; the s274 REVIEW capture yields the pre-registered (g) entry)
-- [ ] PRD FR-3 AC 1–5 (ledger-commit subject → other; `(#345)` trailer anchoring; guard text asserted; lookup failure distinguished; change confined to post-merge.yml and the classifier)
-- [ ] PRD FR-4 AC 1–2 → `took-effect-integrity.bats`; FR-5 AC 1–3 → `sandbox-mount-rules.bats` + the § 11.F table + `sandbox-mount-home-scope.bats`; FR-6 AC 1–2 → `egress-proxy.bats`; FR-7 AC 1–2 → `batch-supervisor.bats`; FR-8 AC 1–2 → `seed-corpus-from-external.bats` (`file://` fixture); FR-9 AC 1–3 → `post-merge-publication.bats`; completion policy: all nine land in this sprint — a Should Have that slips is re-filed on its bead with a current status, named in `reviewer.md`, and G-1 is reported partial (the Must Haves FR-1, FR-2, FR-3 and the ship cannot slip)
-- [ ] PRD FR-10 AC 1–3 (non-degraded Bridgebuilder summary; record branch and archive; no `v2.0.0-rc.9`)
-- [ ] Review APPROVED and audit APPROVED on the PR head before the merge; `npx --no-install bats` suites and the harness bats green locally; CI green on the head → **[G-5]**
+- [ ] FR-1 … FR-5 acceptance criteria met as written in prd.md 1.2, each by a test that was red first (red commit SHA in `reviewer.md`; FR-5's red is the report-only negative control); FR-6 by the third bullet below
+- [ ] `npm test` (skill) and `tsc --noEmit` green; `post-merge-classifier.bats`, `classify-merge-pr.bats`, `post-merge-workflow-guards.bats`, `post-merge-orchestrator-type.bats`, `post-merge-publication.bats` green; `bash -n`; `yq` parse and `actionlint` (when installed) of the workflow; dist fresh; checksums, REPO-MAP and manifest-paths pass; the local CI mirror green except the named host-local reds (Task 1.7) — any other red is fixed, not absorbed
+- [ ] Review and audit APPROVED with every dissent payload dispositioned; the Bridgebuilder's findings triaged on the PR; every check run green on the merged head
+- [ ] G-1 … G-5 evidenced in `a2a/sprint-279/e2e.md`
 
 ### Technical Tasks
 
 <!-- → **[G-n]** names the PRD goal; ⇐ names the blocking task(s) (edge-or-none); every line ends with · kind: … -->
 
-- [x] Task 1.1: Validator hook rule (A) — `evals/harness/took-effect.sh`: parse `hook_name` as `<event>[:<matcher>]`; build the pinned group set from the HOME copy's user settings (groups with the same key merged); read `home_hook_groups` (hex ids per sdd.md § 3.2) with the `home_hook_counts` fallback as event-level aggregates; the equation c = k·n, 0 ≤ k ≤ triggers with the § 11.H derivation table (`triggers: n/a` otherwise); evidence line `hooks: … c= n= k= triggers=`; header comment updated; `evals/tests/took-effect-hooks.bats` per sdd.md § 7.3 (k = 0 passes; unknown group fails; non-multiple fails; k above triggers fails; merged groups; hex round-trip of a matcher with colons and pipes; legacy aggregate) (bd-bex39); the `home_hook_groups` grammar is pinned by the shared fixture `evals/tests/fixtures/home_hook_groups.sample` (B emits it, A parses it); the `hooks:` evidence line records the Claude Code version from the transcript's `init` event; A implements against the documented event shape and finalises the parser on Task 1.4's real fixtures → **[G-2]** ⇐ none · kind: mechanical
-- [x] Task 1.2: Validator transcript completeness (A, after 1.1 on the same file) — `labels_run` from `meta/pipeline.json` non-skipped phases; per label the JSONL policy (regular non-symlink non-empty file; every non-empty line a JSON object; exactly one `result` as the final non-empty line; ≥ 1 `init` before it; shared `session_id`; oversize lines complete and counted); failures `transcript <label>: <reason> (line N)`; unlabelled transcripts reported; `evals/tests/took-effect-transcripts.bats` (missing / no init / no result / malformed interior line / result not last / init after result / foreign session_id → fail; complete → pass) (bd-k3dia); `meta/pipeline.json` must list every phase the suite declares for the arm, and a skipped phase must carry a `skipped_reason`, else (g) fails `phases: incomplete record`; 'oversize' means longer than `EVENT_CAP` bytes (the constant at the top of took-effect.sh) and the count is the `skipped_for_size=` field of the `transcripts:` evidence → **[G-2]** ⇐ Task 1.1 · kind: mechanical
-- [x] Task 1.3: Validator integrity cross-check (A, after 1.2) — under home-scope derive the pin's manifest digest from `.claude/checksums.json` at the pinned commit (SHA-256 of the blob bytes; entry count = its `files` map size), require `record.manifest_sha256` = `arm_evidence.manifest_sha256` = that digest, `record.files` = the count, `tampered` = `missing` = 0; walk a retained `<run>/home/.claude` when present (regular files only, symlink = fail, extra files reported) and bind it by the digest; evidence names `independent walk` or `record cross-checked against the pin (HOME deleted at exit)`; `evals/tests/took-effect-integrity.bats` (digest mismatch, count mismatch, tampered retained copy → fail; clean → pass with the mode) (bd-htzy2); the pin is the commit named by the operator's `--suite-file` (not the run's own record), compared against `meta/pipeline.json`'s recorded pin (a mismatch fails), with the objects read from `--source-repo`; the retained-HOME walk policy (regular files only; symlinked directories, special files, unreadable paths and traversal errors refuse by name; extra files reported) each has a fixture → **[G-2]** ⇐ Task 1.2 · kind: mechanical
-- [x] Task 1.4: Q-1 hook-name grammar and the regression baseline (lead) — one-turn `claude -p --setting-sources user --output-format stream-json --verbose` on the lead host under a settings file with a matcher-less PreToolUse group and a regex group (`Write|Edit`), the real `hook_started` events handed to A as fixtures (or the recorded fact that tool hooks emit no events in `-p` mode, on bd-bex39); `took-effect.sh --run-dir … --suite-file …` over the two retained batches before the change (the D-4.3 baseline lines into `a2a/sprint-276/regression.md`); first source at zero cost: grep the retained transcripts under `evals/results/ablation-2.0/smoke-c133-s274{,-r2}/` for `hook_started` shapes (today: only `SessionStart:startup`); if the one-turn session emits no tool-hook events either, the grammar stays unconfirmed for tool hooks and the shipping decision is recorded as a DEC row (A ships the two-form parser with k = 0; fixtures synthesised from the SDK message types, marked as such) → **[G-2]** ⇐ none · kind: judgment
-- [x] Task 1.5: Mount rules corpus table, narrowing and the hook-group emitter (B) — `evals/harness/lib/sandbox-mount.sh`: run the transform over the pinned framework, list every R3/R5 hit by context class into sdd.md § 11.F with keep/drop per the narrowing criterion, narrow the regexes to the kept contexts, diff the rewritten corpus before and after with every difference explained in the report; `cmd_hooks` prints the `home_hook_groups` line (sdd.md § 3.2) after the existing one; `evals/tests/sandbox-mount-rules.bats` (one case per table row; a planted un-rewritten literal fails `verify`; `hooks` output round-trips a matcher with colons and pipes); `evals/tests/sandbox-mount-home-scope.bats` and the negative control stay green; comment on bd-kgfh5 correcting the verify claim (verify round-trips R5 via `R5_REV`); the § 11.F keep/drop table goes to the lead before the regex change lands (Task 1.11 reviews each drop against the narrowing criterion) → **[G-1]** ⇐ none · kind: judgment
-- [x] Task 1.6: Classify guard (C, System Zone) — `.claude/scripts/classify-merge-pr.sh`: PR number from the subject's trailing `(#NNN)` validated as a positive decimal, else empty; `pr_type=other` when empty with the stderr note `no associated PR: a push, not a merge`; `--pr-number` honoured; `.github/workflows/post-merge.yml` full-pipeline `if:` gains `&& needs.classify.outputs.pr_number != ''`; `tests/unit/classify-merge-pr.bats` (ledger subject → other; cycle subject without trailer → other; `fix: … closes #12 (#345)` → 345; `(#0)`/`(#12a)` → empty; explicit `--pr-number` → cycle; gh failure with a trailer → subject classification kept); `tests/unit/post-merge-workflow-guards.bats` (both job guards name `pr_number`); the other workflows that run on a push to `main` listed in the report as unchanged; KF-063 status line and attempt row (bd-hyx0n); the two guarded jobs and their exact expressions: `simple-release` keeps `if: needs.classify.outputs.pr_type != 'cycle' && needs.classify.outputs.pr_number != ''`, `full-pipeline` becomes `if: needs.classify.outputs.pr_type == 'cycle' && needs.classify.outputs.pr_number != ''`; the bats comments carry a table of representative classifier outputs (ordinary push, cycle merge, non-cycle merge, classification failure) and the expected routing → **[G-3]** ⇐ none · kind: mechanical
-- [x] Task 1.7: Publish contract (C, System Zone) — `.claude/scripts/post-merge-orchestrator.sh`: `validate_candidate_v2` runs the local and remote tag identity checks with `tag_identity_matches` (lightweight tag = refusal; `ls-remote` failure = `remote unreachable, identity unverified`), all exit 2 before `PUBLISHING`; `phase_tag` re-checks before the push, returns 1 on the race, skips the push on an identical identity; `--generate` walks `prepared_state` and refuses a non-integer number (no fraction, no exponent, |n| ≤ 2^53−1, −0) with exit 2 and the JSON path before canonicalisation; `validate_candidate_v2` enforces the same domain at publish (exit 2); header exit-code table updated; `tests/unit/post-merge-publication.bats` per sdd.md § 7.3 incl. the real rc.8 candidate as a passing fixture (bd-4pv1j); the numeric check scans number tokens in the serialised JSON text before any parser normalises them (`1.0`, `1e3`, `-0` are refusals; `9007199254740991` passes, `9007199254740992` and its negative refuse); 'pre-write' means every exit-2 fixture asserts the state file, the progress file, local refs, remote refs and the ledger patch unchanged → **[G-1]** ⇐ none · kind: mechanical
-- [x] Task 1.8: Proxy pid limit (D) — `evals/harness/lib/egress-proxy.sh:205` `--pids-limit 256`; `evals/harness/Dockerfile.proxy:45` run line follows; `evals/tests/egress-proxy.bats` asserts pid limit ≥ `MaxClients` + the base task allowance read from both files, the allowance observed once in a running proxy (`pids.current` at idle) and pinned as a commented constant (bd-1br0v); the lead observes `pids.current` on the Docker host and the constant's comment records the observed value and date; the derivation (MaxClients + main/log threads + margin) is written beside it — a concurrent-load test is out of scope and noted → **[G-1]** ⇐ none · kind: mechanical
-- [x] Task 1.9: Supervisor job identity (D) — `evals/harness/lib/batch-supervisor.sh`: write `.jobs/<name>.ident` (`<start_ticks>:<sha256 of cmdline>`) before `.pgid`; `reclaim` compares both before `kill_group`, re-reads before TERM and KILL, treats records without `.ident` as stale with a one-time warning listing them (pgid, name) and removes stale records; header documents the residual numeric-pgid window; `evals/tests/batch-supervisor.bats` cases per sdd.md § 7.3 (bd-ruo5b); the identity belongs to the group leader (pgid = leader pid): when the leader has exited but members remain, the record is 'leaderless' — not signalled, logged with the live member pids for the operator, removed; a landing precondition (Task 1.11): no live `.jobs` records on the host → **[G-1]** ⇐ none · kind: mechanical
-- [x] Task 1.10: Seeder fix-diff blobs (D) — `evals/harness/seed-corpus-from-external.sh`: `changed(FIX_PARENT, FIX_LAST)` from trees (`--no-renames`, NUL-safe) adds both sides' blob ids to the want set, deduplicated and charged once against `--max-files`/`--max-bytes`; out-of-bounds refuses `fix diff needs N blob(s) outside the fetch bounds: <paths>`; the diff is computed after the fetch under `GIT_NO_LAZY_FETCH=1`; any enumeration or fetch failure refuses; `evals/tests/seed-corpus-from-external.bats` gains a `file://` fixture repository exercising the fetch, the refusal and the no-partial-diff guarantee (bd-kdk3l); phases spelled out: (1) the blobless fetch already brings the commits and trees of FIX_PARENT and FIX_LAST (no blob), (2) `changed()` over those trees, (3) both sides' blob ids join the want set and are charged, (4) the one bounded batch fetch, (5) the diffs — any failure in (1)–(4) refuses before (5) → **[G-1]** ⇐ none · kind: mechanical
-- [x] Task 1.11: Sprint close (lead) — land A (1.1 → 1.3), then B, C, D; after A and B the home-scope bats and a `hooks` → `took-effect.sh` round trip; checksums and REPO-MAP regenerated under the zone marker in the landing commit of C; CHANGELOG `[Unreleased]` entries per fix; DEC rows from every "Judgment calls" section; the host-local regression after the change against D-4.3 (any unexplained difference → DEC row and bead before merge); beads bd-bex39 bd-k3dia bd-hyx0n bd-htzy2 bd-kgfh5 bd-1br0v bd-ruo5b bd-kdk3l bd-4pv1j closed with commit and test; `npx --no-install bats tests/unit evals/tests` green; `reviewer.md`; 'fails before, passes after' is verified per patch: the new bats files are applied first and run against the pre-patch tree, the failing case ids recorded in `reviewer.md`, then the patch; the dissent runs (≤ 3, `adversarial-review.sh --type review` on each implementer's code-only diff, envelopes under `a2a/sprint-276/`) are a named step whose CRITICAL/HIGH findings block the review; an unexplained regression difference is resolved before merge — the expected table (D-4.3) is amended by a DEC row with the explanation, or the change is fixed — never merely recorded → **[G-1, G-2, G-5]** ⇐ Task 1.1, Task 1.2, Task 1.3, Task 1.4, Task 1.5, Task 1.6, Task 1.7, Task 1.8, Task 1.9, Task 1.10 · kind: judgment
-- [ ] Task 1.12: Ship (lead) — after review and audit APPROVED: PR from `feature/cycle-134-post-ship-fixes` (code and tests only; evidence stays out), Bridgebuilder round(s) from the merged skill (≤ 2 rounds, plateau rule; a coverage cut → split along A/B/C/D per prd.md FR-10), required checks bound to the final head, admin merge with a merge commit, `record-branch.sh --cycle 134 --head <merge> --prev origin/record/cycle-133-follow-through --stage "stage 1"` + ICE push, `archive-cycle.sh --cycle 134 --retention 50` on a chore branch → PR → merge, run state JACKED_OUT; no tag, the post-merge candidate left unpublished (DEC-0967); **pre-merge gate** (the E2E's G-1, G-2, G-4 and the budget read happen here, before `gh pr merge`): fixtures green, the regression per D-4.3, the Bridgebuilder summary with no `degraded_reason` and a verdict of APPROVE or COMMENT with no blocking finding (a blocking finding is fixed or DEC'd within the ≤ 2 rounds), the cost ledger read before each round with a stop when the remaining budget is below one round's worst case (USD 8, the cycle-133 per-round cost); review, audit, the Bridgebuilder verdict and the required checks all reference the same final head — any commit after APPROVED re-runs review and audit (and dissent if an implementer's diff changed) and, when it touches `.claude/` or `.github/`, runs under a fresh zone marker with `checksums.json` and REPO-MAP regenerated; the secret scan (detect-secrets + the repository scanners) runs before the push and its result is recorded in `reviewer.md`; the PR carries code, tests, CHANGELOG `[Unreleased]`, `sdd.md` § 11.F, `decisions.yaml`, KF-063's status line, `checksums.json` and REPO-MAP — `reviewer.md`, `regression.md`, `e2e.md` and the envelopes ride the record branch; split fallback cost rule: at most two split PRs (A+B, C+D) with one Bridgebuilder round each, anything beyond is an operator decision; recovery: red merge-triggered CI → fix PR before the record stage; failed record push → re-run `record-branch.sh` (CAS); failed archive PR → fix and re-run; JACKED_OUT only after all three → **[G-4, G-5]** ⇐ Task 1.11 · kind: judgment
-- [ ] Task 1.E2E: Sprint 1 goal validation — G-1 (nine beads closed with commit and test), G-2 (fixtures both ways; the D-4.3 regression lines), G-3 (classifier and guard fixtures; the live confirmation deferred to the next publish, on KF-063), G-4 (the Bridgebuilder summary with no `degraded_reason`), G-5 (CI check-runs; the cost ledger rows of the cycle ≤ USD 20) → `a2a/sprint-276/e2e.md`; post-merge verification: merge-triggered CI green on `main`, the record branch pushed, the archive PR merged, and the live observation that `post-merge.yml` classified the sprint merge itself as `cycle` with its `(#NNN)` and prepared (did not publish) a candidate → **[G-1, G-2, G-3, G-4, G-5]** ⇐ Task 1.12 · kind: judgment
+- [x] Task 1.0: Contract commit and Q-1 probe (lead, System Zone) — `resources/core/types.ts`: `TruncationResult.protectedKept?`, `CoverageRecord.protected_kept?`, `CoverageRecord.reviewed[].source?: "contents"`, `CoverageRecord.omitted[].pattern?`, `CoverageRecord.omitted[].fetch?`, `CoverageRecord.reviewignore_source?`, `CoverageRecord.reviewignore_changed_in_pr?`, `BridgebuilderConfig.protectedPaths`, `.fetchMissingPatches`, `.maxContentFetches` (sdd.md § 3); `npm run build`, `check-bb-dist-fresh.sh --check`, checksums and REPO-MAP regenerated under the marker; one read-only `gh api /repos/0xHoneyJar/loa/contents/README.md?ref=<main sha>` probe with the envelope shape (fields, `encoding`, `size`) recorded in `a2a/sprint-279/contract.md`; worktrees `../loa-wt-c135-{a,b,c}` created from this commit (D-2.1) → **[G-1]** ⇐ none · kind: judgment
+- [x] Task 1.1: Exclusion matcher semantics (A) — `truncation.ts`: `isWildcardPattern`, `segmentMatch` (gitignore-like: no `/` → whole segment at any depth, `/` → root-anchored path or subtree; one trailing `/` stripped), `matchesExcludePattern(filename, patterns)` = non-wildcard → `segmentMatch`; wildcard → `dotSegmentGlobMatch` only (`path.matchesGlob` never called, `hasNativeGlob` removed), with one-level `{a,b}` and `[..]` / `[!..]` added to the translation; pattern normalisation at load (trim, strip `./` or `/`, reject `!` lines and constructs outside the grammar — extglob, nested braces, backslash escapes — with one WARN each; rejected patterns match nothing); the `.reviewignore` `/` → `**` conversion at `:395` removed; `simplifiedGlobMatch` deleted after a grep for importers and for callers of `matchesExcludePattern` outside A's allowlist (reported before the patch); doc comment states the grammar; tests in `loa-detection.test.ts`: `util.loa-version.json.ts`, `x/.loa-version.json.bak`, `MYPROCESS.md`, `PROCESS.md.old` not excluded by the defaults; `docs/PROCESS.md`, `BUTTERFREEZONE.md` excluded; `a/b` vs `a/b/c` and `x/a/b`; `/README.md`, `./x`, trailing `/`, whitespace; `**/*.{json,md}` and `**/*.[jt]s` against dot-led paths; `+(a|b).md` and `a\*.md` rejected with a WARN; a guard test that deletes `path.matchesGlob` for its duration and asserts every case unchanged; the skipped single-`*` case un-skipped; CHANGELOG line for the lead (bd-ow72o) (C-1, D-1.1, D-1.1a) → **[G-2]** ⇐ Task 1.0 · kind: mechanical
+- [x] Task 1.2: Protected paths and `.reviewignore` provenance (A) — `truncation.ts`: `export const DEFAULT_PROTECTED_PATHS` (sdd.md C-2 list incl. `.github/CODEOWNERS`, `.reviewignore`), `partitionUserExclusions(files, userPatterns, protectedPatterns)` order-independent (any non-wildcard match excludes; a protected file with only wildcard matches is kept, first wildcard recorded), applied at the three user-pattern call expressions (self-review branch, non-Loa branch, fail-closed path — named by function in the report, not line), not at `applyLoaTierExclusion`, whose omissions gain the matching default `pattern`; protected-kept files first in the selection order; `truncateFiles` takes `protectedPaths` from its config object and returns `protectedKept`; `parseReviewignoreFile(repoRoot, { baseSha? })` reads `git show <baseSha>:.reviewignore` when a base sha is given (same validation; failure → `none` + WARN) and the checkout file otherwise, returning `{ patterns, source }`; `config.ts`: `protected_paths` (validated: non-empty strings, `./` or `/` stripped, no `..`, else a config error naming the entry; set → replaces the default; `[]` disables), `fetch_missing_patches` (default true), `max_content_fetches` (default 20) parsed like their neighbours; `SKILL.md` exclusion-patterns and protected-paths headings: the keys, the default list, the wildcard/non-wildcard rule, the grammar and normalisation of Task 1.1, the base-ref provenance; tests (`truncation.test.ts`): `**/*.yml` keeps `.github/workflows/ci.yml` with `protectedKept = [{file, pattern}]`; exact `.github/workflows/ci.yml` and the `.reviewignore` line `.github/workflows/` exclude it in both pattern orders and the file is absent from `protectedKept`; protected first under a file cap of 1; `[]` disables; a custom list protects only its entries; validation errors name the entry; the Loa tier still strips `.claude/settings.json` without self-review; base-sha read vs checkout read; CHANGELOG line for the lead (bd-i4fyw) (C-2, D-1.2, D-1.2a) → **[G-3]** ⇐ Task 1.1 · kind: judgment
+- [x] Task 1.3: Content fetch for patch-less added files (B) — `ports/git-provider.ts`: `FileContentResult` and the optional `getFileContent?(owner, repo, path, ref, maxBytes)` after an inventory of every in-tree `IGitProvider` implementation and typed test double (reported; absent method → no fetch); `adapters/github-cli.ts`: `gh api /repos/<o>/<r>/contents/<path>?ref=<sha>` (default JSON media type, no headers), output as bytes with `maxBuffer = ceil(maxBytes × 4/3) + 4096` (overflow → `too_large`), strict envelope validation (`type: file`, `encoding: base64` — `none` → `too_large`; integer `size` > `maxBytes` → `too_large`; string `content`), base64 → bytes (malformed → error), binary test on the bytes (NUL in the first 8 KiB or fatal UTF-8 failure), string only afterwards; `assertAllowedArgs` admits exactly that shape (owner/repo `[A-Za-z0-9_.-]+`; path validated before encoding — no empty, `.` or `..` segment, no leading `/`, no `?`, `#` or control character — percent-encoded per segment and the canonical decoded request re-checked; ref `^[0-9a-f]{40}$`; no headers); `paged-fetch.ts` pass 1: after the Loa-tier and user exclusions (with protection) over the metadata, eligible = surviving `status === "added" && patch == null && additions > 0`, listing order, at most `maxContentFetches` within a 120 s deadline, `getFileContent(baseOwner, baseRepo, path, pin.head_sha, remainingBudget)` with the synthesized patch's encoded bytes (header, `+` prefixes, the `\\ No newline at end of file` marker when needed, CRLF kept, `N` = lines) charged against the aggregate `maxDiffBytes` — over budget → `too_large`, never truncated; `source: "contents"`, pre-retained for pass 2 and discarded on a head-pin restart; binary / too_large / error / skipped_cap / deadline → metadata unchanged with `omitted[].fetch` set; `fetchMissingPatches === false` skips the step; tests: provider double end to end (listing without a patch → content → selection → pass 2 → coverage) reviewed with `source: "contents"` and not degraded; binary, too large (size and `encoding: none`), malformed envelope / base64, provider error → `no_patch` with the outcome; an excluded patch-less file never fetched (counting double); cap and deadline → `skipped_cap` / `deadline`; several files competing for the budget incl. overhead; the exact ref passed equals the listing head sha; the restart path discards synthesized patches; `fetch_missing_patches: false` → no provider call; modified-without-patch → `no_patch`; synthesized matrix (missing final newline, CRLF, multibyte UTF-8, content starting with diff markers, a raw text file shaped like an envelope reviewed as text); allowlist accepts the shape and rejects `..` plain and encoded, empty and `.` segments, leading `/`, `?`/`#`/control characters, encoded separators, option-like inputs, a foreign query, a short or non-hex ref, any header; CHANGELOG line for the lead (bd-w5pd9) (C-3, D-1.3, D-1.3a, D-1.3b) → **[G-4]** ⇐ Task 1.0 · kind: judgment
+- [x] Task 1.4: Coverage record and rendering (B) — `paged-fetch.ts`: `coverage.protected_kept = sel.protectedKept ?? []`, `coverage.reviewignore_source` / `reviewignore_changed_in_pr` from the base-ref read and the PR's file list, `omitted[].pattern` and `omitted[].fetch` carried through; the PR summary renders "Protected paths kept (n)" with `file — kept despite <pattern>` and `then omitted (<reason>)` when a budget later cut the file, `(source: contents)` on synthesized entries, the excluding pattern on Loa-tier and user-pattern omissions, the `fetch:` outcome on patch-less omissions, and one `.reviewignore: <source>` line with `(changed in this PR)`; every name and pattern through `safePath` escaping with a hostile-string fixture (Markdown delimiters, HTML, newlines); SKILL.md coverage heading documents the new fields and markers; tests on the record and the rendered text (`paged-fetch.test.ts`) (C-2 consumer side, § 4) → **[G-3]** ⇐ Task 1.3 · kind: mechanical
+- [x] Task 1.5: CPU-time guardrails (B) — `progressive-truncation.test.ts`: both guardrails take the minimum of three `process.cpuUsage()` user + system samples around the synchronous measured call; thresholds unchanged; message names CPU time; comment names bd-oglcu and the GC/JIT caveat; red-first for this test-infrastructure change is the report-only negative control: an O(n²) loop over the 100-file list must fail the 100 ms bound under the new measurement, figures in the report; three consecutive green full `npm test` runs with two concurrent `npm test` runs in the other worktrees as the load condition, recorded (C-5, D-1.5, D-1.5a) → **[G-5]** ⇐ Task 1.0 · kind: mechanical
+- [x] Task 1.6: Housekeeping classifier value and workflow guard (C, System Zone) — `classify-pr-type.sh`: rule 1a echoes `housekeeping`, header grammar `<cycle|bugfix|housekeeping|other>`, rule list 1a updated; `classify-merge-pr.sh`: comment only (the no-PR guard still forces `other`); `post-merge.yml`: `simple-release` `if:` becomes the allowlist `(needs.classify.outputs.pr_type == 'bugfix' || needs.classify.outputs.pr_type == 'other') && needs.classify.outputs.pr_number != ''` with a comment naming bd-nr5i6, `full-pipeline` unchanged; every place that enumerates the values (classifier header, wrapper usage, workflow comments, the notify template) updated; Q-3 as a gate: enumerate every in-tree consumer of `pr_type` / `PM_PR_TYPE` in the report — one that would misroute `housekeeping` is a blocker returned to the lead before the fix patch; tests: PCT-T28 … T32, T38 → `housekeeping`, T35 → `other`, others unchanged; `classify-merge-pr.bats`: housekeeping subject with a PR → `pr_type=housekeeping`, no-PR push → `other`; `post-merge-workflow-guards.bats`: the guard text pinned and a shell mirror of both expressions evaluated over {cycle, bugfix, other, housekeeping, unknown, empty} × {PR number, none} — both prepare jobs skip `housekeeping`, unknown and empty, `simple-release` runs for `bugfix`/`other` with a PR number, `full-pipeline` for `cycle` only; `yq` parse and `actionlint` (when installed) of the workflow; new `tests/unit/post-merge-orchestrator-type.bats` pins `post-merge-orchestrator.sh --generate --type housekeeping` → exit 1 "Invalid --type"; CHANGELOG line for the lead (bd-nr5i6) (C-4, D-1.4, D-1.4a) → **[G-3]** ⇐ Task 1.0 · kind: judgment
+- [x] Task 1.7: Sprint close (lead) — land A (1.1, 1.2) → B (1.3 … 1.5) → C (1.6) as red commit then fix commit each, under the marker with dist, checksums and REPO-MAP regenerated; red-first verified (`red-test-check.sh` with `bats` on PATH for C; the detached-worktree equivalent for the skill's `npm test`, DEC-1007 shape); suites and the local CI mirror (accepted host-local reds only by name: the three KF-034 cases of `post-merge-publication.bats`, the gitignored vision-021 template-safety case, the two adapter pytest cases that pass with `CLAUDE_HEADLESS_BIN` unset); after A and B land, the lead's integration check: a config with `**/*.yml` → `truncateFiles` → the coverage record → the rendered "Protected paths kept (1)" line; fix rounds: the lead fast-forwards the implementer's worktree to the landed head before each round (wording/test rounds exempt from red-first; behaviour rounds follow it; ≤ 3 rounds per implementer); SKILL.md hunks resolved by heading when B lands after A; CHANGELOG `[Unreleased]` `### Fixed` / `### Changed` entries; DEC rows from the implementers' judgment calls; `reviewer.md` with AC verification → **[G-1]** ⇐ Task 1.1, Task 1.2, Task 1.3, Task 1.4, Task 1.5, Task 1.6 · kind: judgment
+- [x] Task 1.8: Review and audit (lead) — `/review-sprint` with ≤ 3 dissent runs (`adversarial-review.sh --type review`, code-only diffs per implementer), `engineer-feedback.md` (C-11 bullet grammar; `verdict-derive` consistent); `/audit-sprint` with the audit envelope (`--type audit`), `auditor-sprint-feedback.md`, COMPLETED marker; fix rounds back to the implementers as needed → **[G-1]** ⇐ Task 1.7 · kind: judgment
+- [ ] Task 1.9: Ship (lead) — after review and audit APPROVED: PR from `feature/cycle-135-review-coverage` (code, tests, docs, CHANGELOG, decisions, ledger, manifests, dist), secret scan first; Bridgebuilder round (`BRIDGEBUILDER_MODEL=codex-headless`, prefix excludes for `dist/`, `checksums.json`, REPO-MAP, `decisions.yaml`, `ledger.json`; ≤ 2 rounds; stop under USD 8 remaining); triage comment; admin merge when every check run is green — the operator's confirmation of the proposed rows is post-ship, as every cycle, and does not gate the merge; if the second Bridgebuilder round or the budget stop is reached without a non-degraded consensus verdict the ship proceeds with the degraded record documented in the triage comment, the e2e and a DEC row; the cycle merge classifies `cycle` and its candidate stays unpublished; the Bridgebuilder that reviews the PR runs from the lead's checkout, i.e. the branch's `dist/`, and its "Protected paths kept" section is recorded in the e2e; `record-branch.sh --cycle 135 --prev origin/record/cycle-134-post-ship-fixes --stage "stage 1"`; `archive-cycle.sh`; archive PR; JACKED_OUT; no tag (FR-6) → **[G-5]** ⇐ Task 1.8 · kind: judgment
+- [ ] Task 1.E2E: Sprint 1 goal validation — G-1 (five beads closed with commit and test), G-2 (the matcher fixtures both ways and with `{ native: false }`), G-3 (protected-kept fixture and rendering; housekeeping guards both ways; the live confirmation on the next housekeeping merge, recorded on bd-nr5i6), G-4 (content-fetch fixtures; a live read-only `getFileContent` probe recorded in the report), G-5 (every check run green on the merged head; three green full `npm test` runs on the loaded host; cost-ledger rows of the cycle ≤ USD 40 meter-priced) → `a2a/sprint-279/e2e.md`; post-merge verification: merge-triggered CI green on `main`, the record branch pushed, the archive PR merged → **[G-1]** ⇐ Task 1.9 · kind: judgment
 
 ### Patch contract (per-implementer path allowlist)
 
 | Implementer | May change | Must not touch |
 |---|---|---|
-| A | `evals/harness/took-effect.sh`, `evals/tests/took-effect-*.bats`, `evals/tests/fixtures/took-effect/**`, `evals/tests/fixtures/home_hook_groups.sample` (read) | `sandbox-mount.sh`, `.claude/`, `.github/` |
-| B | `evals/harness/lib/sandbox-mount.sh`, `evals/tests/sandbox-mount-rules.bats`, `evals/tests/fixtures/home_hook_groups.sample`, `grimoires/loa/sdd.md` § 11.F only | `took-effect.sh`, `.claude/`, `.github/` |
-| C | `.claude/scripts/classify-merge-pr.sh`, `.claude/scripts/post-merge-orchestrator.sh`, `.github/workflows/post-merge.yml`, `tests/unit/classify-merge-pr.bats`, `tests/unit/post-merge-workflow-guards.bats`, `tests/unit/post-merge-publication.bats`, `grimoires/loa/known-failures.md` (KF-063 lines) | `evals/`, `checksums.json`/REPO-MAP (the lead regenerates) |
-| D | `evals/harness/lib/egress-proxy.sh`, `evals/harness/Dockerfile.proxy`, `evals/harness/lib/batch-supervisor.sh`, `evals/harness/seed-corpus-from-external.sh`, their bats and fixtures | `took-effect.sh`, `sandbox-mount.sh`, `.claude/`, `.github/` |
+| A | `.claude/skills/bridgebuilder-review/resources/core/truncation.ts`, `resources/config.ts` (the three new keys), `resources/__tests__/loa-detection.test.ts`, `resources/__tests__/truncation.test.ts`, `.claude/skills/bridgebuilder-review/SKILL.md` (exclusion-patterns and protected-paths headings only) | `types.ts`, `paged-fetch.ts`, `github-cli.ts`, `git-provider.ts`, `progressive-truncation.test.ts`, `dist/`, CHANGELOG (lines go in the report), everything outside the skill |
+| B | `resources/core/paged-fetch.ts`, `resources/adapters/github-cli.ts`, `resources/ports/git-provider.ts`, `resources/__tests__/paged-fetch*.test.ts`, `resources/__tests__/github-cli*.test.ts`, `resources/__tests__/progressive-truncation.test.ts`, any typed `IGitProvider` test double its inventory names, `SKILL.md` (coverage heading only) | `types.ts`, `truncation.ts`, `config.ts`, `loa-detection.test.ts`, `truncation.test.ts`, `dist/`, CHANGELOG, everything outside the skill |
+| C | `.claude/scripts/classify-pr-type.sh`, `.claude/scripts/classify-merge-pr.sh` (comment and usage text), `.github/workflows/post-merge.yml`, `tests/unit/post-merge-classifier.bats`, `tests/unit/classify-merge-pr.bats`, `tests/unit/post-merge-workflow-guards.bats`, new `tests/unit/post-merge-orchestrator-type.bats`, documentation lines that enumerate `pr_type` values (listed in the report) | `post-merge-orchestrator.sh`, `checksums.json`, REPO-MAP, CHANGELOG, the skill |
 
-A patch outside its allowlist is returned, not landed.
+A patch outside its allowlist is returned, not landed. `types.ts` is the lead's (Task 1.0).
 
 ### Seams Under Test
 
 | Seam | Catches | Misses | Prior art |
 |------|---------|--------|-----------|
-| `took-effect.sh` over a fixture run dir (transcripts, ps, arm-evidence, pipeline.json) | hook-group identity and equation errors; transcript policy errors; integrity binding errors | a `hook_name` grammar Claude Code changes later | `evals/tests/took-effect*.bats` (cycle-133) |
-| `sandbox-mount.sh transform` / `verify` / `hooks` over the pinned tree | an over-broad or missing rewrite; a verify gap; evidence grammar | runtime behaviour of rewritten commands (the smoke) | `evals/tests/sandbox-mount-home-scope.bats` |
-| `classify-merge-pr.sh` + the workflow `if:` text | mis-routed pushes; wrong PR number | GitHub's expression evaluation (not executed in tests) | `tests/unit/classify-merge-pr.bats` |
-| `post-merge-orchestrator.sh --generate` / `--publish` in a fixture repo with a fake remote | exit-code contract; identity rules; numeric domain | a real GitHub remote's failure modes | `tests/unit/post-merge-publication.bats` |
-| `egress-proxy.sh` + `Dockerfile.proxy` read as files | pid/MaxClients drift | tinyproxy's actual thread count under load | `evals/tests/egress-proxy.bats` |
-| `batch-supervisor.sh reclaim` with planted `.jobs` records | signalling an unverified group; legacy handling | the residual check-then-signal window | `evals/tests/batch-supervisor.bats` |
-| `seed-corpus-from-external.sh` against a `file://` fixture repository | unfetched blobs in the fix diff; bounds | GitHub API behaviour | `evals/tests/seed-corpus-from-external.bats` |
+| `matchesExcludePattern` with `{ native: true/false }` over fixture names | substring hiding paths; segment anchoring errors; Node-version divergence | a `path.matchesGlob` behaviour change in a future Node | `loa-detection.test.ts` (sprint-bug-278 cases) |
+| `truncateFiles` / `partitionUserExclusions` with user and protected patterns | a protected file silently excluded; a protected list that overrides an explicit name; config parsing | the operator's judgement of what is protected | `truncation.test.ts`, `progressive-truncation.test.ts` |
+| `paged-fetch` with a provider double (no patch, content served) | an unreviewed added file; an unbounded fetch; binary misread as text | GitHub's real raw-media behaviour (Q-1 probe, read-only) | `paged-fetch.test.ts` (cycle-133 C-1) |
+| `assertAllowedArgs` over the contents shape | a widened `gh api` surface | `gh` version differences in header handling | `github-cli.test.ts` |
+| `classify-pr-type.sh` + `classify-merge-pr.sh` + the workflow `if:` text | a housekeeping merge that still prepares; a cycle merge misrouted | GitHub's expression evaluation (not executed in tests) | `post-merge-classifier.bats`, `post-merge-workflow-guards.bats` |
+| guardrails on CPU time | an algorithmic regression | wall-clock stalls (by design) | `progressive-truncation.test.ts` |
 
 ### Dependencies
 
-- None external. `npx --no-install bats` on this host; Docker 26.1 only for the egress bats that already require it; the retained smoke batches under `evals/results/ablation-2.0/smoke-c133-s274{,-r2}/` for the host-local regression.
-- Internal: Task 1.2 after 1.1 and 1.3 after 1.2 (one file, implementer A); Task 1.11 after 1.1 … 1.10; Task 1.12 after 1.11; Task 1.E2E after 1.12.
+- None external beyond the host toolchain: Node 22.22, tsx 4.21 and TypeScript 5.9 in the skill, bats 1.13 through the npx cache, jq 1.7, `gh` 2.x authenticated for the Q-1 read-only probe (one call).
+- Internal: Task 1.1 → 1.2 (same file, implementer A); Task 1.3 → 1.4 (same file, implementer B); Task 1.7 after 1.1 … 1.6; 1.8 after 1.7; 1.9 after 1.8; 1.E2E after 1.9.
 
 ### Security Considerations
 
-- Validators fail closed (unknown hook group, damaged transcript, unbindable integrity record); the supervisor never signals an unverified group; the seeder keeps `GIT_NO_LAZY_FETCH=1` as its provenance boundary; the proxy keeps a pid limit on a `NET_ADMIN` container.
-- System Zone writes (Tasks 1.6, 1.7) under the bounded zone marker with `checksums.json` and REPO-MAP regenerated in the landing commit; secret scan (detect-secrets and the repository scanners) before the push; the operator's dotfile keys are never read, echoed or committed.
-- The publish path's exit-2 contract is what the runbook relies on; every pre-write refusal path has a fixture.
+- The matcher never interprets a filename; patterns come from the operator only (`.reviewignore` from the reviewer's `repoRoot`). FR-1 closes a PR-author-controlled hiding path; FR-2 keeps attack-prone paths reviewable by default.
+- The content fetch is the only new network read: one allowlisted `gh api` shape, path and ref validated, bytes bounded, failures degrade to today's behaviour; no credential handling changes.
+- System Zone writes (Tasks 1.0, 1.1 … 1.6 landings) under the bounded marker with checksums, REPO-MAP and dist regenerated; secret scan (detect-secrets and the repository scanners) before every push; the publication contract is untouched.
 
 ### Risks & Mitigation
 
-- Risk: the `hook_name` grammar for tool hooks is not what the parser expects → Task 1.4 confirms it on a real event before A's patch lands; k = 0 keeps un-emitting groups legal.
-- Risk: narrowing R3/R5 removes a rewrite the mount needs → the corpus table with every difference explained; home-scope bats and the negative control gate it.
-- Risk: the regression shows a difference beyond the pre-registered one → shipping gate: DEC row and bead before merge (D-4.3).
-- Risk: the Bridgebuilder round degrades on the sprint PR → the PR is code and tests (well under the file cap); if coverage is cut, split along A/B/C/D (FR-10).
-- Risk: dissent voices time out on the full diff → code-only diff per implementer; ≤ 3 runs.
+- Risk: a default pattern relied on substring matching → none known (six root-level file names); the CHANGELOG names the change; the coverage record shows what was reviewed.
+- Risk: the raw media type returns base64 JSON on the host's `gh` → the adapter decodes that shape too; Q-1 probe before the fix lands.
+- Risk: the protected list blocks a legitimate exclusion → `protected_paths` replaces the default; `[]` disables; the record names the pattern.
+- Risk: a consumer of `pr_type` rejects `housekeeping` → Q-3 grep; the workflow guards and notify pinned; the orchestrator's refusal pinned.
+- Risk: the dissent voices time out on the full diff → code-only diff per implementer; ≤ 3 runs.
+- Risk: the Bridgebuilder round degrades on the PR → prefix excludes for generated files; the PR is code, tests and docs well under the file cap.
 
 ### Success Metrics
 
-- G-1: 9 of 9 beads closed with commit and test.
-- G-2: the took-effect fixtures pass in both directions; the regression reproduces D-4.3 exactly.
-- G-3: the classifier and guard fixtures pass; the next publish's ledger push is green (recorded afterwards on KF-063).
-- G-4: the Bridgebuilder summary on the PR carries no `degraded_reason` and its verdict equals the consensus block's.
-- G-5: CI green on the merged head; cycle spend ≤ USD 20 in the cost ledger.
+- G-1: 5 of 5 beads closed with commit and test.
+- G-2: the matcher fixtures pass in both directions and with the native glob disabled.
+- G-3: the protected-kept fixture and rendering pass; both prepare jobs skip `housekeeping` in the guard tests; the next live housekeeping merge runs no prepare job.
+- G-4: the content-fetch fixtures pass; the Q-1 probe recorded.
+- G-5: every check run green on the merged head; three consecutive green `npm test` runs under load; cycle spend ≤ USD 40 meter-priced.
 
-> Sources: prd.md § Functional Requirements, § Success Criteria; sdd.md § 1.4, § 7.3, § 8, § 11.D
-
----
-
-## MVP Definition
-
-The sprint is the MVP: FR-1, FR-2, FR-3 and FR-10 are the merge gate; FR-4 … FR-9 land in the same sprint and, if one slips, are re-filed on their bead with a current status and named in the report (G-1 partial).
-
-> Sources: prd.md § Scope & Prioritization
-
-## Risk Assessment
-
-Low: nine local changes with fixtures, no model spend to build or test, one PR. The one open question with schedule risk is Q-1 (the hook-name grammar), resolved by the lead's one-turn session on day one.
-
-> Sources: sdd.md § 9, § 10
-
+> Sources: prd.md § Functional Requirements, § Goals & Success Metrics; sdd.md § 1.4, § 7, § 8; DEC-1019 … DEC-1025
 
 ---
 
@@ -157,51 +128,45 @@ Low: nine local changes with fixtures, no model spend to build or test, one PR. 
 
 | Goal | Statement | Evidence at sprint close |
 |------|-----------|--------------------------|
-| G-1 | Every in-scope bead closed with evidence | 9 beads closed, each close reason naming the commit and the test; `reviewer.md` |
-| G-2 | The validator is right in both directions | the FR-1/FR-2/FR-4 fixtures; the D-4.3 regression lines in `a2a/sprint-276/regression.md` |
-| G-3 | The post-merge pipeline is green on a push without a PR | the classifier and workflow-guard fixtures; the next publish's ledger push (recorded on KF-063 afterwards) |
-| G-4 | One PR, one non-degraded Bridgebuilder verdict | the PR's Bridgebuilder summary (no `degraded_reason`; verdict = consensus block) |
-| G-5 | Green suites at no model spend | CI check-runs on the merged head; the cycle's cost-ledger rows ≤ USD 20 |
+| G-1 | Every in-scope bead closed with evidence | 5 beads closed, each close reason naming the commit and the test; `reviewer.md` |
+| G-2 | No substring hiding path; one matcher on every Node version | the FR-1 fixtures both ways and with `{ native: false }` |
+| G-3 | Protected paths kept and named; housekeeping merges prepare nothing | the FR-2 fixtures and rendering; the FR-4 guard fixtures both ways; the live confirmation on bd-nr5i6 |
+| G-4 | Patch-less added files reviewed | the FR-3 fixtures; the Q-1 probe |
+| G-5 | Green suites at no real spend; one PR, one non-degraded Bridgebuilder verdict | check runs on the merged head; three green `npm test` runs under load; the cycle's cost-ledger rows ≤ USD 40 |
 
 > Sources: prd.md § Goals & Success Metrics, § Success Criteria
 
 ### Flatline sprint review dispositions (1.0 → 1.1)
 
+Two voices, cross-scoring degraded (KF-041 shape), 4 skeptic blockers and 38 medium items; every item read. Design-level items are dispositioned in sdd.md § 11.F and requirement-level ones in prd.md Appendix C.2; this table carries the plan-level outcome.
+
 | Item | Concern (short) | Disposition |
 |---|---|---|
-| SKP-012, opus IMP-020 | an unexplained regression difference only gets a DEC + bead | **Accepted:** resolved before merge (table amended by DEC with the explanation, or fixed) — Task 1.11 |
-| SKP-003, gpt IMP-002, opus IMP-001/002 | Q-1 negative case; Task 1.1 ↔ 1.4 ordering | **Accepted:** Task 1.1 ⇐ Task 1.4; zero-cost first source; the negative outcome is a recorded shipping decision — Tasks 1.1, 1.4 |
-| SKP-006, SKP-005 | check-then-signal window; leaderless groups | **Accepted in part:** leaderless records are stale and logged; the residual window is documented (no pgid atomicity exists) — Task 1.9 |
-| SKP-001 (gpt), opus IMP-017 | where the validator gets the pin | **Accepted:** the operator's `--suite-file` names it; the run record must agree; objects from `--source-repo` — Task 1.3 |
-| SKP-015, gpt IMP-005 | E2E after the merge | **Accepted:** the pre-merge gate in Task 1.12; post-merge verification in 1.E2E |
-| SKP-008, gpt IMP-010, opus IMP-016 | lexical forms normalised by the parser | **Accepted:** number-token scan of the serialised text; fixtures for `1.0`, `1e3`, `-0`, both 2^53 boundaries — Task 1.7 |
-| SKP-002 | pipeline.json completeness | **Accepted:** every declared phase present; skipped phases carry a reason — Task 1.2 |
-| SKP-001 (opus) | record cross-check is not content proof | **Accepted, already stated** (sdd.md D-1.3, § 11.G) |
-| gpt IMP-001 | baseline before changes land | **Accepted** (Task 1.4 first; Task 1.1 ⇐ 1.4) |
-| gpt IMP-003 | one completion policy | **Accepted** (Acceptance Criteria) |
-| gpt IMP-004, opus IMP-006 | same final head; re-review after a post-approval commit | **Accepted** (Task 1.12) |
-| gpt IMP-006 | recovery for red CI / failed record / failed archive | **Accepted** (Task 1.12) |
-| gpt IMP-007, opus IMP-007 | split procedure and cost | **Accepted:** at most two split PRs, one round each; beyond → operator (Task 1.12) |
-| gpt IMP-008, opus IMP-005 | which files ride the PR | **Accepted** (Task 1.12) |
-| gpt IMP-009 | executable guard validation | **Partially accepted:** representative-outputs table in the test; no expression evaluator (Task 1.6) |
-| gpt IMP-011 | define pre-write | **Accepted** (Task 1.7) |
-| gpt IMP-012 | concurrent-load proxy check | **Noted:** out of scope; the derivation is documented (Task 1.8) |
-| gpt IMP-013 | retained-HOME walk policy fixtures | **Accepted** (Task 1.3) |
-| gpt IMP-014 | budget reservation per round | **Accepted** (Task 1.12) |
-| opus IMP-003 | verify fails-before | **Accepted** (Task 1.11) |
-| opus IMP-004 | shared grammar fixture | **Accepted** (`evals/tests/fixtures/home_hook_groups.sample`) |
-| opus IMP-008 | live observation of the merge's own classification | **Accepted** (1.E2E) |
-| opus IMP-009 | fetch phases | **Accepted** (Task 1.10) |
-| opus IMP-010 | landing precondition for 1.9 | **Accepted** (Task 1.9 / 1.11) |
-| opus IMP-011 | lead approval of the keep/drop table | **Accepted** (Tasks 1.5, 1.11) |
-| opus IMP-012 | AC mapping for FR-4 … FR-9 | **Accepted** (Acceptance Criteria) |
-| opus IMP-013 | per-implementer path allowlist | **Accepted** (Patch contract table) |
-| opus IMP-014 | who observes `pids.current` | **Accepted** (Task 1.8: the lead) |
-| opus IMP-015 | exact `if:` expressions | **Accepted** (Task 1.6) |
-| opus IMP-018, IMP-019 | dissent and secret-scan steps | **Accepted** (Tasks 1.11, 1.12) |
-| opus IMP-021 | acceptable Bridgebuilder verdict | **Accepted** (Task 1.12) |
-| opus IMP-022, IMP-023 | oversize definition; Claude Code version on the evidence line | **Accepted** (Tasks 1.2, 1.1) |
-| opus IMP-024 | fresh marker for post-landing System Zone commits | **Accepted** (Task 1.12) |
-| remaining items | restatements or wording | **Noted** |
+| SKP-002, gpt IMP-002, IMP-008 | synthesized patches vs shared budgets; caps; deadline | **Accepted** — Task 1.3 (aggregate budget incl. overhead, `max_content_fetches`, 120 s deadline, outcomes) |
+| SKP-001 (envelope sniffing), gpt IMP-004, opus IMP-010 | body-sniffed base64 fallback | **Accepted** — Task 1.3: JSON envelope only, strict validation, sized buffer |
+| SKP-005, gpt IMP-003 | ref bound to the listing's head sha | **Accepted** — Task 1.3 (asserted ref; restart discards) |
+| SKP-001 (matcher OR), gpt IMP-001, opus IMP-001 | one matcher everywhere | **Accepted** — Task 1.1: `dotSegmentGlobMatch` only, grammar pinned, guard test |
+| gpt IMP-005 | synthesized-patch fixture matrix | **Accepted** — Task 1.3 |
+| gpt IMP-006, opus IMP-003 | provider inventory; contract scope | **Accepted** — Task 1.3 (inventory), Task 1.0 (all `types.ts` fields) |
+| gpt IMP-007, opus IMP-017, IMP-019, IMP-022 | SKILL.md ownership; renderer module | **Accepted** — allowlists by heading; renderer is `paged-fetch.ts` (B) |
+| gpt IMP-009, opus IMP-008 | Q-3 as a compatibility gate | **Accepted** — Task 1.6 |
+| gpt IMP-010, opus IMP-015 | degraded Bridgebuilder outcome | **Accepted** — Task 1.9 (ship with the degraded record documented + DEC row) |
+| gpt IMP-011, opus IMP-004 | live housekeeping verification as deferred evidence | **Accepted** — bd-nr5i6 closes on commit + tests; the live confirmation is appended later and named non-blocking in e2e |
+| gpt IMP-012, opus IMP-005, IMP-018 | FR-5 red-first and load condition | **Accepted** — Task 1.5 (negative control as the red artefact; two concurrent `npm test` runs) |
+| gpt IMP-013, opus IMP-016 | named host-local red allowlist | **Accepted** — Task 1.7, Acceptance Criteria |
+| gpt IMP-014 | protection tests in both orders | **Accepted** — Task 1.2 |
+| gpt IMP-015 | rendering escapes | **Accepted** — Task 1.4 |
+| gpt IMP-016 | classifier vs wrapper tests | **Already distinct** — `post-merge-classifier.bats` / `classify-merge-pr.bats` |
+| gpt IMP-017, opus IMP-009 | evaluate guard conditions; lint YAML | **Accepted** — Task 1.6 (shell mirror over the matrix; yq + actionlint) |
+| opus IMP-002 | `isWildcardPattern` set; non-wildcard directory patterns vs protection | **Accepted** — Task 1.1 (`[*?{[]`), Task 1.2 (an explicit directory line excludes) |
+| opus IMP-006 | kinds for Tasks 1.2 and 1.6 | **Accepted** — both `judgment` |
+| opus IMP-007 | line refs → anchors | **Accepted** — Task 1.2 names call expressions and functions |
+| opus IMP-011 | Q-1 probe by the lead | **Accepted** — Task 1.0 |
+| opus IMP-012 | lead integration check | **Accepted** — Task 1.7 |
+| opus IMP-013 | grep for importers/callers | **Accepted** — Task 1.1 |
+| opus IMP-014 | fix-round basing | **Accepted** — Task 1.7 |
+| opus IMP-020 | `.reviewignore` provenance test | **Accepted** — Task 1.2 (base-sha read) |
+| opus IMP-021 | FR-6 in the acceptance bullets; A's red/fix pairs | **Accepted** — Acceptance Criteria; A returns two pairs (1.1, 1.2) |
+| opus IMP-023 | operator confirmation timing | **Clarified** — post-ship (Task 1.9) |
 
-> Sources: `grimoires/loa/a2a/flatline/cycle-134-sprint-review.json`
+> Sources: `grimoires/loa/a2a/flatline/cycle-135-sprint-review.json`; sdd.md § 11.F; prd.md Appendix C.2

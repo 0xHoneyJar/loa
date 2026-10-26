@@ -9,6 +9,9 @@ export const DEGRADED_REASONS = [
     "page_incomplete",
     "patch_fetch_rate_limited",
     "pr_head_moved",
+    // cycle-135 C-2 (review round 1): the PR base's `.reviewignore` could not be read, so the checkout's copy (which the
+    // PR head controls) governed the exclusions — the review is complete but its exclusion set is untrusted.
+    "reviewignore_unavailable",
     "incomplete_coverage",
     "enrichment_guard_rejected",
     "writer_not_eligible",
@@ -19,6 +22,7 @@ export const DegradedReason = Object.freeze(Object.fromEntries(DEGRADED_REASONS.
 /** The fetch-side reasons: the review's file coverage is incomplete, so the merge is blocked as incomplete_coverage. */
 export const FETCH_DEGRADED_REASONS = new Set([
     "files_payload_oversize", "files_list_truncated", "page_incomplete", "patch_fetch_rate_limited", "pr_head_moved",
+    "reviewignore_unavailable",
 ]);
 export function isDegradedReason(value) {
     return typeof value === "string" && DEGRADED_REASONS.includes(value);

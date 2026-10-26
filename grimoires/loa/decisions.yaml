@@ -34856,7 +34856,7 @@ decisions:
     prior_requests: []
   - id: "DEC-1001"
     created_at: "2026-10-26T00:15:37Z"
-    updated_at: "2026-10-26T00:15:37Z"
+    updated_at: "2026-10-26T04:17:28Z"
     phase: "implementation"
     category: "implementation"
     summary: "classify-pr-type housekeeping rule narrowed to chore(archive|ledger|decisions):; bare chore: or chore(release): naming a cycle stays cycle (PR #747)."
@@ -34876,8 +34876,8 @@ decisions:
       negative:
         - "chore(cycle-NNN): squash merges keep classifying cycle (status quo); a new housekeeping scope needs a one-word addition"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "8f3b7e66"
@@ -34885,19 +34885,24 @@ decisions:
     cycle: "cycle-bug-20261025-c47e71"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:15:37Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "cfdd94f9d"
+      - at: "2026-10-26T04:17:28Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1002"
     created_at: "2026-10-26T00:15:43Z"
-    updated_at: "2026-10-26T00:15:43Z"
+    updated_at: "2026-10-26T04:17:28Z"
     phase: "implementation"
     category: "implementation"
     summary: "classify-pr-type: a merge from any chore/ branch is other even when it names a cycle; PR #1295 (chore/cycle-133-post-ship) reclassifies other."
@@ -34914,8 +34919,8 @@ decisions:
       negative:
         - "a cycle ship from a chore/ branch would need the cycle label"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "8f3b7e66"
@@ -34923,19 +34928,24 @@ decisions:
     cycle: "cycle-bug-20261025-c47e71"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:15:43Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "cfdd94f9d"
+      - at: "2026-10-26T04:17:28Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1003"
     created_at: "2026-10-26T00:15:50Z"
-    updated_at: "2026-10-26T00:15:50Z"
+    updated_at: "2026-10-26T04:17:28Z"
     phase: "implementation"
     category: "implementation"
     summary: "classify-pr-type: the chore match is case-sensitive (lowercase is the convention); Chore(archive): and chores: fall through to the cycle-id rule."
@@ -34950,8 +34960,8 @@ decisions:
       negative:
         - "a hand-typed Chore(archive): subject naming a cycle still classifies cycle"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "8f3b7e66"
@@ -34959,19 +34969,24 @@ decisions:
     cycle: "cycle-bug-20261025-c47e71"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:15:50Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "cfdd94f9d"
+      - at: "2026-10-26T04:17:28Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1004"
     created_at: "2026-10-26T00:15:59Z"
-    updated_at: "2026-10-26T00:15:59Z"
+    updated_at: "2026-10-26T04:17:28Z"
     phase: "implementation"
     category: "process"
     summary: "Both /bug micro-sprints (sprint-bug-277/278) ship in one PR, as PR #1288 did for three; DEC-0960 per-sprint PRs govern cycle sprints only."
@@ -34986,8 +35001,8 @@ decisions:
       negative:
         - "a red gate on one micro-sprint holds the other"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "8f3b7e66"
@@ -34995,19 +35010,24 @@ decisions:
     cycle: "cycle-bug-20261025-c47e71"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:15:59Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "8f3b7e664"
+      - at: "2026-10-26T04:17:28Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1005"
     created_at: "2026-10-26T00:16:09Z"
-    updated_at: "2026-10-26T00:16:09Z"
+    updated_at: "2026-10-26T04:17:34Z"
     phase: "implementation"
     category: "implementation"
     summary: "Bridgebuilder exclude globs: the dot-agnostic retry is a new private helper, not simplifiedGlobMatch (its single-* branch crosses '/')."
@@ -35028,8 +35048,8 @@ decisions:
         - "~10 duplicated lines of regex translation"
         - "brace/class patterns still miss dot-led segments (documented)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "8f3b7e66"
@@ -35037,19 +35057,24 @@ decisions:
     cycle: "cycle-bug-20261025-826c6b"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:16:09Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "01a5868eb"
+      - at: "2026-10-26T04:17:34Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1006"
     created_at: "2026-10-26T00:16:15Z"
-    updated_at: "2026-10-26T00:16:15Z"
+    updated_at: "2026-10-26T04:17:34Z"
     phase: "implementation"
     category: "implementation"
     summary: "Bridgebuilder exclude globs are a denylist: * and ? match a leading dot (fixtures/*.json excludes fixtures/.hidden.json); shell dot-file semantics rejected."
@@ -35064,8 +35089,8 @@ decisions:
       negative:
         - "a pattern meant to spare dot-files cannot express that (no observed need)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "8f3b7e66"
@@ -35073,19 +35098,24 @@ decisions:
     cycle: "cycle-bug-20261025-826c6b"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:16:15Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "01a5868eb"
+      - at: "2026-10-26T04:17:34Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1007"
     created_at: "2026-10-26T00:16:22Z"
-    updated_at: "2026-10-26T00:16:22Z"
+    updated_at: "2026-10-26T04:17:34Z"
     phase: "implementation"
     category: "process"
     summary: "sprint-bug-278 red-then-green verified by a manual equivalent of red-test-check (detached worktrees, nested node_modules linked by hand)."
@@ -35102,8 +35132,8 @@ decisions:
       negative:
         - "one less mechanical check for this sprint"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "8f3b7e66"
@@ -35111,19 +35141,24 @@ decisions:
     cycle: "cycle-bug-20261025-826c6b"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:16:22Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "01a5868eb"
+      - at: "2026-10-26T04:17:34Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1008"
     created_at: "2026-10-26T00:41:09Z"
-    updated_at: "2026-10-26T00:41:09Z"
+    updated_at: "2026-10-26T04:17:28Z"
     phase: "implementation"
     category: "security"
     summary: "classify-pr-type: the chore/ branch clause is anchored to the first segment after the owner (from [^ /]+/chore/); release/chore/… keeps the cycle route."
@@ -35140,8 +35175,8 @@ decisions:
       negative:
         - "a chore/ branch is housekeeping even when deeper segments say release (pinned, documented)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "auditing-security/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "63a3a9d1"
@@ -35149,19 +35184,24 @@ decisions:
     cycle: "cycle-bug-20261025-c47e71"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:41:09Z"
         from: null
         to: "proposed"
         by: "agent:auditing-security"
         evidence: "sprint-bug-277 audit round commit"
+      - at: "2026-10-26T04:17:28Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1009"
     created_at: "2026-10-26T00:41:54Z"
-    updated_at: "2026-10-26T00:41:54Z"
+    updated_at: "2026-10-26T04:17:34Z"
     phase: "implementation"
     category: "security"
     summary: "Bridgebuilder: dot-led widening of broad wildcard exclusions (**/*.yml now excludes .github/workflows/*.yml on Node ≥ 22) accepted with mitigation; bd-i4fyw."
@@ -35178,8 +35218,8 @@ decisions:
       negative:
         - "operators on Node ≥ 22 with broad patterns lose coverage of dot-led paths until they check them"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "auditing-security/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "63a3a9d1"
@@ -35187,19 +35227,24 @@ decisions:
     cycle: "cycle-bug-20261025-826c6b"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:41:54Z"
         from: null
         to: "proposed"
         by: "agent:auditing-security"
         evidence: "sprint-bug-278 audit round commit"
+      - at: "2026-10-26T04:17:34Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1010"
     created_at: "2026-10-26T00:42:02Z"
-    updated_at: "2026-10-26T00:42:02Z"
+    updated_at: "2026-10-26T04:17:34Z"
     phase: "implementation"
     category: "security"
     summary: "Bridgebuilder: the test pinning the pre-existing unanchored substring match (x/.loa-version.json.bak ⇢ .loa-version.json) is dropped; anchoring → bd-ow72o."
@@ -35216,8 +35261,8 @@ decisions:
       negative:
         - "the hiding path stays open until bd-ow72o ships"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "auditing-security/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "63a3a9d1"
@@ -35225,13 +35270,1883 @@ decisions:
     cycle: "cycle-bug-20261025-826c6b"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:42:02Z"
         from: null
         to: "proposed"
         by: "agent:auditing-security"
         evidence: "sprint-bug-278 audit round commit"
+      - at: "2026-10-26T04:17:34Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1011"
+    created_at: "2026-10-26T04:27:01Z"
+    updated_at: "2026-10-26T04:27:01Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "cycle-135 scope: the five follow-ups of the 2026-10-26 micro-sprints (bd-ow72o, bd-i4fyw, bd-w5pd9, bd-nr5i6, bd-oglcu); glob braces, fix/ routing, releases out"
+    decision: "One cycle, one sprint, for exactly the five beads the shipped-micro-sprints summary listed as to-dos; nothing else is pulled in."
+    rationale: "The operator's instruction of 2026-10-26 ('yes approve and then also work on the other things also') answers that summary; its 'other things' are those five beads. Three are design work (bd-i4fyw, bd-nr5i6, bd-w5pd9), so the golden path, not /bug, is the sanctioned route."
+    alternatives_considered:
+      - option: "two /bug micro-sprints for bd-ow72o and bd-oglcu now, the design items later"
+        rejected_because: "the operator asked for all of them; splitting doubles the ceremony and leaves the security item's semantics undecided"
+      - option: "fold the brace/class glob translation in"
+        rejected_because: "a documented limitation with no observed failure; widens the matcher change beyond what the audit asked"
+    consequences:
+      positive:
+        - "one PR, one Bridgebuilder round, one record stage"
+      negative:
+        - "a red gate on one item holds the other four"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/context/cycle-135-brief.md § Scope"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1012"
+    created_at: "2026-10-26T04:27:05Z"
+    updated_at: "2026-10-26T04:27:05Z"
+    phase: "discovery"
+    category: "process"
+    summary: "Grounding by direct file:line reads of the five areas (brief § Grounding facts); no /ride — the May reality snapshot is stale and the areas are small."
+    decision: "The PRD and SDD cite the lead's 2026-10-26 reads (truncation.ts, paged-fetch.ts, github-cli.ts, classify-pr-type.sh, post-merge.yml, the bats and node:test files) instead of a /ride run."
+    rationale: "grimoires/loa/reality/ dates from May 2026 (stale under the 7-day rule); an unattended /ride of the whole repository buys nothing for five local changes whose code the lead read in full the same day."
+    alternatives_considered:
+      - option: "run /ride first"
+        rejected_because: "20+ minutes of whole-repo analysis for five files already read; cycle-134 took the same route (DEC-0968)"
+    consequences:
+      positive:
+        - "every requirement names the lines it changes"
+      negative:
+        - "no fresh repo-wide reality for other readers"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/context/cycle-135-brief.md § Grounding facts"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1013"
+    created_at: "2026-10-26T04:27:09Z"
+    updated_at: "2026-10-26T04:27:09Z"
+    phase: "discovery"
+    category: "security"
+    summary: "Exclusion semantics: non-wildcard patterns match whole path segments (gitignore-like; no '/' any depth, with '/' root-anchored), never substrings; one matcher"
+    decision: "For patterns without *, ?, { or [: no slash → the pattern equals one whole segment at any depth (PROCESS.md matches docs/PROCESS.md, not MYPROCESS.md); a slash → anchored at the repository root (a/b matches a/b and a/b/…, not x/a/b). Wildcard patterns: native path.matchesGlob then the dot-agnostic segment matcher where native exists, the segment matcher alone otherwise; simplifiedGlobMatch retires."
+    rationale: "The substring test is the hiding path the sprint-bug-278 audit found (util.loa-version.json.ts, x/.loa-version.json.bak); gitignore semantics are what .reviewignore's name promises and what operators write; one matcher ends the Node-version divergence the Bridgebuilder flagged."
+    alternatives_considered:
+      - option: "exact filename or basename equality only"
+        rejected_because: "a/b patterns would stop matching their subtree; .reviewignore directory entries are the common case"
+      - option: "keep substring matching behind an explicit marker (leading *)"
+        rejected_because: "two grammars; the default stays unsafe for whoever does not read the docs"
+      - option: "keep the Node < 22 fallback as is"
+        rejected_because: "two runtimes would still give different exclusion sets for the same .reviewignore"
+    consequences:
+      positive:
+        - "no substring hiding path; predictable, documented semantics; the same result on Node 20 and 22"
+      negative:
+        - "a default or operator pattern that relied on substring matching (none known) stops matching"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "truncation.ts:182-200, 261-278, 395 (2026-10-26 read)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1014"
+    created_at: "2026-10-26T04:27:13Z"
+    updated_at: "2026-10-26T04:27:13Z"
+    phase: "discovery"
+    category: "security"
+    summary: "Protected paths (CI workflows/actions, agent settings/hooks, git hooks) survive wildcard user exclusions; configurable list; kept files named in the coverage re"
+    decision: "Default protected set: .github/workflows/**, .github/actions/**, .claude/settings.json, .claude/settings.local.json, .claude/hooks/**, .husky/**. A wildcard pattern from --exclude, exclude_patterns or .reviewignore that matches a protected path leaves the file in the review set and the coverage record lists it as protected_kept with the pattern; a non-wildcard (segment-anchored) pattern naming the path still excludes it (explicit intent); the Loa tier is untouched (the self-review label governs framework files). bridgebuilder.protected_paths, when set, replaces the default ([] disables)."
+    rationale: "After sprint-bug-278 a broad **/*.yml exclusion also removes CI workflows on Node ≥ 22; those are the files an attacker edits first. Protecting them against accidental (wildcard) exclusion while honouring an explicit name keeps operator intent legible."
+    alternatives_considered:
+      - option: "no protected list; rely on the coverage record"
+        rejected_because: "the record is visible only after the review; the files are already out of the prompt"
+      - option: "protect against every pattern including exact names"
+        rejected_because: "an operator who names a path explicitly means it; the list would be impossible to override"
+      - option: "apply the list to the Loa tier too"
+        rejected_because: "the Loa tier deliberately strips framework files unless self-review is on; changing that is a different decision"
+    consequences:
+      positive:
+        - "accidental loss of CI/agent-config coverage becomes impossible by default and visible when overridden"
+      negative:
+        - "a repository whose CI lives elsewhere gains nothing; an operator who wants to exclude workflows must name them or set the list"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:13Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "truncation.ts:1292-1318, 1442, 1515 (user-pattern call sites); paged-fetch.ts coverage record"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1015"
+    created_at: "2026-10-26T04:27:17Z"
+    updated_at: "2026-10-26T04:27:17Z"
+    phase: "discovery"
+    category: "implementation"
+    summary: "Patch-less added files: content fetched (bounded) via gh api contents at the head sha, reviewed as an all-additions patch; other patch-less statuses stay no_pat"
+    decision: "For a file with status added, no patch and additions > 0: GET /repos/{o}/{r}/contents/{path}?ref=<head_sha> with the raw media type (an allowlisted gh api shape), bounded by the planned bytes / max_diff_bytes; UTF-8 text → a synthesized '@@ -0,0 +1,N @@' patch of '+' lines reviewed like any other and marked source: contents in the coverage record; binary, over-budget or a failed fetch → no_patch as today. Other statuses without a patch are unchanged."
+    rationale: "For an added file the whole content is the diff, so a bounded content fetch recovers exactly what the patch would have shown; modified files without a patch would need a base fetch and a diff — a different, larger change with no observed failure."
+    alternatives_considered:
+      - option: "treat docs no_patch as non-degrading"
+        rejected_because: "lowers coverage honesty; the operator would not see what was not reviewed"
+      - option: "raise max_diff_bytes / the file cap"
+        rejected_because: "GitHub omits the patch by its own size rule, not ours"
+      - option: "fetch content for every patch-less file and diff against base"
+        rejected_because: "two fetches and a diff per file; no observed failure for modified files"
+    consequences:
+      positive:
+        - "large added docs and generated files are reviewed instead of degrading the round"
+      negative:
+        - "one more gh api shape in the allowlist; a bounded network read per patch-less added file"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "paged-fetch.ts:39-150, 240-280; github-cli.ts:150-307 (2026-10-26 read); PR #1296 round 1"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1016"
+    created_at: "2026-10-26T04:27:21Z"
+    updated_at: "2026-10-26T04:27:21Z"
+    phase: "discovery"
+    category: "implementation"
+    summary: "A fourth classifier value housekeeping (rule 1a) that both post-merge prepare jobs skip; the KF-063 no-PR guard keeps other; the orchestrator is unchanged."
+    decision: "classify_pr_type returns housekeeping for a merge from an owner/chore/… branch or a chore(archive|ledger|decisions): subject; classify-merge-pr.sh passes it through (a push without a PR stays other); post-merge.yml guards simple-release with pr_type != 'cycle' && pr_type != 'housekeeping' && pr_number != '' and leaves full-pipeline as is; notify carries the value; the orchestrator's own classifier branch maps unknown values to other and is not changed."
+    rationale: "sprint-bug-277 moved these merges to other, whose job still prepares a candidate (merge b880a1cd, run 40255620297). Nothing release-related should run for archive, ledger and decisions merges; a distinct value keeps 'other' meaning 'ordinary non-cycle merge'."
+    alternatives_considered:
+      - option: "keep other and add a workflow step that skips preparation when the subject looks like housekeeping"
+        rejected_because: "duplicates the classifier's rule in YAML; two places to drift"
+      - option: "run the prepare job but discard the artifact"
+        rejected_because: "spends the job for nothing and leaves an artifact an operator could publish"
+    consequences:
+      positive:
+        - "no candidate, no prepare job for housekeeping merges; the classifier output is self-describing"
+      negative:
+        - "every consumer of pr_type must accept a fourth value (checked: the workflow jobs, notify, the orchestrator branch)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "classify-pr-type.sh:42-90; post-merge.yml:109, 187, 258-270; post-merge-orchestrator.sh:377-387 (2026-10-26 read)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1017"
+    created_at: "2026-10-26T04:27:25Z"
+    updated_at: "2026-10-26T04:27:25Z"
+    phase: "discovery"
+    category: "testing"
+    summary: "The Bridgebuilder performance guardrails measure CPU time (process.cpuUsage) with their existing thresholds, so host load cannot fail the suite."
+    decision: "Both guardrails in progressive-truncation.test.ts (the <500 ms progressiveTruncate case and the <100 ms detectLoa + applyLoaTierExclusion case) measure user+system CPU time of the process around the call instead of performance.now()."
+    rationale: "The <100 ms case failed in roughly one of two full-suite runs on a loaded host (102–146 ms) and passed 5/5 alone: wall-clock measures the host, not the code. CPU time keeps the regression intent (an algorithmic blow-up still trips it)."
+    alternatives_considered:
+      - option: "loosen the thresholds"
+        rejected_because: "keeps the load dependence; a 500 ms bound hides a 5× regression"
+      - option: "move the guardrails to an opt-in perf suite"
+        rejected_because: "nothing runs them then; the regression signal is lost"
+    consequences:
+      positive:
+        - "deterministic under load; the thresholds keep their meaning"
+      negative:
+        - "CPU time of the whole process includes concurrent GC work (small, bounded)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "progressive-truncation.test.ts:548-590; bd-oglcu observations 2026-10-26"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1018"
+    created_at: "2026-10-26T04:27:29Z"
+    updated_at: "2026-10-26T04:27:29Z"
+    phase: "discovery"
+    category: "process"
+    summary: "Cycle shape: one sprint (global 279), three Opus implementers (matcher+protected; fetch+guardrails; classifier+workflow), one PR, BB round, record, archive, no"
+    decision: "As cycle-134: implementers in worktrees produce patches (test first), the lead lands them under the bounded marker with manifests and dist regenerated, runs ≤ 3 dissent runs per sprint, review and audit, ships one PR from feature/cycle-135-review-coverage (no cycle id in the merge subject is not needed: the branch merge classifies cycle by the cycle id, which is right for a cycle ship), Bridgebuilder round, record stage, archive. No release: the rc.8 soak continues."
+    rationale: "The machinery is proven twice this week; the five items are small and independent enough for three parallel implementers with disjoint path allowlists (A and B share truncation.ts only through the exported matcher — B reads, never edits)."
+    alternatives_considered:
+      - option: "one implementer for everything"
+        rejected_because: "serialises five independent changes; the review gets one 500-line patch"
+      - option: "publish an rc after the merge"
+        rejected_because: "rc.8 soaks; the operator decides releases (DEC-0967 shape)"
+    consequences:
+      positive:
+        - "parallel, reviewable patches; one ship ceremony"
+      negative:
+        - "three worktrees and briefs to maintain"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "758ac4fa"
+    source: "grimoires/loa/prd.md § Appendix A"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:27:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "grimoires/loa/context/cycle-135-brief.md § Operator instruction, § Standing rules"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1019"
+    created_at: "2026-10-26T04:35:01Z"
+    updated_at: "2026-10-26T04:35:01Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "Matcher: isWildcardPattern (* ? { [) picks the branch — non-wildcard → segmentMatch; wildcard → native glob then dotSegmentGlobMatch; opts.native test seam"
+    decision: "matchesExcludePattern(filename, patterns, opts?) with opts.native defaulting to hasNativeGlob. segmentMatch: a trailing '/' is stripped; no '/' in the pattern → the pattern equals one whole segment at any depth ('/'+filename+'/' contains '/'+pattern+'/'); a '/' in the pattern → filename === pattern or filename startsWith pattern+'/'. simplifiedGlobMatch is deleted."
+    rationale: "One decision point (wildcard or not) makes the semantics explainable in two sentences and identical on every Node version; the opts seam lets one test file prove both branches without a second runtime."
+    alternatives_considered:
+      - option: "module-level mutable flag for tests"
+        rejected_because: "hidden state; a test that forgets to reset it poisons the suite"
+      - option: "keep simplifiedGlobMatch for Node < 22"
+        rejected_because: "its single-* branch crosses '/' — the divergence the Bridgebuilder flagged"
+    consequences:
+      positive:
+        - "two sentences of semantics; one code path per pattern kind"
+      negative:
+        - "one optional parameter on a hot function"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff8a9f64"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:35:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "truncation.ts:94-200 (2026-10-26 read)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1020"
+    created_at: "2026-10-26T04:35:04Z"
+    updated_at: "2026-10-26T04:35:04Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "Protected paths: DEFAULT_PROTECTED_PATHS + one helper at the three user-pattern call sites; kept files ride TruncationResult.protectedKept to the coverage recor"
+    decision: "partitionUserExclusions(files, userPatterns, protectedPatterns) → {excluded, protectedKept[{file, pattern}]}: a file matched by a user pattern is kept when the matching pattern is a wildcard and the file matches a protected pattern (same matcher). truncateFiles returns protectedKept; paged-fetch copies it to coverage.protected_kept and renders a 'Protected paths kept' list. Config: bridgebuilder.protected_paths (YAML) → protectedPaths; when set it replaces the default; [] disables."
+    rationale: "The three call sites already share matchesExcludePattern; a helper keeps the rule in one place; the coverage record is the existing visibility channel."
+    alternatives_considered:
+      - option: "filter protected files back in after selection"
+        rejected_because: "the file cap and byte budget would already have been computed without them"
+      - option: "merge config with the default instead of replacing"
+        rejected_because: "an operator could never un-protect a path"
+    consequences:
+      positive:
+        - "one rule, one helper, visible result"
+      negative:
+        - "a new field in two records and one rendering section"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff8a9f64"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:35:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "truncation.ts:1292-1318, 1442, 1515; paged-fetch.ts:400-410; config.ts:1100-1142, 1524-1537"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1021"
+    created_at: "2026-10-26T04:35:07Z"
+    updated_at: "2026-10-26T04:35:07Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "Content fetch in pass 1 for added files without a patch: getFileContent via gh api contents (raw), ≤ max_diff_bytes; text → synthesized patch; else untouched"
+    decision: "IGitProvider.getFileContent(owner, repo, path, ref, maxBytes) → {kind: 'text', content, bytes} | {kind: 'binary'} | {kind: 'too_large'}; adapter runs gh api -H 'Accept: application/vnd.github.raw+json' /repos/o/r/contents/<percent-encoded path>?ref=<40-hex> with maxBuffer = maxBytes + 1 KiB. paged-fetch pass 1 fetches for eligible files in listing order, at most maxFilesPerPr fetches, each ≤ maxDiffBytes; a text result becomes patch '@@ -0,0 +1,N @@' + '+' lines with patchBytes set and source 'contents'; the file then flows through selection and pass 2 as a pre-retained patch. Binary (NUL in the first 8 KiB or invalid UTF-8), too_large or any error leave the metadata as it was (no_patch at selection)."
+    rationale: "Pass 1 is where sizes are decided; an added file's content is the exact diff, so fetching it there gives selection the size it lacks; bounds keep the network cost at one bounded call per such file."
+    alternatives_considered:
+      - option: "fetch in pass 2 after selection"
+        rejected_because: "selection already excluded the file for lack of a size"
+      - option: "derive size from additions × average line"
+        rejected_because: "a guess; selection would plan on fiction"
+    consequences:
+      positive:
+        - "recovers exactly the content a patch would show; bounded"
+      negative:
+        - "pass 1 is no longer metadata-only for this one class of file (documented)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff8a9f64"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:35:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "paged-fetch.ts:14-66, 240-280; github-cli.ts:150-200, 290-307"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1022"
+    created_at: "2026-10-26T04:35:11Z"
+    updated_at: "2026-10-26T04:35:11Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "housekeeping wiring: rule 1a echoes it; the wrapper passes it; simple-release adds pr_type != 'housekeeping'; the orchestrator's --type check refuses it (pinned"
+    decision: "classify_pr_type: rule 1a echoes housekeeping; header grammar pr_type=<cycle|bugfix|housekeeping|other>. classify-merge-pr.sh: unchanged except the comment (the no-PR guard still forces other). post-merge.yml: simple-release if: pr_type != 'cycle' && pr_type != 'housekeeping' && pr_number != ''. post-merge-orchestrator.sh: the existing --type validation (`cycle|bugfix|other`, 'Invalid --type', exit 1 at :2491) refuses housekeeping; a bats case pins it."
+    rationale: "Four small, pinned edits in the files that already own each rule; no new file; the orchestrator never sees the value in the workflow, so the refusal is defence in depth."
+    alternatives_considered:
+      - option: "skip in the workflow by subject regex"
+        rejected_because: "duplicates the classifier"
+      - option: "teach the orchestrator a no-op housekeeping phase set"
+        rejected_because: "a job would still run and upload an artifact"
+    consequences:
+      positive:
+        - "no prepare job, no artifact, self-describing output"
+      negative:
+        - "four files, four test files"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff8a9f64"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:35:11Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "classify-pr-type.sh:42-90; classify-merge-pr.sh:118-170; post-merge.yml:106-109, 179-187; post-merge-orchestrator.sh:2491-2492"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1023"
+    created_at: "2026-10-26T04:35:15Z"
+    updated_at: "2026-10-26T04:35:15Z"
+    phase: "architecture"
+    category: "testing"
+    summary: "Guardrails: CPU time (process.cpuUsage user+system) around the measured call, thresholds unchanged (500 ms, 100 ms); quadratic stand-in as a report-only red dem"
+    decision: "Both guardrails in progressive-truncation.test.ts call process.cpuUsage() before and after; the assertion message names CPU time; a comment names bd-oglcu and the load observations."
+    rationale: "process.cpuUsage is in Node 20 and 22, needs no dependency, and excludes the time other processes hold the CPU."
+    alternatives_considered:
+      - option: "performance.now() with a 3-run minimum"
+        rejected_because: "still load-dependent on a saturated host"
+      - option: "skip under CI env"
+        rejected_because: "the regression signal disappears where it matters"
+    consequences:
+      positive:
+        - "deterministic on a loaded host"
+      negative:
+        - "includes the process's own GC time (bounded)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff8a9f64"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:35:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "progressive-truncation.test.ts:548-590"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1024"
+    created_at: "2026-10-26T04:35:18Z"
+    updated_at: "2026-10-26T04:35:18Z"
+    phase: "architecture"
+    category: "process"
+    summary: "Lead contract commit before dispatch: types.ts gains TruncationResult.protectedKept and CoverageRecord.protected_kept / reviewed[].source; implementers never ed"
+    decision: "The lead adds the optional fields to types.ts under the bounded marker (manifests + dist regenerated) before creating the worktrees; neither implementer edits types.ts."
+    rationale: "A and B would otherwise both add the same one-line field and the second patch would not apply; a shared base avoids a three-way merge on a System Zone file."
+    alternatives_considered:
+      - option: "A owns types.ts, B casts until A lands"
+        rejected_because: "B's tests would not compile against the base"
+    consequences:
+      positive:
+        - "clean, independently applicable patches"
+      negative:
+        - "one extra lead commit"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff8a9f64"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:35:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "types.ts (TruncationResult, CoverageRecord)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1025"
+    created_at: "2026-10-26T04:35:22Z"
+    updated_at: "2026-10-26T04:35:22Z"
+    phase: "architecture"
+    category: "process"
+    summary: "Allowlists: A truncation/config/loa-detection tests/SKILL.md; B paged-fetch/github-cli/git-provider + tests + guardrail test; C classifier/wrapper/workflow/pin"
+    decision: "Disjoint allowlists as listed; CHANGELOG lines are given to the lead in the reports (one shared heading); dist, checksums and REPO-MAP are the lead's."
+    rationale: "No file is touched by two implementers; the one shared type is in the contract commit (D-2.1)."
+    alternatives_considered:
+      - option: "two implementers (Bridgebuilder, pipeline)"
+        rejected_because: "one 400-line Bridgebuilder patch mixing matcher, protection and fetch is harder to review than three"
+    consequences:
+      positive:
+        - "parallel, reviewable, conflict-free landings"
+      negative:
+        - "three briefs"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff8a9f64"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:35:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 8"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1026"
+    created_at: "2026-10-26T04:51:39Z"
+    updated_at: "2026-10-26T04:51:39Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "One glob grammar, one matcher: the segment matcher is the only wildcard matcher (no path.matchesGlob); * ** ? {a,b} [..]; other constructs rejected with a WARN"
+    decision: "Supersedes D-1.1's native-then-fallback OR: matchesExcludePattern uses segmentMatch for non-wildcard patterns and dotSegmentGlobMatch (with one-level braces and character classes) for wildcard patterns on every Node version; path.matchesGlob is no longer called; a pattern using extglob (+( @( !( ?( *( ), nested braces or backslash escapes is rejected when patterns are loaded, with one WARN naming it, and matches nothing. The opts.native seam is dropped; parity is by construction and the grammar is pinned by tests."
+    rationale: "Flatline SKP-003 (PRD and SDD): OR-ing a native matcher with a fallback cannot give identical results where the native one is absent; one grammar implemented once is the only way to make Node 20 and Node 22 agree, and the supported subset covers every pattern this repository and the defaults use."
+    alternatives_considered:
+      - option: "keep native first, fallback second (D-1.1)"
+        rejected_because: "divergent results for extglob and escapes between runtimes; the parity promise could not be tested"
+      - option: "ship minimatch as a dependency"
+        rejected_because: "a new dependency in a security-sensitive path; the subset is small enough to own"
+    consequences:
+      positive:
+        - "identical results on every Node; the grammar is a one-paragraph contract; one code path to audit"
+      negative:
+        - "extglob and escaped patterns stop working (none in use; rejected loudly)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e37b56a9"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:51:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "flatline cycle-135-sdd-review.json SKP-003; truncation.ts:94-200"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1027"
+    created_at: "2026-10-26T04:51:42Z"
+    updated_at: "2026-10-26T04:51:42Z"
+    phase: "architecture"
+    category: "security"
+    summary: ".reviewignore read from the PR base sha (git show <base>:.reviewignore) when a base is known, else the checkout; source and PR-modified flag recorded"
+    decision: "parseReviewignoreFile(repoRoot, {baseSha?}): with a base sha, the patterns come from `git show <base_sha>:.reviewignore` (bounded, same validation as the file read; absent in base → no patterns); without one (local dry runs) from the checkout file as today. coverage.reviewignore_source ∈ {base, checkout, none}; when the PR's file list contains .reviewignore, coverage.reviewignore_changed_in_pr = true and the file is in the review set (protected). .loa.config.yaml stays checkout-sourced this cycle (protected against wildcard removal; full config provenance is bd-idex8)."
+    rationale: "Flatline SKP-001 (SDD) and SKP-001b (PRD): in this repository the Bridgebuilder runs on a checkout of the PR branch, so the PR author owns .reviewignore; a non-wildcard line there would exclude any protected file by design. Reading the base version removes that lever with one bounded git read."
+    alternatives_considered:
+      - option: "protect .reviewignore only (PRD 1.1)"
+        rejected_because: "the added line is visible but the hidden file is still not reviewed"
+      - option: "read the whole config from base too"
+        rejected_because: "the config load path is large; one cycle item — tracked as bd-idex8"
+    consequences:
+      positive:
+        - "a PR cannot tune its own exclusions through .reviewignore"
+      negative:
+        - "a legitimate .reviewignore change takes effect after it merges, not in its own PR (documented)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e37b56a9"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:51:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "truncation.ts:277-350; paged-fetch.ts coverage record"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1028"
+    created_at: "2026-10-26T04:51:46Z"
+    updated_at: "2026-10-26T04:51:46Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "Content fetch via the JSON contents endpoint (default media type), base64 decoded; size checked before decoding; encoding none / over budget → too_large"
+    decision: "getFileContent runs gh api /repos/<o>/<r>/contents/<path>?ref=<sha> (no -H), parses the JSON object, requires type == 'file' and encoding == 'base64', refuses when size > maxBytes or encoding is 'none' (GitHub's > 1 MiB case) as too_large, decodes the content, applies the binary test, and returns text with bytes = decoded length. maxBuffer covers the base64 envelope (ceil(maxBytes × 4/3) + 4096)."
+    rationale: "Flatline SKP-005: sniffing a raw body for JSON is ambiguous (a raw JSON file can look like a contents response); the JSON envelope is an unambiguous contract and carries size for an early refusal."
+    alternatives_considered:
+      - option: "raw media type with a JSON fallback (D-1.3)"
+        rejected_because: "ambiguous detection; two response shapes to test"
+    consequences:
+      positive:
+        - "one response format; size known before decoding; no header allowlisting"
+      negative:
+        - "~33 % larger transfer (base64) within the bounded buffer"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e37b56a9"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:51:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "github-cli.ts:150-200; GitHub REST contents API"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1029"
+    created_at: "2026-10-26T04:51:50Z"
+    updated_at: "2026-10-26T04:51:50Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "simple-release guard is an allowlist: (pr_type == 'bugfix' || 'other') && pr_number != ''; unknown, empty or malformed values run neither job (pinned)"
+    decision: "post-merge.yml: simple-release if: (needs.classify.outputs.pr_type == 'bugfix' || needs.classify.outputs.pr_type == 'other') && needs.classify.outputs.pr_number != ''; full-pipeline unchanged (== 'cycle'); post-merge-workflow-guards.bats pins housekeeping, an unknown value and an empty value as skipped by both jobs."
+    rationale: "Flatline SKP-001 (SDD): a negative list accepts any unexpected value; the allowlist makes the error-handling statement (an unknown value skips both jobs) true by construction."
+    alternatives_considered:
+      - option: "!= cycle && != housekeeping (D-1.4)"
+        rejected_because: "an unexpected value would prepare a candidate"
+    consequences:
+      positive:
+        - "unknown values prepare nothing"
+      negative:
+        - "a new legitimate type needs a guard edit (intended)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e37b56a9"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:51:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "post-merge.yml:106-109"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1030"
+    created_at: "2026-10-26T04:51:53Z"
+    updated_at: "2026-10-26T04:51:53Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "Content fetch bounds: only files surviving exclusion are fetched; max_content_fetches (default 20), 120 s deadline, 30 s per call; fetch_missing_patches knob"
+    decision: "Pass 1 applies the Loa tier and user exclusions (with protection) before any content fetch; at most max_content_fetches files (config, default 20) are fetched sequentially within a 120 s deadline, each under the adapter's 30 s timeout and the per-file byte bound; the synthesized patch's encoded bytes are budgeted against max_diff_bytes and an oversized one is left no_patch (never truncated); the outcome of an attempted fetch is recorded on the omission (fetch: binary | too_large | error | skipped_cap | deadline); bridgebuilder.fetch_missing_patches: false disables the fetch entirely."
+    rationale: "Flatline SDD review (gpt IMP-006/007, opus IMP-005/009/010) and sprint review SKP-002: a fetch per patch-less file without a cap or deadline is an unbounded cost a PR author can trigger; excluded files must never be fetched; operators need an off switch and an audit trail of what was attempted."
+    alternatives_considered:
+      - option: "cap at max_files_per_pr only (D-1.3)"
+        rejected_because: "50 bounded fetches is still minutes of network time on a hostile PR"
+      - option: "truncate an oversized synthesized patch"
+        rejected_because: "a cut patch of an added file reviews a fiction; the omission is honest"
+    consequences:
+      positive:
+        - "bounded cost; visible outcomes; operator control"
+      negative:
+        - "two new config keys to document"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e37b56a9"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:51:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "paged-fetch.ts:14-66; config.ts:1100-1142"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1031"
+    created_at: "2026-10-26T04:51:57Z"
+    updated_at: "2026-10-26T04:51:57Z"
+    phase: "architecture"
+    category: "testing"
+    summary: "Guardrails take the minimum CPU time of three runs of the measured synchronous call; the quadratic negative control is defined (O(n²) over 100 files)"
+    decision: "Each guardrail repeats the measured synchronous call three times, records process.cpuUsage deltas, and asserts the minimum against the unchanged threshold; the report-only negative control is a deliberately O(n²) loop over the 100-file list that must trip the 100 ms bound."
+    rationale: "Flatline SDD review (opus IMP-019, gpt IMP-018): process.cpuUsage includes parallel GC and JIT threads, so a single sample can exceed wall time; the minimum of three removes that noise while a real algorithmic regression still trips every run."
+    alternatives_considered:
+      - option: "single sample"
+        rejected_because: "GC/JIT noise can trip the bound once"
+      - option: "raise the threshold"
+        rejected_because: "hides a 5× regression"
+    consequences:
+      positive:
+        - "noise-immune, regression-sensitive"
+      negative:
+        - "the measured work runs three times (milliseconds)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e37b56a9"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:51:57Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "progressive-truncation.test.ts:548-590"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1032"
+    created_at: "2026-10-26T05:51:21Z"
+    updated_at: "2026-10-26T05:51:21Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Matcher internals: translateGlobSegment + compileGlob + one memoized per-pattern predicate (patternMatcher) replace dotSegmentGlobMatch; grammar violations…"
+    decision: "The sprint-bug-278 segment/globstar translation is kept; braces and classes are added in a per-segment parser; a pattern reaching matchesExcludePattern without the loaders is checked once by excludePatternGrammarError and memoized as 'matches nothing'."
+    rationale: "Exported entry points (truncateFiles, matchesExcludePattern, core/index.ts) can receive raw patterns; 'rejected patterns match nothing' must hold for every caller, not only the loaders."
+    alternatives_considered:
+      - option: "trust the loaders only"
+        rejected_because: "a direct caller or test could bypass the grammar"
+    consequences:
+      positive:
+        - "one invariant everywhere"
+      negative:
+        - "one extra memoized check per pattern"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § A judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "4f926bcfd"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1033"
+    created_at: "2026-10-26T05:51:25Z"
+    updated_at: "2026-10-26T05:51:25Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Normalisation runs once at each loader (trim; one leading ./ or / stripped), never re-applied inside truncateFiles; [!..] is the only class negation ([^..]…"
+    decision: "Stripping is not idempotent ('//x' → '/x' → 'x'), so loaders normalise and truncateFiles matches as given; the WARN names the pattern JSON-quoted (log-injection safe); a brace containing '/' is unbalanced because patterns split on '/' first."
+    rationale: "One grammar with one negation form and explicit rejection of ambiguous shapes keeps results explainable."
+    alternatives_considered:
+      - option: "treat an unmatched { or [ literally"
+        rejected_because: "ambiguous and broadens matches"
+    consequences:
+      positive:
+        - "deterministic parsing"
+      negative:
+        - "operators with [^..] patterns must rewrite them to [!..] (WARN names them)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § A judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "4f926bcfd"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1034"
+    created_at: "2026-10-26T05:51:29Z"
+    updated_at: "2026-10-26T05:51:29Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Omission stats carry ' [pattern: <p>]' as a suffix for Loa-tier AND user-pattern exclusions (parsed by the coverage with / \\[pattern: (.+)\\]$/); types.ts…"
+    decision: "The excluding pattern rides on the existing stats string (exclusionReason keeps working); B strips it before classifying and falls back to the matching config pattern for exclusions without a suffix."
+    rationale: "TruncationResult.excluded lives in types.ts (lead-owned contract); a structured field would have needed a second contract commit mid-sprint."
+    alternatives_considered:
+      - option: "a structured pattern field on excluded[]"
+        rejected_because: "types.ts edit outside the implementers' allowlists"
+    consequences:
+      positive:
+        - "no contract churn; renderer gets the pattern"
+      negative:
+        - "a string grammar between two files (pinned by both sides' tests)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § A judgment calls, § B judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:29Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e6ba40f96, 625c5a901"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1035"
+    created_at: "2026-10-26T05:51:33Z"
+    updated_at: "2026-10-26T05:51:33Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "A protected file kept from a user wildcard and later stripped by the Loa tier stays in protectedKept and renders 'then omitted (excluded_loa)'…"
+    decision: "Protection composes across the three sites: a later explicit config pattern removes a .reviewignore-kept file from protectedKept (order independence across sources); the Loa tier's own strip is shown as the final status, not hidden."
+    rationale: "Dropping the entry would hide that a wildcard matched a protected file; the renderer's final-status annotation keeps the record honest."
+    alternatives_considered:
+      - option: "drop the entry when the Loa tier strips it"
+        rejected_because: "hides the wildcard match"
+    consequences:
+      positive:
+        - "the operator sees both facts"
+      negative:
+        - "a kept entry may also appear among omissions (annotated)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § A judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e6ba40f96"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1036"
+    created_at: "2026-10-26T05:51:38Z"
+    updated_at: "2026-10-26T05:51:38Z"
+    phase: "implementation"
+    category: "security"
+    summary: "reviewignoreBaseSha goes to truncateFiles through its config object and reviewignoreSource comes back on its result (intersection types, types.ts…"
+    decision: "One read of .reviewignore per selection; absence at the base WARNs and yields none (fails toward more review); an invalid repoRoot still throws (fail-closed); the lead wired the coverage record to the selection's reviewignoreSource (no second read)."
+    rationale: "Two reads could disagree in checkout mode; the base commit must exist in the reviewer's clone — otherwise no patterns apply, which is the safe direction."
+    alternatives_considered:
+      - option: "paged-fetch calls parseReviewignoreFile itself"
+        rejected_because: "reads the file twice; the two reads could disagree"
+    consequences:
+      positive:
+        - "single source of truth for the record"
+      negative:
+        - "two optional fields outside types.ts (candidate for the next contract tidy-up)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § A judgment calls, § lead wiring"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e6ba40f96, 9300f9b3d"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1037"
+    created_at: "2026-10-26T05:51:44Z"
+    updated_at: "2026-10-26T05:51:44Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Config validation: protected_paths grammar violations and a non-integer max_content_fetches are errors naming the entry (in resolveConfig, since the YAML…"
+    decision: "A silently dropped protected entry would weaken protection, so it errors; a malformed boolean mirrors gh_max_buffer_bytes's WARN-and-default; protected_paths: [] is the explicit opt-out; an empty key is treated as unset."
+    rationale: "Errors where silence would lower coverage, defaults where the safe value is obvious."
+    alternatives_considered:
+      - option: "WARN and drop invalid protected entries"
+        rejected_because: "weakens protection silently"
+    consequences:
+      positive:
+        - "misconfiguration surfaces at load"
+      negative:
+        - "a typo in protected_paths stops the review until fixed (intended)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § A judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e6ba40f96"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1038"
+    created_at: "2026-10-26T05:51:49Z"
+    updated_at: "2026-10-26T05:51:49Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Content fetch placement: selection first (truncateFiles), fetch for its '(diff unavailable)' survivors, re-run the selection only when a patch was…"
+    decision: "Eligibility = the first selection's patch-less added files (so excluded or capped files are never fetched, reusing A's matcher and protection); the cap is checked before the deadline; a remaining ≤ 0 records too_large without a provider call and does not count against the cap; empty content with additions > 0 is recorded fetch: error."
+    rationale: "Duplicating the exclusion logic before truncateFiles would risk fetching a file the cap later drops; 'never truncated' is read literally from FR-3."
+    alternatives_considered:
+      - option: "filter exclusions before truncateFiles"
+        rejected_because: "duplicates A's matcher; could fetch a capped file"
+      - option: "let the planner cut an oversized synthesized patch"
+        rejected_because: "contradicts 'never truncated'; reviews a fiction"
+    consequences:
+      positive:
+        - "one exclusion logic; honest omissions"
+      negative:
+        - "truncateFiles runs twice when a patch is synthesized (its WARNs may repeat)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § B judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "46237970c"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1039"
+    created_at: "2026-10-26T05:51:55Z"
+    updated_at: "2026-10-26T05:51:55Z"
+    phase: "implementation"
+    category: "security"
+    summary: "No Accept header on the contents request (DEC-1028 over the stale PRD 1.1 wording); stdout taken as a string and bytes come only from base64 (no buffer…"
+    decision: "assertContentsArgs handles endpoints under /repos/<o>/<r>/contents/ with exactly two arguments, the anchored regex, per-segment decode refusing %2F, re-encode-to-itself canonical check and a 2048 bound (a 140-char Unicode path exceeds the generic 200 once encoded); the envelope is ASCII JSON so decoding stdout as text before Buffer.from(base64) is byte-exact; BOM kept verbatim."
+    rationale: "The SDD's bytes-first wording aimed at not corrupting content; base64 transport makes the string path equivalent and keeps every existing exec double working."
+    alternatives_considered:
+      - option: "allowlist Accept: application/vnd.github+json"
+        rejected_because: "widens the surface for no behaviour change"
+      - option: "reuse the generic 200-char bound"
+        rejected_because: "long real paths would become fetch: error"
+    consequences:
+      positive:
+        - "one response contract; existing doubles untouched"
+      negative:
+        - "PRD 1.1's AC wording had to be corrected (1.3)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § B judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:51:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "46237970c"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1040"
+    created_at: "2026-10-26T05:52:00Z"
+    updated_at: "2026-10-26T05:52:00Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "maxBuffer = ceil(maxBytes × 4/3) + 4096 as specified: the real envelope's JSON-escaped newlines (+3.3 %) and link metadata (~1 KB) make files within ~3 % of…"
+    decision: "Keep the SDD formula this sprint; the ~3 % band (≈ 498–512 KB at the default) degrades to today's no_patch with fetch: too_large; a follow-up may use ceil(maxBytes × 4/3 × 62/60) + 4096."
+    rationale: "Erring toward too_large is the safe direction and the band is narrow; changing the formula without a measurement is guesswork."
+    alternatives_considered:
+      - option: "widen the buffer now"
+        rejected_because: "unmeasured; conservative behaviour is acceptable"
+    consequences:
+      positive:
+        - "never exceeds the byte bound"
+      negative:
+        - "a small band of near-limit files stays no_patch"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § B open items"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:52:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "46237970c"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1041"
+    created_at: "2026-10-26T05:52:05Z"
+    updated_at: "2026-10-26T05:52:05Z"
+    phase: "implementation"
+    category: "testing"
+    summary: "The workflow-guard matrix test evaluates a hand-transcribed shell mirror of both if: expressions read from the YAML with yq (unknown guard text fails the…"
+    decision: "A per-expression transcription rather than an expression translator (a parser in a test file would itself be untested); the orchestrator pin runs against a copy so a future validation reorder cannot write .run/ state into the checkout; docs enumerating the orchestrator's own --type grammar (three values) are left as they are because they describe a refusal the tests pin."
+    rationale: "Faithful, auditable mirrors; hermetic pins; documentation that stays true."
+    alternatives_considered:
+      - option: "a small expression-to-bash translator"
+        rejected_because: "an untested parser in a test file"
+      - option: "run the orchestrator pin against the worktree"
+        rejected_because: "could write state into the checkout"
+    consequences:
+      positive:
+        - "red on the old guard text for the behavioural reason"
+      negative:
+        - "a new guard shape needs a new mirror branch (intended)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § C judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:52:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "ba454a74f"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1042"
+    created_at: "2026-10-26T05:52:12Z"
+    updated_at: "2026-10-26T05:52:12Z"
+    phase: "implementation"
+    category: "process"
+    summary: "SDD imprecision corrected by C: post-merge-orchestrator.sh:377 assigns classify_pr_type's output directly (would yield housekeeping), but that branch is…"
+    decision: "The SDD 1.1 C-4 sentence 'maps unknown values to other' is amended to 'unreachable from main; the --type validation refuses housekeeping'; no code change."
+    rationale: "Documents must describe the code; the harmless imprecision is worth a row so the next reader does not rely on it."
+    alternatives_considered:
+      - option: "edit the orchestrator to map housekeeping explicitly"
+        rejected_because: "off-limits this sprint and unreachable code"
+    consequences:
+      positive:
+        - "accurate design record"
+      negative:
+        - "none"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "bc4d3668"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § C judgment calls"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T05:52:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "ba454a74f; grimoires/loa/a2a/sprint-279/reviewer.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1043"
+    created_at: "2026-10-26T06:58:11Z"
+    updated_at: "2026-10-26T06:58:11Z"
+    phase: "review"
+    category: "security"
+    summary: "Base .reviewignore read fails closed: on any base failure the checkout copy governs as base_unavailable and the review degrades; none only if both lack it."
+    decision: "none is reserved for 'absent at a readable base and absent in the checkout'; every other base failure applies the checkout patterns and degrades the review (reviewignore_unavailable, fetch-side, merge-blocking); a checkout symlink still throws; an invalid repoRoot still throws."
+    rationale: "Dissent A's BLOCKING: the round-0 none dropped the operator's deny list (secrets/, vendor/) whenever the base commit was not in the clone — content would reach the model; applying the checkout copy keeps the deny list and the degrade keeps a PR-head edit visible."
+    alternatives_considered:
+      - option: "none with zero patterns (round 0)"
+        rejected_because: "fails open on the leak axis"
+      - option: "read the base .reviewignore through the contents API"
+        rejected_because: "async provider access inside the synchronous selection — a follow-up bead"
+    consequences:
+      positive:
+        - "no leak, no silent hiding"
+      negative:
+        - "a clone without the base commit always degrades (operators fetch the base ref)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:11Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "8d22e449a"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1044"
+    created_at: "2026-10-26T06:58:17Z"
+    updated_at: "2026-10-26T06:58:17Z"
+    phase: "review"
+    category: "security"
+    summary: "Explicit (protection-defeating) pattern = non-wildcard that is root-anchored (a / after one trailing / ignored) or the full path; floating names keep the file."
+    decision: "isExplicitFor uses the same anchoring test as segmentMatch, so '.github/' and '.claude/' are floating segment names (kept) while '.github/workflows/' is explicit (excludes); the recorded pattern for an excluded unprotected file is the first explicit match, else the first non-wildcard, else the first match."
+    rationale: "Dissent A: a floating segment line defeated protection with no record; matcher-consistent anchoring is the only reading an operator can predict."
+    alternatives_considered:
+      - option: "any non-wildcard pattern is explicit (round 0)"
+        rejected_because: "ci.yml or .github removes a protected file silently"
+      - option: "'contains / after normalisation' literally"
+        rejected_because: "would make .github/ explicit although the matcher treats it as floating"
+    consequences:
+      positive:
+        - "protection holds against every floating line"
+      negative:
+        - "an operator must write the anchored path to exclude a protected file (documented)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "8d22e449a"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1045"
+    created_at: "2026-10-26T06:58:23Z"
+    updated_at: "2026-10-26T06:58:23Z"
+    phase: "review"
+    category: "security"
+    summary: "On a PR the review-scope keys (protected_paths, exclude_patterns, fetch_missing_patches, max_content_fetches) follow the trusted config; drift is one WARN/key."
+    decision: "loadTrustedConfig's yq view gains reviewScope; applyTrustedReviewScope replaces the head's effective values (defaults applied before comparing) and is called from main.ts after config.trusted = trusted; an invalid trusted protected_paths/exclude_patterns is a config error, an invalid fetch_missing_patches a WARN + default; local mode and no-source runs are unchanged."
+    rationale: "Dissent A: a PR head's .loa.config.yaml could set protected_paths: [] and exclude its own workflow; the provider keys already had a trusted-source precedence — scope keys get the same source but a WARN instead of exit 5, because they change what is reviewed, not who reviews."
+    alternatives_considered:
+      - option: "refuse the run on scope drift like provider drift"
+        rejected_because: "a legitimate exclusion change in a PR would block every review of that PR"
+      - option: "call loadTrustedConfig from resolveConfig"
+        rejected_because: "two git reads and a possible second gh pr view; breaks the resolveConfig tests under CI env"
+    consequences:
+      positive:
+        - "a PR cannot widen or disable its own review scope"
+      negative:
+        - "a scope change takes effect after it merges"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "8d22e449a + the lead's main.ts wiring commit"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1046"
+    created_at: "2026-10-26T06:58:30Z"
+    updated_at: "2026-10-26T06:58:30Z"
+    phase: "review"
+    category: "implementation"
+    summary: "Slashless wildcards float (gitignore semantics): compileGlob adds an implicit **/ at compile time; patterns are recorded as written; no default is slashless."
+    decision: "gitignore semantics for both pattern kinds: *.pem matches keys/a.pem; the one flipped case (**.md vs a/b.md → true) is relabelled with the round."
+    rationale: "Dissent A: the asymmetry (PROCESS.md floats, *.md does not) misleads .reviewignore authors with gitignore habits about nested secrets."
+    alternatives_considered:
+      - option: "document the anchoring instead"
+        rejected_because: "the mistake is silent and leaks content"
+      - option: "insert **/ at normalisation"
+        rejected_because: "records and WARNs would show a pattern the operator did not write"
+    consequences:
+      positive:
+        - "one mental model for all patterns"
+      negative:
+        - "a slashless wildcard excludes more than before (protection still applies)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "8d22e449a"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1047"
+    created_at: "2026-10-26T06:58:36Z"
+    updated_at: "2026-10-26T06:58:36Z"
+    phase: "review"
+    category: "implementation"
+    summary: "Content-fetch budget: candidates join a 0-byte placement selection; reads follow selection order and charge the bytes ahead; a file that cannot fit is budget."
+    decision: "Reads happen in selection order (ties keep listing order); the no-call bound is remaining < 16 + 2 × additions − 1 (the smallest patch those additions can make); the selection runs twice whenever a candidate exists; too_large stays for encoding none, size over the bound and a buffer overflow."
+    rationale: "Dissent B: the round-0 formula ignored GitHub patch bytes ahead, so a tiny file could be read and then dropped as too_large — a misreport and a wasted call; reusing the real selection avoids re-implementing truncateFiles' tiers."
+    alternatives_considered:
+      - option: "re-implement the selection order inside paged-fetch"
+        rejected_because: "A's tiers would drift"
+      - option: "keep listing-order reads"
+        rejected_because: "cannot know the bytes ahead"
+    consequences:
+      positive:
+        - "no wasted provider call; honest outcomes"
+      negative:
+        - "two selections per attempt with candidates"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "04b552529"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1048"
+    created_at: "2026-10-26T06:58:41Z"
+    updated_at: "2026-10-26T06:58:41Z"
+    phase: "review"
+    category: "implementation"
+    summary: "RATE_LIMITED, FORBIDDEN or HTTP 401/403 on a contents read stops the loop: error for that file, aborted for the rest; 404 or a bad envelope stays per-file."
+    decision: "The adapter maps a token without contents read to NETWORK with httpStatus 403, so paged-fetch reads httpStatus structurally in addition to the RATE_LIMITED / FORBIDDEN codes."
+    rationale: "Dissent B: twenty identical failures would spend the rate-limit budget and the deadline before pass 2 fails the same way."
+    alternatives_considered:
+      - option: "stop on any error"
+        rejected_because: "a moved path (404) is per-file and should not abort the others"
+    consequences:
+      positive:
+        - "bounded cost under a refusal"
+      negative:
+        - "one more structural read of the error"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "04b552529"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1049"
+    created_at: "2026-10-26T06:58:47Z"
+    updated_at: "2026-10-26T06:58:47Z"
+    phase: "review"
+    category: "process"
+    summary: "Inline anchors on contents-sourced files: no change needed — postReview sends body, event and commit_id only (pinned); findings are body text, not comments."
+    decision: "The MEDIUM is closed by evidence: PostReviewInput has no comments field and the gh allowlist refuses JSON-typed fields, so no path anchors a line today; a pin keeps it so."
+    rationale: "The risk existed only if findings were posted as inline review comments; they are body text."
+    alternatives_considered:
+      - option: "emit contents-sourced findings as summary-only anyway"
+        rejected_because: "nothing to change; a pin is cheaper and truthful"
+    consequences:
+      positive:
+        - "no speculative code"
+      negative:
+        - "if inline comments are ever added, the pin and this row name the constraint"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "04b552529"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1050"
+    created_at: "2026-10-26T06:58:54Z"
+    updated_at: "2026-10-26T06:58:54Z"
+    phase: "review"
+    category: "testing"
+    summary: "Lead landing: the Loa-aware excluded-files fixture test injects checkout provenance via the test seam; its fake base sha now degrades the record by design."
+    decision: "paged-fetch.test.ts passes { reviewignoreSource: () => \"checkout\" } in the one test whose subject is exclusion, not provenance; every other test that runs the real selection against a fake base sha keeps the degrade."
+    rationale: "The fail-closed base read is correct; the fixture is not a repository; the seam exists for exactly this."
+    alternatives_considered:
+      - option: "assert the degrade in that test"
+        rejected_because: "changes the test's subject"
+      - option: "give the fixture a real git base"
+        rejected_because: "the fixture pins fixed sha strings"
+    consequences:
+      positive:
+        - "the test keeps its meaning"
+      negative:
+        - "one more seam use in tests"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:58:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "04b552529"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1051"
+    created_at: "2026-10-26T06:59:02Z"
+    updated_at: "2026-10-26T06:59:02Z"
+    phase: "review"
+    category: "testing"
+    summary: "The orchestrator HINT pin matches the line's stable prefix, not the whole line; the bogus-type case checks only the absence of the housekeeping hint."
+    decision: "Rewording the quoted guard expression at the line's end will not break the pin; other refusals may gain their own hints without touching this test."
+    rationale: "A full-line pin duplicates the orchestrator's text and turns harmless rewording red."
+    alternatives_considered:
+      - option: "pin the full line"
+        rejected_because: "brittle duplication"
+    consequences:
+      positive:
+        - "pins the action, not the prose"
+      negative:
+        - "a change to the prefix wording still needs the test updated (intended)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T06:59:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "74ff045cf"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1052"
+    created_at: "2026-10-26T07:06:31Z"
+    updated_at: "2026-10-26T07:06:31Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 279 audit: no audit-type dissent run; the three permitted runs were spent at review round 0 on the three code diffs (sprint-276 precedent)."
+    decision: "Lead-only audit (Fable 5.1) over the full sprint diff; the review-round payloads already carried the security questions (fail-open base read, protection bypass by floating names, PR-head scope keys) and all three were fixed and pinned."
+    rationale: "The cap is ≤3 dissent runs per sprint (feedback_model_mix); spending them where the code diffs were largest found three HIGHs; a fourth run would break the cap for a smaller expected yield."
+    alternatives_considered:
+      - option: "a fourth run of --type audit"
+        rejected_because: "exceeds the per-sprint cap"
+      - option: "skip one review run to keep an audit run"
+        rejected_because: "the review runs were already spent when round 1 landed"
+    consequences:
+      positive:
+        - "cap honoured; security questions answered by tests"
+      negative:
+        - "no independent voice over the round-1 patches themselves"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "audit-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b02459e5"
+    source: "grimoires/loa/a2a/sprint-279/auditor-sprint-feedback.md § Dissent"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T07:06:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:audit-sprint"
+        evidence: "b02459e5a"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1053"
+    created_at: "2026-10-26T07:22:55Z"
+    updated_at: "2026-10-26T07:22:55Z"
+    phase: "review"
+    category: "process"
+    summary: "PB-9 breach after landing (SKILL.md 24,710 B): the cycle-135 rules, paged-fetch detail and trusted-provider contract move to a resources reference."
+    decision: "resources/exclusions-and-coverage.md holds the full text verbatim; SKILL.md keeps ~1 KB pointers whose lines carry a guard word (See / when) so the resource is not charged; SKILL.md is 15,245 B."
+    rationale: "tools/check-prompt-budget.sh caps every SKILL.md at 16,384 B charged with unconditionally-read resources; the sprint added 110 lines of operator-facing rules that belong in a reference, and the pre-cycle prompt was already at 15,762 B so pointers alone could not fit."
+    alternatives_considered:
+      - option: "trim the new text in place"
+        rejected_because: "the rules (explicit-name, outcomes table, provenance) are the operator contract and must stay findable"
+      - option: "raise the budget"
+        rejected_because: "the cap is the always-loaded prompt surface gate (cycle-124 FR-8); raising it is a framework decision, not a sprint fix"
+    consequences:
+      positive:
+        - "prompt back under budget with 1.1 KB margin; the contract is complete in one reference file"
+      negative:
+        - "an operator must open the reference for the full grammar"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b6d0a07b"
+    source: "grimoires/loa/a2a/sprint-279/reviewer.md § Post-gate addendum"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T07:22:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "b6d0a07b4"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1054"
+    created_at: "2026-10-26T07:56:18Z"
+    updated_at: "2026-10-26T07:56:18Z"
+    phase: "review"
+    category: "implementation"
+    summary: "A wildcard pattern with a trailing slash is a directory line and covers the subtree (**/fixtures/ = **/fixtures/**); before, it matched nothing."
+    decision: "compileGlob appends ** after a trailing / (recorded pattern unchanged); gitignore directory-line semantics for wildcards, matching the non-wildcard rule (one trailing / ignored, subtree covered)."
+    rationale: "The cycle stopped rewriting .reviewignore directory lines to /**; a wildcard directory line then compiled with an empty trailing segment and matched nothing — a silent coverage regression for lines such as **/fixtures/."
+    alternatives_considered:
+      - option: "reject trailing-slash wildcards with a WARN"
+        rejected_because: "existing .reviewignore files use them; a WARN would still drop the exclusion"
+      - option: "make every wildcard match cover the subtree (gitignore directory semantics without the slash)"
+        rejected_because: "a broader semantic change; filed for discussion rather than changed in a review round"
+    consequences:
+      positive:
+        - "directory lines work again for both pattern kinds"
+      negative:
+        - "docs/*/ also matches docs/b.md because ** spans zero segments (files only, no directory entries)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "23f7d931"
+    source: "PR #1302 Bridgebuilder round 1 (anthropic HIGH, truncation.ts compileGlob)"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T07:56:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "23f7d9319 (red 9c4f742a6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1055"
+    created_at: "2026-10-26T07:56:22Z"
+    updated_at: "2026-10-26T07:56:22Z"
+    phase: "review"
+    category: "security"
+    summary: "No readable trusted source on a pull request: the four review-scope keys fall to their defaults with one WARN (fail closed); the PR head's values are ignored."
+    decision: "loadTrustedConfig returns an all-null reviewScope whenever the mode is pull-request, so applyTrustedReviewScope applies DEFAULT_PROTECTED_PATHS / DEFAULT_EXCLUDE_PATTERNS (+ --exclude) / true / 20 and WARNs per differing head key; the pinned 'today's behaviour' test is flipped."
+    rationale: "A shallow checkout with no BRIDGEBUILDER_TRUSTED_CONFIG let the PR head set protected_paths: [] — the same fail-open the sprint closed for .reviewignore; the review LOW observation deferred it to bd-ous65 and the Bridgebuilder voice rated it HIGH."
+    alternatives_considered:
+      - option: "degrade the review as well"
+        rejected_because: "needs a new degraded reason plumbed into the coverage record; the defaults already review more, not less"
+      - option: "keep the head values with a WARN"
+        rejected_because: "a PR could still hide its own workflow"
+    consequences:
+      positive:
+        - "no fail-open path for the scope keys"
+      negative:
+        - "a mount without a fetchable base loses its repository exclude_patterns on PR runs until it fetches the base or sets the variable"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "23f7d931"
+    source: "PR #1302 Bridgebuilder round 1 (anthropic HIGH, config.ts applyTrustedReviewScope); bd-ous65"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T07:56:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "23f7d9319 (red 9c4f742a6); closes bd-ous65"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1056"
+    created_at: "2026-10-26T07:56:27Z"
+    updated_at: "2026-10-26T07:56:27Z"
+    phase: "review"
+    category: "security"
+    summary: "A readable base that lacks .reviewignore is none: no patterns apply even if the PR adds the file (WARN, applied after merge); not degraded. Amends DEC-1043."
+    decision: "base absent (ls-tree empty) → { patterns: [], source: none }, with a WARN when the checkout has a copy; an unknown commit, git error, oversize or symlink at the base stays base_unavailable with the checkout copy and the degrade."
+    rationale: "Applying the head-controlled copy and blocking every PR that introduces a .reviewignore was the worst of both: hidden content plus a guaranteed block; an absent file at a readable base is the trusted answer, so reviewing everything is the fail-closed reading."
+    alternatives_considered:
+      - option: "keep DEC-1043's base_unavailable for base-absent + checkout-present"
+        rejected_because: "applies the PR's own exclusions to its review and always blocks the merge"
+    consequences:
+      positive:
+        - "more coverage, no block, the added file still visible via reviewignore_changed_in_pr"
+      negative:
+        - "a PR adding a large vendor tree with a .reviewignore still needs the budget to cope until merge"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "23f7d931"
+    source: "PR #1302 Bridgebuilder round 1 (anthropic MEDIUM, truncation.ts parseReviewignoreFile)"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T07:56:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "23f7d9319 (red 9c4f742a6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1057"
+    created_at: "2026-10-26T07:56:31Z"
+    updated_at: "2026-10-26T07:56:31Z"
+    phase: "review"
+    category: "process"
+    summary: "Bridgebuilder round 1 on PR #1302: 3 fixed (+1 dedup), 4 documented, 6 refuted with evidence (diff-rendered regex, httpStatus on the error), 5 praise."
+    decision: "Fixed: trailing-slash wildcards, fail-closed scope keys, base-absent none, WILDCARD dedup. Documented: providers-only trusted variable leaves scope keys at defaults; CHANGELOG housekeeping contradiction resolved; shallow-checkout degrade (bd-9tt4b). Refuted: uppercase/control-character class (source uses \\u0000-\\u001f escapes), httpStatus reliance (GitProviderError carries it), extglob rejection (grammar by design), validation asymmetry (mirrors head side), head-first validation (loud, not hiding)."
+    rationale: "Each disposition cites a line or a test; the two HIGH_CONSENSUS items were real."
+    alternatives_considered:
+      - option: "fix the head-first scope validation too"
+        rejected_because: "a PR author breaking their own review loudly is not a hiding path; folded into bd-gyrgq"
+    consequences:
+      positive:
+        - "one round of fixes, round 2 to confirm"
+      negative:
+        - "round 2 spend"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "23f7d931"
+    source: "PR #1302 Bridgebuilder round 1 consensus comment; triage comment on the PR"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T07:56:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "PR #1302 triage comment"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1058"
+    created_at: "2026-10-26T08:27:09Z"
+    updated_at: "2026-10-26T08:27:09Z"
+    phase: "review"
+    category: "implementation"
+    summary: "A leading / is the root anchor (gitignore): kept by normalisation; /README.md and /*.yml stop floating; /.reviewignore is explicit. Amends DEC-1026."
+    decision: "normalizeExcludePatterns strips ./ only; segmentMatch, compileGlob and isExplicitFor treat a leading / as anchored; patterns are recorded as written; DEFAULT_PROTECTED_PATHS keep the floating .reviewignore (the safe direction)."
+    rationale: "After the cycle stripped the leading slash there was no way to name only the root copy of a single-segment file — a gap against gitignore that would have shipped in the same release as the new grammar."
+    alternatives_considered:
+      - option: "keep stripping and document the gap"
+        rejected_because: "a second grammar change later would break operators twice"
+      - option: "anchor the default .reviewignore too"
+        rejected_because: "nested copies being protected reviews more, not less; the default list is pinned in docs and tests"
+    consequences:
+      positive:
+        - "one gitignore rule more, no new syntax"
+      negative:
+        - "three pinned normalisation expectations flipped (/ kept)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "70444f0d"
+    source: "PR #1302 Bridgebuilder round 2 (anthropic MEDIUM: no root-anchor syntax for single-segment patterns)"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T08:27:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "70444f0d2 (red 486b356f5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1059"
+    created_at: "2026-10-26T08:27:13Z"
+    updated_at: "2026-10-26T08:27:13Z"
+    phase: "review"
+    category: "implementation"
+    summary: "A negated character class never matches the path separator: [!a] compiles to [^/a]; x[!a]y no longer matches x/y."
+    decision: "translateGlobSegment emits [^/…] for a negated class; positive classes are unchanged (a literal / inside a class is not part of the grammar)."
+    rationale: "The segment-wise grammar promises that nothing inside one segment crosses a /; a negated class was the one construct that could."
+    alternatives_considered:
+      - option: "split the path and match segment by segment"
+        rejected_because: "the single-regex compile is pinned by the fixture tables; the one-character fix closes the gap"
+    consequences:
+      positive:
+        - "grammar promise holds for every construct"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "70444f0d"
+    source: "PR #1302 Bridgebuilder round 2 (openai MEDIUM)"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T08:27:13Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "70444f0d2 (red 486b356f5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1060"
+    created_at: "2026-10-26T08:27:17Z"
+    updated_at: "2026-10-26T08:27:17Z"
+    phase: "review"
+    category: "process"
+    summary: "Bridgebuilder round 2 on PR #1302: 2 fixed (+ \\p{Cc} robustness), 4 repeats of round-1 dispositions, 1 reframe accepted as documented, 4 praise; no round 3."
+    decision: "Fixed: root anchor, negated classes. Robustness: contentsPathProblem uses \\p{Cc} so the diff cannot be misread as ^@-^_ again (pin: upper-case and underscores pass). Repeats: shallow-checkout degrade (bd-9tt4b), head-first scope validation (bd-gyrgq), the control-character misread, the test seam (DEC-1050). Reframe: exit 1 on --type housekeeping is the loud refusal by design (bd-akkgq scaffold detection). No round 3: both rounds were non-degraded (G-5), the fixes are covered by red-first tests and the lead's read."
+    rationale: "Two rounds is the cap; the round-2 real findings were small and are closed with tests."
+    alternatives_considered:
+      - option: "a third round"
+        rejected_because: "exceeds the two-round cap; the remaining items are documented or filed"
+    consequences:
+      positive:
+        - "G-5's non-degraded verdict met twice"
+      negative:
+        - "the final head carries lead-verified fixes without a third voice"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "70444f0d"
+    source: "PR #1302 Bridgebuilder round 2 consensus; triage comment on the PR"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T08:27:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "PR #1302 round-2 triage comment"
     rejection_rationale: null
     follow_up: null
     prior_requests: []

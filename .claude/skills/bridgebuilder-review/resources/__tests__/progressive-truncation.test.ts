@@ -537,6 +537,23 @@ describe("E2E: all-Loa PR", () => {
 // --- Performance guardrails (IMP-009) ---
 
 describe("performance guardrails (IMP-009)", () => {
+  // bd-oglcu (cycle-135 C-5, D-1.5, D-1.5a): the two guardrails measure this process's CPU time (user + system) around
+  // the synchronous call, not wall time, so a loaded host (other test processes, other worktrees) cannot fail them —
+  // 102.1 / 115.2 / 146.1 ms wall were observed under load on 2026-10-26 against a 100 ms bound. The minimum of three
+  // samples absorbs a one-off GC pause or JIT warm-up. Caveat: GC and JIT helper threads are charged to the process too,
+  // so the figure is the call's own work plus bounded runtime overhead — load-independent, not exact. An algorithmic
+  // regression still trips the bound (a quadratic stand-in measured 399–598 ms CPU against the 100 ms bound).
+  function minCpuMs(fn: () => void, runs = 3): number {
+    const samples: number[] = [];
+    for (let i = 0; i < runs; i++) {
+      const t0 = process.cpuUsage();
+      fn();
+      const u = process.cpuUsage(t0);
+      samples.push((u.user + u.system) / 1000);
+    }
+    return Math.min(...samples);
+  }
+
   it("progressiveTruncate with 200 files completes in <500ms", () => {
     const files = Array.from({ length: 200 }, (_, i) =>
       file(
@@ -547,18 +564,19 @@ describe("performance guardrails (IMP-009)", () => {
       ),
     );
 
-    const start = performance.now();
-    const result = progressiveTruncate(
-      files,
-      50_000,
-      "claude-sonnet-4-5-20250929",
-      500,
-      1000,
-    );
-    const elapsed = performance.now() - start;
+    let result: ReturnType<typeof progressiveTruncate> | undefined;
+    const cpuMs = minCpuMs(() => {
+      result = progressiveTruncate(
+        files,
+        50_000,
+        "claude-sonnet-4-5-20250929",
+        500,
+        1000,
+      );
+    });
 
-    assert.ok(result.success || !result.success); // Just verify it completes
-    assert.ok(elapsed < 500, `Expected <500ms, got ${elapsed.toFixed(1)}ms`);
+    assert.ok(result!.success || !result!.success); // Just verify it completes
+    assert.ok(cpuMs < 500, `Expected <500ms CPU time (min of 3 samples), got ${cpuMs.toFixed(1)}ms`);
   });
 
   it("detectLoa + applyLoaTierExclusion with 100 files completes in <100ms", async () => {
@@ -584,15 +602,16 @@ describe("performance guardrails (IMP-009)", () => {
       );
     });
 
-    const start = performance.now();
-    const detection = detectLoa({ repoRoot: tmpDir });
-    assert.equal(detection.isLoa, true);
-    applyLoaTierExclusion(files, LOA_EXCLUDE_PATTERNS);
-    const elapsed = performance.now() - start;
+    let detection: ReturnType<typeof detectLoa> | undefined;
+    const cpuMs = minCpuMs(() => {
+      detection = detectLoa({ repoRoot: tmpDir });
+      applyLoaTierExclusion(files, LOA_EXCLUDE_PATTERNS);
+    });
+    assert.equal(detection!.isLoa, true);
 
     rmSync(tmpDir, { recursive: true, force: true });
 
-    assert.ok(elapsed < 100, `Expected <100ms, got ${elapsed.toFixed(1)}ms`);
+    assert.ok(cpuMs < 100, `Expected <100ms CPU time (min of 3 samples), got ${cpuMs.toFixed(1)}ms`);
   });
 });
 
