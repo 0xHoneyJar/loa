@@ -42,6 +42,14 @@
 # grader-consistency count). Prints the strata table. Deterministic; no timestamps; the key
 # names run directories relative to their results root.
 #
+# The finding text is the first paragraph of the arm's outputs that cites the region's file at its
+# start or end line. A paragraph over 1,500 characters is reduced to the bullet(s) that cite the
+# region — each from its bullet, numbered-item, heading or finding-id line to the next such start —
+# under the note "(the citing bullet(s) of a N-line list; k of m chars shown)"; a long paragraph
+# without that structure is shown whole; nothing exceeds 6,000 characters (then cut with " …").
+# Until loa-smol judge-v2 addendum 1 the text was cut at 1,500 characters, which hid the citing
+# bullet in 616 of 1,283 cycle-132 pair packets (κ 0.00 there against 0.30 / 0.42 where visible).
+#
 # A cited path resolves to a file the way the grader credits it: exact under head/; else the
 # unit's labelled defect file when it ends with "/" + cited; else the unique head/ file ending
 # with "/" + cited; else pr/PR.md, PR.md, pr/head.diff → the fixture's PR.md / head.diff. A
@@ -218,13 +226,36 @@ def sources(run_dir):
     return paras
 
 
+CUT, CAP = 1500, 6000     # a citing paragraph over CUT chars is reduced to its citing bullet(s); nothing exceeds CAP
+BULLET = re.compile(r"\s*(?:[-*+]|\d+[.)]|#{1,6}\s|\[?[A-Z]{2,}-\d+)")   # a bullet, numbered item, heading or finding id
+
+
 def finding_text(paras, region):
+    """the first paragraph citing the region's file at its start or end line. Over CUT characters the paragraph is
+    reduced to the line block(s) that cite the region — each from its bullet, numbered-item, heading or finding-id
+    line to the next such start — under a note naming the list's line count and the characters shown (loa-smol
+    judge-v2 addendum 1: the cycle-132 rule p[:1500] + " …" hid the citing bullet in 616 of 1,283 pair packets). A
+    long paragraph without that structure is shown whole. Never more than CAP characters (then cut with " …")."""
     path, a, b = region
     base = re.escape(strip_side(path).rsplit("/", 1)[-1])
     pat = re.compile(base + r"[`*)\]]{0,3}:(%d|%d)(?!\d)" % (a, b))
     for p in paras:
-        if pat.search(p):
-            return p[:1500] + (" …" if len(p) > 1500 else "")
+        if not pat.search(p):
+            continue
+        if len(p) <= CUT:
+            return p
+        lines = p.split("\n")
+        starts = [i for i, ln in enumerate(lines) if BULLET.match(ln)] or [0]
+        keep = set()
+        for h in (i for i, ln in enumerate(lines) if pat.search(ln)):
+            s = max([x for x in starts if x <= h], default=0)
+            e = min([x for x in starts if x > h], default=len(lines))
+            keep.update(range(s, e))
+        out = p
+        if len(keep) < len(lines):
+            shown = "\n".join(lines[i] for i in sorted(keep))
+            out = "(the citing bullet(s) of a %d-line list; %d of %d chars shown)\n%s" % (len(lines), len(shown), len(p), shown)
+        return out if len(out) <= CAP else out[:CAP] + " …"
     return None
 
 
