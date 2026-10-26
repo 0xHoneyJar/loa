@@ -111,10 +111,31 @@ function simplifiedGlobMatch(filename, pattern) {
     }
     return false;
 }
+/**
+ * Segment-aware glob match that ignores the shell dot-file rule (bd-a8l0c):
+ * `**` matches any number of segments, `*` and `?` stay within one segment,
+ * and all three match a segment that starts with a dot. Same translation as
+ * the `**` branch of simplifiedGlobMatch, applied to every wildcard pattern.
+ */
+function dotSegmentGlobMatch(filename, pattern) {
+    const escaped = pattern
+        .split("**")
+        .map((part) => part
+        .split("*")
+        .map((seg) => seg.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\?/g, "[^/]"))
+        .join("[^/]*"))
+        .join(".*");
+    return new RegExp(`^${escaped}$`).test(filename);
+}
 export function matchesExcludePattern(filename, patterns) {
     for (const pattern of patterns) {
         if (hasNativeGlob) {
-            // Node 22+: use native path.matchesGlob() for full glob support
+            // Node 22+: native path.matchesGlob() first (brace expansion, character
+            // classes). Exclusion globs are a denylist: a glob that names a tree
+            // excludes every file under it, dot-led segments included (`.claude`,
+            // `.github`, dot-files). The native matcher's shell dot-file rule
+            // (`*`/`**` never match a leading `.`) is wrong for a denylist, so a
+            // wildcard pattern it rejects is retried dot-agnostically (bd-a8l0c).
             if (path.matchesGlob(filename, pattern)) {
                 return true;
             }
@@ -122,6 +143,9 @@ export function matchesExcludePattern(filename, patterns) {
             if (!pattern.includes("*") && !pattern.includes("?")) {
                 if (filename === pattern || filename.includes(pattern))
                     return true;
+            }
+            else if (dotSegmentGlobMatch(filename, pattern)) {
+                return true;
             }
         }
         else {
