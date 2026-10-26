@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdirSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
+import { writeFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -13,6 +14,9 @@ import {
   SELF_REVIEW_LABEL,
   deriveCallConfig,
 } from "../core/truncation.js";
+// cycle-135 C-2 (bd-i4fyw): namespace access so a missing export fails its own case, not the whole file.
+import * as truncation from "../core/truncation.js";
+import * as configModule from "../config.js";
 import type { PullRequestFile } from "../ports/git-provider.js";
 
 function file(
@@ -1265,5 +1269,344 @@ describe("truncateFiles", () => {
         rmSync(tmpDir, { recursive: true, force: true });
       }
     });
+  });
+});
+
+// --- cycle-135 C-2 (bd-i4fyw): protected paths and .reviewignore provenance ---
+
+type ProtectedConfig = typeof defaultConfig & {
+  loaAware?: boolean;
+  selfReview?: boolean;
+  repoRoot?: string;
+  protectedPaths?: string[];
+  reviewignoreBaseSha?: string;
+};
+
+function run(files: PullRequestFile[], extra: Partial<ProtectedConfig>) {
+  const config: ProtectedConfig = { ...defaultConfig, loaAware: false, ...extra };
+  return truncateFiles(files, config as Parameters<typeof truncateFiles>[1]) as ReturnType<typeof truncateFiles> & {
+    protectedKept?: Array<{ file: string; pattern: string }>;
+    reviewignoreSource?: "base" | "checkout" | "none";
+  };
+}
+
+function names(list: Array<{ filename: string }>): string[] {
+  return list.map((f) => f.filename);
+}
+
+function tmpRepoDir(tag: string): string {
+  return mkdtempSync(join(tmpdir(), `loa-c135-${tag}-`));
+}
+
+function captureStderr<T>(fn: () => T): { value: T; err: string } {
+  const original = process.stderr.write;
+  let err = "";
+  (process.stderr as unknown as { write: (c: unknown) => boolean }).write = (c: unknown) => {
+    err += String(c);
+    return true;
+  };
+  try {
+    return { value: fn(), err };
+  } finally {
+    process.stderr.write = original;
+  }
+}
+
+const CI = ".github/workflows/ci.yml";
+
+describe("protected paths (cycle-135 C-2, bd-i4fyw)", () => {
+  it("DEFAULT_PROTECTED_PATHS is the SDD C-2 list", () => {
+    assert.deepEqual(truncation.DEFAULT_PROTECTED_PATHS, [
+      ".github/workflows/**",
+      ".github/actions/**",
+      ".github/CODEOWNERS",
+      ".claude/settings.json",
+      ".claude/settings.local.json",
+      ".claude/hooks/**",
+      ".husky/**",
+      ".reviewignore",
+    ]);
+  });
+
+  it("**/*.yml keeps .github/workflows/ci.yml and records the pattern", () => {
+    const r = run([file(CI, 3, 1), file("config/app.yml", 2, 0), file("src/a.ts", 1, 0)], { excludePatterns: ["**/*.yml"] });
+    assert.ok(names(r.included).includes(CI), "protected workflow stays in the review set");
+    assert.ok(!names(r.included).includes("config/app.yml"), "unprotected yml still excluded");
+    assert.deepEqual(r.protectedKept, [{ file: CI, pattern: "**/*.yml" }]);
+  });
+
+  for (const order of [["**/*.yml", CI], [CI, "**/*.yml"]]) {
+    it(`an exact name excludes the protected file whatever the order (${order.join(", ")})`, () => {
+      const r = run([file(CI, 3, 1), file("src/a.ts", 1, 0)], { excludePatterns: order });
+      assert.ok(!names(r.included).includes(CI));
+      assert.ok(names(r.excluded).includes(CI));
+      assert.ok(!(r.protectedKept ?? []).some((k) => k.file === CI));
+    });
+  }
+
+  for (const order of [["**/*.yml", ".github/workflows/"], [".github/workflows/", "**/*.yml"]]) {
+    it(`the .reviewignore line .github/workflows/ is an explicit name (${order.join(", ")})`, () => {
+      const root = tmpRepoDir("ri-dir");
+      try {
+        writeFileSync(join(root, ".reviewignore"), order.join("\n") + "\n");
+        const r = run([file(CI, 3, 1), file("src/a.ts", 1, 0)], { loaAware: true, repoRoot: root });
+        assert.ok(!names(r.included).includes(CI));
+        assert.ok(names(r.excluded).includes(CI));
+        assert.ok(!(r.protectedKept ?? []).some((k) => k.file === CI));
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+  }
+
+  it(".reviewignore wildcard keeps the protected file in the default Loa mode and under self-review", () => {
+    const root = tmpRepoDir("ri-wild");
+    try {
+      writeFileSync(join(root, ".reviewignore"), "**/*.yml\n");
+      for (const selfReview of [false, true]) {
+        const r = run([file(CI, 3, 1), file("config/app.yml", 2, 0), file("src/a.ts", 1, 0)], {
+          loaAware: true,
+          selfReview,
+          repoRoot: root,
+        });
+        assert.ok(names(r.included).includes(CI), `selfReview=${selfReview}`);
+        assert.ok(!names(r.included).includes("config/app.yml"), `selfReview=${selfReview}`);
+        assert.deepEqual(r.protectedKept, [{ file: CI, pattern: "**/*.yml" }], `selfReview=${selfReview}`);
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("an exact config pattern wins over protection a .reviewignore wildcard granted (order-independent across sources)", () => {
+    const root = tmpRepoDir("ri-cross");
+    try {
+      writeFileSync(join(root, ".reviewignore"), "**/*.yml\n");
+      const r = run([file(CI, 3, 1), file("src/a.ts", 1, 0)], { loaAware: true, repoRoot: root, excludePatterns: [CI] });
+      assert.ok(!names(r.included).includes(CI));
+      assert.ok(!(r.protectedKept ?? []).some((k) => k.file === CI));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("protected-kept files come first in the selection order (file cap 1)", () => {
+    // src/auth.ts is high-risk and larger: without protected-first it would take the one slot.
+    const r = run([file("src/auth.ts", 500, 0), file(CI, 1, 0)], { excludePatterns: ["**/*.yml"], maxFilesPerPr: 1 });
+    assert.deepEqual(names(r.included), [CI]);
+    assert.ok(names(r.excluded).includes("src/auth.ts"));
+  });
+
+  it("protectedPaths: [] disables protection", () => {
+    const r = run([file(CI, 3, 1), file("src/a.ts", 1, 0)], { excludePatterns: ["**/*.yml"], protectedPaths: [] });
+    assert.ok(!names(r.included).includes(CI));
+    assert.deepEqual(r.protectedKept ?? [], []);
+  });
+
+  it("a custom list protects only its entries", () => {
+    const action = ".github/actions/setup/action.yml";
+    const r = run([file(CI, 3, 1), file(action, 2, 0)], { excludePatterns: ["**/*.yml"], protectedPaths: [CI] });
+    assert.ok(names(r.included).includes(CI));
+    assert.ok(!names(r.included).includes(action));
+    assert.deepEqual(r.protectedKept, [{ file: CI, pattern: "**/*.yml" }]);
+  });
+
+  it("partitionUserExclusions is order-independent and records the pattern", () => {
+    const files = [file(CI, 1, 0), file("config/app.yml", 1, 0), file("src/a.ts", 1, 0)];
+    const prot = [".github/workflows/**"];
+    const a = truncation.partitionUserExclusions(files, ["**/*.yml"], prot);
+    assert.deepEqual(a.protectedKept, [{ file: CI, pattern: "**/*.yml" }]);
+    assert.deepEqual(a.excluded, [{ file: "config/app.yml", pattern: "**/*.yml" }]);
+    for (const user of [["**/*.yml", CI], [CI, "**/*.yml"]]) {
+      const b = truncation.partitionUserExclusions(files, user, prot);
+      assert.deepEqual(b.protectedKept, [], user.join(","));
+      assert.deepEqual(b.excluded, [{ file: CI, pattern: CI }, { file: "config/app.yml", pattern: "**/*.yml" }], user.join(","));
+    }
+  });
+
+  it("omissions carry the excluding pattern in the stats suffix", () => {
+    const r = run([file("config/app.yml", 2, 0), file("src/a.ts", 1, 0)], { excludePatterns: ["**/*.yml"] });
+    const ex = r.excluded.find((e) => e.filename === "config/app.yml");
+    assert.ok(ex && ex.stats.endsWith("(excluded by pattern) [pattern: **/*.yml]"), ex?.stats);
+  });
+
+  it("the Loa tier still strips .claude/settings.json without self-review, naming its default pattern", () => {
+    const root = tmpRepoDir("loa-tier");
+    try {
+      const r = run([file(".claude/settings.json", 2, 0), file("src/a.ts", 1, 0)], { loaAware: true, repoRoot: root });
+      assert.ok(!names(r.included).includes(".claude/settings.json"));
+      const ex = r.excluded.find((e) => e.filename === ".claude/settings.json");
+      assert.ok(ex && /\(Loa framework, summary only\) \[pattern: \.claude\/\*\*\]$/.test(ex.stats), ex?.stats);
+      assert.deepEqual(r.protectedKept ?? [], []);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("protected_paths and the fetch keys in config (cycle-135 C-2, bd-i4fyw)", () => {
+  it("validateProtectedPaths strips a leading / or ./ and keeps the rest", () => {
+    assert.deepEqual(configModule.validateProtectedPaths(["/.github/x/**", "./.husky/**", " ci.yml "]), [
+      ".github/x/**",
+      ".husky/**",
+      "ci.yml",
+    ]);
+    assert.deepEqual(configModule.validateProtectedPaths([]), []);
+  });
+
+  for (const [bad, needle] of [
+    [[42], "42"],
+    [[""], "[0]"],
+    [["ok/**", "   "], "[1]"],
+    [["a/../b"], "a/../b"],
+    [[".."], ".."],
+    [["+(a|b).yml"], "+(a|b).yml"],
+  ] as Array<[unknown[], string]>) {
+    it(`validateProtectedPaths rejects ${JSON.stringify(bad)} with an error naming the entry`, () => {
+      assert.throws(
+        () => configModule.validateProtectedPaths(bad),
+        (e: Error) => e.message.includes("protected_paths") && e.message.includes(needle),
+      );
+    });
+  }
+
+  it("validateProtectedPaths rejects a non-list value", () => {
+    assert.throws(() => configModule.validateProtectedPaths("ci.yml"), /protected_paths/);
+  });
+
+  it("resolveConfig carries protected_paths, fetch_missing_patches and max_content_fetches", async () => {
+    const { config } = await configModule.resolveConfig(
+      {},
+      {},
+      { enabled: true, repos: ["test/repo"], protected_paths: ["/ci.yml"], fetch_missing_patches: false, max_content_fetches: 5 } as never,
+    );
+    assert.deepEqual(config.protectedPaths, ["ci.yml"]);
+    assert.equal(config.fetchMissingPatches, false);
+    assert.equal(config.maxContentFetches, 5);
+  });
+
+  it("resolveConfig leaves the three keys undefined when unset (the readers default them)", async () => {
+    const { config } = await configModule.resolveConfig({}, {}, { enabled: true, repos: ["test/repo"] });
+    assert.equal(config.protectedPaths, undefined);
+    assert.equal(config.fetchMissingPatches, undefined);
+    assert.equal(config.maxContentFetches, undefined);
+  });
+
+  it("resolveConfig rejects an invalid protected_paths entry", async () => {
+    await assert.rejects(
+      configModule.resolveConfig({}, {}, { enabled: true, repos: ["test/repo"], protected_paths: ["a/../b"] } as never),
+      /protected_paths.*a\/\.\.\/b/,
+    );
+  });
+
+  it("resolveConfig rejects a negative or fractional max_content_fetches", async () => {
+    for (const bad of [-1, 1.5]) {
+      await assert.rejects(
+        configModule.resolveConfig({}, {}, { enabled: true, repos: ["test/repo"], max_content_fetches: bad } as never),
+        /max_content_fetches/,
+      );
+    }
+  });
+});
+
+describe(".reviewignore provenance (cycle-135 C-2, bd-i4fyw)", () => {
+  function git(root: string, ...args: string[]): string {
+    return execFileSync(
+      "git",
+      ["-C", root, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", ...args],
+      { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] },
+    ).trim();
+  }
+
+  /** A repo with two commits: base has `.reviewignore` = base-only.md, head (the checkout) = head-only.md + src/**. */
+  function twoCommitRepo(): { root: string; base: string } {
+    const root = tmpRepoDir("prov");
+    git(root, "init", "-q");
+    writeFileSync(join(root, ".reviewignore"), "base-only.md\n");
+    git(root, "add", ".reviewignore");
+    git(root, "commit", "-q", "-m", "base");
+    const base = git(root, "rev-parse", "HEAD");
+    writeFileSync(join(root, ".reviewignore"), "head-only.md\nsrc/**\n");
+    git(root, "add", ".reviewignore");
+    git(root, "commit", "-q", "-m", "head");
+    return { root, base };
+  }
+
+  it("reads the base version when a base sha is given", () => {
+    const { root, base } = twoCommitRepo();
+    try {
+      assert.deepEqual(truncation.parseReviewignoreFile(root, { baseSha: base }), { patterns: ["base-only.md"], source: "base" });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reads the checkout version without a base sha", () => {
+    const { root } = twoCommitRepo();
+    try {
+      assert.deepEqual(truncation.parseReviewignoreFile(root), { patterns: ["head-only.md", "src/**"], source: "checkout" });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("is none when the file is absent from the checkout", () => {
+    const root = tmpRepoDir("prov-absent");
+    try {
+      assert.deepEqual(truncation.parseReviewignoreFile(root), { patterns: [], source: "none" });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("is none with a WARN when the base read fails (file absent at base, unknown sha, malformed sha)", () => {
+    const { root } = twoCommitRepo();
+    try {
+      git(root, "rm", "-q", ".reviewignore");
+      git(root, "commit", "-q", "-m", "drop");
+      const noFile = git(root, "rev-parse", "HEAD");
+      writeFileSync(join(root, ".reviewignore"), "checkout-only.md\n"); // never consulted when a base sha is given
+      for (const sha of [noFile, "0".repeat(40), "abc123", "--output=/tmp/x"]) {
+        const { value, err } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: sha }));
+        assert.deepEqual(value, { patterns: [], source: "none" }, sha);
+        assert.ok(/WARN/.test(err) && err.includes(".reviewignore"), `${sha}: ${err}`);
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("is none with a WARN when .reviewignore is a symlink at the base", () => {
+    const root = tmpRepoDir("prov-link");
+    try {
+      git(root, "init", "-q");
+      writeFileSync(join(root, "target"), "x.md\n");
+      symlinkSync("target", join(root, ".reviewignore"));
+      git(root, "add", "target", ".reviewignore");
+      git(root, "commit", "-q", "-m", "link");
+      const base = git(root, "rev-parse", "HEAD");
+      const { value, err } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: base }));
+      assert.deepEqual(value, { patterns: [], source: "none" });
+      assert.ok(/WARN/.test(err), err);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("truncateFiles applies the base patterns: a line the PR adds does not affect its own review", () => {
+    const { root, base } = twoCommitRepo();
+    try {
+      const files = [file("src/a.ts", 3, 0), file("base-only.md", 1, 0), file(".reviewignore", 2, 1)];
+      const withBase = run(files, { loaAware: true, repoRoot: root, reviewignoreBaseSha: base });
+      assert.ok(names(withBase.included).includes("src/a.ts"), "head-added src/** must not apply");
+      assert.ok(!names(withBase.included).includes("base-only.md"), "base pattern applies");
+      assert.ok(names(withBase.included).includes(".reviewignore"), "the file itself is reviewed");
+      assert.equal(withBase.reviewignoreSource, "base");
+      const checkout = run(files, { loaAware: true, repoRoot: root });
+      assert.ok(!names(checkout.included).includes("src/a.ts"));
+      assert.equal(checkout.reviewignoreSource, "checkout");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
