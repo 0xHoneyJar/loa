@@ -82,7 +82,8 @@ stripped.
   one level of `{a,b}` alternation, and `[ab]`, `[a-z]` or `[!ab]` classes. All of them match names that start
   with a dot: `**/*.{json,md}` excludes `.claude/x.json`. A wildcard without a `/` floats like gitignore: `*.pem`
   means `**/*.pem` and excludes `keys/a.pem` as well as `a.pem`. A wildcard with a `/` is anchored at the root:
-  `docs/*.md` excludes `docs/a.md` but not `x/docs/a.md`.
+  `docs/*.md` excludes `docs/a.md` but not `x/docs/a.md`. A wildcard with a trailing `/` is a directory line and covers
+  the subtree, like gitignore: `**/fixtures/` means `**/fixtures/**`.
 - **Rejected patterns** are dropped with one `WARN` naming them, so they match nothing: a `!` negation line,
   backslash escapes, extglob (`+(`, `@(`, `!(`, `?(`, `*(`), nested or unbalanced braces, and unterminated, empty
   or nested classes.
@@ -117,15 +118,20 @@ the `pattern` field and, for one release, as a ` [pattern: <p>]` suffix on its s
 On a pull request, `protected_paths`, `exclude_patterns`, `fetch_missing_patches` and `max_content_fetches` come from
 the trusted config, the same source the provider keys use: `BRIDGEBUILDER_TRUSTED_CONFIG`, else the base branch's
 `.loa.config.yaml`, else `origin/main`. A PR head value that differs is ignored with one `WARN` naming the key. These
-keys change review scope, not provider identity, so the run is not refused. `--exclude` stays additive. Locally, or
-when no trusted source can be read, the checkout's values apply.
+keys change review scope, not provider identity, so the run is not refused. `--exclude` stays additive. Locally the
+checkout's values apply. When no trusted source can be read on a pull request (shallow checkout, no variable), the
+four keys fall to their defaults with one WARN — fail closed, so a PR head cannot widen its own review (bd-ous65). The
+trusted source must carry the keys it wants to govern: a `BRIDGEBUILDER_TRUSTED_CONFIG` variable holding only
+provider settings leaves them unset, and the defaults apply with a WARN per differing head value.
 
 `.reviewignore` is read from the PR's base commit when the review knows it (`git show <base_sha>:.reviewignore`, the
 same line rules, 10 s and 1 MiB bounds, symlinks refused). A PR therefore cannot change the exclusions of its own
 review. Without a base it is read from the checkout. When the base read fails, for example because the base commit is
 not in the local clone, the checkout copy governs. The source is then `base_unavailable`, one `WARN` names why, and
-the review degrades as `reviewignore_unavailable`. The source is `none` only when neither the base nor the checkout
-has the file. It is recorded as `base`, `checkout`, `base_unavailable` or `none`.
+the review degrades as `reviewignore_unavailable`. A readable base that has no `.reviewignore` is a definitive
+answer: no patterns apply and the source is `none`, even when the PR adds the file — that copy is reported in a
+`WARN` and takes effect after merge (`reviewignore_changed_in_pr` marks it); the review is not degraded. It is
+recorded as `base`, `checkout`, `base_unavailable` or `none`.
 
 ## Trusted provider configuration (cycle-129 D-7.5, DEC-0170; cycle-135 adds the review-scope keys)
 

@@ -36893,3 +36893,151 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1054"
+    created_at: "2026-10-26T07:56:18Z"
+    updated_at: "2026-10-26T07:56:18Z"
+    phase: "review"
+    category: "implementation"
+    summary: "A wildcard pattern with a trailing slash is a directory line and covers the subtree (**/fixtures/ = **/fixtures/**); before, it matched nothing."
+    decision: "compileGlob appends ** after a trailing / (recorded pattern unchanged); gitignore directory-line semantics for wildcards, matching the non-wildcard rule (one trailing / ignored, subtree covered)."
+    rationale: "The cycle stopped rewriting .reviewignore directory lines to /**; a wildcard directory line then compiled with an empty trailing segment and matched nothing — a silent coverage regression for lines such as **/fixtures/."
+    alternatives_considered:
+      - option: "reject trailing-slash wildcards with a WARN"
+        rejected_because: "existing .reviewignore files use them; a WARN would still drop the exclusion"
+      - option: "make every wildcard match cover the subtree (gitignore directory semantics without the slash)"
+        rejected_because: "a broader semantic change; filed for discussion rather than changed in a review round"
+    consequences:
+      positive:
+        - "directory lines work again for both pattern kinds"
+      negative:
+        - "docs/*/ also matches docs/b.md because ** spans zero segments (files only, no directory entries)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "23f7d931"
+    source: "PR #1302 Bridgebuilder round 1 (anthropic HIGH, truncation.ts compileGlob)"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T07:56:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "23f7d9319 (red 9c4f742a6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1055"
+    created_at: "2026-10-26T07:56:22Z"
+    updated_at: "2026-10-26T07:56:22Z"
+    phase: "review"
+    category: "security"
+    summary: "No readable trusted source on a pull request: the four review-scope keys fall to their defaults with one WARN (fail closed); the PR head's values are ignored."
+    decision: "loadTrustedConfig returns an all-null reviewScope whenever the mode is pull-request, so applyTrustedReviewScope applies DEFAULT_PROTECTED_PATHS / DEFAULT_EXCLUDE_PATTERNS (+ --exclude) / true / 20 and WARNs per differing head key; the pinned 'today's behaviour' test is flipped."
+    rationale: "A shallow checkout with no BRIDGEBUILDER_TRUSTED_CONFIG let the PR head set protected_paths: [] — the same fail-open the sprint closed for .reviewignore; the review LOW observation deferred it to bd-ous65 and the Bridgebuilder voice rated it HIGH."
+    alternatives_considered:
+      - option: "degrade the review as well"
+        rejected_because: "needs a new degraded reason plumbed into the coverage record; the defaults already review more, not less"
+      - option: "keep the head values with a WARN"
+        rejected_because: "a PR could still hide its own workflow"
+    consequences:
+      positive:
+        - "no fail-open path for the scope keys"
+      negative:
+        - "a mount without a fetchable base loses its repository exclude_patterns on PR runs until it fetches the base or sets the variable"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "23f7d931"
+    source: "PR #1302 Bridgebuilder round 1 (anthropic HIGH, config.ts applyTrustedReviewScope); bd-ous65"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T07:56:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "23f7d9319 (red 9c4f742a6); closes bd-ous65"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1056"
+    created_at: "2026-10-26T07:56:27Z"
+    updated_at: "2026-10-26T07:56:27Z"
+    phase: "review"
+    category: "security"
+    summary: "A readable base that lacks .reviewignore is none: no patterns apply even if the PR adds the file (WARN, applied after merge); not degraded. Amends DEC-1043."
+    decision: "base absent (ls-tree empty) → { patterns: [], source: none }, with a WARN when the checkout has a copy; an unknown commit, git error, oversize or symlink at the base stays base_unavailable with the checkout copy and the degrade."
+    rationale: "Applying the head-controlled copy and blocking every PR that introduces a .reviewignore was the worst of both: hidden content plus a guaranteed block; an absent file at a readable base is the trusted answer, so reviewing everything is the fail-closed reading."
+    alternatives_considered:
+      - option: "keep DEC-1043's base_unavailable for base-absent + checkout-present"
+        rejected_because: "applies the PR's own exclusions to its review and always blocks the merge"
+    consequences:
+      positive:
+        - "more coverage, no block, the added file still visible via reviewignore_changed_in_pr"
+      negative:
+        - "a PR adding a large vendor tree with a .reviewignore still needs the budget to cope until merge"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "23f7d931"
+    source: "PR #1302 Bridgebuilder round 1 (anthropic MEDIUM, truncation.ts parseReviewignoreFile)"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T07:56:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "23f7d9319 (red 9c4f742a6)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1057"
+    created_at: "2026-10-26T07:56:31Z"
+    updated_at: "2026-10-26T07:56:31Z"
+    phase: "review"
+    category: "process"
+    summary: "Bridgebuilder round 1 on PR #1302: 3 fixed (+1 dedup), 4 documented, 6 refuted with evidence (diff-rendered regex, httpStatus on the error), 5 praise."
+    decision: "Fixed: trailing-slash wildcards, fail-closed scope keys, base-absent none, WILDCARD dedup. Documented: providers-only trusted variable leaves scope keys at defaults; CHANGELOG housekeeping contradiction resolved; shallow-checkout degrade (bd-9tt4b). Refuted: uppercase/control-character class (source uses \\u0000-\\u001f escapes), httpStatus reliance (GitProviderError carries it), extglob rejection (grammar by design), validation asymmetry (mirrors head side), head-first validation (loud, not hiding)."
+    rationale: "Each disposition cites a line or a test; the two HIGH_CONSENSUS items were real."
+    alternatives_considered:
+      - option: "fix the head-first scope validation too"
+        rejected_because: "a PR author breaking their own review loudly is not a hiding path; folded into bd-gyrgq"
+    consequences:
+      positive:
+        - "one round of fixes, round 2 to confirm"
+      negative:
+        - "round 2 spend"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "23f7d931"
+    source: "PR #1302 Bridgebuilder round 1 consensus comment; triage comment on the PR"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T07:56:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "PR #1302 triage comment"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
