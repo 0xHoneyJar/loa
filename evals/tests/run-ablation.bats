@@ -204,6 +204,8 @@ print(",".join(out))')"
   [ ! -e "$B/.gitignore" ]
   "$REPO_ROOT/evals/harness/ablation-row.sh" --validate "$B/rows.jsonl" --allow-ungraded
   [ "$(grep -c -- '--tasks-dir smoke' "$T/grade.log")" -eq "$expect" ]
+  # the batch's suite file reaches every grader call (suite v3: the freeze check needs the version the tasks carry)
+  [ "$(grep -c -- '--suite-file ablation-2.0.yaml' "$T/grade.log")" -eq "$expect" ]
   [ "$(jq -r '.state' "$B/STATUS.json")" = complete ]
   grep -q 'cycle spend USD' "$B/spend.txt"
   grep -q "^.* batch smoke-t1 spend USD $(awk -v n="$expect" 'BEGIN{printf "%g", n * 2.5}')" "$B/spend.txt"   # the stub bills USD 2.5 a trial

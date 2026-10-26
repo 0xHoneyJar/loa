@@ -672,6 +672,20 @@ EOF
   [ "$status" -eq 2 ]
 }
 
+@test "AG-SF --suite-file reaches the freeze check: a suite frozen against a suite file with another suite_version grades with it and is refused without it" {
+  F="$T/frozen-v3"; mkdir -p "$F"; cp -a "$SMOKE" "$F/smoke"
+  sed -i 's/^suite_version: .*/suite_version: 3/' "$F/smoke/smoke-build-01/task.yaml" "$F/smoke/smoke-review-01/task.yaml" "$F"/smoke/*/task.yaml
+  SF="$T/suite-v3.yaml"; sed 's/^suite_version: .*/suite_version: 3/' "$REPO_ROOT/evals/suites/ablation-2.0.yaml" > "$SF"
+  run bash "$REPO_ROOT/evals/harness/freeze.sh" --root "$F" --smoke --allow-partial --suite-file "$SF"
+  [ "$status" -eq 0 ]
+  run "$GRADER" --self-check reference --task-yaml "$F/smoke/smoke-build-01/task.yaml" --allow-partial --suite-file "$SF" --docker-bin "$T/docker"
+  [ "$status" -eq 0 ]
+  [[ "$output" == "self-check reference smoke-build-01: PASS hidden "* ]]
+  run "$GRADER" --self-check reference --task-yaml "$F/smoke/smoke-build-01/task.yaml" --allow-partial --docker-bin "$T/docker"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"freeze.sh --check failed"* && "$output" == *"suite_version 3 differs from the suite file's 2"* ]]
+}
+
 @test "AG-15 --self-check FAIL is exit 1: a reference patch that does not fix the bug, a refactor whose structural check is green at base" {
   printf -- '--- a/src/textkit/slug.py\n+++ b/src/textkit/slug.py\n@@ -1 +1 @@\n-import re\n+import re  # noop\n' > "$S/tasks/bf-py/hidden/reference.patch"
   run "$GRADER" --self-check reference --task-yaml "$S/tasks/bf-py/task.yaml" --allow-unfrozen --docker-bin "$T/docker"
