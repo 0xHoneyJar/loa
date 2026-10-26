@@ -26,16 +26,12 @@ const PAGE_SIZE = 100;
 /** cycle-135 C-3: default `max_content_fetches` and the total deadline for the content reads of one attempt. */
 export const DEFAULT_MAX_CONTENT_FETCHES = 20;
 export const CONTENT_FETCH_DEADLINE_MS = 120_000;
-/**
- * cycle-135 C-2 (D-1.2a, bd-i4fyw): the `.reviewignore` provenance for the coverage record.
- * LEAD (Task 1.7, the B→A seam): implementer A's `parseReviewignoreFile(repoRoot, { baseSha })` → `{ patterns, source }`
- * is not in B's tree; when it is exported from truncation.ts, make this one line
- * `return parseReviewignoreFile(repoRoot ?? process.cwd(), opts).source;` (wrapped as A's fail-closed contract needs).
- * Until then the record omits `reviewignore_source` (undefined), and renders no provenance line.
+/*
+ * cycle-135 C-2 (D-1.2a, bd-i4fyw): the `.reviewignore` provenance for the coverage record comes from the selection
+ * result — `truncateFiles` reads `.reviewignore` (from the PR base sha when `reviewignoreBaseSha` is set) and returns
+ * `reviewignoreSource` beside `protectedKept` — so the file is read once and the record cannot disagree with the
+ * selection. `deps.reviewignoreSource` remains a test seam (lead wiring, Task 1.7).
  */
-function defaultReviewignoreSource(_repoRoot, _opts) {
-    return undefined;
-}
 /** cycle-135 C-2: the ` [pattern: <p>]` suffix A's selection appends to an exclusion's stats (to the final `]`). */
 const PATTERN_SUFFIX = / \[pattern: (.+)\]$/;
 const WILDCARD = /[*?{[]/;
@@ -406,7 +402,12 @@ async function attempt(git, owner, repo, prNumber, config, restarts, deps) {
     const unknown = Math.max(0, pin.changed_files - meta.size);
     const verdict = evaluateCoverage({ omitted, unknown_omitted: unknown, fetchReasons });
     const totalBytes = reviewed.reduce((n, r) => n + r.bytes, 0);
-    const reviewignoreSource = (deps.reviewignoreSource ?? defaultReviewignoreSource)(config.repoRoot, { baseSha: pin.base_sha });
+    // cycle-135 C-2 (D-1.2a; lead wiring, Task 1.7): `truncateFiles` read `.reviewignore` once — from the PR base sha when the
+    // selection config carried `reviewignoreBaseSha` — and reports where it came from on its result; the record takes that
+    // (one read, no second `parseReviewignoreFile`). Tests may inject `deps.reviewignoreSource` instead.
+    const reviewignoreSource = deps.reviewignoreSource
+        ? deps.reviewignoreSource(config.repoRoot, { baseSha: pin.base_sha })
+        : sel.reviewignoreSource;
     return {
         files,
         selection: { ...sel, included: files, excluded: [...sel.excluded, ...budgetExcluded, ...pageExcluded], totalBytes },

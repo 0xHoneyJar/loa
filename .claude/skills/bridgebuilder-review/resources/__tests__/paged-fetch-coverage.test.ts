@@ -111,6 +111,21 @@ describe("coverage record: protected paths, patterns, provenance (C-2 consumer s
     assert.ok(Array.isArray(res.coverage.protected_kept));
     assert.deepEqual(res.selection.included.map((f) => f.filename), truncateFiles([patched("src/a.ts", "x")], SEL).included.map((f) => f.filename));
   });
+
+  // Lead wiring (Task 1.7, D-1.2a): with no injected seam, the provenance is what the selection result reports —
+  // truncateFiles read `.reviewignore` once (from the base sha when the config carried `reviewignoreBaseSha`).
+  it("the .reviewignore provenance comes from the selection result when no seam is injected", async () => {
+    const configs: Array<Record<string, unknown>> = [];
+    const truncate = (files: PullRequestFile[], config: Record<string, unknown>) => {
+      configs.push(config);
+      return { ...truncateFiles(files, config as unknown as typeof SEL), reviewignoreSource: "base" as const };
+    };
+    const res = await run(provider([patched("src/a.ts", "@@ -1 +1 @@\n+a")]), SEL, { truncate });
+    assert.equal(res.coverage.reviewignore_source, "base");
+    assert.equal(configs[0]?.reviewignoreBaseSha, BASE);
+    const text = formatCoverageSection(res.coverage);
+    assert.ok(text.includes(".reviewignore: base"), text);
+  });
 });
 
 function record(over: Partial<CoverageRecord> = {}): CoverageRecord {
