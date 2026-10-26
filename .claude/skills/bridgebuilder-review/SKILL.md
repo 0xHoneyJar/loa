@@ -195,6 +195,32 @@ stripped.
 A pattern that relied on substring matching stops matching: `.env` no longer excludes `.env.local`. Write `.env*`
 for that.
 
+### Protected paths (cycle-135 C-2, bd-i4fyw)
+
+A wildcard user exclusion cannot remove a protected path from the review. The default list is
+`.github/workflows/**`, `.github/actions/**`, `.github/CODEOWNERS`, `.claude/settings.json`,
+`.claude/settings.local.json`, `.claude/hooks/**`, `.husky/**` and `.reviewignore`.
+
+| Setting | Default |
+|---|---|
+| `protected_paths` | the list above; a set list replaces it, and `[]` disables protection. Entries use the exclusion grammar. A leading `/` or `./` is stripped. A non-string, an empty entry, a `..` segment or a rejected construct is a config error naming the entry. |
+| `fetch_missing_patches` | `true` |
+| `max_content_fetches` | `20` (an integer of 0 or more, else a config error) |
+
+The rule does not depend on pattern order. All user patterns that match a file are resolved first, from
+`--exclude`, `exclude_patterns` and `.reviewignore`. If any of them is a non-wildcard pattern, the file is excluded,
+because an explicit name wins over protection. If only wildcard patterns match a protected file, the file is kept and
+the first matching wildcard is recorded in `protectedKept`. So `**/*.yml` keeps `.github/workflows/ci.yml`, while
+`.github/workflows/ci.yml` or the `.reviewignore` line `.github/workflows/` excludes it. Kept files come first in the
+selection order, so the file cap and the byte budget reach them last. The Loa framework tier is not subject to the
+list: in a Loa repository without the self-review label it still strips `.claude/settings.json`. Every omission's
+stats end with ` [pattern: <p>]`, naming the default or user pattern that excluded it.
+
+`.reviewignore` is read from the PR's base commit when the review knows it (`git show <base_sha>:.reviewignore`, the
+same line rules, 10 s and 1 MiB bounds, symlinks refused). A PR therefore cannot change the exclusions of its own
+review. Without a base it is read from the checkout. A failed base read applies no `.reviewignore` patterns
+(`none`) and prints one `WARN`. The source is recorded as `base`, `checkout` or `none`.
+
 ### Invocation trust contract (#1050)
 
 Run `/bridgebuilder` from a **trusted checkout** (your default branch or a clean clone) — never

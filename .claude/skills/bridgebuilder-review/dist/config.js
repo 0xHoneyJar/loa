@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { z } from "zod/v4";
 import { GENERATED_MODEL_REGISTRY } from "./config.generated.js";
 // cycle-135 C-1 (bd-ow72o): every exclusion-pattern source goes through the one loader.
-import { normalizeExcludePatterns } from "./core/truncation.js";
+import { excludePatternGrammarError, normalizeExcludePatterns } from "./core/truncation.js";
 const execFileAsync = promisify(execFile);
 /**
  * Zod schema for multi-model configuration (SDD Section 2.7).
@@ -1203,6 +1203,9 @@ export async function loadYamlConfig() {
                         case "exclude_patterns":
                             config.exclude_patterns = items;
                             break;
+                        case "protected_paths":
+                            config.protected_paths = items;
+                            break;
                     }
                     continue;
                 }
@@ -1262,6 +1265,23 @@ export async function loadYamlConfig() {
                     break;
                 case "pass1_cache_enabled":
                     config.pass1_cache_enabled = value === "true";
+                    break;
+                // cycle-135 C-2/C-3: `protected_paths: []` is the explicit opt-out; any other scalar is kept as written so
+                // resolveConfig rejects it (this parser's catch would swallow a throw here).
+                case "protected_paths":
+                    if (value !== "")
+                        config.protected_paths = value === "[]" ? [] : value;
+                    break;
+                case "fetch_missing_patches":
+                    if (value === "true" || value === "false") {
+                        config.fetch_missing_patches = value === "true";
+                    }
+                    else {
+                        process.stderr.write(`[bridgebuilder] WARN: bridgebuilder.fetch_missing_patches: invalid value ${JSON.stringify(value)} (expected true or false) — using the default (true)\n`);
+                    }
+                    break;
+                case "max_content_fetches":
+                    config.max_content_fetches = Number(value);
                     break;
             }
         }
@@ -1410,6 +1430,12 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
             ...normalizeExcludePatterns(cliArgs.exclude ?? [], "--exclude"),
         ],
         ghMaxBufferBytes: resolveGhMaxBufferBytes(yaml.gh_max_buffer_bytes),
+        // cycle-135 C-2/C-3: set only when configured; readers default them (DEFAULT_PROTECTED_PATHS, true, 20).
+        ...(yaml.protected_paths !== undefined ? { protectedPaths: validateProtectedPaths(yaml.protected_paths) } : {}),
+        ...(yaml.fetch_missing_patches !== undefined ? { fetchMissingPatches: yaml.fetch_missing_patches } : {}),
+        ...(yaml.max_content_fetches !== undefined
+            ? { maxContentFetches: validateMaxContentFetches(yaml.max_content_fetches) }
+            : {}),
         sanitizerMode: yaml.sanitizer_mode ?? DEFAULTS.sanitizerMode,
         maxRuntimeMinutes: yaml.max_runtime_minutes ?? DEFAULTS.maxRuntimeMinutes,
         ...(cliArgs.pr != null ? { targetPr: cliArgs.pr } : {}),
@@ -1452,6 +1478,39 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
         reviewMode: reviewModeSource,
     };
     return { config, provenance };
+}
+/**
+ * cycle-135 C-2 (bd-i4fyw): `bridgebuilder.protected_paths` — a list of non-empty, repository-relative patterns in
+ * the exclusion grammar. A leading `/` or `./` is stripped (through the one loader, normalizeExcludePatterns); a
+ * non-string, an empty entry, a `..` segment or a construct outside the grammar is a config error naming the entry.
+ */
+export function validateProtectedPaths(raw) {
+    if (!Array.isArray(raw)) {
+        throw new Error(`bridgebuilder.protected_paths: expected a list of path patterns, got ${JSON.stringify(raw)}`);
+    }
+    return raw.map((entry, i) => {
+        const where = `bridgebuilder.protected_paths[${i}]`;
+        if (typeof entry !== "string")
+            throw new Error(`${where}: expected a string, got ${JSON.stringify(entry)}`);
+        if (entry.trim() === "")
+            throw new Error(`${where}: empty entry`);
+        const why = excludePatternGrammarError(entry.trim());
+        if (why !== null)
+            throw new Error(`${where}: ${JSON.stringify(entry)} — ${why}`);
+        const [normalized] = normalizeExcludePatterns([entry], where);
+        if (normalized === undefined)
+            throw new Error(`${where}: ${JSON.stringify(entry)} is empty after normalisation`);
+        if (normalized.split("/").includes("..")) {
+            throw new Error(`${where}: ${JSON.stringify(entry)} — a ".." segment is not allowed (patterns are repository-relative)`);
+        }
+        return normalized;
+    });
+}
+/** cycle-135 C-3: `bridgebuilder.max_content_fetches` — an integer ≥ 0, else a config error. */
+export function validateMaxContentFetches(raw) {
+    if (Number.isInteger(raw) && raw >= 0)
+        return raw;
+    throw new Error(`bridgebuilder.max_content_fetches: invalid value ${JSON.stringify(raw)} (expected an integer ≥ 0)`);
 }
 /**
  * cycle-133 C-1: `bridgebuilder.gh_max_buffer_bytes` — an integer in 1 MiB … 512 MiB, else the default with a warning

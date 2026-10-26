@@ -333,6 +333,12 @@ export interface YamlConfig {
     pass1_cache_enabled?: boolean;
     /** cycle-133 C-1: per-call `gh` stdout buffer in bytes. */
     gh_max_buffer_bytes?: number;
+    /** cycle-135 C-2: replaces DEFAULT_PROTECTED_PATHS; `[]` disables. Validated in resolveConfig (validateProtectedPaths). */
+    protected_paths?: unknown;
+    /** cycle-135 C-3: fetch the content of added files GitHub returned without a patch (default true). */
+    fetch_missing_patches?: boolean;
+    /** cycle-135 C-3: at most this many content fetches per review (integer ≥ 0, default 20). */
+    max_content_fetches?: number;
 }
 export interface EnvVars {
     BRIDGEBUILDER_REPOS?: string;
@@ -369,6 +375,14 @@ export declare function resolveConfig(cliArgs: CLIArgs, env: EnvVars, yamlConfig
     config: BridgebuilderConfig;
     provenance: ConfigProvenance;
 }>;
+/**
+ * cycle-135 C-2 (bd-i4fyw): `bridgebuilder.protected_paths` — a list of non-empty, repository-relative patterns in
+ * the exclusion grammar. A leading `/` or `./` is stripped (through the one loader, normalizeExcludePatterns); a
+ * non-string, an empty entry, a `..` segment or a construct outside the grammar is a config error naming the entry.
+ */
+export declare function validateProtectedPaths(raw: unknown): string[];
+/** cycle-135 C-3: `bridgebuilder.max_content_fetches` — an integer ≥ 0, else a config error. */
+export declare function validateMaxContentFetches(raw: number): number;
 /**
  * cycle-133 C-1: `bridgebuilder.gh_max_buffer_bytes` — an integer in 1 MiB … 512 MiB, else the default with a warning
  * (a configured buffer bounds memory per call; it is never unbounded).

@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, statSync, openSync, fstatSync, closeSync, constants as fsConstants, } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 // cycle-124 FR-3 (SDD §2.1): yaml-derived budgets — Anthropic maxInput is
 // effective_input_ceiling − 20000 so BB never prepares more than cheval's
@@ -295,6 +296,56 @@ export const LOA_EXCLUDE_PATTERNS = normalizeExcludePatterns([
     "grimoires/**/NOTES.md",
 ], "LOA_EXCLUDE_PATTERNS");
 /**
+ * cycle-135 C-2 (bd-i4fyw, DEC-1014): paths a wildcard user exclusion (`--exclude`, `exclude_patterns`,
+ * `.reviewignore`) cannot remove from the review. An explicit (non-wildcard) user pattern still excludes them; the
+ * Loa tier is not subject to this list. `bridgebuilder.protected_paths` replaces it; `[]` disables it.
+ */
+export const DEFAULT_PROTECTED_PATHS = Object.freeze(normalizeExcludePatterns([
+    ".github/workflows/**",
+    ".github/actions/**",
+    ".github/CODEOWNERS",
+    ".claude/settings.json",
+    ".claude/settings.local.json",
+    ".claude/hooks/**",
+    ".husky/**",
+    ".reviewignore",
+], "DEFAULT_PROTECTED_PATHS"));
+/**
+ * cycle-135 C-2 (bd-i4fyw, SDD § 5.2): split `files` by the user patterns, order-independently. Every matching user
+ * pattern is resolved first: any non-wildcard match excludes (that pattern recorded — an explicit name wins over
+ * protection); otherwise a file matching a protected pattern (same matcher) with only wildcard matches is kept (the
+ * first matching wildcard recorded); otherwise the first match excludes. Files no pattern matches appear in neither.
+ */
+export function partitionUserExclusions(files, userPatterns, protectedPatterns) {
+    const excluded = [];
+    const protectedKept = [];
+    if (userPatterns.length === 0)
+        return { excluded, protectedKept };
+    for (const f of files) {
+        const matched = userPatterns.filter((p) => matchesExcludePattern(f.filename, [p]));
+        if (matched.length === 0)
+            continue;
+        const explicit = matched.find((p) => !isWildcardPattern(p));
+        if (explicit !== undefined) {
+            excluded.push({ file: f.filename, pattern: explicit });
+        }
+        else if (matchesExcludePattern(f.filename, protectedPatterns)) {
+            protectedKept.push({ file: f.filename, pattern: matched[0] });
+        }
+        else {
+            excluded.push({ file: f.filename, pattern: matched[0] });
+        }
+    }
+    return { excluded, protectedKept };
+}
+/**
+ * cycle-135 C-2: the suffix an omission's stats carry to name the pattern that excluded it (Loa-tier and
+ * user-pattern omissions). Grammar: the stats end with ` [pattern: <p>]`; parse with `/ \[pattern: (.*)\]$/`.
+ */
+function patternSuffix(pattern) {
+    return ` [pattern: ${pattern}]`;
+}
+/**
  * Parse a `.reviewignore` file's user-curated patterns from disk.
  *
  * BB-797-003-duplication (iter-4): one grammar deserves one parser.
@@ -310,9 +361,13 @@ export const LOA_EXCLUDE_PATTERNS = normalizeExcludePatterns([
  * silently coercing unreadable to "no rules". Errno-explicit handling closes
  * the TOCTOU/ambiguous-stat class (Go's golang/go#41112 lesson applied here).
  *
- * @throws Error when `.reviewignore` exists but cannot be read or parsed.
+ * cycle-135 C-2 (bd-i4fyw, DEC-1027): with `opts.baseSha` the base version is read (`git show <sha>:.reviewignore`,
+ * the same line validation) so a PR cannot change the exclusions its own review applies; a failed base read is
+ * `source: "none"` with one WARN, never an exception. Without a base sha the checkout file is read as before.
+ *
+ * @throws Error when the checkout `.reviewignore` exists but cannot be read or parsed, or repoRoot is invalid.
  */
-function parseReviewignoreFile(repoRoot) {
+export function parseReviewignoreFile(repoRoot, opts = {}) {
     // BB-801-002-gpt (iter-1 MEDIUM): validate repoRoot resolves to a
     // directory BEFORE proceeding.
     //
@@ -335,6 +390,8 @@ function parseReviewignoreFile(repoRoot) {
         enriched.code = "EBADREPOROOT";
         throw enriched;
     }
+    if (opts.baseSha !== undefined)
+        return readBaseReviewignore(repoRoot, opts.baseSha);
     const reviewignorePath = resolve(repoRoot, ".reviewignore");
     // BB801-002 (iter-3 MEDIUM, conf 0.82): TOCTOU-resistant validation +
     // read. Previously: lstatSync, then readFileSync(path). Path-based
@@ -366,7 +423,7 @@ function parseReviewignoreFile(repoRoot) {
         const code = err.code;
         if (code === "ENOENT") {
             // O_NOFOLLOW: ENOENT only on genuine absence (broken symlink → ELOOP)
-            return [];
+            return { patterns: [], source: "none" };
         }
         if (code === "ELOOP") {
             // BB801-R8 (iter-4 LOW): ESYMLINKREJECTED — the policy is "we reject
@@ -400,6 +457,10 @@ function parseReviewignoreFile(repoRoot) {
             // Best-effort close
         }
     }
+    return { patterns: parseReviewignoreLines(content), source: "checkout" };
+}
+/** The `.reviewignore` line grammar, shared by the checkout and the base read. */
+function parseReviewignoreLines(content) {
     const patterns = [];
     // cycle-135 C-1 (bd-ow72o): lines go through the one loader; the former `/` → `/**` conversion is gone — a
     // directory line is a non-wildcard segment pattern (FR-2: `.github/workflows/` is an explicit name).
@@ -410,6 +471,41 @@ function parseReviewignoreFile(repoRoot) {
         }
     }
     return patterns;
+}
+/** cycle-135 C-2: bounds of the base-ref `.reviewignore` read. */
+const REVIEWIGNORE_GIT_TIMEOUT_MS = 10_000;
+const REVIEWIGNORE_MAX_BYTES = 1024 * 1024;
+/**
+ * cycle-135 C-2 (bd-i4fyw, DEC-1027): `.reviewignore` as of the PR base. The sha must be 40-hex (never an option);
+ * the entry must be a regular blob (a symlink is refused, as for the checkout read); bounded by a 10 s timeout and
+ * 1 MiB. Any failure — absent at the base, unknown commit, git error, oversize — is `none` with one WARN.
+ */
+function readBaseReviewignore(repoRoot, baseSha) {
+    const none = (why) => {
+        process.stderr.write(`[bridgebuilder] WARN: .reviewignore at base ${JSON.stringify(baseSha)} not read — ${why}; no .reviewignore patterns apply (source: none, bd-i4fyw)\n`);
+        return { patterns: [], source: "none" };
+    };
+    if (!/^[0-9a-f]{40}$/.test(baseSha))
+        return none("not a 40-hex commit sha");
+    const opts = {
+        encoding: "utf-8",
+        timeout: REVIEWIGNORE_GIT_TIMEOUT_MS,
+        maxBuffer: REVIEWIGNORE_MAX_BYTES,
+        stdio: ["ignore", "pipe", "pipe"],
+    };
+    try {
+        const entry = execFileSync("git", ["-C", repoRoot, "ls-tree", "-z", baseSha, "--", ".reviewignore"], opts);
+        if (entry === "")
+            return none("absent at the base");
+        const mode = entry.split(" ", 1)[0];
+        if (mode !== "100644" && mode !== "100755")
+            return none(`not a regular file at the base (mode ${mode})`);
+        const content = execFileSync("git", ["-C", repoRoot, "show", `${baseSha}:.reviewignore`], opts);
+        return { patterns: parseReviewignoreLines(content), source: "base" };
+    }
+    catch (err) {
+        return none(String(err.message ?? err).split("\n")[0].slice(0, 200));
+    }
 }
 /**
  * Load `.reviewignore` operator-curated patterns from repo root.
@@ -430,9 +526,9 @@ function parseReviewignoreFile(repoRoot) {
  * @throws Error when `.reviewignore` exists but cannot be read or parsed —
  *         caller MUST handle and decide whether to halt or fall back.
  */
-export function loadReviewIgnoreUserPatterns(repoRoot) {
+export function loadReviewIgnoreUserPatterns(repoRoot, opts = {}) {
     const root = repoRoot ?? process.cwd();
-    return parseReviewignoreFile(root);
+    return parseReviewignoreFile(root, opts).patterns;
 }
 /**
  * @deprecated PR #801 iter-4 BB801-R4 (MEDIUM): this is the legacy
@@ -465,7 +561,7 @@ export function loadReviewIgnore(repoRoot) {
     const root = repoRoot ?? process.cwd();
     const basePatterns = [...LOA_EXCLUDE_PATTERNS];
     try {
-        const userPatterns = parseReviewignoreFile(root);
+        const userPatterns = parseReviewignoreFile(root).patterns;
         for (const pattern of userPatterns) {
             if (!basePatterns.includes(pattern)) {
                 basePatterns.push(pattern);
@@ -608,8 +704,9 @@ export function applyLoaTierExclusion(files, loaPatterns) {
     const tier2Summary = [];
     let bytesSaved = 0;
     for (const file of files) {
-        // Check if file is under a Loa path
-        if (!matchesExcludePattern(file.filename, loaPatterns)) {
+        // Check if file is under a Loa path (cycle-135 C-2: the matching default is named in the stats)
+        const loaPattern = loaPatterns.find((p) => matchesExcludePattern(file.filename, [p]));
+        if (loaPattern === undefined) {
             passthrough.push(file);
             continue;
         }
@@ -624,7 +721,7 @@ export function applyLoaTierExclusion(files, loaPatterns) {
         if (tier === "tier1") {
             tier1Excluded.push({
                 filename: file.filename,
-                stats: `+${file.additions} -${file.deletions} (Loa framework, content excluded)`,
+                stats: `+${file.additions} -${file.deletions} (Loa framework, content excluded)${patternSuffix(loaPattern)}`,
             });
         }
         else {
@@ -632,7 +729,7 @@ export function applyLoaTierExclusion(files, loaPatterns) {
             const summary = file.patch ? extractFirstHunk(file.patch) : "";
             tier2Summary.push({
                 filename: file.filename,
-                stats: `+${file.additions} -${file.deletions} (Loa framework, summary only)`,
+                stats: `+${file.additions} -${file.deletions} (Loa framework, summary only)${patternSuffix(loaPattern)}`,
                 summary,
             });
         }
@@ -1051,6 +1148,13 @@ function hasPatch(file) {
 }
 export function truncateFiles(files, config) {
     const patterns = config.excludePatterns ?? [];
+    // cycle-135 C-2 (bd-i4fyw): protection against wildcard user exclusions; `[]` disables it.
+    const protectedPatterns = config.protectedPaths ?? DEFAULT_PROTECTED_PATHS;
+    // file → the first wildcard that matched it; a later explicit user exclusion removes the entry (order-independent
+    // across sources); a Loa-tier strip leaves it (the coverage renders the final status).
+    const protectedKept = new Map();
+    const protectedKeptList = () => [...protectedKept].map(([file, pattern]) => ({ file, pattern }));
+    let reviewignoreSource;
     // Step 0: Loa-aware filtering (prepended, not replacing user patterns)
     // Load .reviewignore and merge with LOA_EXCLUDE_PATTERNS (#303)
     // Self-review opt-in (#796 / vision-013): when the PR carries the
@@ -1092,7 +1196,9 @@ export function truncateFiles(files, config) {
             // filter path, which preserves the framework-exclusion safety floor.
             let userPatterns = [];
             try {
-                userPatterns = loadReviewIgnoreUserPatterns(config.repoRoot);
+                const ri = parseReviewignoreFile(config.repoRoot ?? process.cwd(), { baseSha: config.reviewignoreBaseSha });
+                userPatterns = ri.patterns;
+                reviewignoreSource = ri.source;
             }
             catch (err) {
                 // BB-797-001 iter-5 (HIGH): fail-CLOSED on EVERY axis the operator
@@ -1134,11 +1240,17 @@ export function truncateFiles(files, config) {
             if (userPatterns.length > 0) {
                 const passthrough = [];
                 let userBytesSaved = 0;
+                // cycle-135 C-2 (bd-i4fyw): user-pattern site 1 of 3 (self-review branch, `.reviewignore`).
+                const part = partitionUserExclusions(files, userPatterns, protectedPatterns);
+                const excludedBy = new Map(part.excluded.map((e) => [e.file, e.pattern]));
+                for (const k of part.protectedKept)
+                    protectedKept.set(k.file, k.pattern);
                 for (const f of files) {
-                    if (matchesExcludePattern(f.filename, userPatterns)) {
+                    const pattern = excludedBy.get(f.filename);
+                    if (pattern !== undefined) {
                         loaExcludedEntries.push({
                             filename: f.filename,
-                            stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern)`,
+                            stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern)${patternSuffix(pattern)}`,
                         });
                         userBytesSaved += f.patch ? new TextEncoder().encode(f.patch).byteLength : 0;
                         if (matchesExcludePattern(f.filename, LOA_EXCLUDE_PATTERNS)) {
@@ -1194,11 +1306,13 @@ export function truncateFiles(files, config) {
                     included: [],
                     excluded: loaExcludedEntries,
                     totalBytes: 0,
+                    protectedKept: protectedKeptList(),
                     allExcluded: true,
                     loaBanner,
                     loaStats,
                     selfReviewActive,
                     selfReviewState,
+                    reviewignoreSource,
                 };
             }
         }
@@ -1232,7 +1346,9 @@ export function truncateFiles(files, config) {
             // defaults to whatever survived phase 1.
             let userPatterns = [];
             try {
-                userPatterns = loadReviewIgnoreUserPatterns(config.repoRoot);
+                const ri = parseReviewignoreFile(config.repoRoot ?? process.cwd(), { baseSha: config.reviewignoreBaseSha });
+                userPatterns = ri.patterns;
+                reviewignoreSource = ri.source;
             }
             catch (err) {
                 // Fail-CLOSED. ENOENT was handled inside parseReviewignoreFile
@@ -1279,11 +1395,17 @@ export function truncateFiles(files, config) {
             let userBytesSaved = 0;
             if (userPatterns.length > 0) {
                 const survivors = [];
+                // cycle-135 C-2 (bd-i4fyw): user-pattern site 2 of 3 (default-mode Loa branch, phase 1, `.reviewignore`).
+                const part = partitionUserExclusions(files, userPatterns, protectedPatterns);
+                const excludedBy = new Map(part.excluded.map((e) => [e.file, e.pattern]));
+                for (const k of part.protectedKept)
+                    protectedKept.set(k.file, k.pattern);
                 for (const f of files) {
-                    if (matchesExcludePattern(f.filename, userPatterns)) {
+                    const pattern = excludedBy.get(f.filename);
+                    if (pattern !== undefined) {
                         loaExcludedEntries.push({
                             filename: f.filename,
-                            stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern, strict deny)`,
+                            stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern, strict deny)${patternSuffix(pattern)}`,
                         });
                         userExcludedCount++;
                         userBytesSaved += f.patch ? new TextEncoder().encode(f.patch).byteLength : 0;
@@ -1334,11 +1456,13 @@ export function truncateFiles(files, config) {
                     included: [],
                     excluded: loaExcludedEntries,
                     totalBytes: 0,
+                    protectedKept: protectedKeptList(),
                     allExcluded: true,
                     loaBanner,
                     loaStats,
                     selfReviewActive,
                     selfReviewState,
+                    reviewignoreSource,
                 };
             }
         }
@@ -1346,22 +1470,35 @@ export function truncateFiles(files, config) {
     // Step 1: Separate files matching excludePatterns (sole enforcement point — IMP-005)
     const afterExclude = [];
     const excludedByPattern = [];
+    // cycle-135 C-2 (bd-i4fyw): user-pattern site 3 of 3 (`exclude_patterns` + `--exclude`, every repository).
+    const part = partitionUserExclusions(afterLoa, patterns, protectedPatterns);
+    const excludedBy = new Map(part.excluded.map((e) => [e.file, e.pattern]));
+    for (const k of part.protectedKept)
+        if (!protectedKept.has(k.file))
+            protectedKept.set(k.file, k.pattern);
     for (const f of afterLoa) {
-        if (matchesExcludePattern(f.filename, patterns)) {
+        const pattern = excludedBy.get(f.filename);
+        if (pattern !== undefined) {
+            protectedKept.delete(f.filename); // an explicit name here wins over a wildcard `.reviewignore` kept it from
             excludedByPattern.push({
                 filename: f.filename,
-                stats: `+${f.additions} -${f.deletions} (excluded by pattern)`,
+                stats: `+${f.additions} -${f.deletions} (excluded by pattern)${patternSuffix(pattern)}`,
             });
         }
         else {
             afterExclude.push(f);
         }
     }
-    // Step 2: Classify into high-risk and normal
+    // Step 2: Classify into protected-kept, high-risk and normal (cycle-135 C-2: protected-kept files first, so the
+    // file cap and the byte budget cannot drop them before anything else)
+    const protectedFirst = [];
     const highRisk = [];
     const normal = [];
     for (const file of afterExclude) {
-        if (isHighRisk(file.filename)) {
+        if (protectedKept.has(file.filename)) {
+            protectedFirst.push(file);
+        }
+        else if (isHighRisk(file.filename)) {
             highRisk.push(file);
         }
         else {
@@ -1369,10 +1506,11 @@ export function truncateFiles(files, config) {
         }
     }
     // Step 3: Sort each tier by change size (descending)
+    protectedFirst.sort((a, b) => changeSize(b) - changeSize(a));
     highRisk.sort((a, b) => changeSize(b) - changeSize(a));
     normal.sort((a, b) => changeSize(b) - changeSize(a));
-    // Interleave: high-risk first, then normal
-    const sorted = [...highRisk, ...normal];
+    // Interleave: protected-kept first, then high-risk, then normal
+    const sorted = [...protectedFirst, ...highRisk, ...normal];
     // Apply maxFilesPerPr cap
     const capped = sorted.slice(0, config.maxFilesPerPr);
     // Step 4: Include full diff content until byte budget exhausted
@@ -1412,11 +1550,13 @@ export function truncateFiles(files, config) {
         included,
         excluded: [...loaExcludedEntries, ...excludedByPattern, ...excluded],
         totalBytes,
+        protectedKept: protectedKeptList(),
         allExcluded,
         loaBanner,
         loaStats,
         selfReviewActive,
         selfReviewState,
+        reviewignoreSource,
     };
 }
 //# sourceMappingURL=truncation.js.map

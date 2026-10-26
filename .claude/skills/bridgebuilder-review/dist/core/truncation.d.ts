@@ -58,6 +58,58 @@ export declare function deriveCallConfig<C extends Pick<BridgebuilderConfig, "se
  * `PROCESS.md` excludes `docs/PROCESS.md`, never `MYPROCESS.md`); the list goes through the one loader. */
 export declare const LOA_EXCLUDE_PATTERNS: string[];
 /**
+ * cycle-135 C-2 (bd-i4fyw, DEC-1014): paths a wildcard user exclusion (`--exclude`, `exclude_patterns`,
+ * `.reviewignore`) cannot remove from the review. An explicit (non-wildcard) user pattern still excludes them; the
+ * Loa tier is not subject to this list. `bridgebuilder.protected_paths` replaces it; `[]` disables it.
+ */
+export declare const DEFAULT_PROTECTED_PATHS: readonly string[];
+/**
+ * cycle-135 C-2 (bd-i4fyw, SDD § 5.2): split `files` by the user patterns, order-independently. Every matching user
+ * pattern is resolved first: any non-wildcard match excludes (that pattern recorded — an explicit name wins over
+ * protection); otherwise a file matching a protected pattern (same matcher) with only wildcard matches is kept (the
+ * first matching wildcard recorded); otherwise the first match excludes. Files no pattern matches appear in neither.
+ */
+export declare function partitionUserExclusions(files: readonly PullRequestFile[], userPatterns: readonly string[], protectedPatterns: readonly string[]): {
+    excluded: Array<{
+        file: string;
+        pattern: string;
+    }>;
+    protectedKept: Array<{
+        file: string;
+        pattern: string;
+    }>;
+};
+/** cycle-135 C-2 (DEC-1027): where the applied `.reviewignore` patterns came from. */
+export type ReviewignoreSource = "base" | "checkout" | "none";
+/**
+ * Parse a `.reviewignore` file's user-curated patterns from disk.
+ *
+ * BB-797-003-duplication (iter-4): one grammar deserves one parser.
+ *
+ * BB-797-001-security (iter-4): ONLY ENOENT means "file absent" → []. ANY
+ * OTHER error throws — caller decides fail-open vs fail-closed. cycle-098 L2
+ * fail-closed: uncertain signals halt, never permit.
+ *
+ * BB-797-SEC-002 (iter-6): use readFileSync directly; classify ONLY
+ * `code === "ENOENT"` as "absent". Earlier `existsSync` gate collapsed four
+ * distinct states (absent, present-readable, present-unreadable, broken-link)
+ * into one boolean — broken symlinks, EACCES, and ENOTDIR all returned `false`,
+ * silently coercing unreadable to "no rules". Errno-explicit handling closes
+ * the TOCTOU/ambiguous-stat class (Go's golang/go#41112 lesson applied here).
+ *
+ * cycle-135 C-2 (bd-i4fyw, DEC-1027): with `opts.baseSha` the base version is read (`git show <sha>:.reviewignore`,
+ * the same line validation) so a PR cannot change the exclusions its own review applies; a failed base read is
+ * `source: "none"` with one WARN, never an exception. Without a base sha the checkout file is read as before.
+ *
+ * @throws Error when the checkout `.reviewignore` exists but cannot be read or parsed, or repoRoot is invalid.
+ */
+export declare function parseReviewignoreFile(repoRoot: string, opts?: {
+    baseSha?: string;
+}): {
+    patterns: string[];
+    source: ReviewignoreSource;
+};
+/**
  * Load `.reviewignore` operator-curated patterns from repo root.
  * Returns ONLY the user patterns — does NOT merge with LOA_EXCLUDE_PATTERNS.
  *
@@ -76,7 +128,9 @@ export declare const LOA_EXCLUDE_PATTERNS: string[];
  * @throws Error when `.reviewignore` exists but cannot be read or parsed —
  *         caller MUST handle and decide whether to halt or fall back.
  */
-export declare function loadReviewIgnoreUserPatterns(repoRoot?: string): string[];
+export declare function loadReviewIgnoreUserPatterns(repoRoot?: string, opts?: {
+    baseSha?: string;
+}): string[];
 export declare function loadReviewIgnore(repoRoot?: string): string[];
 /**
  * Detect if repo is Loa-mounted by reading .loa-version.json.
@@ -158,5 +212,11 @@ export declare function prioritizeFiles(files: PullRequestFile[]): PullRequestFi
  * Budget target: 90% of maxInputTokens (SKP-004).
  */
 export declare function progressiveTruncate(files: PullRequestFile[], budgetTokens: number, model: string, systemPromptLen: number, metadataLen: number): ProgressiveTruncationResult;
-export declare function truncateFiles(files: PullRequestFile[], config: Pick<BridgebuilderConfig, "excludePatterns" | "maxDiffBytes" | "maxFilesPerPr" | "loaAware" | "repoRoot" | "selfReview">): TruncationResult;
+export declare function truncateFiles(files: PullRequestFile[], config: Pick<BridgebuilderConfig, "excludePatterns" | "maxDiffBytes" | "maxFilesPerPr" | "loaAware" | "repoRoot" | "selfReview" | "protectedPaths"> & {
+    /** cycle-135 C-2 (DEC-1027): the PR base sha; when set `.reviewignore` is read from it, else from the checkout. */
+    reviewignoreBaseSha?: string;
+}): TruncationResult & {
+    /** cycle-135 C-2: where the applied `.reviewignore` came from; undefined when it was not consulted (non-Loa repo). */
+    reviewignoreSource?: ReviewignoreSource;
+};
 //# sourceMappingURL=truncation.d.ts.map
