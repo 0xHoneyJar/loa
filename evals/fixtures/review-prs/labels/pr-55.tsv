@@ -1,4 +1,4 @@
-# approved-by: pending
+# approved-by: deep-name 2026-10-26
 # fixture pr-55 | external https://github.com/vitejs/vite pull request #23777 | base cf80aa552cac | head bc9ebab31e07 | fix 4d16e7c14d5e..4d16e7c14d5e
 # seeded by evals/harness/seed-corpus-from-external.sh; defects V01 … from the blind annotation (two Opus 5.5 annotators, annotation_merge.py; label_source fix-commit, review_driven false), fix rows carried; approval pending
 defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
