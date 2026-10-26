@@ -167,6 +167,12 @@ describe("assertAllowedArgs: the contents shape (C-3, § 5.3)", () => {
     }
   });
 
+  // (Bridgebuilder round 2, PR #1302): both voices misread the `\u0000-\u001f` class as `^@-^_` — pin that letters pass
+  it("accepts upper-case letters, digits and underscores in the path (only ?, # and control characters are refused)", () => {
+    const allowed = validator();
+    for (const p of ["Docs/README_v2.md", "A/B/C.TS", "x_y-z.1"]) assert.doesNotThrow(() => allowed(ok(p)), p);
+  });
+
   it("rejects a foreign or extra query, a short, upper-case or non-hex ref", () => {
     const allowed = validator();
     for (const tail of ["", "?ref=", `?ref=${HEAD}&per_page=1`, `?foo=1`, `?ref=${HEAD}#x`, "?ref=abc1234",

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-26T07:56:38Z",
+  "generated": "2026-10-26T08:24:15Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1752,10 +1752,10 @@
     ".claude/skills/bridgebuilder-review/resources/__tests__/fixtures/pass2-severity-changed.md": "b4b7c6a82ce9cddf3b2dbfb4117a541e4011bb13e98ed71f79fb4a5f945a403d",
     ".claude/skills/bridgebuilder-review/resources/__tests__/fixtures/pr1289-r1-comments.md": "9779dc121e1a0a09f6206cdb19fda7813fbc6786e6d76c723a8e818d8de7ffbe",
     ".claude/skills/bridgebuilder-review/resources/__tests__/fixtures/pr1289-r2-comments.md": "4d411ccfed8ce1fe3de51aff1b73e31d34efe08afd6b30c4106f15dc6a598522",
-    ".claude/skills/bridgebuilder-review/resources/__tests__/github-cli-contents.test.ts": "c85a2bde51698dfe0244be6c02ae3d39fc1126f0e1bf7d36e4bd3d4d550b1695",
+    ".claude/skills/bridgebuilder-review/resources/__tests__/github-cli-contents.test.ts": "38a9ce6d51c6c356cf97d151c030d121653b3a1fb8e086a921120703aa335048",
     ".claude/skills/bridgebuilder-review/resources/__tests__/github-cli.test.ts": "49ea7969684749a5e4605143f8d7917466c10fe97dcce5c1920e071d4e6e6ed6",
     ".claude/skills/bridgebuilder-review/resources/__tests__/integration.test.ts": "353e1f064046065bf1117ce4d93f983f839b68fdf05129515f6304e4f40b824f",
-    ".claude/skills/bridgebuilder-review/resources/__tests__/loa-detection.test.ts": "35c1aa38421caa3bf2421e03405e3d6ad9c32ef60db0c636be7ab304b8c2ccf6",
+    ".claude/skills/bridgebuilder-review/resources/__tests__/loa-detection.test.ts": "9ad7b29b69a6b9e12a5354cc63481c95df59323968a6b8a2b59883038a729497",
     ".claude/skills/bridgebuilder-review/resources/__tests__/lore-loader.test.ts": "2c406a6a369650795a35b794ce26756487fe4f34b2a5b421c810ae6d63fbf747",
     ".claude/skills/bridgebuilder-review/resources/__tests__/main-entrypoint.test.ts": "5bf6b80a782d7582dec9ced3c32082da5e96357b5e61ea9ecdda5a882941f6fb",
     ".claude/skills/bridgebuilder-review/resources/__tests__/multi-model-agy-opt-in.test.ts": "fd3c2f9240b60a45df933ef0f363a60ae6387bfb6278abf6926fa8849f017d42",
@@ -1781,7 +1781,7 @@
     ".claude/skills/bridgebuilder-review/resources/__tests__/scoring.test.ts": "f801c125b27a9b59ba00797b1c93e3fb8cc077210a072ed840e83879efeba280",
     ".claude/skills/bridgebuilder-review/resources/__tests__/template.test.ts": "5cbb3374dbe51f75e9cba8b6ed479d2810a157fb13bd2ce977d1f0976c0e625a",
     ".claude/skills/bridgebuilder-review/resources/__tests__/truncation-registry.test.ts": "9f5d9e674c17fbcfd01ab094768e82d170c6d4767012a16be0d336f6c3739424",
-    ".claude/skills/bridgebuilder-review/resources/__tests__/truncation.test.ts": "1feaf1b06d8ef70979aa6079e159a6f1453bfe538bab34b720a51b4dd44154d7",
+    ".claude/skills/bridgebuilder-review/resources/__tests__/truncation.test.ts": "6746279dac3fc3ee68e15f2a804a5bd9e102f8bd635c9885038509d58e638d42",
     ".claude/skills/bridgebuilder-review/resources/__tests__/trusted-config.test.ts": "e0baf4515070e1a7bc10963ece14b3f6442930b5aa0d0dd6f39725e97589c77a",
     ".claude/skills/bridgebuilder-review/resources/__tests__/writer-role.test.ts": "648cdfb2a999d07f962646ebdeb0de9c85fc7c963e6174af3b201b4c7defe3fd",
     ".claude/skills/bridgebuilder-review/resources/adapters/adapter-factory.ts": "e40e075c96c8c73244d6344a6a18e6f128ccf86bb35b56325fb3d88fd3efda18",

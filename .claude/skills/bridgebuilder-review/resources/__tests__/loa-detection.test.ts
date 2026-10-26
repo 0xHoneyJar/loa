@@ -755,10 +755,12 @@ describe("matchesExcludePattern — one grammar (cycle-135 C-1, bd-ow72o)", () =
 });
 
 describe("normalizeExcludePatterns (cycle-135 C-1, bd-ow72o)", () => {
-  it("trims, strips one leading ./ or /, drops blank entries and keeps the trailing /", () => {
+  // (Bridgebuilder round 2, PR #1302): a leading `/` is the root anchor and is kept; `./` is stripped
+  it("trims, strips one leading ./, keeps a leading / as the root anchor, drops blank entries and keeps the trailing /", () => {
     const out = truncation.normalizeExcludePatterns(["  /README.md ", "./x", "docs/", "\t", ""], "test");
-    assert.deepEqual(out, ["README.md", "x", "docs/"]);
+    assert.deepEqual(out, ["/README.md", "x", "docs/"]);
     assert.ok(matchesExcludePattern("README.md", out));
+    assert.ok(!matchesExcludePattern("docs/README.md", out), "a root-anchored name does not float");
     assert.ok(matchesExcludePattern("x/y.ts", out));
     assert.ok(matchesExcludePattern("docs/a.md", out));
     assert.ok(!matchesExcludePattern("src/README.md.bak", out));

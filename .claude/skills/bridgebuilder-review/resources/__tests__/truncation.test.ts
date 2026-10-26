@@ -79,7 +79,8 @@ describe("loadReviewIgnore", () => {
     }
   });
 
-  it("normalises .reviewignore lines through the one loader (leading / or ./, ! rejected)", () => {
+  // (Bridgebuilder round 2, PR #1302): a leading `/` is kept — it is the root anchor; only `./` is stripped
+  it("normalises .reviewignore lines through the one loader (./ stripped, leading / kept as the root anchor, ! rejected)", () => {
     const tmpDir = join(tmpdir(), `loa-test-norm-${Date.now()}-${Math.random().toString(36).slice(2)}`);
     mkdirSync(tmpDir, { recursive: true });
     const original = process.stderr.write;
@@ -91,7 +92,7 @@ describe("loadReviewIgnore", () => {
     try {
       writeFileSync(join(tmpDir, ".reviewignore"), "/abs.md\n./rel/\n  spaced.txt  \n!negated.md\n+(a|b).md\n");
       const patterns = loadReviewIgnoreUserPatterns(tmpDir);
-      assert.deepEqual(patterns, ["abs.md", "rel/", "spaced.txt"]);
+      assert.deepEqual(patterns, ["/abs.md", "rel/", "spaced.txt"]);
       assert.ok(err.includes("!negated.md") && err.includes("+(a|b).md"), err);
     } finally {
       process.stderr.write = original;
@@ -1445,9 +1446,9 @@ describe("protected paths (cycle-135 C-2, bd-i4fyw)", () => {
 });
 
 describe("protected_paths and the fetch keys in config (cycle-135 C-2, bd-i4fyw)", () => {
-  it("validateProtectedPaths strips a leading / or ./ and keeps the rest", () => {
+  it("validateProtectedPaths strips a leading ./, keeps a leading / (root anchor) and trims the rest", () => {
     assert.deepEqual(configModule.validateProtectedPaths(["/.github/x/**", "./.husky/**", " ci.yml "]), [
-      ".github/x/**",
+      "/.github/x/**",
       ".husky/**",
       "ci.yml",
     ]);
@@ -1955,3 +1956,37 @@ describe("wildcard directory lines (trailing slash)", () => {
     assert.deepEqual(truncation.normalizeExcludePatterns(["**/fixtures/"], "test"), ["**/fixtures/"]);
   });
 });
+
+// Bridgebuilder round 2 (PR #1302, anthropic MEDIUM): gitignore's root anchor — a leading `/` pins a pattern to the
+// repository root, so a single-segment name or a slashless wildcard can stop floating (`/README.md`, `/*.yml`).
+describe("root anchor (leading slash)", () => {
+  const file = (filename: string): PullRequestFile => ({ filename, status: "modified", additions: 1, deletions: 0 });
+  it("a leading / anchors a non-wildcard name to the root (and still covers its subtree)", () => {
+    assert.equal(truncation.matchesExcludePattern("README.md", ["/README.md"]), true);
+    assert.equal(truncation.matchesExcludePattern("docs/README.md", ["/README.md"]), false);
+    assert.equal(truncation.matchesExcludePattern("vendor/a.js", ["/vendor"]), true);
+    assert.equal(truncation.matchesExcludePattern("src/vendor/a.js", ["/vendor"]), false);
+  });
+  it("a leading / anchors a wildcard to the root", () => {
+    assert.equal(truncation.matchesExcludePattern("a.yml", ["/*.yml"]), true);
+    assert.equal(truncation.matchesExcludePattern("d/a.yml", ["/*.yml"]), false);
+    assert.equal(truncation.matchesExcludePattern("d/a.yml", ["*.yml"]), true);
+  });
+  it("a root-anchored name is explicit for protection and is recorded as written", () => {
+    const files = [file(".reviewignore"), file("tests/fixtures/x/.reviewignore")];
+    const p = truncation.partitionUserExclusions(files, ["/.reviewignore"], truncation.DEFAULT_PROTECTED_PATHS);
+    assert.deepEqual(p.excluded, [{ file: ".reviewignore", pattern: "/.reviewignore" }]);
+    assert.deepEqual(p.protectedKept, []);
+    assert.deepEqual(truncation.normalizeExcludePatterns(["/.reviewignore", "./x.md"], "test"), ["/.reviewignore", "x.md"]);
+  });
+});
+
+// Bridgebuilder round 2 (PR #1302, openai MEDIUM): a negated class never matches the path separator.
+describe("negated character classes stay inside one segment", () => {
+  it("[!a] does not match /", () => {
+    assert.equal(truncation.matchesExcludePattern("x/y", ["x[!a]y"]), false);
+    assert.equal(truncation.matchesExcludePattern("xby", ["x[!a]y"]), true);
+    assert.equal(truncation.matchesExcludePattern("xay", ["x[!a]y"]), false);
+  });
+});
+
