@@ -40,12 +40,18 @@
 #   seed-refactor-tasks.sh --since DATE [--select N] --out DIR [--repo DIR]
 #                          [--paths CSV] [--suite-version N] [--id-prefix P]
 #                          [--fixture-scope touched|roots] [--rev REV]
-#                          [--ignore-paths CSV] [--runner pytest|bats] [--dry-run]
+#                          [--ignore-paths CSV] [--runner pytest|bats|ts]
+#                          [--node-modules DIR] [--dry-run]
 #
 #   options as seed-bugfix-tasks.sh (--rev and --ignore-paths likewise; --runner keeps only
 #   that runner's covering tests; --select default 4; a commit without a
 #   covering test is skipped and does not count; --id-prefix default refactor);
-#   LOA_SEED_BATS and LOA_EVAL_GRADE_TIMEOUT_S likewise
+#   LOA_SEED_BATS and LOA_EVAL_GRADE_TIMEOUT_S likewise. TypeScript as in
+#   seed-bugfix-tasks.sh: covering `*.test.ts` / `*.spec.ts` files (runner `ts`) run under
+#   the package's node --test or vitest command, the fixture carries the node
+#   infrastructure and what the tests and sources import, the proof needs
+#   --node-modules DIR (else the candidate is skipped by name). Tested by
+#   evals/tests/seed-ts.bats ST-8.
 #
 # Output (stdout, one line each):
 #   candidate <sha12> <date> <subject>

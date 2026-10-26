@@ -11,9 +11,11 @@ its proof passed and the no-secrets scan came back clean.
 """
 import argparse
 import datetime
+import fnmatch
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import site
@@ -30,6 +32,22 @@ INFRA_ROOT_FILES = ("pytest.ini", "pyproject.toml", "setup.cfg", "tox.ini")
 CUTOFF = "2026-08-01"
 RUN_TIMEOUT = 120   # the proof's per-run deadline in seconds; LOA_EVAL_GRADE_TIMEOUT_S (the grader's) overrides it, see parse()
 MAX_COVERING_TESTS = 20
+RUNNERS = ("pytest", "bats", "ts")   # the order a skip reason names them in
+
+# The TypeScript path (seed-bugfix-tasks.sh header § TypeScript). A *.test.ts / *.spec.ts file is a `ts` test; the command
+# comes from the test script of the package.json nearest above it (vitest → npx vitest run, node --test → node --test),
+# both reporting TAP, which counts() and ablation-grade.sh already read. The proof needs the project's installed
+# dependencies: --node-modules DIR (link_node_modules), else a ts candidate is skipped by name.
+TS_TEST_RX = re.compile(r".*\.(test|spec)\.ts$")
+NODE_INFRA = ("package.json", "pnpm-workspace.yaml", ".npmrc")   # carried from the test's directory up to the root
+NODE_INFRA_RX = re.compile(r"^(tsconfig[^/]*\.json|vitest\.(config|workspace|setup)\.[cm]?[jt]sx?|vite\.config\.[cm]?[jt]s)$")
+NODE_VALUE_FLAGS = ("--import", "--require", "-r", "--loader", "--experimental-loader", "--test-name-pattern",
+                    "--test-concurrency", "--test-reporter", "--test-reporter-destination")
+IMPORT_RX = re.compile(r"""(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|^\s*import\s+)['"]([^'"\n]+)['"]""", re.M)
+TS_EXTS = (".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs", ".json")
+NM_SKIP = {".vite", ".vitest", ".cache"}   # a runner's cache directories are never linked, so what it writes lands in the proof's tree
+MAX_IMPORTED = 1000
+NODE_MODULES = None   # --node-modules DIR, see parse()
 
 
 class Usage(Exception):
@@ -68,15 +86,24 @@ def mount_owned(p):
 def is_test(p):
     parts = p.split("/")
     base = parts[-1]
-    return "tests" in parts[:-1] or re.fullmatch(r"test_.*\.py|.*_test\.py", base) is not None or base.endswith(".bats")
+    return "tests" in parts[:-1] or re.fullmatch(r"test_.*\.py|.*_test\.py", base) is not None or base.endswith(".bats") \
+        or TS_TEST_RX.match(base) is not None
 
 
 def runner_of(p):
+    base = p.rsplit("/", 1)[-1]
     if p.endswith(".bats"):
         return "bats"
-    if p.endswith(".py") and re.fullmatch(r"test_.*\.py|.*_test\.py", p.rsplit("/", 1)[-1]):
+    if p.endswith(".py") and re.fullmatch(r"test_.*\.py|.*_test\.py", base):
         return "pytest"
+    if TS_TEST_RX.match(base):
+        return "ts"
     return None
+
+
+def runners_text(runners):
+    names = [r for r in RUNNERS if r in runners]
+    return " and ".join([", ".join(names[:-1]), names[-1]]) if len(names) > 1 else "".join(names)
 
 
 def under_roots(p, roots):
@@ -181,6 +208,16 @@ def helper_files(repo, commit, test_paths):
     for f in INFRA_ROOT_FILES:
         if f in have:
             found.add(f)
+    for t in test_paths:   # a ts test's node infrastructure: package.json, tsconfig*, vitest/vite configs, from its directory to the root
+        if runner_of(t) != "ts":
+            continue
+        parts = os.path.dirname(t).split("/") if os.path.dirname(t) else []
+        for i in range(len(parts) + 1):
+            pre = "/".join(parts[:i] + [""])
+            for f in have:
+                name = f[len(pre):]
+                if f.startswith(pre) and "/" not in name and (name in NODE_INFRA or NODE_INFRA_RX.match(name)):
+                    found.add(f)
     return sorted(found)
 
 
@@ -206,6 +243,197 @@ def root_files(repo, commit, roots, exclude):
     return sorted(out)
 
 
+# ---------------------------------------------------------------- the TypeScript path
+def nearest_package(path, have):
+    """The package.json closest above path (the package a ts test belongs to), or None."""
+    parts = os.path.dirname(path).split("/") if os.path.dirname(path) else []
+    for i in range(len(parts), -1, -1):
+        c = "/".join(parts[:i] + ["package.json"])
+        if c in have:
+            return c
+    return None
+
+
+def read_json_blob(repo, commit, path):
+    b = blob(repo, commit, path)
+    if b is None or b[0] == "120000":
+        return None
+    try:
+        v = json.loads(b[1].decode("utf-8", "replace"))
+    except ValueError:
+        return None
+    return v if isinstance(v, dict) else None
+
+
+def workspace_packages(repo, commit, have):
+    """{name: directory} of the workspace packages at commit: the globs of pnpm-workspace.yaml `packages:` or of the
+    root package.json `workspaces`, matched against the directories holding a package.json."""
+    globs = []
+    b = blob(repo, commit, "pnpm-workspace.yaml")
+    if b is not None and b[0] != "120000":
+        globs += re.findall(r"^\s*-\s*['\"]?([^'\"\s#!]+)", b[1].decode("utf-8", "replace"), re.M)
+    ws = (read_json_blob(repo, commit, "package.json") or {}).get("workspaces")
+    if isinstance(ws, dict):
+        ws = ws.get("packages")
+    if isinstance(ws, list):
+        globs += [w for w in ws if isinstance(w, str) and not w.startswith("!")]
+    out = {}
+    for f in have:
+        d = os.path.dirname(f)
+        if os.path.basename(f) != "package.json" or not d or "node_modules" in d.split("/"):
+            continue
+        if any(fnmatch.fnmatchcase(d, g.strip("/")) for g in globs):
+            name = (read_json_blob(repo, commit, f) or {}).get("name")
+            if isinstance(name, str) and name:
+                out[name] = d
+    return out
+
+
+def resolve_import(spec, from_dir, have, ws):
+    """The repository file a static import names: a relative specifier under TypeScript's extension rules (x, x.ts,
+    x.js standing for x.ts, x/index.ts), or a workspace package name (its directory, with a trailing slash). None for
+    a dependency or a builtin."""
+    if spec.startswith("."):
+        p = os.path.normpath(os.path.join(from_dir, spec)) if from_dir else os.path.normpath(spec)
+        if p == ".." or p.startswith("../"):
+            return None
+        stem, ext = os.path.splitext(p)
+        swap = {".js": ".ts", ".mjs": ".mts", ".cjs": ".cts", ".jsx": ".tsx"}.get(ext)
+        cands = [p] + ([stem + swap] if swap else []) + [p + e for e in TS_EXTS] + \
+                [p + "/index" + e for e in (".ts", ".tsx", ".mts", ".js", ".mjs")]
+        return next((c for c in cands if c in have), None)
+    for name in sorted(ws, key=len, reverse=True):
+        if spec == name or spec.startswith(name + "/"):
+            return ws[name] + "/"
+    return None
+
+
+def imported_files(repo, parent, seeds):
+    """The files the seeds (commit, path) reach through static imports, resolved against the parent tree: relative
+    imports transitively, a workspace package whole (its non-test files, each followed in turn); at most MAX_IMPORTED."""
+    have = set(tree_files(repo, parent))
+    ws = workspace_packages(repo, parent, have)
+    found, queue, scanned = set(), list(seeds), set()
+    while queue and len(found) < MAX_IMPORTED:
+        commit, f = queue.pop()
+        if (commit, f) in scanned or not re.search(r"\.[cm]?[jt]sx?$", f):
+            continue
+        scanned.add((commit, f))
+        b = blob(repo, commit, f)
+        if b is None or b[0] == "120000":
+            continue
+        for spec in IMPORT_RX.findall(b[1].decode("utf-8", "replace")):
+            r = resolve_import(spec, os.path.dirname(f), have, ws)
+            if r is None:
+                continue
+            targets = [x for x in have if x.startswith(r) and not is_test(x)] if r.endswith("/") else [r]
+            for t in targets:
+                if t not in found and safe_path(t) and not mount_owned(t):
+                    found.add(t)
+                    queue.append((parent, t))
+    return sorted(found)
+
+
+def ts_command(repo, parent, tests):
+    """The ts command's prefix from the package the tests belong to (its package.json test script at the parent):
+    `node … --test …` → node --test <the script's flags> --test-reporter=tap; `vitest …` (or no script and vitest among
+    the dependencies) → npx [--prefix <pkg>] vitest run --reporter=tap-flat [--root <pkg>], the package's own vitest
+    (npx looks in the prefix's node_modules, never on PATH). Returns (argv, package_dir, None) or (None, None, reason)."""
+    have = set(tree_files(repo, parent))
+    pkgs = {nearest_package(t, have) for t in tests}
+    if len(pkgs) != 1:
+        return None, None, f"the changed tests belong to {len(pkgs)} packages"
+    pkg = pkgs.pop()
+    if pkg is None:
+        return None, None, "no package.json above the changed tests"
+    meta = read_json_blob(repo, parent, pkg)
+    if meta is None:
+        return None, None, f"{pkg} is not a JSON object"
+    pdir = os.path.dirname(pkg)
+    scripts = meta.get("scripts") if isinstance(meta.get("scripts"), dict) else {}
+    script = scripts.get("test") if isinstance(scripts.get("test"), str) else ""
+    try:
+        toks = shlex.split(script)
+    except ValueError:
+        toks = []
+    deps = {**(meta.get("dependencies") or {}), **(meta.get("devDependencies") or {})}
+    if toks[:1] == ["node"] and "--test" in toks:
+        flags, i = [], 1
+        while i < len(toks):
+            t = toks[i]
+            if t in NODE_VALUE_FLAGS and i + 1 < len(toks):
+                if not t.startswith("--test-reporter"):
+                    flags += [t, toks[i + 1]]
+                i += 2
+                continue
+            if t.startswith("-") and t != "--test" and not t.startswith("--test-reporter"):
+                flags.append(t)
+            i += 1
+        return ["node", "--test", *flags, "--test-reporter=tap"], pdir, None
+    if any(t == "vitest" or t.endswith("/vitest") for t in toks[:4]) or (not toks and "vitest" in deps):
+        where = ["--prefix", pdir] if pdir else []
+        return ["npx", *where, "vitest", "run", "--reporter=tap-flat"] + (["--root", pdir] if pdir else []), pdir, None
+    return None, None, f"the test script of {pkg} is not vitest or node --test: {script!r}"
+
+
+def ts_targets(argv, runnable, scope):
+    """What the ts command names: roots scope the changed test files; touched scope each test directory's
+    *.test.ts / *.spec.ts (a glob node --test expands itself: there is no shell) or, for vitest, the directory as a filter."""
+    if scope == "roots":
+        return list(runnable)
+    if argv[0] == "node":
+        return sorted({os.path.dirname(p) + "/*" + re.search(r"\.(test|spec)\.ts$", p).group(0) for p in runnable})
+    return [d + "/" for d in test_dirs(runnable) if d != "."]
+
+
+def link_node_modules(tree, nm):
+    """--node-modules: give the proof's tree the installed checkout's dependencies without copying or writing them. For
+    the tree root and every tree directory holding a package.json whose counterpart <checkout>/<dir>/node_modules exists,
+    a real node_modules directory of symlinks to that directory's entries (caches left out, so what a runner writes lands
+    in the tree); an entry that is itself a workspace package of the checkout points at the same path inside the tree."""
+    checkout = os.path.dirname(nm)
+    for d, dirs, files in os.walk(tree):
+        dirs[:] = sorted(x for x in dirs if x != "node_modules")
+        rel = os.path.relpath(d, tree)
+        if rel != "." and "package.json" not in files:
+            continue
+        src = nm if rel == "." else os.path.join(checkout, rel, "node_modules")
+        dest = os.path.join(d, "node_modules")
+        if not os.path.isdir(src) or os.path.lexists(dest):
+            continue
+        os.mkdir(dest)
+        for e in sorted(os.listdir(src)):
+            if e in NM_SKIP:
+                continue
+            s = os.path.join(src, e)
+            if e.startswith("@") and os.path.isdir(s) and not os.path.islink(s):
+                os.mkdir(os.path.join(dest, e))
+                for f in sorted(os.listdir(s)):
+                    link_entry(os.path.join(s, f), os.path.join(dest, e, f), checkout, tree)
+            else:
+                link_entry(s, os.path.join(dest, e), checkout, tree)
+
+
+def link_entry(src, dest, checkout, tree):
+    inside = os.path.relpath(os.path.realpath(src), checkout)
+    if not inside.startswith("..") and "node_modules" not in inside.split("/"):   # a workspace package: the tree's copy
+        os.symlink(os.path.join(tree, inside), dest)
+    else:
+        os.symlink(src, dest)
+
+
+def first_error(text):
+    """The first line of a ts run that names what went wrong (a module not found, a bad node option, npx refusing),
+    for the proof-failed reason; the empty string when there is none."""
+    for rx in (r"Cannot find|canceled|bad option|npm error|is not defined|is not a function",   # the message itself
+               r"ERR_[A-Z_]+|SyntaxError|ReferenceError|TypeError",                              # else its code or class
+               r"\berror[:\s]"):                                                                   # else any error line
+        for l in text.splitlines():
+            if re.search(rx, l) and len(l.strip()) > 8:
+                return "; first error: " + l.strip()[:160]
+    return ""
+
+
 def fixture_tests(fx):
     """Every file under the fixture's top-level tests/ (validate-suite.sh: grader_protected names each of them)."""
     out = []
@@ -228,7 +456,7 @@ def copy_scope(repo, parent, fx, scope, sources, roots, exclude):
 
 
 def counts(output, runner):
-    if runner == "bats":
+    if runner in ("bats", "ts"):   # TAP: top-level results (a nested subtest is indented, as ablation-grade.sh reads it)
         passed = len(re.findall(r"^ok ", output, re.M))
         failed = len(re.findall(r"^not ok ", output, re.M))
         return passed, failed
@@ -247,6 +475,8 @@ def run_tests(tree, cmd, runner):
         argv = argv[:3] + ["-p", "no:cacheprovider"] + argv[3:]
     elif runner == "bats" and os.environ.get("LOA_SEED_BATS"):
         argv[0] = os.environ["LOA_SEED_BATS"]
+    elif runner == "ts":   # plain output; npx never installs (a vitest missing from the tree fails by name) nor phones home
+        env.update({"NO_COLOR": "1", "CI": "1", "npm_config_yes": "false", "npm_config_update_notifier": "false"})
     try:
         # its own session: at the deadline the whole group dies (bats leaves grandchildren that would
         # otherwise hold the pipe open and run the rest of the suite before the call returns)
@@ -267,7 +497,7 @@ def run_tests(tree, cmd, runner):
     finally:
         shutil.rmtree(home, ignore_errors=True)
     passed, failed = counts(text, runner)
-    return rc, passed, failed
+    return rc, passed, failed, text
 
 
 def apply_patch(tree, patch_file):
@@ -372,11 +602,11 @@ def classify(mode, repo, sha, parents, roots, ignore=(), runner=None):
         added_or_modified = [p for s, p in files if is_test(p) and s in "AM"]
         runners = {runner_of(p) for p in added_or_modified} - {None}
         if not runners:
-            return "skipped", "no runnable test file (test_*.py, *_test.py, *.bats) added or changed"
+            return "skipped", "no runnable test file (test_*.py, *_test.py, *.bats, *.test.ts, *.spec.ts) added or changed"
         if runner and runner not in runners:
             return "skipped", f"no {runner} test added or changed"
         if len(runners) > 1 and not runner:
-            return "skipped", "mixed test runners (pytest and bats)"
+            return "skipped", f"mixed test runners ({runners_text(runners)})"
     else:
         if tests:
             return "skipped", f"touches a test file: {tests[0]}"
@@ -445,11 +675,28 @@ def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets
     other = [p for p in tests_am if runner and runner_of(p) not in (None, runner)]
     tests_am = [p for p in tests_am if p not in other]
     runner = runner or ({runner_of(p) for p in tests_am} - {None}).pop()
+    runnable = [p for p in tests_am if runner_of(p)]
+    if runner == "ts":
+        if NODE_MODULES is None:
+            return "skip", "no node_modules for the proof (--node-modules DIR)"
+        runner_argv, _, why = ts_command(repo, parent, runnable)
+        if why:
+            return "skip", why
+        test_cmd = runner_argv + ts_targets(runner_argv, runnable, scope)
+    else:
+        runner_argv = ["python3", "-m", "pytest", "-q"] if runner == "pytest" else ["bats"]
+        # roots: the test directories hold the suite's other tests too, so the command names the changed files
+        test_cmd = runner_argv + (runnable if scope == "roots" else test_dirs(runnable))
     for p in sources:
         put_from(repo, parent, p, fx)
     copy_scope(repo, parent, fx, scope, sources, roots, set(sources) | set(tests_am))
     for p in tests_am:
         put_from(repo, parent, p, fx)          # the base version of a changed test (absent when added)
+    if runner == "ts":   # what the tests and the touched sources import, at both ends of the change
+        seeds = [(sha, p) for p in tests_am + sources] + [(parent, p) for p in tests_am + sources]
+        for p in imported_files(repo, parent, seeds):
+            if p not in sources and p not in tests_am and not os.path.lexists(os.path.join(fx, p)):
+                put_from(repo, parent, p, fx, skip_links=True)
     protected = [h for h in helper_files(repo, parent, tests_am) if h not in tests_am and h not in sources]
     if scope == "roots":
         protected = sorted(set(protected) | set(fixture_tests(fx)) - set(sources))
@@ -464,10 +711,6 @@ def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets
     diff = git(repo, "diff", "--no-color", "--no-ext-diff", "--no-renames", "--src-prefix=a/", "--dst-prefix=b/",
                parent, sha, "--", *sources, binary=True)
     write_file(hidden, "reference.patch", diff)
-    runnable = [p for p in tests_am if runner_of(p)]
-    runner_argv = ["python3", "-m", "pytest", "-q"] if runner == "pytest" else ["bats"]
-    # roots: the test directories hold the suite's other tests too, so the command names the changed files
-    test_cmd = runner_argv + (runnable if scope == "roots" else test_dirs(runnable))
 
     # proof: red at base, green at reference (hidden tests overlaid on both)
     work = tempfile.mkdtemp(prefix="seed-proof.")
@@ -475,18 +718,22 @@ def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets
         base, ref = os.path.join(work, "base"), os.path.join(work, "ref")
         copy_tree(fx, base)
         overlay(tdir, base, manifest)
-        rc_b, pass_b, fail_b = run_tests(base, test_cmd, runner)
+        if runner == "ts":
+            link_node_modules(base, NODE_MODULES)
+        rc_b, pass_b, fail_b, out_b = run_tests(base, test_cmd, runner)
         copy_tree(fx, ref)
         if not apply_patch(ref, os.path.join(hidden, "reference.patch")):
             return None, "the reference patch does not apply to the fixture"
         overlay(tdir, ref, manifest)
-        rc_r, pass_r, fail_r = run_tests(ref, test_cmd, runner)
+        if runner == "ts":
+            link_node_modules(ref, NODE_MODULES)
+        rc_r, pass_r, fail_r, out_r = run_tests(ref, test_cmd, runner)
     finally:
         shutil.rmtree(work, ignore_errors=True)
     if rc_b == 0 or fail_b < 1:
-        return None, f"not red at base (exit {rc_b}, {fail_b} failed, {pass_b} passed)"
+        return None, f"not red at base (exit {rc_b}, {fail_b} failed, {pass_b} passed)" + (first_error(out_b) if runner == "ts" else "")
     if rc_r != 0 or fail_r > 0 or pass_r < 1:
-        return None, f"not green at reference (exit {rc_r}, {fail_r} failed, {pass_r} passed)"
+        return None, f"not green at reference (exit {rc_r}, {fail_r} failed, {pass_r} passed)" + (first_error(out_r) if runner == "ts" else "")
     proof = f"red {fail_b} failed / green {pass_r} passed"
 
     stems = [os.path.splitext(os.path.basename(p))[0] for p in tests_am]
@@ -525,8 +772,17 @@ def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secre
     if not tests:
         return "skip", "no test at the parent names a touched file"
     if len(runners) > 1:
-        return "skip", "the covering tests mix pytest and bats"
+        return "skip", f"the covering tests mix {runners_text(runners)}"
     runner = runners.pop()
+    if runner == "ts":
+        if NODE_MODULES is None:
+            return "skip", "no node_modules for the proof (--node-modules DIR)"
+        runner_argv, _, why = ts_command(repo, parent, tests)
+        if why:
+            return "skip", why
+        test_cmd = runner_argv + ts_targets(runner_argv, tests, scope)
+    else:
+        test_cmd = (["python3", "-m", "pytest", "-q"] if runner == "pytest" else ["bats"]) + (tests if scope == "roots" else test_dirs(tests))
     tdir = os.path.join(stage, tid)
     fx = os.path.join(tdir, "fixture")
     os.makedirs(fx)
@@ -535,6 +791,11 @@ def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secre
     copy_scope(repo, parent, fx, scope, sources, roots, set(sources) | set(tests))
     for t in tests:
         put_from(repo, parent, t, fx)
+    if runner == "ts":
+        seeds = [(parent, p) for p in tests + sources] + [(sha, p) for p in sources]
+        for p in imported_files(repo, parent, seeds):
+            if p not in sources and p not in tests and not os.path.lexists(os.path.join(fx, p)):
+                put_from(repo, parent, p, fx, skip_links=True)
     protected = [h for h in helper_files(repo, parent, tests) if h not in tests and h not in sources]
     if scope == "roots":
         protected = sorted(set(protected) | set(fixture_tests(fx)) - set(sources))
@@ -545,23 +806,26 @@ def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secre
                parent, sha, binary=True)
     write_file(hidden, "reference.patch", diff)
     write_file(hidden, "manifest.json", b'{"files": []}\n')
-    test_cmd = (["python3", "-m", "pytest", "-q"] if runner == "pytest" else ["bats"]) + (tests if scope == "roots" else test_dirs(tests))
 
     work = tempfile.mkdtemp(prefix="seed-proof.")
     try:
         base, ref = os.path.join(work, "base"), os.path.join(work, "ref")
         copy_tree(fx, base)
-        rc_b, pass_b, fail_b = run_tests(base, test_cmd, runner)
+        if runner == "ts":
+            link_node_modules(base, NODE_MODULES)
+        rc_b, pass_b, fail_b, out_b = run_tests(base, test_cmd, runner)
         copy_tree(fx, ref)
         if not apply_patch(ref, os.path.join(hidden, "reference.patch")):
             return None, "the reference patch does not apply to the fixture"
-        rc_r, pass_r, fail_r = run_tests(ref, test_cmd, runner)
+        if runner == "ts":
+            link_node_modules(ref, NODE_MODULES)
+        rc_r, pass_r, fail_r, out_r = run_tests(ref, test_cmd, runner)
     finally:
         shutil.rmtree(work, ignore_errors=True)
     if rc_b != 0 or fail_b > 0 or pass_b < 1:
-        return None, f"suite not green at base (exit {rc_b}, {fail_b} failed, {pass_b} passed)"
+        return None, f"suite not green at base (exit {rc_b}, {fail_b} failed, {pass_b} passed)" + (first_error(out_b) if runner == "ts" else "")
     if rc_r != 0 or fail_r > 0 or pass_r < 1:
-        return None, f"suite not green at reference (exit {rc_r}, {fail_r} failed, {pass_r} passed)"
+        return None, f"suite not green at reference (exit {rc_r}, {fail_r} failed, {pass_r} passed)" + (first_error(out_r) if runner == "ts" else "")
     proof = f"green at base ({pass_b} passed) / green at reference ({pass_r} passed)"
 
     rows = numstat(repo, parent, sha)
@@ -611,7 +875,8 @@ def parse(argv):
     ap.add_argument("--id-prefix")
     ap.add_argument("--fixture-scope", choices=("touched", "roots"), default="touched")
     ap.add_argument("--ignore-paths", default="")
-    ap.add_argument("--runner", choices=("pytest", "bats"))
+    ap.add_argument("--runner", choices=RUNNERS)
+    ap.add_argument("--node-modules")
     ap.add_argument("--dry-run", action="store_true")
     try:
         a = ap.parse_args(argv)
@@ -648,17 +913,23 @@ def parse(argv):
     a.ignore = [r.strip().strip("/") for r in a.ignore_paths.split(",") if r.strip().strip("/")]
     if any(not safe_path(r) for r in a.ignore):
         raise Usage(f"--ignore-paths must be relative prefixes: {a.ignore_paths!r}")
+    if a.node_modules is not None:
+        nm = os.path.abspath(a.node_modules)
+        if os.path.basename(nm) != "node_modules" or not os.path.isdir(nm):
+            raise Usage(f"--node-modules must be an installed node_modules directory, got {a.node_modules!r}")
+        a.node_modules = nm
     return a
 
 
 def main(argv):
-    global SUITE_VERSION
+    global SUITE_VERSION, NODE_MODULES
     try:
         a = parse(argv)
     except Usage as e:
         print(f"seed-{a_mode(argv)}: {e}", file=sys.stderr)
         return 2
     SUITE_VERSION = a.suite_version
+    NODE_MODULES = a.node_modules
     name = f"seed-{a.mode}"
     cands, refused, skipped = [], 0, 0
     for sha, parents, date, subject in commits_since(a.repo, a.since, a.rev):
