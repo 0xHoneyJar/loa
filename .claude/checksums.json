@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-26T00:50:52Z",
+  "generated": "2026-10-26T05:07:20Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1024,7 +1024,7 @@
     ".claude/scripts/check-proposal-status.sh": "ed7ae56f80e6f97a30bdbcb14aa6bfd3719acde558a8f1e55852a2ea646a8e02",
     ".claude/scripts/check-reality-freshness.sh": "f6cb4465e5b2d1e148248986f984c0b39fcca8b52c749b637e67dcee4f400b49",
     ".claude/scripts/check-thj-member.sh": "018532cadd36ddf283d4d53ee6ffa441865f60bfeb5851cfe69f8519ac8561d1",
-    ".claude/scripts/check-updates.sh": "21b5c67eac9132c8202e3eb1659852ce5b22474fc0174a22b93ee6ddd4eb1fd8",
+    ".claude/scripts/check-updates.sh": "5373aee3fa11851f7eab5c4beda8b9e669b347f7b8004d4e7ae92d03ea323ee8",
     ".claude/scripts/classify-commit-zone.sh": "6833d563210b251ab13d20d913ece37a2b6d0be8b71b4f256b6fc0a97d86b4e7",
     ".claude/scripts/classify-merge-pr.sh": "2540054b0698b61d5cbc0ba79189bef982ba6d0b32040acaf0f54dd7efc1b038",
     ".claude/scripts/classify-pr-type.sh": "e8fcdda9b6a7b6adba41e042f5c63dcaa83c035a08ece5189c5bb9ea4e20401c",
