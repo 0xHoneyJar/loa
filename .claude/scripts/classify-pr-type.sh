@@ -53,10 +53,14 @@ classify_pr_type() {
     # The archive branch carries the cycle id by convention
     # (chore/cycle-NNN-archive), so the cycle-NNN rule below routed every
     # archive merge to the cycle release path. Live incident (post-merge.yml):
-    # the cycle-133 and cycle-134 archive merges (PR #1293, PR #1297) each
-    # prepared a spurious candidate (runs 40112908074 and 40182103691). This
-    # sits before the cycle-NNN rule so a housekeeping subject never reaches
-    # it, and after the labels rule so a `cycle` label still wins. The prefix
+    # the cycle-133 and cycle-134 archive merges (PR #1293, PR #1297) each ran
+    # the cycle release pipeline ("Prepare Release (Cycle)", runs 40112908074
+    # and 40182103691) although nothing was shipped. Housekeeping merges now
+    # take the Bugfix-or-Other job like any non-cycle merge (which still
+    # prepares an inspectable candidate under the publication contract;
+    # publication stays explicit). This sits before the cycle-NNN rule so a
+    # housekeeping subject never reaches it, and after the labels rule so a
+    # `cycle` label still wins. The prefix
     # form is limited to the housekeeping scopes (archive, the orchestrator's
     # own ledger push, decisions): a bare `chore:` or `chore(release):` that
     # names a cycle can be a release (PR #747, `chore(release): v1.130.0 …

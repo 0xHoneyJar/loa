@@ -258,7 +258,7 @@ setup() {
 # The archive branch carries the cycle id by convention (chore/cycle-NNN-archive),
 # so the cycle-NNN rule routed every archive merge to the cycle release path:
 # Post-Merge Pipeline runs 40112908074 (PR #1293) and 40182103691 (PR #1297)
-# each prepared a spurious candidate. A chore/ branch merge or a
+# each ran the cycle release pipeline. A chore/ branch merge or a
 # chore(archive|ledger|decisions): prefix is housekeeping → other; labels keep
 # precedence; a bare chore: or chore(release): naming a cycle stays cycle.
 

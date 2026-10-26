@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **classify-pr-type**: housekeeping merges from a `chore/` branch or with a `chore(archive|ledger|decisions):` prefix classify `other` even when the branch name carries the cycle id — the archive, ledger and decisions-confirm merges no longer prepare a spurious release candidate (bd-ahxmh)
+- **classify-pr-type**: housekeeping merges from a `chore/` branch or with a `chore(archive|ledger|decisions):` prefix classify `other` even when the branch name carries the cycle id — the archive, ledger and decisions-confirm merges no longer run the cycle release pipeline (they take the Bugfix-or-Other job like any non-cycle merge; a candidate is still prepared, publication stays explicit) (bd-ahxmh)
 - **bridgebuilder**: exclusion globs (`--exclude`, `.reviewignore`, `exclude_patterns`) match path segments that start with a dot, so `evals/tests/fixtures/**` excludes the pinned-framework fixtures and a round no longer degrades on `file_cap` because of them (bd-a8l0c)
 
 ### Fixed (cycle-134 "post-ship fixes", Sprint 276 — the Bridgebuilder round-2 findings on rc.8 and the red post-merge run)
