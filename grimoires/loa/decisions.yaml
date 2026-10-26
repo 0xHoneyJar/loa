@@ -35121,3 +35121,117 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1008"
+    created_at: "2026-10-26T00:41:09Z"
+    updated_at: "2026-10-26T00:41:09Z"
+    phase: "implementation"
+    category: "security"
+    summary: "classify-pr-type: the chore/ branch clause is anchored to the first segment after the owner (from [^ /]+/chore/); release/chore/… keeps the cycle route."
+    decision: "Audit-round fix: `^Merge pull request #[0-9]+ from [^ /]+/chore/` so only an owner/chore/… branch is housekeeping; `owner/release/chore/v2.1.0` reaches the release-merge clause (cycle), `owner/chore/release/v2.1.0` stays other."
+    rationale: "The audit dissent showed `[^ ]+` spanning path segments, which would misroute a release branch carrying a chore segment — the R-005 incident shape (PR #1201). Anchoring costs nothing and two PCT cases pin both directions."
+    alternatives_considered:
+      - option: "move the release-merge clause above the housekeeping clause"
+        rejected_because: "reorders two rules for one shape; anchoring fixes the cause"
+      - option: "leave as is (no release branch of that shape exists)"
+        rejected_because: "the misrouting is cheap to prevent and the incident class is documented"
+    consequences:
+      positive:
+        - "release merges cannot be caught by a deeper chore segment"
+      negative:
+        - "a chore/ branch is housekeeping even when deeper segments say release (pinned, documented)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "63a3a9d1"
+    source: "grimoires/loa/a2a/bug-20261025-c47e71/auditor-sprint-feedback.md § Findings"
+    cycle: "cycle-bug-20261025-c47e71"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T00:41:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "sprint-bug-277 audit round commit"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1009"
+    created_at: "2026-10-26T00:41:54Z"
+    updated_at: "2026-10-26T00:41:54Z"
+    phase: "implementation"
+    category: "security"
+    summary: "Bridgebuilder: dot-led widening of broad wildcard exclusions (**/*.yml now excludes .github/workflows/*.yml on Node ≥ 22) accepted with mitigation; bd-i4fyw."
+    decision: "Keep the denylist semantics for every wildcard pattern (not only tree-naming ones). Mitigation: the coverage record lists every excluded file with its reason; the CHANGELOG names the behaviour change and tells operators to check broad patterns; a protected-paths list that wildcards cannot remove is a follow-up for the operator (bd-i4fyw)."
+    rationale: "Excluding more is the fail-open direction for a review tool, but the Node < 22 fallback already matched dot-led segments, `.reviewignore` implies gitignore semantics (no dot-file rule), and the widening is visible, not silent. Splitting the semantics by pattern shape would make the rule harder to predict than either consistent choice."
+    alternatives_considered:
+      - option: "retry only when the pattern's first segment is a literal that already matched (tree-naming patterns)"
+        rejected_because: "two semantics in one option; `**/*.md` vs a root dot-file was the dissent's own blocking case"
+      - option: "a never-exclude-by-wildcard list now (.github/**, .claude/settings*.json, .husky/**)"
+        rejected_because: "a product decision about which paths are protected — proposed to the operator as bd-i4fyw, not decided in a bug sprint"
+    consequences:
+      positive:
+        - "one predictable rule; the round-1 blocking case stays fixed"
+      negative:
+        - "operators on Node ≥ 22 with broad patterns lose coverage of dot-led paths until they check them"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "63a3a9d1"
+    source: "grimoires/loa/a2a/bug-20261025-826c6b/auditor-sprint-feedback.md § Findings"
+    cycle: "cycle-bug-20261025-826c6b"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T00:41:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "sprint-bug-278 audit round commit"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1010"
+    created_at: "2026-10-26T00:42:02Z"
+    updated_at: "2026-10-26T00:42:02Z"
+    phase: "implementation"
+    category: "security"
+    summary: "Bridgebuilder: the test pinning the pre-existing unanchored substring match (x/.loa-version.json.bak ⇢ .loa-version.json) is dropped; anchoring → bd-ow72o."
+    decision: "Non-wildcard patterns keep today's `filename === pattern || filename.includes(pattern)` in this sprint (pre-existing, out of the observed failure); the round-0 assertion that pinned the over-match is reduced to the exact match so the follow-up fix is not blocked by a test; bd-ow72o (P2, security) carries the anchoring (trailing `/` → segment-anchored prefix, otherwise exact filename or basename)."
+    rationale: "The audit dissent is right that a PR author can hide `src/grimoires/backdoor.ts` behind the default `grimoires/`; changing LOA_EXCLUDE_PATTERNS semantics is a wider change than a bug micro-sprint on dot segments should carry."
+    alternatives_considered:
+      - option: "fix the substring match in this sprint"
+        rejected_because: "touches every default pattern and the Loa-tier exclusion tests; needs its own red-first sprint"
+      - option: "keep the pin"
+        rejected_because: "a test should not assert a behaviour the project intends to remove"
+    consequences:
+      positive:
+        - "the follow-up is unblocked and tracked"
+      negative:
+        - "the hiding path stays open until bd-ow72o ships"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "63a3a9d1"
+    source: "grimoires/loa/a2a/bug-20261025-826c6b/auditor-sprint-feedback.md § Findings"
+    cycle: "cycle-bug-20261025-826c6b"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T00:42:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "sprint-bug-278 audit round commit"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
