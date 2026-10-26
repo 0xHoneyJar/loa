@@ -1261,7 +1261,7 @@ CELL_OF() { printf '%s/%s/a0_bare_matched/review-01-t1' "$RES" "$1"; }
   [ ! -e "$C/sessions/s4" ]
   [ "$(grep -c 'mk-a0_bare_matched-review-01-t1-s[123] a0_bare_matched review-01 1 s[123]$' "$T/stub.log")" -eq 3 ]
   [ "$(grep -c ' LOA_ABLATION_BATCH_CONTEXT=<unset> batch_context=mk$' "$T/env.log")" -eq 3 ]
-  [ "$(grep -c '^union review-01-t1 review-01 --tasks-dir tasks$' "$T/grade.log")" -eq 1 ]
+  [ "$(grep -c '^union review-01-t1 review-01 --tasks-dir tasks --suite-file ablation-2.0.yaml$' "$T/grade.log")" -eq 1 ]   # the union grade carries the batch's suite file too
   [ "$(jq -r '"\(.k) \(.sessions_valid) \(.sessions_attempted) \([.sessions[].id] | join(","))"' "$C/meta/cell.json")" = "3 3 3 s1,s2,s3" ]
   ! jq -e 'tostring | test("a0_bare_matched")' "$C/meta/cell.json" >/dev/null || false   # the grader reads it: no arm id
   [ "$(wc -l < "$RES/runs.jsonl")" -eq 1 ]

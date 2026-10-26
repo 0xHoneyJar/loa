@@ -521,11 +521,15 @@ YAML
   [ ! -e "$T/log/call-1.argv" ]
 }
 
-@test "leak guard: an arm id inside the sandbox tree is refused (exit 2)" {
-  echo "a1_full" > "$T/suite/tasks/bf-01/fx/src/notes.txt"
+@test "leak guard: an arm id in a sandbox file the pristine fixture does not carry is refused (exit 2); one the fixture carries is fixture-native (BV-1)" {
+  # suite v3: the fixture itself may name the arms (arm_ids_fixture_native); the pinned tree's .claude/ may not
+  mkdir -p "$T/src/.claude"
+  echo "a1_full" > "$T/src/.claude/notes.md"
+  ( cd "$T/src" && git add -A && git -c user.email=t@t -c user.name=t commit -qm notes )
   run_pr a1_full
   [ "$status" -eq 2 ]
-  [[ "$output" == *"arm id appears in the sandbox"* ]]
+  [[ "$output" == *"arm id appears in the sandbox: .claude/notes.md"* ]]
+  [ ! -e "$T/log/call-1.argv" ]
 }
 
 @test "leak guard: a fixture carrying a hidden directory is refused (exit 2)" {
