@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-26T05:32:29Z",
+  "generated": "2026-10-26T05:33:02Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1026,8 +1026,8 @@
     ".claude/scripts/check-thj-member.sh": "018532cadd36ddf283d4d53ee6ffa441865f60bfeb5851cfe69f8519ac8561d1",
     ".claude/scripts/check-updates.sh": "21b5c67eac9132c8202e3eb1659852ce5b22474fc0174a22b93ee6ddd4eb1fd8",
     ".claude/scripts/classify-commit-zone.sh": "6833d563210b251ab13d20d913ece37a2b6d0be8b71b4f256b6fc0a97d86b4e7",
-    ".claude/scripts/classify-merge-pr.sh": "2540054b0698b61d5cbc0ba79189bef982ba6d0b32040acaf0f54dd7efc1b038",
-    ".claude/scripts/classify-pr-type.sh": "e8fcdda9b6a7b6adba41e042f5c63dcaa83c035a08ece5189c5bb9ea4e20401c",
+    ".claude/scripts/classify-merge-pr.sh": "6977cf36cafca4751f4a8bfd9bf3538f5f454b109d64c03e2bef141024bc1de5",
+    ".claude/scripts/classify-pr-type.sh": "629a1db17448965de35950c1f91eae2bf7c8b46a3569ddb54854fcbab628441c",
     ".claude/scripts/cleanup-context.sh": "3c5e4f78a1a02b0212a09a4fe4bca028dffc3aa7b30f202672fd04aa36c8e454",
     ".claude/scripts/cluster-events.sh": "ae6ceefd7e4d81cda75e7941d48ff4cb9552ef7810e662a6707ffbc7452914d3",
     ".claude/scripts/cluster-skills.sh": "d5f0bcea3b9baa90efed618748f114ed0fa15fa434d8cd1256de144a27a25fee",
@@ -1209,7 +1209,7 @@
     ".claude/scripts/lint-arithmetic-increment.sh": "1e8fa8d7dbc16521a191756d7a902dc720f258a0fc87a6b97f3b2e3887b5be25",
     ".claude/scripts/lint-grep-c-fallback.sh": "7dab549b8cc2abb97f92591d32221a1cdcaf0783dc2d0f834262083b42ea1e13",
     ".claude/scripts/lint-invariants.sh": "1224c92925b141b004188cbd1e1c95a359f38d481723a1ed28c8131e14c81afa",
-    ".claude/scripts/loa-capabilities.sh": "d8a41fdfb54515a287080984dfa362ccfd108bc757186b9671ed022f583e057a",
+    ".claude/scripts/loa-capabilities.sh": "a8a7a0dc72d111ec58319b332ea6ba5da03821dd829a253402d7979f6371fd3b",
     ".claude/scripts/loa-doctor.sh": "ce09dad8497d4b33f72e31e257aa039d7f453ecf4e1bb43680e0f9c1a51f8cbc",
     ".claude/scripts/loa-eject.sh": "94ae4913ad25495091e314c4b35832cd3203788a0266fdfb608d5845012bec3e",
     ".claude/scripts/loa-learnings-index.sh": "946a17b59146614c8c8e233fb77daffc0b2f45c6cc52133f270f1468475c3853",
