@@ -9,7 +9,7 @@ export declare function isWildcardPattern(pattern: string): boolean;
 export declare function excludePatternGrammarError(pattern: string): string | null;
 /**
  * cycle-135 C-1 (bd-ow72o): the one loader every pattern source goes through. Trims; drops blank entries; strips one
- * leading `./` or `/` (patterns are repository-relative); keeps a trailing `/` (the matcher ignores one); rejects a
+ * leading `./` (patterns are repository-relative) and keeps a leading `/` as the root anchor; keeps a trailing `/` (the matcher ignores one); rejects a
  * pattern outside the grammar with one WARN naming it (a rejected pattern is dropped and so matches nothing).
  */
 export declare function normalizeExcludePatterns(raw: readonly string[], source: string): string[];

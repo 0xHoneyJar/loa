@@ -760,7 +760,7 @@ describe("normalizeExcludePatterns (cycle-135 C-1, bd-ow72o)", () => {
     const out = truncation.normalizeExcludePatterns(["  /README.md ", "./x", "docs/", "\t", ""], "test");
     assert.deepEqual(out, ["/README.md", "x", "docs/"]);
     assert.ok(matchesExcludePattern("README.md", out));
-    assert.ok(!matchesExcludePattern("docs/README.md", out), "a root-anchored name does not float");
+    assert.ok(!matchesExcludePattern("src/README.md", out), "a root-anchored name does not float");
     assert.ok(matchesExcludePattern("x/y.ts", out));
     assert.ok(matchesExcludePattern("docs/a.md", out));
     assert.ok(!matchesExcludePattern("src/README.md.bak", out));

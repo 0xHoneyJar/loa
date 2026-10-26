@@ -110,7 +110,9 @@ function validRepoSegment(s: string): boolean {
 export function contentsPathProblem(path: string): string | undefined {
   if (path.length === 0) return "empty path";
   if (path.startsWith("/")) return "leading /";
-  if (/[?#\u0000-\u001f\u007f]/.test(path)) return "?, # or a control character";
+  // (Bridgebuilder round 2, PR #1302: `\p{Cc}` — the Unicode control category — instead of a `\u0000-\u001f` range that
+  // two review voices misread as `^@-^_` in the diff; same refusals, C1 controls included)
+  if (/[?#]/.test(path) || /\p{Cc}/u.test(path)) return "?, # or a control character";
   for (const seg of path.split("/")) {
     if (seg === "") return "empty segment";
     if (seg === "." || seg === "..") return "dot segment";

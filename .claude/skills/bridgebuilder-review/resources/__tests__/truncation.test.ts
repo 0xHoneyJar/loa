@@ -1481,7 +1481,7 @@ describe("protected_paths and the fetch keys in config (cycle-135 C-2, bd-i4fyw)
       {},
       { enabled: true, repos: ["test/repo"], protected_paths: ["/ci.yml"], fetch_missing_patches: false, max_content_fetches: 5 } as never,
     );
-    assert.deepEqual(config.protectedPaths, ["ci.yml"]);
+    assert.deepEqual(config.protectedPaths, ["/ci.yml"]); // (round 2: a leading / is kept as the root anchor)
     assert.equal(config.fetchMissingPatches, false);
     assert.equal(config.maxContentFetches, 5);
   });
@@ -1899,7 +1899,7 @@ describe("trusted-config precedence for the review-scope keys (review round 1, H
     const { config } = await configModule.resolveConfig({}, {}, { enabled: true, repos: ["test/repo"] });
     const trusted = configModule.loadTrustedConfig({ pr: 1 }, prDeps(trustedText, "bridgebuilder:\n  max_prs: 1\n"));
     captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, {}));
-    assert.deepEqual(config.protectedPaths, [".github/**"]);
+    assert.deepEqual(config.protectedPaths, ["/.github/**"]); // (round 2: a leading / is kept as the root anchor)
     assert.deepEqual(config.excludePatterns, [...configModule.DEFAULT_EXCLUDE_PATTERNS, "vendor/**"]);
     assert.equal(config.fetchMissingPatches, false);
     assert.equal(config.maxContentFetches, 3);

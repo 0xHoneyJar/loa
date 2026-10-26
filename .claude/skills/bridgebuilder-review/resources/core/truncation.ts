@@ -97,12 +97,13 @@ export function getSecurityCategory(filename: string): string | undefined {
 //   non-wildcard (no `*`, `?`, `{`, `[`) — gitignore-like whole segments (DEC-1013): one trailing `/` is ignored;
 //     without a `/` the pattern is one segment at any depth (`PROCESS.md` ⇢ `docs/PROCESS.md`, never
 //     `MYPROCESS.md`); with a `/` it is anchored at the root and covers the path and its subtree (`a/b` ⇢ `a/b/c`,
-//     never `x/a/b`).
+//     never `x/a/b`). A leading `/` is the root anchor for a single segment (`/README.md` names only the root file).
 //   wildcard — `*` and `?` within one segment, `**` as a whole segment (zero or more segments), one level of
 //     `{a,b}` alternation, `[ab]` / `[a-z]` / `[!ab]` classes; all of them match dot-led names (bd-a8l0c). A
 //     wildcard without a `/` floats like gitignore (an implicit leading `**/`, inserted in compileGlob; the pattern
 //     itself is recorded as written): `*.pem` ⇢ `keys/a.pem`; a wildcard with a `/` is root-anchored. A trailing
-//     `/` is a directory line and covers the subtree (`**/fixtures/` ⇢ `**/fixtures/**`).
+//     `/` is a directory line and covers the subtree (`**/fixtures/` ⇢ `**/fixtures/**`); a leading `/` anchors a
+//     slashless wildcard to the root (`/*.yml`). A negated class never matches `/`.
 //   rejected at load with one WARN, and matching nothing if they reach the matcher anyway — a `!` negation line,
 //     backslash escapes, extglob `+( @( !( ?( *(`, nested or unbalanced braces, unterminated, empty or nested
 //     classes, a class whose range does not compile.
@@ -114,9 +115,12 @@ export function isWildcardPattern(pattern: string): boolean {
 
 /** cycle-135 C-1 (bd-ow72o): gitignore-like whole-segment match for a non-wildcard pattern (DEC-1013). */
 function segmentMatch(filename: string, pattern: string): boolean {
-  const p = pattern.endsWith("/") ? pattern.slice(0, -1) : pattern;
+  let p = pattern.endsWith("/") ? pattern.slice(0, -1) : pattern;
+  // (Bridgebuilder round 2, PR #1302): a leading `/` is the root anchor — the name stops floating
+  const anchored = p.startsWith("/");
+  if (anchored) p = p.slice(1);
   if (p === "") return false;
-  if (!p.includes("/")) return `/${filename}/`.includes(`/${p}/`);
+  if (!anchored && !p.includes("/")) return `/${filename}/`.includes(`/${p}/`);
   return filename === p || filename.startsWith(`${p}/`);
 }
 
@@ -139,7 +143,8 @@ function translateGlobSegment(seg: string): string {
       if (close <= j) throw new Error("unterminated or empty character class");
       const body = seg.slice(j, close);
       if (body.includes("[")) throw new Error("nested character class");
-      out += `[${negate ? "^" : ""}${body.replace(/[\^\]\\]/g, "\\$&")}]`;
+      // (Bridgebuilder round 2, PR #1302): a negated class stays inside the segment — it never matches `/`
+      out += `[${negate ? "^/" : ""}${body.replace(/[\^\]\\]/g, "\\$&")}]`;
       i = close;
     } else if (c === "{") {
       if (inBrace) throw new Error("nested braces");
@@ -163,7 +168,8 @@ function translateGlobSegment(seg: string): string {
 function compileGlob(pattern: string): RegExp {
   // sprint-279 review round 1 (MEDIUM 4): a slashless wildcard floats — `*.pem` is `**/*.pem` (gitignore semantics,
   // matching the non-wildcard segment rule); no default pattern is a slashless wildcard.
-  let effective = pattern.includes("/") ? pattern : `**/${pattern}`;
+  // (Bridgebuilder round 2, PR #1302): a leading `/` is the root anchor — `/*.yml` names root-level files only.
+  let effective = pattern.startsWith("/") ? pattern.slice(1) : pattern.includes("/") ? pattern : `**/${pattern}`;
   // Bridgebuilder round 1 (PR #1302): a trailing `/` is a directory line, like gitignore — it covers the subtree
   // (`**/fixtures/` ⇢ `**/fixtures/**`); before, the trailing empty segment made the pattern match nothing.
   if (effective.endsWith("/")) effective = `${effective}**`;
@@ -203,7 +209,7 @@ export function excludePatternGrammarError(pattern: string): string | null {
 
 /**
  * cycle-135 C-1 (bd-ow72o): the one loader every pattern source goes through. Trims; drops blank entries; strips one
- * leading `./` or `/` (patterns are repository-relative); keeps a trailing `/` (the matcher ignores one); rejects a
+ * leading `./` (patterns are repository-relative) and keeps a leading `/` as the root anchor; keeps a trailing `/` (the matcher ignores one); rejects a
  * pattern outside the grammar with one WARN naming it (a rejected pattern is dropped and so matches nothing).
  */
 export function normalizeExcludePatterns(raw: readonly string[], source: string): string[] {
@@ -218,8 +224,9 @@ export function normalizeExcludePatterns(raw: readonly string[], source: string)
       );
       continue;
     }
-    const stripped = trimmed.startsWith("./") ? trimmed.slice(2) : trimmed.startsWith("/") ? trimmed.slice(1) : trimmed;
-    if (stripped !== "") out.push(stripped);
+    // (Bridgebuilder round 2, PR #1302): `./` is stripped; a leading `/` is KEPT — it is gitignore's root anchor
+    const stripped = trimmed.startsWith("./") ? trimmed.slice(2) : trimmed;
+    if (stripped !== "" && stripped !== "/") out.push(stripped);
   }
   return out;
 }
@@ -379,7 +386,7 @@ export function partitionUserExclusions(
 function isExplicitFor(pattern: string, filename: string): boolean {
   if (isWildcardPattern(pattern)) return false;
   const p = pattern.endsWith("/") ? pattern.slice(0, -1) : pattern;
-  return p.includes("/") || p === filename;
+  return p.startsWith("/") || p.includes("/") || p === filename; // (a leading `/` is the root anchor: explicit)
 }
 
 /**
