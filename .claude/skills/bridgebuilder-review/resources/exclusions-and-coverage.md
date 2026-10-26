@@ -70,8 +70,9 @@ patch are unchanged.
 
 `exclude_patterns`, `--exclude`, `.reviewignore` lines and the built-in defaults share one grammar and one matcher, on
 every Node version (`path.matchesGlob` is never consulted). Patterns are repository-relative. Each is normalised
-when it is loaded: surrounding whitespace is trimmed, blank lines are dropped, and one leading `./` or `/` is
-stripped.
+when it is loaded: surrounding whitespace is trimmed, blank lines are dropped, and one leading `./` is stripped. A
+leading `/` is kept: it is the root anchor, as in gitignore — `/README.md` names only the root file and `/*.yml` only
+root-level YAML, while `README.md` and `*.yml` float to any depth. A negated class (`[!a]`) never matches `/`.
 
 - **A pattern without `*`, `?`, `{` or `[` names whole path segments**, like gitignore. One trailing `/` is ignored.
   Without a `/` it matches that segment at any depth: `PROCESS.md` excludes `docs/PROCESS.md` but not

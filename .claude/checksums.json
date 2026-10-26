@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-26T08:26:29Z",
+  "generated": "2026-10-26T08:27:24Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1825,7 +1825,7 @@
     ".claude/skills/bridgebuilder-review/resources/core/types.ts": "9548c892acf951353dca1ae155c0314f5d94e69db04d372b53e2e334aca51a7a",
     ".claude/skills/bridgebuilder-review/resources/core/writer-role.ts": "dbe9f6bb2416ee2fdaecede5863fb44f10b90cc6860ba96d68c25f593d87e48f",
     ".claude/skills/bridgebuilder-review/resources/entry.sh": "0dd6dd050b68984c780ee2c325a72a9a8b2b38b59f7f31683ae09fc6995226c7",
-    ".claude/skills/bridgebuilder-review/resources/exclusions-and-coverage.md": "4d64394e5c31bf1ad6b1cbb248932b271492d8c72c9f1aff6db2c9f1b96146c5",
+    ".claude/skills/bridgebuilder-review/resources/exclusions-and-coverage.md": "6aacddb31ba1a1ff30b14e44e8c6a0c502168d14ff08996e0ea030a692344b6d",
     ".claude/skills/bridgebuilder-review/resources/grimoires/loa/a2a/sprint-1/reviewer.md": "deef0f00ef438124cf1928ca0e7bd16ac292f836cdc6d8e0600d39b2d69c6090",
     ".claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.generated.ts": "d530416cd95770fb04b28a828932757dae6bcb31dd492914c6061aff3f6b372a",
     ".claude/skills/bridgebuilder-review/resources/lib/model-resolver.generated.ts": "5f32f6e734a27195962bb69de704d6d0b7eb9c24415f4a008800346f4711bb45",

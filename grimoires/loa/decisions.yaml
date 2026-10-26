@@ -37041,3 +37041,112 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1058"
+    created_at: "2026-10-26T08:27:09Z"
+    updated_at: "2026-10-26T08:27:09Z"
+    phase: "review"
+    category: "implementation"
+    summary: "A leading / is the root anchor (gitignore): kept by normalisation; /README.md and /*.yml stop floating; /.reviewignore is explicit. Amends DEC-1026."
+    decision: "normalizeExcludePatterns strips ./ only; segmentMatch, compileGlob and isExplicitFor treat a leading / as anchored; patterns are recorded as written; DEFAULT_PROTECTED_PATHS keep the floating .reviewignore (the safe direction)."
+    rationale: "After the cycle stripped the leading slash there was no way to name only the root copy of a single-segment file — a gap against gitignore that would have shipped in the same release as the new grammar."
+    alternatives_considered:
+      - option: "keep stripping and document the gap"
+        rejected_because: "a second grammar change later would break operators twice"
+      - option: "anchor the default .reviewignore too"
+        rejected_because: "nested copies being protected reviews more, not less; the default list is pinned in docs and tests"
+    consequences:
+      positive:
+        - "one gitignore rule more, no new syntax"
+      negative:
+        - "three pinned normalisation expectations flipped (/ kept)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "70444f0d"
+    source: "PR #1302 Bridgebuilder round 2 (anthropic MEDIUM: no root-anchor syntax for single-segment patterns)"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T08:27:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "70444f0d2 (red 486b356f5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1059"
+    created_at: "2026-10-26T08:27:13Z"
+    updated_at: "2026-10-26T08:27:13Z"
+    phase: "review"
+    category: "implementation"
+    summary: "A negated character class never matches the path separator: [!a] compiles to [^/a]; x[!a]y no longer matches x/y."
+    decision: "translateGlobSegment emits [^/…] for a negated class; positive classes are unchanged (a literal / inside a class is not part of the grammar)."
+    rationale: "The segment-wise grammar promises that nothing inside one segment crosses a /; a negated class was the one construct that could."
+    alternatives_considered:
+      - option: "split the path and match segment by segment"
+        rejected_because: "the single-regex compile is pinned by the fixture tables; the one-character fix closes the gap"
+    consequences:
+      positive:
+        - "grammar promise holds for every construct"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "70444f0d"
+    source: "PR #1302 Bridgebuilder round 2 (openai MEDIUM)"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T08:27:13Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "70444f0d2 (red 486b356f5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1060"
+    created_at: "2026-10-26T08:27:17Z"
+    updated_at: "2026-10-26T08:27:17Z"
+    phase: "review"
+    category: "process"
+    summary: "Bridgebuilder round 2 on PR #1302: 2 fixed (+ \\p{Cc} robustness), 4 repeats of round-1 dispositions, 1 reframe accepted as documented, 4 praise; no round 3."
+    decision: "Fixed: root anchor, negated classes. Robustness: contentsPathProblem uses \\p{Cc} so the diff cannot be misread as ^@-^_ again (pin: upper-case and underscores pass). Repeats: shallow-checkout degrade (bd-9tt4b), head-first scope validation (bd-gyrgq), the control-character misread, the test seam (DEC-1050). Reframe: exit 1 on --type housekeeping is the loud refusal by design (bd-akkgq scaffold detection). No round 3: both rounds were non-degraded (G-5), the fixes are covered by red-first tests and the lead's read."
+    rationale: "Two rounds is the cap; the round-2 real findings were small and are closed with tests."
+    alternatives_considered:
+      - option: "a third round"
+        rejected_because: "exceeds the two-round cap; the remaining items are documented or filed"
+    consequences:
+      positive:
+        - "G-5's non-degraded verdict met twice"
+      negative:
+        - "the final head carries lead-verified fixes without a third voice"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "70444f0d"
+    source: "PR #1302 Bridgebuilder round 2 consensus; triage comment on the PR"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T08:27:17Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "PR #1302 round-2 triage comment"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
