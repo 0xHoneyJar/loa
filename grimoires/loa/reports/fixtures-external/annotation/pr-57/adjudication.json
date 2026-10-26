@@ -1,0 +1,151 @@
+{
+ "H01": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": "libs/npm_cache/Cargo.toml",
+  "description": "Crate version bump that goes with the public API change to NpmPackumentFormat.",
+  "severity": null,
+  "category": null,
+  "reason": "both not-defect; the crate version bump accompanies the public API change of the D1 fix (NpmPackumentFormat), so follow-on with the group (B) rather than a bare refactor (A)",
+  "anchor_lines": []
+ },
+ "H03": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": "libs/npm_cache/lib.rs",
+  "description": "Head always fetches the full packument when minimumDependencyAge is set, even for packages whose abbreviated manifest's modified date shows the full packument isn't needed, and does not tie Full to the no-downgrade trust policy (intent partly unclear from the context; reads as a correctness/efficiency fix to format selection).",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "agreed defect (verdict, group, severity, category); anchors: the union (A 78-82, B 77-83) — the whole format-selection block",
+  "anchor_lines": [
+   77,
+   78,
+   79,
+   80,
+   81,
+   82,
+   83
+  ]
+ },
+ "H05": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": "libs/npm_cache/lib.rs",
+  "description": "Passes the requested packument format to the HTTP client as part of the format-selection fix.",
+  "severity": null,
+  "category": null,
+  "reason": "both follow-on of D1; B anchored a not-defect hunk, A did not — anchors are empty for a not-defect",
+  "anchor_lines": []
+ },
+ "H06": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": "libs/npm_cache/lib.rs",
+  "description": "Removes the unused packument format parameter as part of the format-selection fix.",
+  "severity": null,
+  "category": null,
+  "reason": "both follow-on of D1; anchors differ only because B anchored a not-defect hunk",
+  "anchor_lines": []
+ },
+ "H07": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": "libs/npm_cache/lib.rs",
+  "description": "Carries the cached modified date through for the format-selection fix.",
+  "severity": null,
+  "category": null,
+  "reason": "both follow-on of D1; anchors differ only because B anchored a not-defect hunk",
+  "anchor_lines": []
+ },
+ "H08": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": "libs/npm_cache/lib.rs",
+  "description": "Signature updated to the new request-format type.",
+  "severity": null,
+  "category": null,
+  "reason": "both follow-on of D1; anchors differ only because B anchored a not-defect hunk",
+  "anchor_lines": []
+ },
+ "H09": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": "libs/npm_cache/lib.rs",
+  "description": "Comparison updated to the new request-format type.",
+  "severity": null,
+  "category": null,
+  "reason": "both follow-on of D1; anchors differ only because B anchored a not-defect hunk",
+  "anchor_lines": []
+ },
+ "H12": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": "libs/npm_cache/lib.rs",
+  "description": "Keeps the manifest's modified date in the slim cache, needed for the format-selection fix.",
+  "severity": null,
+  "category": null,
+  "reason": "both follow-on of D1; anchors differ only because B anchored a not-defect hunk",
+  "anchor_lines": []
+ },
+ "H13": {
+  "verdict": "defect",
+  "group": "D3",
+  "file": "libs/npm_cache/lib.rs",
+  "description": "A malformed non-object `scripts` field in any version (e.g. an empty string) makes has_install_script return an error, so loading the entire packument fails.",
+  "severity": "medium",
+  "category": "error-handling",
+  "reason": "agreed defect (anchors 571-573, group, category); severity: a malformed non-object `scripts` field is an uncommon registry input and the impact is bounded to that one package failing to load — medium (B), not a common-path failure (A)",
+  "anchor_lines": [
+   571,
+   572,
+   573
+  ]
+ },
+ "H25": {
+  "verdict": "defect",
+  "group": "D4",
+  "file": "libs/npm_installer/local.rs",
+  "description": "symlink_package_dir accepts arbitrary destination paths built from untrusted package names or aliases (e.g. `../outside`, absolute paths, `.deno`), so it can delete entries and create symlinks outside node_modules or over reserved directories.",
+  "severity": "high",
+  "category": "security",
+  "reason": "agreed defect (verdict, group, severity high, category security); anchors: the union — B's sites inside symlink_package_dir (1688-1699) and A's call sites (688, 764, 959, 1058) where the unvalidated package names and aliases become destination paths; description B's (names the traversal and the reserved .deno entry)",
+  "anchor_lines": [
+   688,
+   764,
+   959,
+   1058,
+   1688,
+   1689,
+   1692,
+   1693,
+   1695,
+   1699
+  ]
+ },
+ "H26": {
+  "verdict": "defect",
+  "group": "D4",
+  "file": "libs/npm_installer/local.rs",
+  "description": "symlink_package_dir accepts an arbitrary destination path without validating the package name, enabling path traversal on removal and link creation.",
+  "severity": "high",
+  "category": "security",
+  "reason": "agreed defect (verdict, group, severity, category); anchors: the union (A adds 1695)",
+  "anchor_lines": [
+   1689,
+   1690,
+   1692,
+   1695,
+   1699
+  ]
+ },
+ "H02": {
+  "verdict": "not-defect",
+  "group": "D1",
+  "file": "libs/npm_cache/Cargo.toml",
+  "description": "Adds chrono dependency needed by the new modified-date based packument format selection.",
+  "severity": null,
+  "category": null,
+  "reason": "both follow-on of D1 (the chrono dependency the format selection needs); the group-membership difference is H01's classification, settled above",
+  "anchor_lines": []
+ }
+}

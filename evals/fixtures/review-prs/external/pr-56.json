@@ -1,0 +1,66 @@
+{
+  "base_commit": "12bb28c22379c8d2fe90088fa0eefbfa2ab3fb80",
+  "files": {
+    "base": [
+      {
+        "blob": "929683868880a96c874382ce21eb67f0f3ada421",
+        "path": "packages/vite/src/node/optimizer/index.ts",
+        "sha256": "79c2fe788a225a20fd02fe74861e0f73b95f49c34cb19408ac040cc6e397832c",
+        "size": 45894
+      }
+    ],
+    "head": [
+      {
+        "blob": "2b9b8877da603f996bd2a091cd51b5686dbfd4ef",
+        "path": "packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/.gitignore",
+        "sha256": "9e328fa4b27efb499f286fd086b0e0b93c42ce7c6ff7146ef4535023018e2c03",
+        "size": 16
+      },
+      {
+        "blob": "ff72b5c73efddced2386adbe20cb6b9c500f9a90",
+        "path": "packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/node_modules/.yarn-state.yml",
+        "sha256": "927489cb2fcdb32e302713f6a720397868b71dd2128c734181983f367d622c24",
+        "size": 6
+      },
+      {
+        "blob": "a58bbb66c7f8845b60df70aaa575bbf29d47dcd2",
+        "path": "packages/vite/src/node/__tests__/optimizer/lockfileHash.spec.ts",
+        "sha256": "8a6e3e73765878d7f355fe8ff79c1842e086672d23b05cad5949687aaad8b42a",
+        "size": 1163
+      },
+      {
+        "blob": "e16218186296d22bc5fb5cd2840a5a980191b361",
+        "path": "packages/vite/src/node/optimizer/index.ts",
+        "sha256": "e8d8595dc51b618d7f8b143171a2a3293113eff464ec187a2fe64d8eba0104b8",
+        "size": 46430
+      }
+    ]
+  },
+  "fix_commit": "a7d56967ef0050a09c0507e63a18164bc7a0d486",
+  "fix_first": "a7d56967ef0050a09c0507e63a18164bc7a0d486",
+  "fix_parent": "b65a4b55a8d3fc4674ebda272f6612c29b01de84",
+  "fixture": "pr-56",
+  "head_commit": "65086ddbd28b95625f600a9b2b74d4330e650a79",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "b7e97ecb6aa4dd70b3e3a637afa2ae16feb7cd12",
+      "path": "LICENSE",
+      "sha256": "692057af3d664cbb79ac38293eb50aa3c4987f8182e2a440136e59e08f1b4a54",
+      "size": 1101
+    }
+  ],
+  "merge_commit": "f20609630faa93026924275115d1426fdc08629e",
+  "pr": 23667,
+  "pr_base_sha": "12bb28c22379c8d2fe90088fa0eefbfa2ab3fb80",
+  "pr_url": "https://github.com/vitejs/vite/pull/23667",
+  "schema_version": 1,
+  "scope_paths": null,
+  "skipped": [
+    "packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-lock/yarn.lock: lock file left out",
+    "packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/yarn.lock: lock file left out"
+  ],
+  "source_url": "https://github.com/vitejs/vite",
+  "trees": "committed",
+  "visibility": "public"
+}

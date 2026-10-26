@@ -1,0 +1,7 @@
+# approved-by: pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	high	logic	crates/nu-glob/src/dc_glob/globber.rs	let output_path_candidate = path.strip_prefix(output_relative_to).unwrap_or(path);	fix-commit	hunk:H01	A,B	agreed	-	false
+F001	-	fix	crates/nu-glob/src/dc_glob/globber.rs	let output_path_candidate = path.strip_prefix(output_relative_to).unwrap_or(path);	fix	fix/aa89ea092a57:354-354	-	-	-	-
+F002	-	fix	crates/nu-glob/src/dc_glob/mod.rs	.any(|p| p == &expected_path(&["src", "lib.rs"])),	fix	fix/aa89ea092a57:386-389	-	-	-	-
+F003	-	fix	crates/nu-glob/src/dc_glob/mod.rs	// Absolute pattern like `<root>/dir/nu*` — same as relative but with	fix	fix/aa89ea092a57:933-935	-	-	-	-
+F004	-	fix	crates/nu-glob/src/dc_glob/mod.rs	assert_eq!(paths[0], "nu_test1");	fix	fix/aa89ea092a57:947-947	-	-	-	-

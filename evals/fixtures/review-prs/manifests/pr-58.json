@@ -1,0 +1,66 @@
+{
+  "fixture": "pr-58",
+  "label_set": "v2",
+  "approved": false,
+  "approved_by": "pending",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "6070bf3892c4095e571bd894cfc45fa583f3385f",
+    "fix_commit": "aa89ea092a57a60c33388b790747b549b353e44a",
+    "incidents_meta": {
+      "main_sha": "706259d6f8f15a9875ab3446baace78f89c102a6"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "crates/nu-glob/src/dc_glob/globber.rs",
+      "anchor_line": 354,
+      "must_match": "let output_path_candidate = path.strip_prefix(output_relative_to).unwrap_or(path);",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
+      "source_commit": "6070bf38",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "crates/nu-glob/src/dc_glob/globber.rs",
+      "start": 354,
+      "end": 354,
+      "source": "fix/aa89ea092a57:354-354"
+    },
+    {
+      "id": "F002",
+      "file": "crates/nu-glob/src/dc_glob/mod.rs",
+      "start": 386,
+      "end": 389,
+      "source": "fix/aa89ea092a57:386-389"
+    },
+    {
+      "id": "F003",
+      "file": "crates/nu-glob/src/dc_glob/mod.rs",
+      "start": 933,
+      "end": 935,
+      "source": "fix/aa89ea092a57:933-935"
+    },
+    {
+      "id": "F004",
+      "file": "crates/nu-glob/src/dc_glob/mod.rs",
+      "start": 947,
+      "end": 947,
+      "source": "fix/aa89ea092a57:947-947"
+    }
+  ]
+}

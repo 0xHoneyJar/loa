@@ -1,0 +1,102 @@
+{
+  "annotators": [
+    "A",
+    "B"
+  ],
+  "disagreement_ids": [
+    "H01",
+    "H02",
+    "H03",
+    "H05",
+    "H06",
+    "H07",
+    "H08",
+    "H09",
+    "H12",
+    "H13",
+    "H25",
+    "H26"
+  ],
+  "disagreements": 12,
+  "fixture": "pr-57",
+  "grouping": {
+    "jaccard": 0.913,
+    "pairs_a": 84,
+    "pairs_b": 92,
+    "pairs_both": 84
+  },
+  "hunks": {
+    "kappa": 1.0,
+    "n": 29,
+    "po": 1.0,
+    "table": [
+      [
+        5,
+        0
+      ],
+      [
+        0,
+        24
+      ]
+    ]
+  },
+  "incidents": {
+    "kappa": null,
+    "n": 0,
+    "po": null,
+    "table": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        0
+      ]
+    ]
+  },
+  "localization": {
+    "file_mismatch": 0,
+    "median_distance": 0,
+    "n": 5,
+    "overlap": 5,
+    "share": 1.0
+  },
+  "severity": {
+    "kappa": 0.6154,
+    "labels": [
+      "critical",
+      "high",
+      "medium",
+      "low"
+    ],
+    "n": 5,
+    "po": 0.8,
+    "table": [
+      [
+        0,
+        0,
+        0,
+        0
+      ],
+      [
+        0,
+        2,
+        1,
+        0
+      ],
+      [
+        0,
+        0,
+        2,
+        0
+      ],
+      [
+        0,
+        0,
+        0,
+        0
+      ]
+    ]
+  }
+}

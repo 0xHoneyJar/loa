@@ -1,0 +1,337 @@
+diff --git a/pydantic-core/src/validators/model_fields.rs b/pydantic-core/src/validators/model_fields.rs
+index b2e0e35be..1192336b5 100644
+--- a/pydantic-core/src/validators/model_fields.rs
++++ b/pydantic-core/src/validators/model_fields.rs
+@@ -20,7 +20,7 @@ use crate::lookup_key::LookupPathCollection;
+ use crate::lookup_key::LookupType;
+ use crate::tools::SchemaDict;
+ use crate::tools::new_py_string;
+-use crate::validators::shared::lookup_tree::LookupFieldPriority;
++use crate::validators::shared::lookup_tree::LookupFieldInfo;
+ use crate::validators::shared::lookup_tree::LookupTree;
+ 
+ use super::{BuildValidator, CombinedValidator, DefinitionsBuilder, ValidationState, Validator, build_validator};
+@@ -555,17 +555,19 @@ impl ModelFieldsValidator {
+ 
+         let model_dict = PyDict::new(py);
+         let mut model_extra_dict_op: Option<Bound<PyDict>> = None;
+-        let mut field_results: Vec<Option<(ValResult<Py<PyAny>>, LookupFieldPriority)>> =
++        let mut field_results: Vec<Option<(LookupFieldInfo, &JsonValue)>> =
+             (0..self.fields.len()).map(|_| None).collect();
+         let mut errors: Vec<ValLineError> = Vec::new();
+         let fields_set = PySet::empty(py)?;
+ 
++        let state = &mut state.rebind_extra(|extra| extra.data = Some(model_dict.clone()));
++        let state = &mut state.scoped_set(|state| &mut state.has_field_error, false);
++
+         let model_extra_dict = PyDict::new(py);
+         for (key, value) in &**json_object {
+             let mut handled = false;
+             let key = key.as_ref();
+-            let mut matches = self.lookup.iter_matches(key, value);
+-            while let Some((field_info, field_value, lookup_path)) = matches.next_match() {
++            for (field_info, field_value) in self.lookup.iter_matches(key, value) {
+                 handled = true;
+ 
+                 if !field_info.matches_lookup(lookup_type) {
+@@ -575,37 +577,15 @@ impl ModelFieldsValidator {
+                 let field_result = &mut field_results[field_info.field_index];
+ 
+                 // later results are preferred unless the existing result has come from a higher priority alias
+-                if let Some((_, existing_lookup_priority)) = &field_result
+-                    && existing_lookup_priority.is_higher_priority_than(&field_info.lookup_priority)
++                if let Some((existing_field_info, _)) = &field_result
++                    && existing_field_info
++                        .lookup_priority
++                        .is_higher_priority_than(&field_info.lookup_priority)
+                 {
+                     continue;
+                 }
+ 
+-                let field = &self.fields[field_info.field_index];
+-
+-                let result = field.validator.validate(py, field_value, state).map_err(|e| match e {
+-                    ValError::LineErrors(line_errors) => {
+-                        // for line errors, apply the actual lookup path used
+-                        ValError::LineErrors(
+-                            line_errors
+-                                .into_iter()
+-                                .map(|mut err| {
+-                                    if self.loc_by_alias {
+-                                        for loc in lookup_path.iter_loc_items().rev() {
+-                                            err = err.with_outer_location(loc);
+-                                        }
+-                                    } else {
+-                                        err = err.with_outer_location(field.name.clone());
+-                                    }
+-                                    err
+-                                })
+-                                .collect(),
+-                        )
+-                    }
+-                    other => other,
+-                });
+-
+-                *field_result = Some((result, field_info.lookup_priority));
++                *field_result = Some((*field_info, field_value));
+             }
+ 
+             if handled {
+@@ -649,15 +629,30 @@ impl ModelFieldsValidator {
+         // dict, and try to set defaults for any missing fields
+ 
+         for (field, field_result) in std::iter::zip(&self.fields, field_results) {
+-            let field_value = if let Some((validation_result, _)) = field_result {
+-                match validation_result {
++            let field_value = if let Some((field_info, field_json_value)) = field_result {
++                match field.validator.validate(py, field_json_value, state) {
+                     Ok(value) => {
+                         fields_set.add(&field.name)?;
+                         value
+                     }
+                     Err(ValError::Omit) => continue,
+                     Err(ValError::LineErrors(line_errors)) => {
+-                        errors.extend(line_errors);
++                        state.has_field_error = true;
++                        // for line errors, apply the actual lookup path used
++                        errors.extend(line_errors.into_iter().map(|mut err| {
++                            if self.loc_by_alias
++                                && let Some(alias_index) = field_info.alias_index()
++                            {
++                                err = field.lookup_path_collection.by_alias[alias_index].apply_error_loc(
++                                    err,
++                                    self.loc_by_alias,
++                                    &field.name,
++                                );
++                            } else {
++                                err = err.with_outer_location(field.name.clone());
++                            }
++                            err
++                        }));
+                         continue;
+                     }
+                     Err(err) => return Err(err),
+@@ -674,6 +669,7 @@ impl ModelFieldsValidator {
+                     }
+                     Err(ValError::Omit) => continue,
+                     Err(ValError::LineErrors(line_errors)) => {
++                        state.has_field_error = true;
+                         for err in line_errors {
+                             // Note: this will always use the field name even if there is an alias
+                             // However, we don't mind so much because this error can only happen if the
+diff --git a/pydantic-core/src/validators/shared/lookup_tree.rs b/pydantic-core/src/validators/shared/lookup_tree.rs
+index c1ab7816d..11c403c6d 100644
+--- a/pydantic-core/src/validators/shared/lookup_tree.rs
++++ b/pydantic-core/src/validators/shared/lookup_tree.rs
+@@ -5,7 +5,6 @@ use ahash::AHashMap;
+ use jiter::{JsonArray, JsonValue};
+ use smallvec::SmallVec;
+ 
+-use crate::errors::LocItem;
+ use crate::lookup_key::{LookupPath, LookupPathCollection, LookupType, PathItem, PathItemString};
+ 
+ /// A tree of paths for lookups when trying to find fields from input.
+@@ -68,7 +67,7 @@ impl LookupTree {
+         json_value: &'a JsonValue<'j>,
+     ) -> LookupMatchesIter<'a, 'j> {
+         let node = self.inner.get(root_key);
+-        LookupMatchesIter::new(root_key, node, json_value)
++        LookupMatchesIter::new(node, json_value)
+     }
+ }
+ 
+@@ -111,6 +110,15 @@ impl LookupFieldInfo {
+     pub fn matches_lookup(&self, lookup_type: LookupType) -> bool {
+         self.lookup_priority.lookup_type.matches(lookup_type)
+     }
++
++    /// The alias index for this lookup, if it is an alias lookup, or `None` if it is a name lookup.
++    pub fn alias_index(&self) -> Option<usize> {
++        if self.lookup_priority.lookup_type == LookupType::Alias {
++            Some(self.lookup_priority.alias_index)
++        } else {
++            None
++        }
++    }
+ }
+ 
+ /// Represents a point in the lookup tree, containing exact matches plus possible nested lookups.
+@@ -182,29 +190,16 @@ fn add_path_to_map(map: &mut AHashMap<PathItemString, LookupTreeNode>, path: &Lo
+ /// This isn't a typical `Iterator` because `next_match` returns data which borrows from the iterator itself,
+ /// not yet supported by Rust's `Iterator` trait.
+ pub struct LookupMatchesIter<'a, 'j> {
+-    stack: LookupMatchesStack<'a, 'j>,
++    stack: SmallVec<[NestedFrame<'a, 'j>; 1]>,
+ }
+ 
+-/// Current stack of the `LookupMatches` iterator
+-pub struct LookupMatchesStack<'a, 'j>(
+-    // uses SmallVec to avoid allocating if there are no `AliasPath` lookups
+-    SmallVec<[NestedFrame<'a, 'j>; 1]>,
+-);
+-
+ /// State of the iterator at a given depth in the lookup tree
+ struct NestedFrame<'a, 'j> {
+     json_value: &'a JsonValue<'j>,
+-    lookup_path: LookupPathItem<'a>,
+     node: &'a LookupTreeNode,
+     state: FrameState<'a, 'j>,
+ }
+ 
+-#[derive(Clone, Copy)]
+-enum LookupPathItem<'a> {
+-    Key(&'a str),
+-    Index(i64),
+-}
+-
+ enum FrameState<'a, 'j> {
+     /// Iterating through all fields that match exactly this path
+     Fields {
+@@ -223,11 +218,10 @@ enum FrameState<'a, 'j> {
+ }
+ 
+ impl<'a, 'j> LookupMatchesIter<'a, 'j> {
+-    fn new(root_key: &'a str, node: Option<&'a LookupTreeNode>, json_value: &'a JsonValue<'j>) -> Self {
++    fn new(node: Option<&'a LookupTreeNode>, json_value: &'a JsonValue<'j>) -> Self {
+         let stack = if let Some(node) = node {
+             SmallVec::from_buf([NestedFrame {
+                 json_value,
+-                lookup_path: LookupPathItem::Key(root_key),
+                 node,
+                 state: FrameState::Fields {
+                     fields: node.fields.iter(),
+@@ -237,18 +231,20 @@ impl<'a, 'j> LookupMatchesIter<'a, 'j> {
+             SmallVec::new()
+         };
+ 
+-        Self {
+-            stack: LookupMatchesStack(stack),
+-        }
++        Self { stack }
+     }
++}
++
++impl<'a, 'j> Iterator for LookupMatchesIter<'a, 'j> {
++    type Item = (&'a LookupFieldInfo, &'a JsonValue<'j>);
+ 
+-    pub fn next_match(&mut self) -> Option<(&'_ LookupFieldInfo, &'_ JsonValue<'j>, &'_ LookupMatchesStack<'a, 'j>)> {
+-        'top_level: while let Some(frame) = self.stack.0.last_mut() {
++    fn next(&mut self) -> Option<Self::Item> {
++        'top_level: while let Some(frame) = self.stack.last_mut() {
+             // Initialize exploration state if needed
+             match &mut frame.state {
+                 FrameState::Fields { fields } => {
+                     if let Some(field_info) = fields.next() {
+-                        return Some((field_info, frame.json_value, &self.stack));
++                        return Some((field_info, frame.json_value));
+                     }
+ 
+                     // no more fields, possibly explore nested structures if there are complex aliases
+@@ -263,7 +259,7 @@ impl<'a, 'j> LookupMatchesIter<'a, 'j> {
+                             };
+                         }
+                         _ => {
+-                            self.stack.0.pop();
++                            self.stack.pop();
+                         }
+                     }
+                 }
+@@ -272,18 +268,17 @@ impl<'a, 'j> LookupMatchesIter<'a, 'j> {
+                         let nested_node = frame.node.map.get(key.as_ref())?;
+                         Some(NestedFrame {
+                             json_value: value,
+-                            lookup_path: LookupPathItem::Key(key.as_ref()),
+                             node: nested_node,
+                             state: FrameState::Fields {
+                                 fields: nested_node.fields.iter(),
+                             },
+                         })
+                     }) {
+-                        self.stack.0.push(next_frame);
++                        self.stack.push(next_frame);
+                         continue 'top_level;
+                     }
+ 
+-                    self.stack.0.pop();
++                    self.stack.pop();
+                 }
+                 FrameState::NestedArray { json_array, iter } => {
+                     if let Some(next_frame) = iter.by_ref().find_map(|(list_item, nested_node)| {
+@@ -296,31 +291,20 @@ impl<'a, 'j> LookupMatchesIter<'a, 'j> {
+                         let value = json_array.get(index as usize)?;
+                         Some(NestedFrame {
+                             json_value: value,
+-                            lookup_path: LookupPathItem::Index(*list_item),
+                             node: nested_node,
+                             state: FrameState::Fields {
+                                 fields: nested_node.fields.iter(),
+                             },
+                         })
+                     }) {
+-                        self.stack.0.push(next_frame);
++                        self.stack.push(next_frame);
+                         continue 'top_level;
+                     }
+ 
+-                    self.stack.0.pop();
++                    self.stack.pop();
+                 }
+             }
+         }
+         None
+     }
+ }
+-
+-impl LookupMatchesStack<'_, '_> {
+-    /// Iterate the location items representing the path taken to reach the current match
+-    pub fn iter_loc_items(&self) -> impl DoubleEndedIterator<Item = LocItem> + use<'_> {
+-        self.0.iter().map(|frame| match frame.lookup_path {
+-            LookupPathItem::Key(s) => s.into(),
+-            LookupPathItem::Index(i) => i.into(),
+-        })
+-    }
+-}
+diff --git a/tests/types/test_model.py b/tests/types/test_model.py
+index 6cb00969a..bcdf48d58 100644
+--- a/tests/types/test_model.py
++++ b/tests/types/test_model.py
+@@ -2,7 +2,15 @@ from typing import Union
+ 
+ import pytest
+ 
+-from pydantic import BaseModel, ConfigDict, SerializationInfo, TypeAdapter, model_serializer
++from pydantic import (
++    BaseModel,
++    ConfigDict,
++    SerializationInfo,
++    TypeAdapter,
++    ValidationInfo,
++    field_validator,
++    model_serializer,
++)
+ 
+ 
+ @pytest.mark.parametrize('config', [True, False, None])
+@@ -77,3 +85,22 @@ def test_polymorphic_serialization_with_model_serializer(config: bool, runtime:
+     else:
+         assert serializer.to_python(ModelB(a=123, b='test'), **kwargs) == 'ModelA'
+         assert serializer.to_json(ModelB(a=123, b='test'), **kwargs) == b'"ModelA"'
++
++
++def test_model_validate_by_json_with_validation_info_data():
++    """https://github.com/pydantic/pydantic/issues/13074"""
++
++    class Foo(BaseModel):
++        field1: int
++        field2: int
++
++        @field_validator('field2')
++        @classmethod
++        def _validate_field2(cls, v: str, info: ValidationInfo) -> int:
++            return v + info.data['field1']
++
++    f1 = Foo.model_validate({'field1': 1, 'field2': 2})
++    f2 = Foo.model_validate_json('{"field1": 1, "field2": 2}')
++
++    assert f1.field1 == f2.field1 == 1
++    assert f1.field2 == f2.field2 == 3

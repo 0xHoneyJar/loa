@@ -1,0 +1,121 @@
+diff --git a/packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/.gitignore b/packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/.gitignore
+new file mode 100644
+index 000000000..2b9b8877d
+--- /dev/null
++++ b/packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/.gitignore
+@@ -0,0 +1 @@
++!/node_modules/
+diff --git a/packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/node_modules/.yarn-state.yml b/packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/node_modules/.yarn-state.yml
+new file mode 100644
+index 000000000..ff72b5c73
+--- /dev/null
++++ b/packages/vite/src/node/__tests__/optimizer/fixtures/lockfile-hash/yarn-state/node_modules/.yarn-state.yml
+@@ -0,0 +1 @@
++state
+diff --git a/packages/vite/src/node/__tests__/optimizer/lockfileHash.spec.ts b/packages/vite/src/node/__tests__/optimizer/lockfileHash.spec.ts
+new file mode 100644
+index 000000000..a58bbb66c
+--- /dev/null
++++ b/packages/vite/src/node/__tests__/optimizer/lockfileHash.spec.ts
+@@ -0,0 +1,36 @@
++import fs from 'node:fs'
++import os from 'node:os'
++import path from 'node:path'
++import { beforeAll, expect, test } from 'vitest'
++import { getLockfileHash } from '../../optimizer'
++import { getHash } from '../../utils'
++
++const fixturesDir = path.join(import.meta.dirname, 'fixtures/lockfile-hash')
++let root: string
++
++beforeAll(() => {
++  // Copy outside the repo so lookup does not find the repo's own lockfile.
++  root = fs.mkdtempSync(
++    path.join(fs.realpathSync(os.tmpdir()), 'vite-lockfile-hash-'),
++  )
++  fs.cpSync(fixturesDir, root, { recursive: true })
++  return () => {
++    fs.rmSync(root, { recursive: true, force: true })
++  }
++})
++
++test('falls back to yarn.lock when no lockfile is found in node_modules', () => {
++  const fixture = path.join(root, 'yarn-lock')
++  const content = fs.readFileSync(path.join(fixture, 'yarn.lock'))
++
++  expect(getLockfileHash(fixture)).toBe(getHash(content))
++})
++
++test('prefers lockfiles in node_modules over yarn.lock', () => {
++  const fixture = path.join(root, 'yarn-state')
++  const content = fs.readFileSync(
++    path.join(fixture, 'node_modules/.yarn-state.yml'),
++  )
++
++  expect(getLockfileHash(fixture)).toBe(getHash(content))
++})
+diff --git a/packages/vite/src/node/optimizer/index.ts b/packages/vite/src/node/optimizer/index.ts
+index 929683868..e16218186 100644
+--- a/packages/vite/src/node/optimizer/index.ts
++++ b/packages/vite/src/node/optimizer/index.ts
+@@ -418,7 +418,9 @@ export async function loadCachedDepOptimizationMetadata(
+     } catch {}
+     // hash is consistent, no need to re-bundle
+     if (cachedMetadata) {
+-      if (cachedMetadata.lockfileHash !== getLockfileHash(environment)) {
++      if (
++        cachedMetadata.lockfileHash !== getLockfileHash(environment.config.root)
++      ) {
+         environment.logger.info(
+           'Re-optimizing dependencies because lockfile has changed',
+           {
+@@ -1299,6 +1301,18 @@ const lockfileFormats = [
+ })
+ const lockfilePaths = lockfileFormats.map((l) => l.path)
+ 
++// Only used when none of the formats above is found, so it never changes which
++// lockfile is hashed for projects that already have one of them.
++// e.g. Yarn with `nodeLinker: pnpm` writes neither `.yarn-state.yml` nor `.pnp.cjs`.
++const fallbackLockfileFormats = [
++  {
++    path: 'yarn.lock',
++    checkPatchesDir: '.yarn/patches',
++    manager: 'yarn',
++  },
++]
++const fallbackLockfilePaths = fallbackLockfileFormats.map((l) => l.path)
++
+ function getConfigHash(environment: Environment): string {
+   // Take config into account
+   // only a subset of config options that can affect dep optimization
+@@ -1344,14 +1358,16 @@ function getConfigHash(environment: Environment): string {
+   return getHash(content)
+ }
+ 
+-function getLockfileHash(environment: Environment): string {
+-  const lockfilePath = lookupFile(environment.config.root, lockfilePaths)
++export function getLockfileHash(root: string): string {
++  const lockfilePath =
++    lookupFile(root, lockfilePaths) ?? lookupFile(root, fallbackLockfilePaths)
+   let content = lockfilePath ? fs.readFileSync(lockfilePath, 'utf-8') : ''
+   if (lockfilePath) {
+     const normalizedLockfilePath = lockfilePath.replaceAll('\\', '/')
+-    const lockfileFormat = lockfileFormats.find((f) =>
+-      normalizedLockfilePath.endsWith(f.path),
+-    )!
++    const lockfileFormat = [
++      ...lockfileFormats,
++      ...fallbackLockfileFormats,
++    ].find((f) => normalizedLockfilePath.endsWith(f.path))!
+     if (lockfileFormat.checkPatchesDir) {
+       // Default of https://github.com/ds300/patch-package
+       const baseDir = lockfilePath.slice(0, -lockfileFormat.path.length)
+@@ -1373,7 +1389,7 @@ function getDepHash(environment: Environment): {
+   configHash: string
+   hash: string
+ } {
+-  const lockfileHash = getLockfileHash(environment)
++  const lockfileHash = getLockfileHash(environment.config.root)
+   const configHash = getConfigHash(environment)
+   const hash = getHash(lockfileHash + configHash)
+   return {

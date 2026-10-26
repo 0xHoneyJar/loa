@@ -1,0 +1,64 @@
+{
+  "fixture": "pr-56",
+  "label_set": "v2",
+  "approved": false,
+  "approved_by": "pending",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "65086ddbd28b95625f600a9b2b74d4330e650a79",
+    "fix_commit": "a7d56967ef0050a09c0507e63a18164bc7a0d486",
+    "incidents_meta": {
+      "main_sha": "e954a9cda0b5254be495a937333a0be1b8503d8f"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "packages/vite/src/node/optimizer/index.ts",
+      "anchor_line": 1270,
+      "must_match": "@L1270",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
+      "source_commit": "65086ddb",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    },
+    {
+      "id": "V02",
+      "file": "packages/vite/src/node/optimizer/index.ts",
+      "anchor_line": 1310,
+      "must_match": "@L1310",
+      "severity": "low",
+      "category": "logic",
+      "label_source": "incident",
+      "source": "incident:I01",
+      "source_commit": "65086ddb",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "agreed defect-at-head (both annotators, severity low, group D2); both inferred the line from the fix diff's numbering (A 1299, B 1297) \u2014 at head the yarn.lock fallback entry's checkPatchesDir is optimizer/index.ts:1310; category logic (an incident-only defect needs one)",
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "packages/vite/src/node/optimizer/index.ts",
+      "start": 1270,
+      "end": 1270,
+      "source": "fix/a7d56967ef00:1270-1270"
+    }
+  ]
+}

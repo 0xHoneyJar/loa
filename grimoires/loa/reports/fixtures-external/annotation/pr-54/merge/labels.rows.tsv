@@ -1,0 +1,6 @@
+# approved-by: pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	medium	logic	packages/vite/src/node/plugins/assetImportMetaUrl.ts	if (tryStatSync(file)?.isFile()) {	fix-commit	hunk:H02	A,B	agreed	-	false
+V01	medium	logic	packages/vite/src/node/plugins/assetImportMetaUrl.ts	this.addWatchFile(file)	fix-commit	hunk:H02	A,B	agreed	-	false
+F001	-	fix	packages/vite/src/node/plugins/assetImportMetaUrl.ts	import { slash } from '../../shared/utils'	fix	fix/e954a9cda0b5:5-5	-	-	-	-
+F002	-	fix	packages/vite/src/node/plugins/assetImportMetaUrl.ts	if (tryStatSync(file)?.isFile()) {	fix	fix/e954a9cda0b5:151-152	-	-	-	-

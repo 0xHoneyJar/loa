@@ -1,0 +1,18 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "crates/nu-glob/src/dc_glob/globber.rs", "anchor_lines": [354],
+            "description": "Results of absolute glob patterns have the traversal root stripped, so they come out as relative paths when they should be absolute.",
+            "severity": "high", "category": "logic"},
+    "H02": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "crates/nu-glob/src/dc_glob/mod.rs", "anchor_lines": [],
+            "description": "Updates the test assertion to expect absolute output paths for an absolute recursive pattern.", "severity": null, "category": null},
+    "H03": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "crates/nu-glob/src/dc_glob/mod.rs", "anchor_lines": [],
+            "description": "Updates a test comment to describe absolute output for absolute patterns.", "severity": null, "category": null},
+    "H04": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "crates/nu-glob/src/dc_glob/mod.rs", "anchor_lines": [],
+            "description": "Updates the test assertion to expect the absolute path output.", "severity": null, "category": null}
+  },
+  "incidents": {}
+}

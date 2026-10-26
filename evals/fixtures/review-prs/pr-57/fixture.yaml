@@ -1,0 +1,34 @@
+name: pr-57
+version: "1.0.0"
+language: "rust"
+runtime: none
+dependency_strategy: none
+description: "external fixture: denoland/deno pull request #36191 reviewed at its head (pre-fix); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: external
+deprecated: false
+kind: external
+source_url: "https://github.com/denoland/deno"
+pr: 36191
+pr_url: "https://github.com/denoland/deno/pull/36191"
+pr_created: "2026-07-20"
+pr_merged: "2026-07-21"
+base_commit: "e0431ffd8f94ccbdd271a84e2c980b65b5ae18b0"
+pr_base_sha: "e0431ffd8f94ccbdd271a84e2c980b65b5ae18b0"
+head_commit: "95edd60422ae809f0d2aeaf732458360d591d6e6"
+merge_commit: "9ec3275a1944c603c7d414154e3b3dcca613a0fe"
+fix_commit: "5f2241642635008739292d5afca75217de0c469f"
+fix_first: "5f2241642635008739292d5afca75217de0c469f"
+fix_parent: "cf09f6de7ba8b2bc1d1511bd11156f25001fe934"
+fix_committed: "2026-10-20"
+fix_after_cutoff:
+  fable_5_1: true      # knowledge cutoff 2026-06
+incident: null
+licence: "MIT"
+visibility: public
+trees: committed
+exposure:
+  fable_5_1: post-cutoff      # knowledge cutoff 2026-06; head committed 2026-07-21 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-07-21; sandbox has network; egress scanned (grader class 9)"

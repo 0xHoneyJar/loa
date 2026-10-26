@@ -1,0 +1,260 @@
+diff --git a/crates/nu-command/src/filesystem/glob.rs b/crates/nu-command/src/filesystem/glob.rs
+index 71b13ad81..e60d085be 100644
+--- a/crates/nu-command/src/filesystem/glob.rs
++++ b/crates/nu-command/src/filesystem/glob.rs
+@@ -60,6 +60,11 @@ impl Command for Glob {
+         }
+ 
+         signature
++            .switch(
++                "ignore-case",
++                "Whether to ignore case when matching the glob pattern.",
++                Some('i'),
++            )
+             .rest(
+                 "debug-args",
+                 SyntaxShape::String,
+@@ -119,7 +124,11 @@ impl Command for Glob {
+             },
+             Example {
+                 description: "A case-insensitive search for files and folders that begin with c.",
+-                example: r#"glob "(?i)c*""#,
++                example: if nu_experimental::DC_GLOB.get() {
++                    "glob c* --ignore-case"
++                } else {
++                    r#"glob "(?i)c*""#
++                },
+                 result: None,
+             },
+             Example {
+@@ -280,19 +289,23 @@ impl Command for Glob {
+         }
+ 
+         match nu_experimental::DC_GLOB.get() {
+-            true => run_dc_glob(
+-                engine_state,
+-                stack,
+-                &glob_pattern,
+-                depth,
+-                follow_symlinks,
+-                not_patterns,
+-                glob_span,
+-                no_dirs,
+-                no_files,
+-                no_symlinks,
+-                span,
+-            ),
++            true => {
++                let ignore_case = call.has_flag(engine_state, stack, "ignore-case")?;
++                run_dc_glob(
++                    engine_state,
++                    stack,
++                    &glob_pattern,
++                    depth,
++                    follow_symlinks,
++                    not_patterns,
++                    glob_span,
++                    no_dirs,
++                    no_files,
++                    no_symlinks,
++                    ignore_case,
++                    span,
++                )
++            }
+             false => {
+                 // paths starting with drive letters must be escaped for wax on Windows
+                 #[cfg(windows)]
+@@ -341,6 +354,7 @@ fn run_dc_glob(
+     no_dirs: bool,
+     no_files: bool,
+     no_symlinks: bool,
++    ignore_case: bool,
+     span: Span,
+ ) -> Result<PipelineData, ShellError> {
+     let folder_depth = infer_folder_depth(glob_pattern, depth);
+@@ -350,6 +364,7 @@ fn run_dc_glob(
+         follow_symlinks,
+         excludes: not_patterns,
+         interrupt: engine_state.signals().interrupt_flag(),
++        ignore_case,
+     };
+     let cwd_for_matches = cwd.as_std_path().to_path_buf();
+     let glob_pattern = nu_path::expand_tilde(glob_pattern)
+@@ -781,7 +796,7 @@ mod tests {
+     use super::*;
+ 
+     #[test]
+-    fn signature_mentions_dbg_subcommands() {
++    fn signature_mentions_dbg_subcommands_and_ignore_case() {
+         let signature = Glob.signature();
+         let rendered = format!("{signature:#?}");
+ 
+@@ -790,11 +805,19 @@ mod tests {
+                 rendered.contains("dbg-parse") && rendered.contains("dbg-glob"),
+                 "glob signature should mention dbg-* subcommands when dc-glob is enabled"
+             );
++            assert!(
++                rendered.contains("ignore-case"),
++                "glob signature should mention --ignore-case when dc-glob is enabled"
++            );
+         } else {
+             assert!(
+                 !rendered.contains("dbg-parse") && !rendered.contains("dbg-glob"),
+                 "glob signature should hide dbg-* subcommands when dc-glob is disabled"
+             );
++            assert!(
++                !rendered.contains("ignore-case"),
++                "glob signature should hide --ignore-case when dc-glob is disabled"
++            );
+         }
+     }
+ }
+diff --git a/crates/nu-glob/src/dc_glob/compiler.rs b/crates/nu-glob/src/dc_glob/compiler.rs
+index fd9efe48c..e5500175a 100644
+--- a/crates/nu-glob/src/dc_glob/compiler.rs
++++ b/crates/nu-glob/src/dc_glob/compiler.rs
+@@ -97,6 +97,7 @@ pub struct Program {
+     pub instructions: Vec<Instruction>,
+     pub counters: u16,
+     pub absolute_prefix: Option<PathBuf>,
++    pub case_insensitive: bool,
+ }
+ 
+ impl Program {
+@@ -263,3 +264,9 @@ pub fn compile(pattern: &Pattern) -> anyhow::Result<Program> {
+     program.instructions.push(Instruction::Complete);
+     Ok(program)
+ }
++
++pub fn compile_with_options(pattern: &Pattern, case_insensitive: bool) -> anyhow::Result<Program> {
++    let mut program = compile(pattern)?;
++    program.case_insensitive = case_insensitive;
++    Ok(program)
++}
+diff --git a/crates/nu-glob/src/dc_glob/globber.rs b/crates/nu-glob/src/dc_glob/globber.rs
+index 65635bb86..1c2f62a84 100644
+--- a/crates/nu-glob/src/dc_glob/globber.rs
++++ b/crates/nu-glob/src/dc_glob/globber.rs
+@@ -359,7 +359,9 @@ fn handle_path_candidate<'a>(
+         depth + 1
+     };
+ 
+-    let result = if let Some(fast_path) = fast_path {
++    let result = if program.case_insensitive {
++        path_matches(match_path_candidate, program)
++    } else if let Some(fast_path) = fast_path {
+         recursive_fast_path_match(match_path_candidate, fast_path, is_parent)
+     } else {
+         path_matches(match_path_candidate, program)
+diff --git a/crates/nu-glob/src/dc_glob/matcher.rs b/crates/nu-glob/src/dc_glob/matcher.rs
+index 7b6699bfd..920ac9a71 100644
+--- a/crates/nu-glob/src/dc_glob/matcher.rs
++++ b/crates/nu-glob/src/dc_glob/matcher.rs
+@@ -63,11 +63,28 @@ fn length_of_first_char(string: &[u8]) -> Option<usize> {
+     })
+ }
+ 
+-fn char_matches_classes(ch: char, classes: &[CharacterClass]) -> bool {
+-    classes.iter().any(|class| match class {
++fn char_matches_classes(ch: char, classes: &[CharacterClass], case_insensitive: bool) -> bool {
++    if classes.iter().any(|class| match class {
+         CharacterClass::Single(single) => *single == ch,
+         CharacterClass::Range(start, end) => *start <= ch && ch <= *end,
+-    })
++    }) {
++        return true;
++    }
++    if case_insensitive {
++        let swapped = if ch.is_ascii_lowercase() {
++            ch.to_ascii_uppercase()
++        } else if ch.is_ascii_uppercase() {
++            ch.to_ascii_lowercase()
++        } else {
++            return false;
++        };
++        classes.iter().any(|class| match class {
++            CharacterClass::Single(single) => *single == swapped,
++            CharacterClass::Range(start, end) => *start <= swapped && swapped <= *end,
++        })
++    } else {
++        false
++    }
+ }
+ 
+ #[derive(Debug, Clone)]
+@@ -114,7 +131,12 @@ impl<'a> Matcher<'a> {
+             Instruction::Prefix(string) if !self.has_string() => {
+                 match self.state.path_components.next() {
+                     Some(Component::Prefix(prefix_component))
+-                        if prefix_component.as_os_str() == &string[..] =>
++                        if prefix_component.as_os_str() == &string[..]
++                            || (program.case_insensitive
++                                && prefix_component
++                                    .as_os_str()
++                                    .as_encoded_bytes()
++                                    .eq_ignore_ascii_case(string.as_bytes())) =>
+                     {
+                         self.next()
+                     }
+@@ -143,7 +165,12 @@ impl<'a> Matcher<'a> {
+                 &mut self.state.current_string,
+                 &mut self.state.fresh_string,
+             ) {
+-                NextString::Normal(current_string) if current_string.starts_with(&bytes[..]) => {
++                NextString::Normal(current_string)
++                    if current_string.starts_with(&bytes[..])
++                        || (program.case_insensitive
++                            && current_string.len() >= bytes.len()
++                            && current_string[..bytes.len()].eq_ignore_ascii_case(&bytes[..])) =>
++                {
+                     *current_string = &current_string[bytes.len()..];
+                     self.state.fresh_string = false;
+                     self.next()
+@@ -204,7 +231,7 @@ impl<'a> Matcher<'a> {
+                             return self.try_alternative();
+                         };
+ 
+-                        if char_matches_classes(ch, classes) {
++                        if char_matches_classes(ch, classes, program.case_insensitive) {
+                             *current_string = &current_string[ch.len_utf8()..];
+                             self.state.fresh_string = false;
+                             self.next()
+diff --git a/crates/nu-glob/src/dc_glob/mod.rs b/crates/nu-glob/src/dc_glob/mod.rs
+index 411ad6453..2d3286f67 100644
+--- a/crates/nu-glob/src/dc_glob/mod.rs
++++ b/crates/nu-glob/src/dc_glob/mod.rs
+@@ -25,6 +25,8 @@ pub struct GlobWalkOptions {
+     /// Optional interrupt flag. When set to `true` the traversal stops as soon
+     /// as possible and the iterator ends.
+     pub interrupt: Option<Arc<AtomicBool>>,
++    /// When `true`, match path components case-insensitively (ASCII only).
++    pub ignore_case: bool,
+ }
+ 
+ /// Return true if the given pattern contains glob metacharacters.
+@@ -82,7 +84,7 @@ pub fn glob_with(
+     let pattern = pattern.as_ref().to_owned();
+     let parsed = parser::parse(&pattern);
+     let fast_path = detect_recursive_suffix_fast_path(&parsed);
+-    let include_program = compiler::compile(&parsed)?;
++    let include_program = compiler::compile_with_options(&parsed, options.ignore_case)?;
+ 
+     let exclude_programs = options
+         .excludes
+@@ -217,6 +219,16 @@ impl DcPattern {
+         })
+     }
+ 
++    /// Compile a glob pattern with case-insensitive matching (ASCII only).
++    pub fn with_ignore_case(pattern: &str) -> anyhow::Result<Self> {
++        let parsed = parser::parse(pattern);
++        let compiled = compiler::compile_with_options(&parsed, true)?;
++        Ok(DcPattern {
++            pattern: pattern.to_owned(),
++            compiled: std::sync::Arc::new(compiled),
++        })
++    }
++
+     /// Return `true` if the given path matches this pattern.
+     pub fn matches_path(&self, path: &Path) -> bool {
+         matcher::path_matches(path, &self.compiled).valid_as_complete_match

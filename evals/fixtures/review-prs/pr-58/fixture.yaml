@@ -1,0 +1,34 @@
+name: pr-58
+version: "1.0.0"
+language: "rust"
+runtime: none
+dependency_strategy: none
+description: "external fixture: nushell/nushell pull request #18376 reviewed at its head (pre-fix); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: external
+deprecated: false
+kind: external
+source_url: "https://github.com/nushell/nushell"
+pr: 18376
+pr_url: "https://github.com/nushell/nushell/pull/18376"
+pr_created: "2026-06-09"
+pr_merged: "2026-06-09"
+base_commit: "27cc9cab17b8e8be0f072890e83541f28b197e6d"
+pr_base_sha: "4e2c7e1db33ba88bea95015a0bfa7042e8a3b6d4"
+head_commit: "6070bf3892c4095e571bd894cfc45fa583f3385f"
+merge_commit: "dbacec500b96bd66066e60c06e51b3d496b2fe2c"
+fix_commit: "aa89ea092a57a60c33388b790747b549b353e44a"
+fix_first: "aa89ea092a57a60c33388b790747b549b353e44a"
+fix_parent: "dbacec500b96bd66066e60c06e51b3d496b2fe2c"
+fix_committed: "2026-06-10"
+fix_after_cutoff:
+  fable_5_1: false      # knowledge cutoff 2026-06
+incident: null
+licence: "MIT"
+visibility: public
+trees: committed
+exposure:
+  fable_5_1: pre-cutoff      # knowledge cutoff 2026-06; head committed 2026-06-09 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-06-09; sandbox has network; egress scanned (grader class 9)"

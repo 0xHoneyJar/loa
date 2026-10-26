@@ -1,0 +1,3 @@
+id	kind	ref	date	files	excerpt
+I01	fix-commit	a63eb8722e7d	2026-10-22T03:59:34Z	packages/vite/src/node/__tests__/build.spec.ts	fix(deps): update rolldown-related dependencies (#23868)
+I02	fix-commit	82e7aa0374a1	2026-10-23T08:34:05Z	packages/vite/src/node/plugins/css.ts	fix: respect `build.sourcemap` from environment (#23879)

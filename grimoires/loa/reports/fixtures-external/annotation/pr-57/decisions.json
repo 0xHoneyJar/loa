@@ -1,0 +1,94 @@
+{
+ "H01": {
+  "base": "B",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "both not-defect; the crate version bump accompanies the public API change of the D1 fix (NpmPackumentFormat), so follow-on with the group (B) rather than a bare refactor (A)"
+ },
+ "H03": {
+  "base": "A",
+  "verdict": "defect",
+  "group": "D1",
+  "anchors": "union",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "agreed defect (verdict, group, severity, category); anchors: the union (A 78-82, B 77-83) — the whole format-selection block"
+ },
+ "H05": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "both follow-on of D1; B anchored a not-defect hunk, A did not — anchors are empty for a not-defect"
+ },
+ "H06": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "both follow-on of D1; anchors differ only because B anchored a not-defect hunk"
+ },
+ "H07": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "both follow-on of D1; anchors differ only because B anchored a not-defect hunk"
+ },
+ "H08": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "both follow-on of D1; anchors differ only because B anchored a not-defect hunk"
+ },
+ "H09": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "both follow-on of D1; anchors differ only because B anchored a not-defect hunk"
+ },
+ "H12": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "both follow-on of D1; anchors differ only because B anchored a not-defect hunk"
+ },
+ "H13": {
+  "base": "B",
+  "verdict": "defect",
+  "group": "D3",
+  "anchors": "union",
+  "severity": "medium",
+  "category": "error-handling",
+  "reason": "agreed defect (anchors 571-573, group, category); severity: a malformed non-object `scripts` field is an uncommon registry input and the impact is bounded to that one package failing to load — medium (B), not a common-path failure (A)"
+ },
+ "H25": {
+  "base": "B",
+  "verdict": "defect",
+  "group": "D4",
+  "anchors": "union",
+  "severity": "high",
+  "category": "security",
+  "reason": "agreed defect (verdict, group, severity high, category security); anchors: the union — B's sites inside symlink_package_dir (1688-1699) and A's call sites (688, 764, 959, 1058) where the unvalidated package names and aliases become destination paths; description B's (names the traversal and the reserved .deno entry)"
+ },
+ "H26": {
+  "base": "A",
+  "verdict": "defect",
+  "group": "D4",
+  "anchors": "union",
+  "severity": "high",
+  "category": "security",
+  "reason": "agreed defect (verdict, group, severity, category); anchors: the union (A adds 1695)"
+ },
+ "H02": {
+  "base": "A",
+  "verdict": "not-defect",
+  "class": "follow-on",
+  "group": "D1",
+  "reason": "both follow-on of D1 (the chrono dependency the format selection needs); the group-membership difference is H01's classification, settled above"
+ }
+}

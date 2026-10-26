@@ -1,0 +1,34 @@
+name: pr-59
+version: "1.0.0"
+language: "python"
+runtime: none
+dependency_strategy: none
+description: "external fixture: pydantic/pydantic pull request #13079 reviewed at its head (pre-fix); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: external
+deprecated: false
+kind: external
+source_url: "https://github.com/pydantic/pydantic"
+pr: 13079
+pr_url: "https://github.com/pydantic/pydantic/pull/13079"
+pr_created: "2026-04-15"
+pr_merged: "2026-04-15"
+base_commit: "895d8554ffdf65231287eb3193aed4b1e3ae9f72"
+pr_base_sha: "895d8554ffdf65231287eb3193aed4b1e3ae9f72"
+head_commit: "67ac6fd4ee9d0317e78efdace2228ca83abe4371"
+merge_commit: "b7e81cfc9f3ebc7d42a0ee5c85bf28db181a38f7"
+fix_commit: "a6bf50b721c2dd1ed609c8bb402076e8ec0c43f3"
+fix_first: "a6bf50b721c2dd1ed609c8bb402076e8ec0c43f3"
+fix_parent: "b7e81cfc9f3ebc7d42a0ee5c85bf28db181a38f7"
+fix_committed: "2026-04-16"
+fix_after_cutoff:
+  fable_5_1: false      # knowledge cutoff 2026-06
+incident: null
+licence: "MIT"
+visibility: public
+trees: committed
+exposure:
+  fable_5_1: pre-cutoff      # knowledge cutoff 2026-06; head committed 2026-04-15 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-04-15; sandbox has network; egress scanned (grader class 9)"

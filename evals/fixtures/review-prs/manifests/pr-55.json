@@ -1,0 +1,240 @@
+{
+  "fixture": "pr-55",
+  "label_set": "v2",
+  "approved": false,
+  "approved_by": "pending",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "bc9ebab31e07862102c3d17c1628574493bd68e2",
+    "fix_commit": "4d16e7c14d5e1c361f148238b1e81131238ab8e9",
+    "incidents_meta": {
+      "main_sha": "e954a9cda0b5254be495a937333a0be1b8503d8f"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "packages/vite/src/node/plugins/css.ts",
+      "anchor_line": 397,
+      "must_match": "const decodedUrl = decodeURI(url)",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H06",
+      "source_commit": "bc9ebab3",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    },
+    {
+      "id": "V02",
+      "file": "packages/vite/src/node/plugins/css.ts",
+      "anchor_line": 991,
+      "must_match": "if (config.build.sourcemap) {",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "incident",
+      "source": "incident:I02",
+      "source_commit": "bc9ebab3",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "head css.ts:991 reads config.build.sourcemap (the top-level config) where the later fix reads this.environment.config.build.sourcemap: the wrong behaviour is present at head in a fixture file (codebook: the head file the incident cites), so defect-at-head (A); B's not-at-head rests on the incident being unrelated to the PR's own change, which the codebook does not require; anchor corrected from A's 988 to the line holding the condition; category logic (an incident-only defect needs one)",
+      "review_driven": false
+    },
+    {
+      "id": "V03",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "anchor_line": 315,
+      "anchors": [
+        315,
+        316,
+        317,
+        318,
+        331,
+        332,
+        333
+      ],
+      "must_match": "const plugin: Plugin = {",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H12",
+      "source_commit": "bc9ebab3",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "agreed defect (verdict, severity, category); anchors: the union of both annotators' sites across H10-H12 (the hooks at 315-318 where the per-environment graph must be collected, 331-333 where the hash augmentation belongs); description B's wording, which names the consequence",
+      "review_driven": false
+    },
+    {
+      "id": "V04",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "anchor_line": 340,
+      "anchors": [
+        340,
+        343,
+        344
+      ],
+      "must_match": "@L340",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H13",
+      "source_commit": "bc9ebab3",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "agreed defect (anchors, severity, category); B's D3 is A's D2 (removed pure-CSS chunks left in the emitted import map)",
+      "review_driven": false
+    },
+    {
+      "id": "V05",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "anchor_line": 385,
+      "anchors": [
+        385,
+        386,
+        387,
+        388,
+        389
+      ],
+      "must_match": "const normalizedFile = path.posix.join(",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H14",
+      "source_commit": "bc9ebab3",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "B's split kept: in the no-preload path the specifier is not mapped through the import map, so the dynamic import of a removed CSS chunk is never rewritten \u2014 a second wrong behaviour, distinct from the stale import-map entries (H13); one wrong behaviour per group; anchors, severity, category agreed",
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "packages/vite/src/node/__tests__/build.spec.ts",
+      "start": 115,
+      "end": 115,
+      "source": "fix/4d16e7c14d5e:115-115"
+    },
+    {
+      "id": "F002",
+      "file": "packages/vite/src/node/__tests__/build.spec.ts",
+      "start": 1391,
+      "end": 1391,
+      "source": "fix/4d16e7c14d5e:1391-1391"
+    },
+    {
+      "id": "F003",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "start": 7,
+      "end": 7,
+      "source": "fix/4d16e7c14d5e:7-7"
+    },
+    {
+      "id": "F004",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "start": 11,
+      "end": 11,
+      "source": "fix/4d16e7c14d5e:11-11"
+    },
+    {
+      "id": "F005",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "start": 29,
+      "end": 29,
+      "source": "fix/4d16e7c14d5e:29-29"
+    },
+    {
+      "id": "F006",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "start": 314,
+      "end": 314,
+      "source": "fix/4d16e7c14d5e:314-314"
+    },
+    {
+      "id": "F007",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "start": 318,
+      "end": 318,
+      "source": "fix/4d16e7c14d5e:318-318"
+    },
+    {
+      "id": "F008",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "start": 332,
+      "end": 332,
+      "source": "fix/4d16e7c14d5e:332-332"
+    },
+    {
+      "id": "F009",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "start": 340,
+      "end": 340,
+      "source": "fix/4d16e7c14d5e:340-340"
+    },
+    {
+      "id": "F010",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "start": 389,
+      "end": 389,
+      "source": "fix/4d16e7c14d5e:389-389"
+    },
+    {
+      "id": "F011",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "start": 407,
+      "end": 407,
+      "source": "fix/4d16e7c14d5e:407-407"
+    },
+    {
+      "id": "F012",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "start": 484,
+      "end": 484,
+      "source": "fix/4d16e7c14d5e:484-484"
+    },
+    {
+      "id": "F013",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "start": 495,
+      "end": 524,
+      "source": "fix/4d16e7c14d5e:495-524"
+    },
+    {
+      "id": "F014",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "start": 526,
+      "end": 529,
+      "source": "fix/4d16e7c14d5e:526-529"
+    },
+    {
+      "id": "F015",
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "start": 531,
+      "end": 531,
+      "source": "fix/4d16e7c14d5e:531-531"
+    }
+  ]
+}

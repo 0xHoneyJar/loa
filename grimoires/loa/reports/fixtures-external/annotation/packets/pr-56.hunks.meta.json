@@ -1,0 +1,22 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-56",
+  "hunk_count": 1,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/optimizer/index.ts",
+      "head_end": 1270,
+      "head_start": 1270,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [
+    "I01"
+  ],
+  "incidents": "incidents/pr-56.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

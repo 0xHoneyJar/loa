@@ -1,0 +1,312 @@
+import path from 'node:path'
+import MagicString from 'magic-string'
+import type { RollupError } from 'rolldown'
+import { parseAstAsync } from 'rolldown/parseAst'
+import type { ESTree } from 'rolldown/utils'
+import { stripLiteral } from 'strip-literal'
+import { cleanUrl, slash, splitFileAndPostfix } from '../../shared/utils'
+import type { ResolvedConfig } from '../config'
+import { createBackCompatIdResolver } from '../idResolver'
+import type { ResolveIdFn } from '../idResolver'
+import type { Plugin } from '../plugin'
+import { evalValue, injectQuery, transformStableResult } from '../utils'
+import { fileToUrl, toOutputFilePathInJSForBundledDev } from './asset'
+import { hasViteIgnoreRE } from './importAnalysis'
+import type { InternalResolveOptions } from './resolve'
+import { tryFsResolve } from './resolve'
+import type { WorkerType } from './worker'
+import {
+  WORKER_FILE_ID,
+  emitWorkerAssetsForBundledDev,
+  recordWorkerReference,
+  generateWorkerEntryUrlExpr,
+  workerFileToUrl,
+} from './worker'
+
+interface WorkerOptions {
+  type?: WorkerType
+}
+
+function err(e: string, pos: number) {
+  const error = new Error(e) as RollupError
+  error.pos = pos
+  return error
+}
+
+function findClosingParen(input: string, fromIndex: number) {
+  let count = 1
+
+  for (let i = fromIndex; i < input.length; i++) {
+    if (input[i] === '(') count++
+    if (input[i] === ')') count--
+    if (count === 0) return i
+  }
+
+  return -1
+}
+
+function extractWorkerTypeFromAst(
+  expression: ESTree.Expression,
+  optsStartIndex: number,
+): 'classic' | 'module' | undefined {
+  if (expression.type !== 'ObjectExpression') {
+    return
+  }
+
+  let lastSpreadElementIndex = -1
+  let typeProperty = null
+  let typePropertyIndex = -1
+
+  for (let i = 0; i < expression.properties.length; i++) {
+    const property = expression.properties[i]
+
+    if (property.type === 'SpreadElement') {
+      lastSpreadElementIndex = i
+      continue
+    }
+
+    if (
+      property.type === 'Property' &&
+      ((property.key.type === 'Identifier' && property.key.name === 'type') ||
+        (property.key.type === 'Literal' && property.key.value === 'type'))
+    ) {
+      typeProperty = property
+      typePropertyIndex = i
+    }
+  }
+
+  if (typePropertyIndex === -1 && lastSpreadElementIndex === -1) {
+    // No type property or spread element in use. Assume safe usage and default to classic
+    return 'classic'
+  }
+
+  if (typePropertyIndex < lastSpreadElementIndex) {
+    throw err(
+      'Expected object spread to be used before the definition of the type property. ' +
+        'Vite needs a static value for the type property to correctly infer it.',
+      optsStartIndex,
+    )
+  }
+
+  if (typeProperty?.value.type !== 'Literal') {
+    throw err(
+      'Expected worker options type property to be a literal value.',
+      optsStartIndex,
+    )
+  }
+
+  // Silently default to classic type like the getWorkerType method
+  return typeProperty?.value.value === 'module' ? 'module' : 'classic'
+}
+
+async function parseWorkerOptions(
+  rawOpts: string,
+  optsStartIndex: number,
+): Promise<WorkerOptions> {
+  let opts: WorkerOptions = {}
+  try {
+    opts = evalValue<WorkerOptions>(rawOpts)
+  } catch {
+    const optsNode = (
+      (await parseAstAsync(`(${rawOpts})`))
+        .body[0] as ESTree.ExpressionStatement
+    ).expression
+
+    const type = extractWorkerTypeFromAst(optsNode, optsStartIndex)
+    if (type) {
+      return { type }
+    }
+
+    throw err(
+      'Vite is unable to parse the worker options as the value is not static. ' +
+        'To ignore this error, please use /* @vite-ignore */ in the worker options.',
+      optsStartIndex,
+    )
+  }
+
+  if (opts == null) {
+    return {}
+  }
+
+  if (typeof opts !== 'object') {
+    throw err(
+      `Expected worker options to be an object, got ${typeof opts}`,
+      optsStartIndex,
+    )
+  }
+
+  return opts
+}
+
+async function getWorkerType(
+  raw: string,
+  clean: string,
+  i: number,
+): Promise<WorkerType> {
+  const commaIndex = clean.indexOf(',', i)
+  if (commaIndex === -1) {
+    return 'classic'
+  }
+  const endIndex = findClosingParen(clean, i)
+
+  // case: ') ... ,' mean no worker options params
+  if (commaIndex > endIndex) {
+    return 'classic'
+  }
+
+  // need to find in comment code
+  let workerOptString = raw.substring(commaIndex + 1, endIndex)
+  const hasViteIgnore = hasViteIgnoreRE.test(workerOptString)
+  if (hasViteIgnore) {
+    return 'ignore'
+  }
+
+  // need to find in no comment code
+  const cleanWorkerOptString = clean.substring(commaIndex + 1, endIndex)
+  const trimmedCleanWorkerOptString = cleanWorkerOptString.trim()
+  if (!trimmedCleanWorkerOptString.length) {
+    return 'classic'
+  }
+
+  // strip trailing comma for evalValue
+  if (trimmedCleanWorkerOptString.endsWith(',')) {
+    workerOptString = workerOptString.slice(
+      0,
+      cleanWorkerOptString.lastIndexOf(','),
+    )
+  }
+
+  const workerOpts = await parseWorkerOptions(workerOptString, commaIndex + 1)
+  if (
+    workerOpts.type &&
+    (workerOpts.type === 'module' || workerOpts.type === 'classic')
+  ) {
+    return workerOpts.type
+  }
+
+  return 'classic'
+}
+
+export const workerImportMetaUrlRE: RegExp =
+  /\bnew\s+(?:Worker|SharedWorker)\s*\(\s*(new\s+URL\s*\(\s*('[^']+'|"[^"]+"|`[^`]+`)\s*,\s*import\.meta\.url\s*(?:,\s*)?\))/dg
+
+export function workerImportMetaUrlPlugin(config: ResolvedConfig): Plugin {
+  let workerResolver: ResolveIdFn
+
+  const fsResolveOptions: InternalResolveOptions = {
+    ...config.resolve,
+    root: config.root,
+    isProduction: config.isProduction,
+    isBuild: config.command === 'build',
+    packageCache: config.packageCache,
+    asSrc: true,
+  }
+
+  return {
+    name: 'vite:worker-import-meta-url',
+
+    applyToEnvironment(environment) {
+      return environment.config.consumer === 'client'
+    },
+
+    transform: {
+      filter: { code: workerImportMetaUrlRE },
+      async handler(code, id) {
+        const isBundled = this.environment.config.isBundled
+        let s: MagicString | undefined
+        const cleanString = stripLiteral(code)
+        const re = new RegExp(workerImportMetaUrlRE)
+
+        let match: RegExpExecArray | null
+        while ((match = re.exec(cleanString))) {
+          const [[, endIndex], [expStart, expEnd], [urlStart, urlEnd]] =
+            match.indices as Array<[number, number]>
+
+          const rawUrl = code.slice(urlStart, urlEnd)
+
+          // potential dynamic template string
+          if (rawUrl[0] === '`' && rawUrl.includes('${')) {
+            this.error(
+              `\`new URL(url, import.meta.url)\` is not supported in dynamic template string.`,
+              expStart,
+            )
+          }
+
+          s ||= new MagicString(code)
+          const workerType = await getWorkerType(code, cleanString, endIndex)
+          const url = rawUrl.slice(1, -1)
+          const { file: urlWithoutPostfix, postfix } = splitFileAndPostfix(url)
+          const queryPostfix = postfix[0] === '?' ? postfix : ''
+          let file: string | undefined
+          if (urlWithoutPostfix[0] === '.') {
+            file = path.resolve(path.dirname(id), urlWithoutPostfix)
+            file = slash(tryFsResolve(file, fsResolveOptions) ?? file)
+          } else {
+            workerResolver ??= createBackCompatIdResolver(config, {
+              extensions: [],
+              tryIndex: false,
+              preferRelative: true,
+            })
+            file = await workerResolver(this.environment, urlWithoutPostfix, id)
+            file ??=
+              urlWithoutPostfix[0] === '/'
+                ? slash(path.join(config.publicDir, urlWithoutPostfix))
+                : slash(path.resolve(path.dirname(id), urlWithoutPostfix))
+          }
+
+          if (
+            isBundled &&
+            config.isWorker &&
+            config.bundleChain.at(-1) === cleanUrl(file)
+          ) {
+            s.update(expStart, expEnd, 'self.location.href')
+          } else {
+            let builtUrlExpr: string
+            if (isBundled) {
+              recordWorkerReference(
+                config,
+                config.bundleChain.at(-1),
+                cleanUrl(file),
+                id,
+              )
+              const result = await workerFileToUrl(config, file)
+              if (this.environment.config.command === 'serve') {
+                emitWorkerAssetsForBundledDev(this, config)
+                builtUrlExpr = JSON.stringify(
+                  toOutputFilePathInJSForBundledDev(
+                    this.environment,
+                    result.entryFilename,
+                  ),
+                )
+              } else {
+                builtUrlExpr = generateWorkerEntryUrlExpr(this, config, result)
+              }
+              for (const file of result.watchedFiles) {
+                this.addWatchFile(file)
+              }
+            } else {
+              builtUrlExpr = await fileToUrl(this, cleanUrl(file), 'string')
+              builtUrlExpr = injectQuery(
+                `${builtUrlExpr}${queryPostfix}`,
+                `${WORKER_FILE_ID}&type=${workerType}`,
+              )
+              builtUrlExpr = JSON.stringify(builtUrlExpr)
+            }
+            s.update(
+              expStart,
+              expEnd,
+              // NOTE: add `'' +` to opt-out rolldown's transform: https://github.com/rolldown/rolldown/issues/2745
+              `new URL(/* @vite-ignore */ ${builtUrlExpr}, '' + import.meta.url)`,
+            )
+          }
+        }
+
+        if (s) {
+          return transformStableResult(s, id, config)
+        }
+
+        return null
+      },
+    },
+  }
+}
