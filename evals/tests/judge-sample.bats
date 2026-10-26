@@ -343,3 +343,87 @@ J
   run bash "$JS" "${ARGS[@]}" --out "$T/o2" --per-stratum 5 --min-total 0 --descriptions "$T/none.json"
   [ "$status" -eq 1 ]
 }
+
+# --- loa-smol judge-v2 addendum 1: the citing-bullet rule replaces the 1,500-character cut -------------------------
+item_at() {  # item_at <dir> <cell key> <cited path> <start line> → the item id of that cell's unit citing the region
+  jq -r --arg c "$2" --arg p "$3" --argjson a "$4" '.items | to_entries[] | select(.value.cell == $c and .value.region[0] == $p and .value.region[1] == $a) | .key' "$1/key.json"
+}
+
+@test "JS-20 a citing paragraph over 1,500 chars shows the citing bullet(s) under the list note; a long paragraph without list structure is shown whole; 6,000 chars cap" {
+  # t1: a 12-bullet list, the citing bullet last and past 1,500 chars — the cycle-132 cut hid it
+  { printf '# Review\n\n'; for i in $(seq 1 11); do printf -- '- Bullet %d: %s head/g.sh:%d.\n' "$i" "$(printf 'filler %.0s' $(seq 1 20))" "$((40 + i % 3))"; done
+    printf -- '- The loop at `head/f.sh:11` is off by one: THE CITING BULLET.\n'; } > "$RES/b1/a1_full/review-x-t1/sandbox/review.md"
+  # t2: one 1,700-char paragraph with no bullet structure citing the region → shown whole
+  printf '# Review\n\nThe loop at `head/f.sh:11` is off by one. %s END OF PARAGRAPH\n' "$(printf 'words %.0s' $(seq 1 280))" > "$RES/b1/a1_full/review-x-t2/sandbox/review.md"
+  run bash "$JS" "${ARGS[@]}" --out "$T/o" --per-stratum 5 --min-total 0
+  [ "$status" -eq 0 ]
+  j="$(item_at "$T/o" b1/a1_full/review-x/1 head/f.sh 11)"
+  [ -n "$j" ]
+  grep -qF '(the citing bullet(s) of a 12-line list; ' "$T/o/packets/$j.md"
+  grep -qF 'THE CITING BULLET' "$T/o/packets/$j.md"
+  run grep -c 'Bullet 1:' "$T/o/packets/$j.md"
+  [ "$output" = 0 ]
+  run grep -c ' …' "$T/o/packets/$j.md"
+  [ "$output" = 0 ]
+  # the note's counts are the shown and the whole paragraph's characters
+  run python3 -I - "$T/o/packets/$j.md" "$RES/b1/a1_full/review-x-t1/sandbox/review.md" <<'PY'
+import re, sys
+pk, rv = open(sys.argv[1]).read(), open(sys.argv[2]).read()
+para = [p.strip() for p in re.split(r"\n\s*\n", rv) if p.strip()][1]
+m = re.search(r"\(the citing bullet\(s\) of a (\d+)-line list; (\d+) of (\d+) chars shown\)\n(.*?)\n```", pk, re.S)
+assert m, pk
+assert int(m.group(1)) == 12 and int(m.group(3)) == len(para) and int(m.group(2)) == len(m.group(4)) < 1500, m.groups()[:3]
+print("ok")
+PY
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  j="$(item_at "$T/o" b1/a1_full/review-x/2 head/f.sh 11)"
+  grep -qF 'END OF PARAGRAPH' "$T/o/packets/$j.md"
+  run grep -c 'citing bullet(s)\| …' "$T/o/packets/$j.md"
+  [ "$output" = 0 ]
+  # the cap: a citing bullet of 7,000 chars in a two-bullet list is cut at 6,000 with " …"
+  { printf '# Review\n\n- Other at head/g.sh:40.\n- The loop at `head/f.sh:11` is off by one. %s\n' "$(printf 'x%.0s' $(seq 1 7000))"; } > "$RES/b1/a1_full/review-x-t1/sandbox/review.md"
+  bash "$JS" "${ARGS[@]}" --out "$T/o2" --per-stratum 5 --min-total 0 >/dev/null
+  j="$(item_at "$T/o2" b1/a1_full/review-x/1 head/f.sh 11)"
+  run python3 -I - "$T/o2/packets/$j.md" <<'PY'
+import re, sys
+pk = open(sys.argv[1]).read()
+m = re.search(r"## Finding\n\n`{3,} text\n(.*?)\n`{3,}\n", pk, re.S)
+t = m.group(1)
+assert t.startswith("(the citing bullet(s) of a 2-line list; ") and t.endswith(" …") and len(t) == 6002, (len(t), t[:80])
+print("ok")
+PY
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+}
+
+@test "JS-21 the finding is located through the bare line form the grader credits (\`x.sh:9\` (also \`:11\`)) and through an envelope finding's anchor path; a bare line in a paragraph that does not name the file is not" {
+  printf '# Review\n\nUnrelated :11 mention without the file name.\n\nIn `head/f.sh:9` (also `:11`) the loop is off by one: BARE FORM.\n\nThe guard at head/g.sh:40 is never reached.\n' \
+    > "$RES/b1/a1_full/review-x-t1/sandbox/review.md"
+  printf '# Review\n\nNothing about the loop here.\n' > "$RES/b1/a1_full/review-x-t2/sandbox/review.md"
+  mkdir -p "$RES/b1/a1_full/review-x-t2/eval"
+  printf '{"findings": [{"id": "F-1", "title": "ENVELOPE FINDING", "description": "the loop bound is off by one", "anchor": "head/f.sh:loop_body", "anchor_line": 11, "severity": "high"}]}\n' \
+    > "$RES/b1/a1_full/review-x-t2/eval/adversarial-review.json"
+  run bash "$JS" "${ARGS[@]}" --out "$T/o" --per-stratum 5 --min-total 0
+  [ "$status" -eq 0 ]
+  j="$(item_at "$T/o" b1/a1_full/review-x/1 head/f.sh 11)"
+  grep -qF 'BARE FORM' "$T/o/packets/$j.md"
+  run grep -c 'Unrelated :11\|could not be located' "$T/o/packets/$j.md"
+  [ "$output" = 0 ]
+  j="$(item_at "$T/o" b1/a1_full/review-x/2 head/f.sh 11)"
+  grep -qF 'ENVELOPE FINDING' "$T/o/packets/$j.md"
+  grep -qF 'head/f.sh:loop_body' "$T/o/packets/$j.md"
+  grep -qF 'head/f.sh:11' "$T/o/packets/$j.md"
+}
+
+@test "JS-22 a list whose items start with a path:line citation (the A0 contract) is a list too: the citing item alone is shown under the note" {
+  # eleven ~170-char "head/g.sh:NN — SEV: …" items, then the item citing head/f.sh:11 — past 1,500 chars
+  { printf '# Review\n\n'; for i in $(seq 1 11); do printf 'head/g.sh:%d — MEDIUM: %s item %d.\n' "$((40 + i % 3))" "$(printf 'filler %.0s' $(seq 1 20))" "$i"; done
+    printf 'head/f.sh:11 — HIGH: the loop is off by one: THE CITING ITEM.\nVerdict: CHANGES_REQUIRED\n'; } > "$RES/b1/a1_full/review-x-t1/sandbox/review.md"
+  run bash "$JS" "${ARGS[@]}" --out "$T/o" --per-stratum 5 --min-total 0
+  [ "$status" -eq 0 ]
+  j="$(item_at "$T/o" b1/a1_full/review-x/1 head/f.sh 11)"
+  grep -qF '(the citing bullet(s) of a 13-line list; ' "$T/o/packets/$j.md"
+  grep -qF 'THE CITING ITEM' "$T/o/packets/$j.md"
+  grep -qF 'Verdict: CHANGES_REQUIRED' "$T/o/packets/$j.md"     # the trailing line belongs to the last item
+  run grep -c 'item 1\.' "$T/o/packets/$j.md"
+  [ "$output" = 0 ]
+}
