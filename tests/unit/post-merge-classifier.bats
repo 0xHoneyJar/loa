@@ -251,3 +251,94 @@ setup() {
         fi
     done
 }
+
+# =========================================================================
+# PCT-T28..PCT-T40: housekeeping merges (bd-ahxmh)
+# =========================================================================
+# The archive branch carries the cycle id by convention (chore/cycle-NNN-archive),
+# so the cycle-NNN rule routed every archive merge to the cycle release path:
+# Post-Merge Pipeline runs 40112908074 (PR #1293) and 40182103691 (PR #1297)
+# each ran the cycle release pipeline. A chore/ branch merge or a
+# chore(archive|ledger|decisions): prefix is housekeeping → other; labels keep
+# precedence; a bare chore: or chore(release): naming a cycle stays cycle.
+
+@test "PCT-T28: cycle-133 archive merge subject (PR #1293) → other (bd-ahxmh)" {
+    run "$CLASSIFIER" --title "Merge pull request #1293 from 0xHoneyJar/chore/cycle-133-archive — cycle-133 archive"
+    [ "$status" -eq 0 ]
+    [ "$output" = "other" ]
+}
+
+@test "PCT-T29: cycle-134 archive merge subject (PR #1297) → other (bd-ahxmh)" {
+    run "$CLASSIFIER" --title "Merge pull request #1297 from 0xHoneyJar/chore/cycle-134-archive — cycle-134 archive"
+    [ "$status" -eq 0 ]
+    [ "$output" = "other" ]
+}
+
+@test "PCT-T30: squash-form chore(archive): subject naming a cycle → other (bd-ahxmh)" {
+    run "$CLASSIFIER" --title "chore(archive): cycle-134 post-ship fixes — archive directory, ledger archived (#1297)"
+    [ "$status" -eq 0 ]
+    [ "$output" = "other" ]
+}
+
+@test "PCT-T31: publisher's chore(ledger): push subject naming a cycle → other (bd-ahxmh)" {
+    run "$CLASSIFIER" --title "chore(ledger): archive cycle-134-post-ship-fixes after merge"
+    [ "$status" -eq 0 ]
+    [ "$output" = "other" ]
+}
+
+@test "PCT-T32: decisions-confirm merge from a chore/ branch (PR #1298) → other (bd-ahxmh)" {
+    run "$CLASSIFIER" --title "Merge pull request #1298 from 0xHoneyJar/chore/cycle-134-decisions-confirm — confirmed rows"
+    [ "$status" -eq 0 ]
+    [ "$output" = "other" ]
+}
+
+@test "PCT-T33: chore/ branch merge with a cycle label → cycle (labels keep precedence)" {
+    run "$CLASSIFIER" --title "Merge pull request #9 from o/chore/cycle-1-archive — x" --labels "cycle,release"
+    [ "$status" -eq 0 ]
+    [ "$output" = "cycle" ]
+}
+
+@test "PCT-T34: feature/ branch sprint merge naming a cycle (PR #1296) → cycle (unchanged)" {
+    run "$CLASSIFIER" --title "Merge pull request #1296 from 0xHoneyJar/feature/cycle-134-post-ship-fixes — cycle-134 post-ship fixes (Sprint 276)"
+    [ "$status" -eq 0 ]
+    [ "$output" = "cycle" ]
+}
+
+@test "PCT-T35: chore: without a cycle id → other (prefix rule's lower bound)" {
+    run "$CLASSIFIER" --title "chore: bump deps"
+    [ "$status" -eq 0 ]
+    [ "$output" = "other" ]
+}
+
+@test "PCT-T36: chore(release): named-release squash naming a cycle (PR #747) → cycle (unchanged)" {
+    run "$CLASSIFIER" --title "chore(release): v1.130.0 — named milestone (cycle-098 + cycle-099 + cheval headless adapters) (#747)"
+    [ "$status" -eq 0 ]
+    [ "$output" = "cycle" ]
+}
+
+@test "PCT-T37: release/ branch with a chore segment deeper in the path → cycle (clause anchored to the first segment)" {
+    run "$CLASSIFIER" --title "Merge pull request #1300 from 0xHoneyJar/release/chore/v2.1.0 — release"
+    [ "$status" -eq 0 ]
+    [ "$output" = "cycle" ]
+}
+
+@test "PCT-T38: chore/ first segment with a release segment deeper → other (chore/ is housekeeping by convention)" {
+    run "$CLASSIFIER" --title "Merge pull request #1301 from 0xHoneyJar/chore/release/v2.1.0 — x"
+    [ "$status" -eq 0 ]
+    [ "$output" = "other" ]
+}
+
+# PCT-T39..PCT-T40 are pins (both pass before and after bd-ahxmh): label
+# precedence over the prefix form, and the deliberate case-sensitivity.
+
+@test "PCT-T39: chore(archive): prefix with a cycle label → cycle (a label beats the prefix form too)" {
+    run "$CLASSIFIER" --title "chore(archive): cycle-1 x" --labels "cycle"
+    [ "$status" -eq 0 ]
+    [ "$output" = "cycle" ]
+}
+
+@test "PCT-T40: Chore(archive): capitalised → cycle (case-sensitive by design; falls through to the cycle-id rule)" {
+    run "$CLASSIFIER" --title "Chore(archive): cycle-1 x"
+    [ "$status" -eq 0 ]
+    [ "$output" = "cycle" ]
+}

@@ -34854,3 +34854,384 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1001"
+    created_at: "2026-10-26T00:15:37Z"
+    updated_at: "2026-10-26T00:15:37Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "classify-pr-type housekeeping rule narrowed to chore(archive|ledger|decisions):; bare chore: or chore(release): naming a cycle stays cycle (PR #747)."
+    decision: "The new rule (after labels, before the cycle-id rule) returns other for a merge from a chore/ branch or a subject prefixed chore(archive):, chore(ledger): or chore(decisions):. The brief's bare chore prefix was not adopted."
+    rationale: "The bare form turned the pinned case 'chore: cycle-042 release prep …' (expected cycle) red and would route the named-release squash 'chore(release): v1.130.0 … (cycle-098 …)' (PR #747) to the simple-release path — the R-005 / bd-m1o6 incident class. The three scopes are the housekeeping writers: archive-cycle, the orchestrator's ledger push, the decisions confirm."
+    alternatives_considered:
+      - option: "bare chore prefix as briefed, flipping the pinned cycle-042 case to other"
+        rejected_because: "edits a pinned contract and opens the named-release hole"
+      - option: "route every chore(<scope>): to other"
+        rejected_because: "same hole for chore(release)"
+      - option: "no prefix rule, branch-merge clause only"
+        rejected_because: "the squash form of an archive PR and the publisher's own ledger push would still classify cycle"
+    consequences:
+      positive:
+        - "the archive, ledger and decisions merges stop preparing release candidates"
+        - "PCT-T28 … T36 pin both directions"
+      negative:
+        - "chore(cycle-NNN): squash merges keep classifying cycle (status quo); a new housekeeping scope needs a one-word addition"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "8f3b7e66"
+    source: "grimoires/loa/a2a/bug-20261025-c47e71/reviewer.md § DECISION bullets"
+    cycle: "cycle-bug-20261025-c47e71"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T00:15:37Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "cfdd94f9d"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1002"
+    created_at: "2026-10-26T00:15:43Z"
+    updated_at: "2026-10-26T00:15:43Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "classify-pr-type: a merge from any chore/ branch is other even when it names a cycle; PR #1295 (chore/cycle-133-post-ship) reclassifies other."
+    decision: "The branch-merge clause '^Merge pull request #N from <owner>/chore/' classifies other. The triage named PR #1295's branch feature/…; it was chore/cycle-133-post-ship, so it is covered and other is right for its content (operator steps and decision rows)."
+    rationale: "Every first-parent chore/ merge on main (#1297, #1295, #1294, #1293, #1291, #1290, #1287, #1284, #1280, #1276, #436) is housekeeping; none shipped code that needed a candidate. A cycle label still overrides (labels rule first)."
+    alternatives_considered:
+      - option: "only the -archive branch suffix"
+        rejected_because: "the decisions-confirm and post-ship chore/ branches prepare candidates too (PR #1298 would have)"
+      - option: "also route fix/ branch merges naming a cycle (PR #1288 shape) to bugfix"
+        rejected_because: "out of the observed failure; a fix/ branch naming a cycle is ambiguous — follow-up candidate"
+    consequences:
+      positive:
+        - "one shape rule, no PR numbers or cycle ids in the code"
+      negative:
+        - "a cycle ship from a chore/ branch would need the cycle label"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "8f3b7e66"
+    source: "grimoires/loa/a2a/bug-20261025-c47e71/reviewer.md § DECISION bullets"
+    cycle: "cycle-bug-20261025-c47e71"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T00:15:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "cfdd94f9d"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1003"
+    created_at: "2026-10-26T00:15:50Z"
+    updated_at: "2026-10-26T00:15:50Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "classify-pr-type: the chore match is case-sensitive (lowercase is the convention); Chore(archive): and chores: fall through to the cycle-id rule."
+    decision: "grep -qE without -i for the housekeeping rule; the cycle-id rule keeps its case-insensitive match (cycle-114 #971)."
+    rationale: "The housekeeping writers (archive-cycle.sh, the orchestrator, the lead's branches) emit lowercase chore; widening to Chore would admit hand-typed subjects the rule was not asked about."
+    alternatives_considered:
+      - option: "case-insensitive chore"
+        rejected_because: "no writer emits it; broader than the observed failure"
+    consequences:
+      positive:
+        - "narrow, documented in the file comment"
+      negative:
+        - "a hand-typed Chore(archive): subject naming a cycle still classifies cycle"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "8f3b7e66"
+    source: "grimoires/loa/a2a/bug-20261025-c47e71/reviewer.md § DECISION bullets"
+    cycle: "cycle-bug-20261025-c47e71"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T00:15:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "cfdd94f9d"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1004"
+    created_at: "2026-10-26T00:15:59Z"
+    updated_at: "2026-10-26T00:15:59Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Both /bug micro-sprints (sprint-bug-277/278) ship in one PR, as PR #1288 did for three; DEC-0960 per-sprint PRs govern cycle sprints only."
+    decision: "One PR carries the two micro-sprints (red + fix commits each, own review and audit, own ledger entries); the branch name carries no cycle id so the merge classifies other."
+    rationale: "Each fix is a handful of lines with its own gates; two PRs would double the ~75-minute CI wait and the merge ceremony for no review benefit. Precedent: PR #1288 (cycle-132) shipped three micro-sprints. DEC-0960 (per-sprint PRs) was about cycle sprints and the Bridgebuilder's verdict size."
+    alternatives_considered:
+      - option: "one PR per micro-sprint"
+        rejected_because: "two CI cycles and two merges for ~130 changed lines; the Bridgebuilder sees the same small diff either way"
+    consequences:
+      positive:
+        - "one CI run, one Bridgebuilder round, one merge"
+      negative:
+        - "a red gate on one micro-sprint holds the other"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "8f3b7e66"
+    source: "grimoires/loa/NOTES.md Session Continuity 2026-10-26 (bug micro-sprints)"
+    cycle: "cycle-bug-20261025-c47e71"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T00:15:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "8f3b7e664"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1005"
+    created_at: "2026-10-26T00:16:09Z"
+    updated_at: "2026-10-26T00:16:09Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Bridgebuilder exclude globs: the dot-agnostic retry is a new private helper, not simplifiedGlobMatch (its single-* branch crosses '/')."
+    decision: "matchesExcludePattern keeps path.matchesGlob first and, when it rejects a pattern containing * or ?, retries with dotSegmentGlobMatch (** → .*, * → [^/]*, ? → [^/]). simplifiedGlobMatch and the Node < 22 branch are unchanged."
+    rationale: "The brief's literal retry through simplifiedGlobMatch made 'evals/tests/fixtures/*.md' match 'evals/tests/fixtures/a/b.md' (its single-* branch is startsWith && endsWith) and would widen '*.lock' across directories; fixing the fallback itself would change Node < 22 behaviour the brief froze."
+    alternatives_considered:
+      - option: "retry through simplifiedGlobMatch as briefed"
+        rejected_because: "fails the brief's own 'single * stays within one segment' case; widens prefix/suffix patterns across /"
+      - option: "fix simplifiedGlobMatch's single-* branch"
+        rejected_because: "changes the Node < 22 path outside the observed failure"
+      - option: "drop the native matcher and use the regex only"
+        rejected_because: "loses brace expansion and character classes"
+    consequences:
+      positive:
+        - "same result on every Node version for *, ** and ?"
+        - "seven cases pin both directions"
+      negative:
+        - "~10 duplicated lines of regex translation"
+        - "brace/class patterns still miss dot-led segments (documented)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "8f3b7e66"
+    source: "grimoires/loa/a2a/bug-20261025-826c6b/reviewer.md § DECISION bullets"
+    cycle: "cycle-bug-20261025-826c6b"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T00:16:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "01a5868eb"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1006"
+    created_at: "2026-10-26T00:16:15Z"
+    updated_at: "2026-10-26T00:16:15Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Bridgebuilder exclude globs are a denylist: * and ? match a leading dot (fixtures/*.json excludes fixtures/.hidden.json); shell dot-file semantics rejected."
+    decision: "An exclusion glob that names a tree or a file set excludes dot-led segments and dot-files too; the function comment states the denylist semantics."
+    rationale: "Hiding dot-files from an exclusion only leaks files into the review set — the opposite of what an operator writing the pattern intends; the round-1 degradation on PR #1296 was exactly this leak (31 pinned/.claude files)."
+    alternatives_considered:
+      - option: "shell semantics (dot: false) with an explicit **/.*/** convention"
+        rejected_because: "every operator would have to know the convention; the leak repeats silently"
+    consequences:
+      positive:
+        - "--exclude, .reviewignore and exclude_patterns behave as a denylist"
+      negative:
+        - "a pattern meant to spare dot-files cannot express that (no observed need)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "8f3b7e66"
+    source: "grimoires/loa/a2a/bug-20261025-826c6b/reviewer.md § DECISION bullets"
+    cycle: "cycle-bug-20261025-826c6b"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T00:16:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "01a5868eb"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1007"
+    created_at: "2026-10-26T00:16:22Z"
+    updated_at: "2026-10-26T00:16:22Z"
+    phase: "implementation"
+    category: "process"
+    summary: "sprint-bug-278 red-then-green verified by a manual equivalent of red-test-check (detached worktrees, nested node_modules linked by hand)."
+    decision: "Accept the manual equivalent for this micro-sprint: red worktree at 511a9e11d → npm test rc 1 (1072 pass / 3 fail, the three positive cases); green worktree at 01a5868eb → rc 0 (1075/1075); the fix commit touches no test file."
+    rationale: "red-test-check links only top-level node_modules/.venv/vendor/target/.tox and accepts only test runners as --setup, so the Bridgebuilder skill's nested node_modules cannot reach its worktrees without a tool change; the manual run reproduces the same discipline and is recorded in the review."
+    alternatives_considered:
+      - option: "extend red-test-check with --link-dep <path> first"
+        rejected_because: "a tool change outside the micro-sprint's scope; follow-up candidate"
+      - option: "configure red_test.setup in .loa.config.yaml"
+        rejected_because: "operator-owned setting; not for the lead to add on a bug branch"
+    consequences:
+      positive:
+        - "the sprint's red/green criterion is met with equivalent evidence"
+      negative:
+        - "one less mechanical check for this sprint"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "8f3b7e66"
+    source: "grimoires/loa/a2a/bug-20261025-826c6b/reviewer.md § Red-then-green"
+    cycle: "cycle-bug-20261025-826c6b"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T00:16:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "01a5868eb"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1008"
+    created_at: "2026-10-26T00:41:09Z"
+    updated_at: "2026-10-26T00:41:09Z"
+    phase: "implementation"
+    category: "security"
+    summary: "classify-pr-type: the chore/ branch clause is anchored to the first segment after the owner (from [^ /]+/chore/); release/chore/… keeps the cycle route."
+    decision: "Audit-round fix: `^Merge pull request #[0-9]+ from [^ /]+/chore/` so only an owner/chore/… branch is housekeeping; `owner/release/chore/v2.1.0` reaches the release-merge clause (cycle), `owner/chore/release/v2.1.0` stays other."
+    rationale: "The audit dissent showed `[^ ]+` spanning path segments, which would misroute a release branch carrying a chore segment — the R-005 incident shape (PR #1201). Anchoring costs nothing and two PCT cases pin both directions."
+    alternatives_considered:
+      - option: "move the release-merge clause above the housekeeping clause"
+        rejected_because: "reorders two rules for one shape; anchoring fixes the cause"
+      - option: "leave as is (no release branch of that shape exists)"
+        rejected_because: "the misrouting is cheap to prevent and the incident class is documented"
+    consequences:
+      positive:
+        - "release merges cannot be caught by a deeper chore segment"
+      negative:
+        - "a chore/ branch is housekeeping even when deeper segments say release (pinned, documented)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "63a3a9d1"
+    source: "grimoires/loa/a2a/bug-20261025-c47e71/auditor-sprint-feedback.md § Findings"
+    cycle: "cycle-bug-20261025-c47e71"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T00:41:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "sprint-bug-277 audit round commit"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1009"
+    created_at: "2026-10-26T00:41:54Z"
+    updated_at: "2026-10-26T00:41:54Z"
+    phase: "implementation"
+    category: "security"
+    summary: "Bridgebuilder: dot-led widening of broad wildcard exclusions (**/*.yml now excludes .github/workflows/*.yml on Node ≥ 22) accepted with mitigation; bd-i4fyw."
+    decision: "Keep the denylist semantics for every wildcard pattern (not only tree-naming ones). Mitigation: the coverage record lists every excluded file with its reason; the CHANGELOG names the behaviour change and tells operators to check broad patterns; a protected-paths list that wildcards cannot remove is a follow-up for the operator (bd-i4fyw)."
+    rationale: "Excluding more is the fail-open direction for a review tool, but the Node < 22 fallback already matched dot-led segments, `.reviewignore` implies gitignore semantics (no dot-file rule), and the widening is visible, not silent. Splitting the semantics by pattern shape would make the rule harder to predict than either consistent choice."
+    alternatives_considered:
+      - option: "retry only when the pattern's first segment is a literal that already matched (tree-naming patterns)"
+        rejected_because: "two semantics in one option; `**/*.md` vs a root dot-file was the dissent's own blocking case"
+      - option: "a never-exclude-by-wildcard list now (.github/**, .claude/settings*.json, .husky/**)"
+        rejected_because: "a product decision about which paths are protected — proposed to the operator as bd-i4fyw, not decided in a bug sprint"
+    consequences:
+      positive:
+        - "one predictable rule; the round-1 blocking case stays fixed"
+      negative:
+        - "operators on Node ≥ 22 with broad patterns lose coverage of dot-led paths until they check them"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "63a3a9d1"
+    source: "grimoires/loa/a2a/bug-20261025-826c6b/auditor-sprint-feedback.md § Findings"
+    cycle: "cycle-bug-20261025-826c6b"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T00:41:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "sprint-bug-278 audit round commit"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1010"
+    created_at: "2026-10-26T00:42:02Z"
+    updated_at: "2026-10-26T00:42:02Z"
+    phase: "implementation"
+    category: "security"
+    summary: "Bridgebuilder: the test pinning the pre-existing unanchored substring match (x/.loa-version.json.bak ⇢ .loa-version.json) is dropped; anchoring → bd-ow72o."
+    decision: "Non-wildcard patterns keep today's `filename === pattern || filename.includes(pattern)` in this sprint (pre-existing, out of the observed failure); the round-0 assertion that pinned the over-match is reduced to the exact match so the follow-up fix is not blocked by a test; bd-ow72o (P2, security) carries the anchoring (trailing `/` → segment-anchored prefix, otherwise exact filename or basename)."
+    rationale: "The audit dissent is right that a PR author can hide `src/grimoires/backdoor.ts` behind the default `grimoires/`; changing LOA_EXCLUDE_PATTERNS semantics is a wider change than a bug micro-sprint on dot segments should carry."
+    alternatives_considered:
+      - option: "fix the substring match in this sprint"
+        rejected_because: "touches every default pattern and the Loa-tier exclusion tests; needs its own red-first sprint"
+      - option: "keep the pin"
+        rejected_because: "a test should not assert a behaviour the project intends to remove"
+    consequences:
+      positive:
+        - "the follow-up is unblocked and tracked"
+      negative:
+        - "the hiding path stays open until bd-ow72o ships"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "63a3a9d1"
+    source: "grimoires/loa/a2a/bug-20261025-826c6b/auditor-sprint-feedback.md § Findings"
+    cycle: "cycle-bug-20261025-826c6b"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T00:42:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "sprint-bug-278 audit round commit"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

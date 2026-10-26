@@ -14,6 +14,7 @@ import {
   matchesExcludePattern,
   SECURITY_PATTERNS,
   isLoaSystemZone,
+  hasNativeGlob,
 } from "../core/truncation.js";
 import type { PullRequestFile } from "../ports/git-provider.js";
 
@@ -387,6 +388,72 @@ describe("LOA_EXCLUDE_PATTERNS", () => {
     assert.ok(!matchesExcludePattern("src/app.ts", LOA_EXCLUDE_PATTERNS));
     assert.ok(!matchesExcludePattern("lib/utils.ts", LOA_EXCLUDE_PATTERNS));
     assert.ok(!matchesExcludePattern("package.json", LOA_EXCLUDE_PATTERNS));
+  });
+});
+
+// --- matchesExcludePattern dot-led segments (bd-a8l0c) ---
+
+describe("matchesExcludePattern — dot-led segments (bd-a8l0c)", () => {
+  it("** exclusion glob matches files under a dot-led directory in the named tree", () => {
+    assert.ok(matchesExcludePattern("evals/tests/fixtures/sandbox-mount/pinned/.claude/settings.json", ["evals/tests/fixtures/**"]));
+    assert.ok(matchesExcludePattern("evals/tests/fixtures/sandbox-mount/pinned/.claude/rows/r02.md", ["evals/tests/fixtures/**"]));
+  });
+
+  it("**/*.md matches a file under a dot-led directory", () => {
+    assert.ok(matchesExcludePattern("a/.hidden/b.md", ["**/*.md"]));
+  });
+
+  it("single * matches a dot-file at the start of a segment", () => {
+    assert.ok(matchesExcludePattern("fixtures/.hidden.json", ["fixtures/*.json"]));
+  });
+
+  it("** exclusion glob does not match a sibling tree", () => {
+    assert.ok(!matchesExcludePattern("evals/tests/other/x.md", ["evals/tests/fixtures/**"]));
+  });
+
+  // Holds on the native-glob branch only: the Node < 22 fallback's single-`*`
+  // branch (simplifiedGlobMatch prefix/suffix check) crosses `/`.
+  it("single * stays within one path segment (Node 22+ native-glob branch)", { skip: !hasNativeGlob }, () => {
+    assert.ok(!matchesExcludePattern("evals/tests/fixtures/a/b.md", ["evals/tests/fixtures/*.md"]));
+  });
+
+  // The unanchored substring match of non-wildcard patterns is pre-existing and tracked separately (not fixed here).
+  it("exact pattern still matches itself", () => {
+    assert.ok(matchesExcludePattern(".loa-version.json", [".loa-version.json"]));
+  });
+
+  it("substring pattern behaviour is unchanged", () => {
+    assert.ok(matchesExcludePattern("grimoires/loa/prd.md", ["grimoires/"]));
+  });
+
+  it("leading globstar matches zero segments (**/*.md excludes a root dot-file)", () => {
+    assert.ok(matchesExcludePattern(".hidden.md", ["**/*.md"]));
+    assert.ok(matchesExcludePattern("a/.hidden/b.md", ["**/*.md"]));
+  });
+
+  it("middle globstar matches zero segments (fixtures/**/*.json excludes fixtures/.hidden.json)", () => {
+    assert.ok(matchesExcludePattern("fixtures/.hidden.json", ["fixtures/**/*.json"]));
+    assert.ok(matchesExcludePattern("fixtures/a/.b/c.json", ["fixtures/**/*.json"]));
+  });
+
+  it("leading and trailing globstars match zero segments (**/fixtures/**)", () => {
+    assert.ok(matchesExcludePattern("fixtures/.claude/settings.json", ["**/fixtures/**"]));
+  });
+
+  it("** inside a segment is a single-segment * (**.md, src/**.ts)", () => {
+    assert.ok(!matchesExcludePattern("a/b.md", ["**.md"]));
+    assert.ok(matchesExcludePattern("b.md", ["**.md"]));
+    assert.ok(!matchesExcludePattern("src/a/b.ts", ["src/**.ts"]));
+  });
+
+  it("brace and class patterns are not dot-agnostic (known limitation)", () => {
+    assert.ok(!matchesExcludePattern(".hidden.ts", ["**/*.{ts,js}"]));
+    assert.ok(!matchesExcludePattern(".hidden/apple.md", ["**/[ab]*.md"]));
+  });
+
+  it("consecutive globstars collapse to one (a/**/**/b.md)", () => {
+    assert.ok(matchesExcludePattern("a/b.md", ["a/**/**/b.md"]));
+    assert.ok(matchesExcludePattern("a/x/.y/b.md", ["a/**/**/b.md"]));
   });
 });
 
