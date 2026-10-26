@@ -442,8 +442,10 @@ describe("matchesExcludePattern — dot-led segments (bd-a8l0c)", () => {
     assert.ok(matchesExcludePattern("fixtures/.claude/settings.json", ["**/fixtures/**"]));
   });
 
+  // sprint-279 review round 1 (MEDIUM 4): a slashless wildcard floats (implicit leading `**/`), so `**.md` — a
+  // single-segment `*.md` — now matches `a/b.md` (formerly false); `src/**.ts` has a `/` and stays anchored.
   it("** inside a segment is a single-segment * (**.md, src/**.ts)", () => {
-    assert.ok(!matchesExcludePattern("a/b.md", ["**.md"]));
+    assert.ok(matchesExcludePattern("a/b.md", ["**.md"]));
     assert.ok(matchesExcludePattern("b.md", ["**.md"]));
     assert.ok(!matchesExcludePattern("src/a/b.ts", ["src/**.ts"]));
   });

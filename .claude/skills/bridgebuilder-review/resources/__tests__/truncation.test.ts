@@ -1286,7 +1286,7 @@ function run(files: PullRequestFile[], extra: Partial<ProtectedConfig>) {
   const config: ProtectedConfig = { ...defaultConfig, loaAware: false, ...extra };
   return truncateFiles(files, config as Parameters<typeof truncateFiles>[1]) as ReturnType<typeof truncateFiles> & {
     protectedKept?: Array<{ file: string; pattern: string }>;
-    reviewignoreSource?: "base" | "checkout" | "none";
+    reviewignoreSource?: "base" | "checkout" | "base_unavailable" | "none";
   };
 }
 
@@ -1559,35 +1559,104 @@ describe(".reviewignore provenance (cycle-135 C-2, bd-i4fyw)", () => {
     }
   });
 
-  it("is none with a WARN when the base read fails (file absent at base, unknown sha, malformed sha)", () => {
+  // sprint-279 review round 1 (HIGH 1): a failed base read falls back to the checkout copy and reports
+  // `base_unavailable` (the review degrades as reviewignore_unavailable) — formerly `none` with zero patterns.
+  it("falls back to the checkout copy as base_unavailable with one WARN when the base read fails", () => {
     const { root } = twoCommitRepo();
     try {
       git(root, "rm", "-q", ".reviewignore");
       git(root, "commit", "-q", "-m", "drop");
       const noFile = git(root, "rev-parse", "HEAD");
-      writeFileSync(join(root, ".reviewignore"), "checkout-only.md\n"); // never consulted when a base sha is given
+      writeFileSync(join(root, ".reviewignore"), "checkout-only.md\n");
       for (const sha of [noFile, "0".repeat(40), "abc123", "--output=/tmp/x"]) {
         const { value, err } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: sha }));
-        assert.deepEqual(value, { patterns: [], source: "none" }, sha);
-        assert.ok(/WARN/.test(err) && err.includes(".reviewignore"), `${sha}: ${err}`);
+        assert.deepEqual(value, { patterns: ["checkout-only.md"], source: "base_unavailable" }, sha);
+        const warns = err.split("\n").filter((l) => l.includes("WARN"));
+        assert.equal(warns.length, 1, `${sha}: ${err}`);
+        assert.ok(warns[0].includes("checkout copy governs") && warns[0].includes("base_unavailable"), warns[0]);
       }
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
 
-  it("is none with a WARN when .reviewignore is a symlink at the base", () => {
-    const root = tmpRepoDir("prov-link");
+  it("an unknown base commit with no checkout file is base_unavailable with no patterns (never none)", () => {
+    const root = tmpRepoDir("prov-unknown-none");
     try {
       git(root, "init", "-q");
-      writeFileSync(join(root, "target"), "x.md\n");
-      symlinkSync("target", join(root, ".reviewignore"));
-      git(root, "add", "target", ".reviewignore");
-      git(root, "commit", "-q", "-m", "link");
-      const base = git(root, "rev-parse", "HEAD");
-      const { value, err } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: base }));
-      assert.deepEqual(value, { patterns: [], source: "none" });
+      const { value, err } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: "1".repeat(40) }));
+      assert.deepEqual(value, { patterns: [], source: "base_unavailable" });
       assert.ok(/WARN/.test(err), err);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("is none when the file is absent at the base and in the checkout", () => {
+    const { root } = twoCommitRepo();
+    try {
+      git(root, "rm", "-q", ".reviewignore");
+      git(root, "commit", "-q", "-m", "drop");
+      const noFile = git(root, "rev-parse", "HEAD");
+      const { value } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: noFile }));
+      assert.deepEqual(value, { patterns: [], source: "none" });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  function symlinkAtBaseRepo(): { root: string; base: string } {
+    const root = tmpRepoDir("prov-link");
+    git(root, "init", "-q");
+    writeFileSync(join(root, "target"), "x.md\n");
+    symlinkSync("target", join(root, ".reviewignore"));
+    git(root, "add", "target", ".reviewignore");
+    git(root, "commit", "-q", "-m", "link");
+    return { root, base: git(root, "rev-parse", "HEAD") };
+  }
+
+  it("a symlink at the base is base_unavailable with the checkout read (a regular checkout file governs)", () => {
+    const { root, base } = symlinkAtBaseRepo();
+    try {
+      unlinkSync(join(root, ".reviewignore"));
+      writeFileSync(join(root, ".reviewignore"), "regular.md\n");
+      const { value, err } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: base }));
+      assert.deepEqual(value, { patterns: ["regular.md"], source: "base_unavailable" });
+      assert.ok(/WARN/.test(err) && err.includes("120000"), err);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("a symlink at the base and in the checkout still throws ESYMLINKREJECTED (the checkout refusal is unchanged)", () => {
+    const { root, base } = symlinkAtBaseRepo();
+    try {
+      captureStderr(() =>
+        assert.throws(
+          () => truncation.parseReviewignoreFile(root, { baseSha: base }),
+          (e: NodeJS.ErrnoException) => e.code === "ESYMLINKREJECTED",
+        ),
+      );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("an invalid repoRoot still throws EBADREPOROOT with a base sha", () => {
+    assert.throws(
+      () => truncation.parseReviewignoreFile("/nonexistent/c135/r1", { baseSha: "1".repeat(40) }),
+      (e: NodeJS.ErrnoException) => e.code === "EBADREPOROOT",
+    );
+  });
+
+  it("truncateFiles applies the checkout patterns and reports base_unavailable when the base is missing", () => {
+    const { root } = twoCommitRepo();
+    try {
+      const files = [file("src/a.ts", 3, 0), file("head-only.md", 1, 0)];
+      const r = captureStderr(() => run(files, { loaAware: true, repoRoot: root, reviewignoreBaseSha: "2".repeat(40) })).value;
+      assert.equal(r.reviewignoreSource, "base_unavailable");
+      assert.ok(!names(r.included).includes("src/a.ts"), "checkout src/** applies (fail closed)");
+      assert.ok(!names(r.included).includes("head-only.md"));
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -1608,5 +1677,239 @@ describe(".reviewignore provenance (cycle-135 C-2, bd-i4fyw)", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+});
+
+// --- sprint-279 review round 1 (bd-ow72o, bd-i4fyw) ---
+
+describe("explicit = root-anchored or the full path (review round 1, HIGH 2)", () => {
+  const SETTINGS = ".claude/settings.json";
+  for (const [line, target] of [
+    ["ci.yml", CI],
+    ["workflows", CI],
+    [".github", CI],
+    [".github/", CI],
+    ["settings.json", SETTINGS],
+    [".claude/", SETTINGS],
+  ] as Array<[string, string]>) {
+    it(`a floating segment line ${line} keeps protected ${target} and records it`, () => {
+      const r = run([file(target, 3, 1), file("src/a.ts", 1, 0)], { excludePatterns: [line] });
+      assert.ok(names(r.included).includes(target), `${line} must not remove ${target}`);
+      assert.deepEqual(r.protectedKept, [{ file: target, pattern: line }]);
+    });
+  }
+
+  for (const line of [CI, ".github/workflows/", ".github/workflows", "/.github/workflows/ci.yml"]) {
+    it(`a root-anchored line ${line} excludes the protected workflow`, () => {
+      const pats = truncation.normalizeExcludePatterns([line], "test");
+      const r = run([file(CI, 3, 1), file("src/a.ts", 1, 0)], { excludePatterns: pats });
+      assert.ok(!names(r.included).includes(CI));
+      assert.deepEqual(r.protectedKept ?? [], []);
+    });
+  }
+
+  it("a full-path match of a root-level protected file is explicit (.reviewignore names itself)", () => {
+    const r = run([file(".reviewignore", 1, 0), file("src/a.ts", 1, 0)], { excludePatterns: [".reviewignore"] });
+    assert.ok(!names(r.included).includes(".reviewignore"));
+    assert.deepEqual(r.protectedKept ?? [], []);
+  });
+
+  it("a floating segment line still excludes an unprotected file", () => {
+    const r = run([file("docs/ci.yml", 1, 0), file("src/a.ts", 1, 0)], { excludePatterns: ["ci.yml"] });
+    assert.ok(!names(r.included).includes("docs/ci.yml"));
+  });
+
+  it("partitionUserExclusions: floating segment + root-anchored line, both orders → excluded by the anchored line", () => {
+    const files = [file(CI, 1, 0)];
+    for (const user of [["ci.yml", ".github/workflows/"], [".github/workflows/", "ci.yml"]]) {
+      const p = truncation.partitionUserExclusions(files, user, [".github/workflows/**"]);
+      assert.deepEqual(p.excluded, [{ file: CI, pattern: ".github/workflows/" }], user.join(","));
+      assert.deepEqual(p.protectedKept, [], user.join(","));
+    }
+  });
+});
+
+describe("slashless wildcards float (review round 1, MEDIUM 4)", () => {
+  it("*.pem matches keys/a.pem and a.pem; **/*.pem the same", () => {
+    for (const p of ["*.pem", "**/*.pem"]) {
+      assert.ok(matchesExcludePatternNs("keys/a.pem", [p]), p);
+      assert.ok(matchesExcludePatternNs("a.pem", [p]), p);
+      assert.ok(!matchesExcludePatternNs("keys/a.pem.bak", [p]), p);
+    }
+  });
+
+  it("*.md matches docs/x.md; a wildcard with / stays root-anchored", () => {
+    assert.ok(matchesExcludePatternNs("docs/x.md", ["*.md"]));
+    assert.ok(!matchesExcludePatternNs("x/docs/a.md", ["docs/*.md"]));
+  });
+
+  it("a protected path matched by a floating wildcard is kept", () => {
+    const r = run([file(CI, 2, 0), file("config/app.yml", 1, 0)], { excludePatterns: ["*.yml"] });
+    assert.ok(names(r.included).includes(CI));
+    assert.ok(!names(r.included).includes("config/app.yml"));
+    assert.deepEqual(r.protectedKept, [{ file: CI, pattern: "*.yml" }]);
+  });
+
+  it("no default pattern is a slashless wildcard (the defaults keep their meaning)", () => {
+    for (const p of [...LOA_EXCLUDE_PATTERNS, ...configModule.DEFAULT_EXCLUDE_PATTERNS, ...truncation.DEFAULT_PROTECTED_PATHS]) {
+      assert.ok(!(truncation.isWildcardPattern(p) && !p.includes("/")), p);
+    }
+  });
+});
+
+function matchesExcludePatternNs(f: string, p: string[]): boolean {
+  return truncation.matchesExcludePattern(f, p);
+}
+
+describe("structured pattern field on excluded[] (review round 1, LOW 5)", () => {
+  const SUFFIX = / \[pattern: (.+)\]$/;
+  for (const [pattern, name] of [
+    ["[ab].md", "a.md"],
+    ["a}b", "a}b"],
+    ["x]", "x]"],
+    ["**/*.{a,b}", "d/x.a"],
+    ["src/[ab]", "src/a"],
+    ["**/[!x]]", "q/y]"],
+  ] as Array<[string, string]>) {
+    it(`round-trips ${pattern} through the field and the stats suffix`, () => {
+      const r = run([file(name, 1, 0), file("keep.ts", 1, 0)], { excludePatterns: [pattern], protectedPaths: [] });
+      const ex = r.excluded.find((e) => e.filename === name) as { stats: string; pattern?: string } | undefined;
+      assert.ok(ex, `${pattern} must exclude ${name}`);
+      assert.equal(ex.pattern, pattern);
+      assert.equal(SUFFIX.exec(ex.stats)?.[1], pattern);
+    });
+  }
+
+  it("the .reviewignore sites and the Loa tier set the field", () => {
+    const root = tmpRepoDir("field");
+    try {
+      writeFileSync(join(root, ".reviewignore"), "secrets/\n");
+      for (const selfReview of [false, true]) {
+        const r = run([file("secrets/k.env", 1, 0), file(".claude/x.md", 1, 0), file("src/a.ts", 1, 0)], {
+          loaAware: true,
+          selfReview,
+          repoRoot: root,
+        });
+        const byName = new Map(r.excluded.map((e) => [e.filename, (e as { pattern?: string }).pattern]));
+        assert.equal(byName.get("secrets/k.env"), "secrets/", `selfReview=${selfReview}`);
+        if (!selfReview) assert.equal(byName.get(".claude/x.md"), ".claude/**");
+      }
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("max_content_fetches with an empty value (review round 1, LOW 6)", () => {
+  it("is treated as unset with a WARN", async () => {
+    const dir = tmpRepoDir("yaml-empty");
+    const cwd = process.cwd();
+    try {
+      writeFileSync(join(dir, ".loa.config.yaml"), "bridgebuilder:\n  max_content_fetches:\n  max_prs: 3\n");
+      process.chdir(dir);
+      const original = process.stderr.write;
+      let err = "";
+      (process.stderr as unknown as { write: (c: unknown) => boolean }).write = (c: unknown) => {
+        err += String(c);
+        return true;
+      };
+      let yaml: Record<string, unknown>;
+      try {
+        yaml = (await configModule.loadYamlConfig()) as Record<string, unknown>;
+      } finally {
+        process.stderr.write = original;
+      }
+      assert.equal(yaml.max_content_fetches, undefined);
+      assert.equal(yaml.max_prs, 3);
+      assert.ok(err.includes("max_content_fetches") && /WARN/.test(err), err);
+    } finally {
+      process.chdir(cwd);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("trusted-config precedence for the review-scope keys (review round 1, HIGH 3)", () => {
+  const TRUSTED_YAML = "bridgebuilder:\n  max_prs: 5\n";
+  const HEAD_YAML =
+    "bridgebuilder:\n  protected_paths: []\n  exclude_patterns:\n    - .github/workflows/ci.yml\n" +
+    "  fetch_missing_patches: false\n  max_content_fetches: 0\n";
+
+  function prDeps(trustedText: string | undefined, head: string): configModule.TrustedConfigDeps {
+    return {
+      env: { GITHUB_EVENT_NAME: "pull_request", GITHUB_BASE_REF: "main" },
+      readWorkingTree: () => head,
+      refExists: (_root, ref) => trustedText !== undefined && ref === "refs/remotes/origin/main",
+      gitShow: () => trustedText,
+      prBaseRef: () => undefined,
+      parse: configModule.yqTrustedView,
+    };
+  }
+
+  /** The head YAML as resolveConfig sees it (the regex parser's shape). */
+  const HEAD_PARSED = {
+    enabled: true,
+    repos: ["test/repo"],
+    protected_paths: [],
+    exclude_patterns: [".github/workflows/ci.yml"],
+    fetch_missing_patches: false,
+    max_content_fetches: 0,
+  };
+
+  it("a trusted source governs: the head's four keys are ignored, one WARN per key; --exclude stays additive", async () => {
+    const { config } = await configModule.resolveConfig({ exclude: ["cli-only/**"] }, {}, HEAD_PARSED as never);
+    const trusted = configModule.loadTrustedConfig({ pr: 1 }, prDeps(TRUSTED_YAML, HEAD_YAML));
+    assert.equal(trusted.source, "base-ref");
+    const { err } = captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, { exclude: ["cli-only/**"] }));
+    assert.equal(config.protectedPaths, undefined, "the default list applies");
+    assert.deepEqual(config.excludePatterns, [...configModule.DEFAULT_EXCLUDE_PATTERNS, "cli-only/**"]);
+    assert.equal(config.fetchMissingPatches, undefined);
+    assert.equal(config.maxContentFetches, undefined);
+    for (const key of ["protected_paths", "exclude_patterns", "fetch_missing_patches", "max_content_fetches"]) {
+      const lines = err.split("\n").filter((l) => l.includes("WARN") && l.includes(`bridgebuilder.${key}`));
+      assert.equal(lines.length, 1, `${key}: ${err}`);
+    }
+  });
+
+  it("the trusted source's own values for the four keys apply", async () => {
+    const trustedText =
+      "bridgebuilder:\n  protected_paths:\n    - /.github/**\n  exclude_patterns:\n    - vendor/**\n" +
+      "  fetch_missing_patches: false\n  max_content_fetches: 3\n";
+    const { config } = await configModule.resolveConfig({}, {}, { enabled: true, repos: ["test/repo"] });
+    const trusted = configModule.loadTrustedConfig({ pr: 1 }, prDeps(trustedText, "bridgebuilder:\n  max_prs: 1\n"));
+    captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, {}));
+    assert.deepEqual(config.protectedPaths, [".github/**"]);
+    assert.deepEqual(config.excludePatterns, [...configModule.DEFAULT_EXCLUDE_PATTERNS, "vendor/**"]);
+    assert.equal(config.fetchMissingPatches, false);
+    assert.equal(config.maxContentFetches, 3);
+  });
+
+  it("no trusted source on a pull request: the head values apply (today's behaviour)", async () => {
+    const { config } = await configModule.resolveConfig({}, {}, HEAD_PARSED as never);
+    const trusted = captureStderr(() => configModule.loadTrustedConfig({ pr: 1 }, prDeps(undefined, HEAD_YAML))).value;
+    assert.equal(trusted.source, "none");
+    const { err } = captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, {}));
+    assert.deepEqual(config.protectedPaths, []);
+    assert.equal(config.fetchMissingPatches, false);
+    assert.equal(config.maxContentFetches, 0);
+    assert.ok(config.excludePatterns.includes(".github/workflows/ci.yml"));
+    assert.equal(err, "");
+  });
+
+  it("local mode: the working tree is the trusted source, nothing changes and nothing is warned", async () => {
+    const { config } = await configModule.resolveConfig({}, {}, HEAD_PARSED as never);
+    const deps = { ...prDeps(TRUSTED_YAML, HEAD_YAML), env: {} };
+    const trusted = configModule.loadTrustedConfig({}, deps);
+    assert.equal(trusted.mode, "local");
+    const { err } = captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, {}));
+    assert.deepEqual(config.protectedPaths, []);
+    assert.equal(err, "");
+  });
+
+  it("matching head and trusted values warn nothing", async () => {
+    const { config } = await configModule.resolveConfig({}, {}, { enabled: true, repos: ["test/repo"] });
+    const trusted = configModule.loadTrustedConfig({ pr: 1 }, prDeps(TRUSTED_YAML, TRUSTED_YAML));
+    const { err } = captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, {}));
+    assert.equal(err, "");
   });
 });
