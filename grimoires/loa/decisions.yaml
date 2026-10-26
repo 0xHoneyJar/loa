@@ -35593,3 +35593,265 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1019"
+    created_at: "2026-10-26T04:35:01Z"
+    updated_at: "2026-10-26T04:35:01Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "Matcher: isWildcardPattern (* ? { [) picks the branch — non-wildcard → segmentMatch; wildcard → native glob then dotSegmentGlobMatch; opts.native test seam"
+    decision: "matchesExcludePattern(filename, patterns, opts?) with opts.native defaulting to hasNativeGlob. segmentMatch: a trailing '/' is stripped; no '/' in the pattern → the pattern equals one whole segment at any depth ('/'+filename+'/' contains '/'+pattern+'/'); a '/' in the pattern → filename === pattern or filename startsWith pattern+'/'. simplifiedGlobMatch is deleted."
+    rationale: "One decision point (wildcard or not) makes the semantics explainable in two sentences and identical on every Node version; the opts seam lets one test file prove both branches without a second runtime."
+    alternatives_considered:
+      - option: "module-level mutable flag for tests"
+        rejected_because: "hidden state; a test that forgets to reset it poisons the suite"
+      - option: "keep simplifiedGlobMatch for Node < 22"
+        rejected_because: "its single-* branch crosses '/' — the divergence the Bridgebuilder flagged"
+    consequences:
+      positive:
+        - "two sentences of semantics; one code path per pattern kind"
+      negative:
+        - "one optional parameter on a hot function"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff8a9f64"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:35:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "truncation.ts:94-200 (2026-10-26 read)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1020"
+    created_at: "2026-10-26T04:35:04Z"
+    updated_at: "2026-10-26T04:35:04Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "Protected paths: DEFAULT_PROTECTED_PATHS + one helper at the three user-pattern call sites; kept files ride TruncationResult.protectedKept to the coverage recor"
+    decision: "partitionUserExclusions(files, userPatterns, protectedPatterns) → {excluded, protectedKept[{file, pattern}]}: a file matched by a user pattern is kept when the matching pattern is a wildcard and the file matches a protected pattern (same matcher). truncateFiles returns protectedKept; paged-fetch copies it to coverage.protected_kept and renders a 'Protected paths kept' list. Config: bridgebuilder.protected_paths (YAML) → protectedPaths; when set it replaces the default; [] disables."
+    rationale: "The three call sites already share matchesExcludePattern; a helper keeps the rule in one place; the coverage record is the existing visibility channel."
+    alternatives_considered:
+      - option: "filter protected files back in after selection"
+        rejected_because: "the file cap and byte budget would already have been computed without them"
+      - option: "merge config with the default instead of replacing"
+        rejected_because: "an operator could never un-protect a path"
+    consequences:
+      positive:
+        - "one rule, one helper, visible result"
+      negative:
+        - "a new field in two records and one rendering section"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff8a9f64"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:35:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "truncation.ts:1292-1318, 1442, 1515; paged-fetch.ts:400-410; config.ts:1100-1142, 1524-1537"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1021"
+    created_at: "2026-10-26T04:35:07Z"
+    updated_at: "2026-10-26T04:35:07Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "Content fetch in pass 1 for added files without a patch: getFileContent via gh api contents (raw), ≤ max_diff_bytes; text → synthesized patch; else untouched"
+    decision: "IGitProvider.getFileContent(owner, repo, path, ref, maxBytes) → {kind: 'text', content, bytes} | {kind: 'binary'} | {kind: 'too_large'}; adapter runs gh api -H 'Accept: application/vnd.github.raw+json' /repos/o/r/contents/<percent-encoded path>?ref=<40-hex> with maxBuffer = maxBytes + 1 KiB. paged-fetch pass 1 fetches for eligible files in listing order, at most maxFilesPerPr fetches, each ≤ maxDiffBytes; a text result becomes patch '@@ -0,0 +1,N @@' + '+' lines with patchBytes set and source 'contents'; the file then flows through selection and pass 2 as a pre-retained patch. Binary (NUL in the first 8 KiB or invalid UTF-8), too_large or any error leave the metadata as it was (no_patch at selection)."
+    rationale: "Pass 1 is where sizes are decided; an added file's content is the exact diff, so fetching it there gives selection the size it lacks; bounds keep the network cost at one bounded call per such file."
+    alternatives_considered:
+      - option: "fetch in pass 2 after selection"
+        rejected_because: "selection already excluded the file for lack of a size"
+      - option: "derive size from additions × average line"
+        rejected_because: "a guess; selection would plan on fiction"
+    consequences:
+      positive:
+        - "recovers exactly the content a patch would show; bounded"
+      negative:
+        - "pass 1 is no longer metadata-only for this one class of file (documented)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff8a9f64"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:35:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "paged-fetch.ts:14-66, 240-280; github-cli.ts:150-200, 290-307"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1022"
+    created_at: "2026-10-26T04:35:11Z"
+    updated_at: "2026-10-26T04:35:11Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "housekeeping wiring: rule 1a echoes it; the wrapper passes it; simple-release adds pr_type != 'housekeeping'; the orchestrator's --type check refuses it (pinned"
+    decision: "classify_pr_type: rule 1a echoes housekeeping; header grammar pr_type=<cycle|bugfix|housekeeping|other>. classify-merge-pr.sh: unchanged except the comment (the no-PR guard still forces other). post-merge.yml: simple-release if: pr_type != 'cycle' && pr_type != 'housekeeping' && pr_number != ''. post-merge-orchestrator.sh: the existing --type validation (`cycle|bugfix|other`, 'Invalid --type', exit 1 at :2491) refuses housekeeping; a bats case pins it."
+    rationale: "Four small, pinned edits in the files that already own each rule; no new file; the orchestrator never sees the value in the workflow, so the refusal is defence in depth."
+    alternatives_considered:
+      - option: "skip in the workflow by subject regex"
+        rejected_because: "duplicates the classifier"
+      - option: "teach the orchestrator a no-op housekeeping phase set"
+        rejected_because: "a job would still run and upload an artifact"
+    consequences:
+      positive:
+        - "no prepare job, no artifact, self-describing output"
+      negative:
+        - "four files, four test files"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff8a9f64"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:35:11Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "classify-pr-type.sh:42-90; classify-merge-pr.sh:118-170; post-merge.yml:106-109, 179-187; post-merge-orchestrator.sh:2491-2492"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1023"
+    created_at: "2026-10-26T04:35:15Z"
+    updated_at: "2026-10-26T04:35:15Z"
+    phase: "architecture"
+    category: "testing"
+    summary: "Guardrails: CPU time (process.cpuUsage user+system) around the measured call, thresholds unchanged (500 ms, 100 ms); quadratic stand-in as a report-only red dem"
+    decision: "Both guardrails in progressive-truncation.test.ts call process.cpuUsage() before and after; the assertion message names CPU time; a comment names bd-oglcu and the load observations."
+    rationale: "process.cpuUsage is in Node 20 and 22, needs no dependency, and excludes the time other processes hold the CPU."
+    alternatives_considered:
+      - option: "performance.now() with a 3-run minimum"
+        rejected_because: "still load-dependent on a saturated host"
+      - option: "skip under CI env"
+        rejected_because: "the regression signal disappears where it matters"
+    consequences:
+      positive:
+        - "deterministic on a loaded host"
+      negative:
+        - "includes the process's own GC time (bounded)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff8a9f64"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:35:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "progressive-truncation.test.ts:548-590"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1024"
+    created_at: "2026-10-26T04:35:18Z"
+    updated_at: "2026-10-26T04:35:18Z"
+    phase: "architecture"
+    category: "process"
+    summary: "Lead contract commit before dispatch: types.ts gains TruncationResult.protectedKept and CoverageRecord.protected_kept / reviewed[].source; implementers never ed"
+    decision: "The lead adds the optional fields to types.ts under the bounded marker (manifests + dist regenerated) before creating the worktrees; neither implementer edits types.ts."
+    rationale: "A and B would otherwise both add the same one-line field and the second patch would not apply; a shared base avoids a three-way merge on a System Zone file."
+    alternatives_considered:
+      - option: "A owns types.ts, B casts until A lands"
+        rejected_because: "B's tests would not compile against the base"
+    consequences:
+      positive:
+        - "clean, independently applicable patches"
+      negative:
+        - "one extra lead commit"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff8a9f64"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:35:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "types.ts (TruncationResult, CoverageRecord)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1025"
+    created_at: "2026-10-26T04:35:22Z"
+    updated_at: "2026-10-26T04:35:22Z"
+    phase: "architecture"
+    category: "process"
+    summary: "Allowlists: A truncation/config/loa-detection tests/SKILL.md; B paged-fetch/github-cli/git-provider + tests + guardrail test; C classifier/wrapper/workflow/pin"
+    decision: "Disjoint allowlists as listed; CHANGELOG lines are given to the lead in the reports (one shared heading); dist, checksums and REPO-MAP are the lead's."
+    rationale: "No file is touched by two implementers; the one shared type is in the contract commit (D-2.1)."
+    alternatives_considered:
+      - option: "two implementers (Bridgebuilder, pipeline)"
+        rejected_because: "one 400-line Bridgebuilder patch mixing matcher, protection and fetch is harder to review than three"
+    consequences:
+      positive:
+        - "parallel, reviewable, conflict-free landings"
+      negative:
+        - "three briefs"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "ff8a9f64"
+    source: "grimoires/loa/sdd.md § 11.D"
+    cycle: "cycle-135-review-coverage-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-26T04:35:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "grimoires/loa/sdd.md § 8"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
