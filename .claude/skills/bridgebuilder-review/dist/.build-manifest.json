@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "generated_at": "2026-10-26T05:47:30Z",
-  "source_hash": "e29f10abe6ce9a0ec29be8205838f70b9492c628e3cad71511b4b9fd3e33e803",
+  "generated_at": "2026-10-26T06:21:53Z",
+  "source_hash": "698e65e4e4d9be648947d8b591313ba6c68f254bc67972ed5fd606afcb9532c9",
   "file_count": 51,
   "files": [
     {
@@ -78,7 +78,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/degraded-reason.ts",
-      "sha256": "dae6e3dc05f8d5842bcad90ac002d3a54109bd9a54857948190c3083fc6e9c61"
+      "sha256": "50816fd2aca10816406537a99a1a62666a33657629e7e94e7311b379626b232b"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/depth-checker.ts",
@@ -158,7 +158,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/types.ts",
-      "sha256": "586384bdbf0f7be409f62a15f8f5e2ab07de87a22ea1ed9b7e1b0c7b29e9f42a"
+      "sha256": "9548c892acf951353dca1ae155c0314f5d94e69db04d372b53e2e334aca51a7a"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/writer-role.ts",

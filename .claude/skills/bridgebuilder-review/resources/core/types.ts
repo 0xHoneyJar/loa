@@ -38,8 +38,12 @@ export interface CoverageRecord {
     reviewable: boolean;
     /** cycle-135 C-2: the default or user pattern that excluded the file (excluded_loa / excluded_pattern). */
     pattern?: string;
-    /** cycle-135 C-3: the outcome of an attempted content fetch for a patch-less added file. */
-    fetch?: "binary" | "too_large" | "error" | "skipped_cap" | "deadline";
+    /**
+     * cycle-135 C-3: the outcome of an attempted content fetch for a patch-less added file. `budget`: the read (or the
+     * file's size) did not fit the diff budget left after the patches selected ahead of it; `aborted`: not attempted
+     * after a RATE_LIMITED / FORBIDDEN answer stopped the loop (review round 1).
+     */
+    fetch?: "binary" | "too_large" | "error" | "skipped_cap" | "deadline" | "budget" | "aborted";
   }>;
   /** Files GitHub counted but the listing never named (changed_files − listed). */
   unknown_omitted: number;
@@ -50,8 +54,12 @@ export interface CoverageRecord {
   restarts: number;
   /** cycle-135 C-2: protected files a wildcard user exclusion would have removed; the first matching wildcard pattern. */
   protected_kept?: Array<{ file: string; pattern: string }>;
-  /** cycle-135 C-2: where the `.reviewignore` patterns came from (the PR base sha, the checkout, or nowhere). */
-  reviewignore_source?: "base" | "checkout" | "none";
+  /**
+   * cycle-135 C-2: where the `.reviewignore` patterns came from — the PR base sha, the checkout (no base known), the
+   * checkout because the base read failed (`base_unavailable`: the review degrades as `reviewignore_unavailable`,
+   * review round 1), or nowhere.
+   */
+  reviewignore_source?: "base" | "checkout" | "base_unavailable" | "none";
   /** cycle-135 C-2: the PR's file list contains `.reviewignore` (the file itself is protected and reviewed). */
   reviewignore_changed_in_pr?: boolean;
 }
@@ -319,7 +327,8 @@ export interface RunSummary {
 
 export interface TruncationResult {
   included: PullRequestFile[];
-  excluded: Array<{ filename: string; stats: string }>;
+  /** cycle-135 C-2 (review round 1): `pattern` is the default or user pattern that excluded the file, when one did. */
+  excluded: Array<{ filename: string; stats: string; pattern?: string }>;
   totalBytes: number;
   /** cycle-135 C-2: protected files kept although a wildcard user exclusion matched them (the first matching wildcard). */
   protectedKept?: Array<{ file: string; pattern: string }>;
