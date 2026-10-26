@@ -112,20 +112,44 @@ function simplifiedGlobMatch(filename, pattern) {
     return false;
 }
 /**
- * Segment-aware glob match that ignores the shell dot-file rule (bd-a8l0c):
- * `**` matches any number of segments, `*` and `?` stay within one segment,
- * and all three match a segment that starts with a dot. Same translation as
- * the `**` branch of simplifiedGlobMatch, applied to every wildcard pattern.
+ * Segment-aware glob match that ignores the shell dot-file rule (bd-a8l0c).
+ * A `**` segment is a globstar and matches zero or more whole path segments;
+ * `**` inside a segment is a plain `*`. `*` and `?` stay within one segment.
+ * All of them match names that start with a dot. Compiled once per pattern.
  */
+const dotSegmentGlobCache = new Map();
 function dotSegmentGlobMatch(filename, pattern) {
-    const escaped = pattern
-        .split("**")
-        .map((part) => part
-        .split("*")
-        .map((seg) => seg.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\?/g, "[^/]"))
-        .join("[^/]*"))
-        .join(".*");
-    return new RegExp(`^${escaped}$`).test(filename);
+    let re = dotSegmentGlobCache.get(pattern);
+    if (!re) {
+        // Collapse consecutive globstar segments (a/**/**/b → a/**/b).
+        const segs = pattern.split("/").filter((seg, i, all) => !(seg === "**" && all[i - 1] === "**"));
+        let src = "";
+        segs.forEach((seg, i) => {
+            const first = i === 0;
+            const last = i === segs.length - 1;
+            if (seg === "**") {
+                if (first && last)
+                    src += ".*";
+                else if (first)
+                    src += "(?:[^/]*/)*";
+                else if (last)
+                    src += "(?:/.*)?";
+                else
+                    src += "/(?:[^/]*/)*";
+                return;
+            }
+            if (!first && segs[i - 1] !== "**")
+                src += "/";
+            src += seg
+                .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+                .replace(/\*+/g, "*")
+                .replace(/\*/g, "[^/]*")
+                .replace(/\?/g, "[^/]");
+        });
+        re = new RegExp(`^${src}$`);
+        dotSegmentGlobCache.set(pattern, re);
+    }
+    return re.test(filename);
 }
 export function matchesExcludePattern(filename, patterns) {
     for (const pattern of patterns) {

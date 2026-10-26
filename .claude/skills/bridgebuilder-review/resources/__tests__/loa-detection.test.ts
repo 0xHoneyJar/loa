@@ -2,6 +2,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
+import * as path from "node:path";
 import { tmpdir } from "node:os";
 import {
   detectLoa,
@@ -410,7 +411,10 @@ describe("matchesExcludePattern — dot-led segments (bd-a8l0c)", () => {
     assert.ok(!matchesExcludePattern("evals/tests/other/x.md", ["evals/tests/fixtures/**"]));
   });
 
-  it("single * stays within one path segment", () => {
+  // Holds on the native-glob branch only: the Node < 22 fallback's single-`*`
+  // branch (simplifiedGlobMatch prefix/suffix check) crosses `/`.
+  const hasNativeGlob = typeof (path as Record<string, unknown>).matchesGlob === "function";
+  it("single * stays within one path segment (Node 22+ native-glob branch)", { skip: !hasNativeGlob }, () => {
     assert.ok(!matchesExcludePattern("evals/tests/fixtures/a/b.md", ["evals/tests/fixtures/*.md"]));
   });
 
@@ -421,6 +425,31 @@ describe("matchesExcludePattern — dot-led segments (bd-a8l0c)", () => {
 
   it("substring pattern behaviour is unchanged", () => {
     assert.ok(matchesExcludePattern("grimoires/loa/prd.md", ["grimoires/"]));
+  });
+
+  it("leading globstar matches zero segments (**/*.md excludes a root dot-file)", () => {
+    assert.ok(matchesExcludePattern(".hidden.md", ["**/*.md"]));
+    assert.ok(matchesExcludePattern("a/.hidden/b.md", ["**/*.md"]));
+  });
+
+  it("middle globstar matches zero segments (fixtures/**/*.json excludes fixtures/.hidden.json)", () => {
+    assert.ok(matchesExcludePattern("fixtures/.hidden.json", ["fixtures/**/*.json"]));
+    assert.ok(matchesExcludePattern("fixtures/a/.b/c.json", ["fixtures/**/*.json"]));
+  });
+
+  it("leading and trailing globstars match zero segments (**/fixtures/**)", () => {
+    assert.ok(matchesExcludePattern("fixtures/.claude/settings.json", ["**/fixtures/**"]));
+  });
+
+  it("** inside a segment is a single-segment * (**.md, src/**.ts)", () => {
+    assert.ok(!matchesExcludePattern("a/b.md", ["**.md"]));
+    assert.ok(matchesExcludePattern("b.md", ["**.md"]));
+    assert.ok(!matchesExcludePattern("src/a/b.ts", ["src/**.ts"]));
+  });
+
+  it("consecutive globstars collapse to one (a/**/**/b.md)", () => {
+    assert.ok(matchesExcludePattern("a/b.md", ["a/**/**/b.md"]));
+    assert.ok(matchesExcludePattern("a/x/.y/b.md", ["a/**/**/b.md"]));
   });
 });
 
