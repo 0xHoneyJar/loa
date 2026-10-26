@@ -194,7 +194,7 @@ A measurement cycle changes code, adds fixtures, records a batch and cuts a rele
 | Order | PR kind | What it holds | How it is reviewed |
 |---|---|---|---|
 | 1 | code | harness, graders, analysis, suites, schemas, their tests and docs | the full gates: `/review-sprint`, `/audit-sprint`, Bridgebuilder, CI |
-| 2 | fixtures | new corpus fixtures from `seed-corpus-from-record.sh` or `seed-corpus-from-external.sh`, their labels, manifests, `SHA256SUMS`, `THIRD-PARTY.tsv` rows | `seed-corpus-from-record.sh --check`, `seed-corpus-from-external.sh --check`, the labels' approval line, the licence and attribution rows |
+| 2 | fixtures | new corpus fixtures from `seed-corpus-from-record.sh` or `seed-corpus-from-external.sh`, their labels, manifests, `SHA256SUMS`, `THIRD-PARTY.tsv` rows | `seed-corpus-from-record.sh --check`, `seed-corpus-from-external.sh --check`, the labels' approval line, the licence and attribution rows; a `visibility: private` fixture (`--private-source`, the operator's own private repository under a `LicenseRef-` assertion) holds the owner's private code in `head/`, `base/`, labels and manifests, and `--check` names each one — merging it into a public corpus publishes that code |
 | 3 | artefacts | the registration chain (`REGISTRATION-N.json`, with `looks_seen` for every committed look already seen), rows, grades, looks and reads under `grimoires/loa/reports/` | the verifiers: `registration.py verify`, `reproduce.sh`, the reads' input hashes |
 | 4 | release | CHANGELOG, version files, release notes | the release path: post-merge orchestrator, rc publish |
 
