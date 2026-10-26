@@ -1,0 +1,16 @@
+id: bugfix-v3-04
+schema_version: 1
+type: bug-fix
+source: {kind: "loa-history", fix_commit: "2f023159a0ae4d1012a7891c440fa0be7952fe03", base_commit: "2616407fc4ca80d56b2d3864d6d8fec782a3b045", date: "2026-10-22", origin: "touched paths left out of the task (--ignore-paths): grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-10.md"}
+post_cutoff: true
+fixture: tasks/bugfix-v3-04/fixture
+criterion: "the positive control follows the registered §8 outcome table (not exercised, void, pass, not demonstrated) over every group with the pre-addendum label kept beside it, and every look reports the §5 co-reads without changing its decision"
+success_criterion: "hidden/tests/evals/analysis/c132/tests/test_reads.py (overlaid at evals/analysis/c132/tests/test_reads.py) passes 51 of 51 under python3 -m pytest -q evals/analysis/c132/tests/test_reads.py; red at base (11 failed), green with hidden/reference.patch"
+test_command: ["python3", "-m", "pytest", "-q", "evals/analysis/c132/tests/test_reads.py"]
+regression_command: null
+reference_patch: hidden/reference.patch
+grader_protected: ["evals/analysis/c132/tests/_path.py", "evals/analysis/c132/tests/fixtures/merge/annotation.schema.json", "evals/analysis/c132/tests/fixtures/power-mini/candidates.tsv", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-91/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-92/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-93/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-94/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/rows.jsonl", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-a/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-b/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-c/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-d/task.yaml", "evals/analysis/c132/tests/synth.py"]
+structural_check: null
+bounds: {max_turns: {}, timeout_min: {}}
+review_catch: null
+suite_version: 3

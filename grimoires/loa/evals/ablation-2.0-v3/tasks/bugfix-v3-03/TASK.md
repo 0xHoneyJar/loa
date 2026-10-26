@@ -1,0 +1,13 @@
+# Task: rows registered under a predecessor registration are readable, and the read reports rows per registration
+
+The cycle-132 analysis package (`evals/analysis/c132/`) validates a batch's rows against a registration file (`common.validate_registration(path, rows)`, which returns the registration's sha256) and reads them (`reads.py`: `--make-inputs` writes `INPUTS.json`, `--look N` writes `reads.json` and `reads.md`). A registration may carry `supersedes`: the sha256 of the registration file it replaces, so registrations form a chain, current first.
+
+**Bug (observed):** every row whose `registration_sha256` is not the current registration's sha256 is refused with `registration_sha256 differs from <sha256, first 12 hex> on <n> row(s): <batch>/<arm>/<task>/<trial>` — rows registered under the registration the current one supersedes, or under its predecessor, cannot be read at all. Nothing walks the chain and nothing reports which registration each row was made under.
+
+**Expected:**
+- `common.registration_chain(path)` returns `(chain, unresolved)`: `chain` lists the sha256 of the file at `path` and then each predecessor's, following `supersedes` while the named file exists beside it; a predecessor named but absent ends the walk and is listed in `unresolved`; a `supersedes` that is not a string ends the chain (a registration with such a value has `chain == [its own sha256]`, `unresolved == []`).
+- `common.registration_provenance(path, rows)` returns exactly `{"current": <sha256>, "chain": [...], "rows_by_registration": {<sha256>: <row count>}, "unresolved_predecessor": [...]}`.
+- `common.validate_registration(path, rows)` accepts a row whose `registration_sha256` is any sha256 on the chain (the current one, a direct predecessor, or one further back), and still returns the current sha256; a sha256 outside the chain, a missing value, or the sha256 of a NEWER registration when validating under an older one is refused with the same `registration_sha256 differs from …` message as before. A predecessor named but absent is still a sha256 on the chain (rows under it are accepted), but nothing beyond it is: the sha256 it would have superseded is refused.
+- `--make-inputs` records `registrations` with `rows_by_registration` in `INPUTS.json`; a look's `reads.json` carries `inputs.registration_sha256` (the current one), `inputs.registrations.chain` and `inputs.registrations.rows_by_registration`, and `reads.md` states `Rows by registration: <sha12>: <n>, <sha12>: <n>.` (sorted by sha) and `Registration chain (current first): `<sha12>` → `<sha12>`.`
+
+Fix the bug in place and add a regression test of your own. Run the tests under `evals/analysis/c132/tests` that cover the code you change, with `python3 -m pytest -q <file>`.

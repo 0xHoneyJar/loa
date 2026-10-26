@@ -1,0 +1,79 @@
+diff --git a/evals/analysis/c132/common.py b/evals/analysis/c132/common.py
+index c77db39f5..d1b85d75a 100644
+--- a/evals/analysis/c132/common.py
++++ b/evals/analysis/c132/common.py
+@@ -25,6 +25,7 @@ import hashlib
+ import json
+ import math
+ import os
++import re
+ 
+ OPEN_MOUNT_ARMS = ("a1_full_openmount",)
+ 
+@@ -440,11 +441,16 @@ def validate_inputs(inputs, rows_path, rows, cells):
+         raise InputError("; ".join(errs))
+ 
+ 
++SHA256_HEX = re.compile(r"^[0-9a-f]{64}\Z")
++
++
+ def registration_chain(reg_path):
+     """(chain, unresolved): sha256 of reg_path first, then every predecessor named by `supersedes`
+     (PREREGISTRATION.md §12), resolved through the REGISTRATION*.json files beside reg_path by the
+     sha256 of their bytes. A predecessor whose file is absent stays in the chain (the declared
+-    lineage) and is listed as unresolved; the walk stops there, at a null supersedes, or on a cycle."""
++    lineage) and is listed as unresolved — it is never accepted by validate_registration; the walk
++    stops there, at a null supersedes, or on a cycle. A non-empty string supersedes that is not a
++    64-hex sha256 is an InputError (round 9, audit DISS-C-001)."""
+     chain, unresolved = [sha256_file(reg_path)], []
+     by_sha = {}
+     d = os.path.dirname(os.path.abspath(reg_path))
+@@ -466,6 +472,8 @@ def registration_chain(reg_path):
+         sup = cur.get("supersedes")
+         if not isinstance(sup, str) or not sup or sup in chain:
+             break
++        if not SHA256_HEX.match(sup):
++            raise InputError("registration supersedes is not a 64-hex sha256: %r" % sup[:80])
+         chain.append(sup)
+         if sup not in by_sha:
+             unresolved.append(sup)
+@@ -488,13 +496,16 @@ def registration_provenance(reg_path, rows):
+ 
+ def validate_registration(reg_path, rows):
+     """every row's registration_sha256 is sha256(REGISTRATION.json) or a predecessor on its
+-    `supersedes` chain (D-7.2, PREREGISTRATION.md §12); returns the current sha256"""
+-    chain, _ = registration_chain(reg_path)
+-    h, ok = chain[0], set(chain)
++    `supersedes` chain whose file was found by its bytes (D-7.2, PREREGISTRATION.md §12); a declared
++    but unresolved predecessor is not accepted (round 9); returns the current sha256"""
++    chain, unresolved = registration_chain(reg_path)
++    h, ok = chain[0], set(chain) - set(unresolved)
+     off = [r for r in rows if r.get("registration_sha256") not in ok]
+     bad = sorted(cell_key(r) for r in off)
+     if bad:
+-        seen = sorted({str(r.get("registration_sha256"))[:12] for r in off})
++        seen = sorted({str(r.get("registration_sha256"))[:12]
++                       + (" (unresolved predecessor)" if r.get("registration_sha256") in unresolved else "")
++                       for r in off})
+         raise InputError("registration_sha256 differs from %s on %d row(s): %s (outside the supersedes chain: %s)"
+                          % (h[:12], len(bad), ", ".join(bad[:5]), ", ".join(seen)))
+     return h
+diff --git a/evals/analysis/c132/reads.py b/evals/analysis/c132/reads.py
+index 08579a443..9b8d2dc0c 100644
+--- a/evals/analysis/c132/reads.py
++++ b/evals/analysis/c132/reads.py
+@@ -764,10 +764,10 @@ def sensitivities(cells, inputs, reg, seed, pairs, sens_dir, judge_dir, prim):
+             # rounds 4–5 (PREREGISTRATION §12 addenda): per contamination class observed in the rows, the
+             # primary read with the cells whose ONLY invalidity is a contamination of that class counted
+             # valid (recall as graded), plus every class at once; the main filter stays unchanged.
+-            # The round-4 name runs only its class-9 non-repository member (same semantics).
+-            fam = reincluded_family(cells, reg, seed)
+-            res[name] = fam["classes"].get("network_egress:nonrepo", reinclude(cells, reg, seed, "network_egress:nonrepo")) \
+-                if name == "class9_nonrepo_egress_reincluded" else fam
++            # The round-4 name runs only its class-9 non-repository member (same semantics), computed
++            # once without the rest of the family (round 9, review DISS-C-002).
++            res[name] = reinclude(cells, reg, seed, "network_egress:nonrepo") \
++                if name == "class9_nonrepo_egress_reincluded" else reincluded_family(cells, reg, seed)
+         elif name == "pr_weighted":
+             res[name] = prim.get("pr_weighted") or {"status": prim.get("status")}
+         elif name == "matched_fable_contrast":

@@ -1,0 +1,16 @@
+id: bugfix-v3-01
+schema_version: 1
+type: bug-fix
+source: {kind: "loa-history", fix_commit: "637688ba12ba2e1a7fe28bbb228a403f76894bf4", base_commit: "e36da85df27078466e64ff5c0c51cd21eb4f5f75", date: "2026-10-23", origin: "touched paths left out of the task (--ignore-paths): evals/harness/defect-descriptions.py, evals/tests/defect-descriptions.bats, grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-15.md"}
+post_cutoff: true
+fixture: tasks/bugfix-v3-01/fixture
+criterion: "the registration chain is read strictly: an absent predecessor stays in the reported lineage but rows registered under it are refused, a supersedes value that is not a 64-hex sha256 is an input error wherever it is read, and the legacy class-9 sensitivity is computed once without building the family; the checks for it pass and the existing behaviour is unchanged"
+success_criterion: "hidden/tests/evals/analysis/c132/tests/test_reads.py, hidden/tests/evals/analysis/c132/tests/test_registration_chain.py (overlaid at evals/analysis/c132/tests/test_reads.py, evals/analysis/c132/tests/test_registration_chain.py) passes 63 of 63 under python3 -m pytest -q evals/analysis/c132/tests/test_reads.py evals/analysis/c132/tests/test_registration_chain.py; red at base (4 failed), green with hidden/reference.patch"
+test_command: ["python3", "-m", "pytest", "-q", "evals/analysis/c132/tests/test_reads.py", "evals/analysis/c132/tests/test_registration_chain.py"]
+regression_command: null
+reference_patch: hidden/reference.patch
+grader_protected: ["evals/analysis/c132/tests/_path.py", "evals/analysis/c132/tests/fixtures/merge/annotation.schema.json", "evals/analysis/c132/tests/fixtures/power-mini/candidates.tsv", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-91/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-92/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-93/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-94/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/rows.jsonl", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-a/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-b/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-c/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-d/task.yaml", "evals/analysis/c132/tests/synth.py"]
+structural_check: null
+bounds: {max_turns: {}, timeout_min: {}}
+review_catch: null
+suite_version: 3

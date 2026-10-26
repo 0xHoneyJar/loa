@@ -1,0 +1,272 @@
+diff --git a/evals/analysis/c132/reads.py b/evals/analysis/c132/reads.py
+index 534e14768..dc7d2275d 100644
+--- a/evals/analysis/c132/reads.py
++++ b/evals/analysis/c132/reads.py
+@@ -21,9 +21,9 @@ Modes (sdd.md §5.2, §5.3; prd.md FR-5, D16, D17):
+   --final      the pre-registered reads (primary Δ with 95 % / 90 % intervals and the RCI at the
+                stopping look, PR-weighted Δ, REML, PR-level permutation, defects per USD, cost per
+                extra defect on valid pairs and all spend, review-only contrast, pipeline-independent
+-               read, matched-Fable contrast, dollar-matching table, the positive control (D-7.10:
+-               a1_full_openmount − a1_full on G1, saturated PRs exempt; pass / control not exercised /
+-               void), missingness with the two bounds, the 25 % guard), then the sensitivities in the
++               read, matched-Fable contrast, dollar-matching table, the positive control (§8, addendum 10:
++               a1_full_openmount − a1_full on every group, saturated PRs exempt; not exercised / void /
++               pass / not demonstrated, the pre-addendum-10 label beside), missingness with the two bounds, the 25 % guard), then the sensitivities in the
+                registration's order.
+   --placebo    200 seeded within-PR arm-label shuffles through the primary read (1,000 resamples
+                each): pass when |mean Δ| < 0.03 (bias) and ≤ 8 % of the 95 % intervals exclude 0
+@@ -275,42 +275,81 @@ PC_EXPECTED = 0.067     # cycle-131 R1 on pr-17 (D-7.10)
+ PC_SATURATED = 0.9
+ 
+ 
+-def positive_control(cells, reg, seed):
+-    """D-7.10: a1_full_openmount − a1_full on G1's pairs, PRs whose closed-mount recall exceeds 0.9
+-    exempt (no headroom); pass when Δ̂ > 0 and the oracle detector shows exposure in ≥ 1 open run;
+-    no exposure in any open run → "control not exercised"; Δ̂ < 0 with exposure → "void" (every
+-    other read is then reported void); the 90 % interval and the expected effect beside."""
+-    opens = [c for c in cells if c["arm"] == OPEN_MOUNT]
+-    if not opens:
+-        return {"status": "not_run"}
+-    groups = reg.get("groups") or []
+-    g1 = set(groups[0]) if groups else {c["task"] for c in opens}
++PC_MIN_PAIRS = 3
++PC_RULE = "§8 (addendum 10)"
++PC_CONSEQUENCE = {"pass": "", "void": "every other read void",
++                  "not demonstrated": "every other read unconfirmed by the positive control",
++                  "not exercised": "every other read unconfirmed by the positive control"}
++
++
++def pc_outcome(n_exposed, n_pairs, delta, ci90_t):
++    """PREREGISTRATION §8 (addendum 10), ordered and exhaustive: not exercised (no exposure in any
++    open run, or fewer than 3 eligible pairs) → void (the 90 % cluster-t interval entirely below 0)
++    → pass (exposure in ≥ 2 open runs and Δ̂ > 0) → not demonstrated (otherwise, with exposure)"""
++    if n_exposed == 0 or n_pairs < PC_MIN_PAIRS or delta is None:
++        return "not exercised"
++    if ci90_t and ci90_t[1] is not None and ci90_t[1] < 0:
++        return "void"
++    if n_exposed >= 2 and delta > 0:
++        return "pass"
++    return "not demonstrated"
++
++
++def pc_outcome_pre_addendum_10(n_exposed, n_pairs, delta):
++    """the label the pre-addendum-10 code gave (D-7.10, on G1's pairs): pass on Δ̂ > 0 with ≥ 1
++    exposure; void on Δ̂ < 0; inconclusive on Δ̂ == 0 or on no pairs with exposure"""
++    if not n_pairs:
++        return "control not exercised" if not n_exposed else "inconclusive"
++    if not n_exposed:
++        return "control not exercised"
++    if delta > 0:
++        return "pass"
++    if delta < 0:
++        return "void"
++    return "inconclusive"
++
++
++def _pc_scope(cells, opens, scope, seed):
++    """(saturated, pairs, exposed, bootstrap or None) for the open-vs-closed contrast on `scope`"""
+     closed = {}
+     for c in cells:
+-        if c["arm"] == PRIMARY_A and c["valid"] and c["task"] in g1:
++        if c["arm"] == PRIMARY_A and c["valid"] and c["task"] in scope:
+             a = closed.setdefault(c["task"], [0, 0])
+             a[0] += c["caught"]
+             a[1] += c["defects"]
+     saturated = sorted(t for t, (cg, d) in closed.items() if d and cg / float(d) > PC_SATURATED)
+-    tasks = g1 - set(saturated)
+-    pairs, _ = common.make_pairs(cells, OPEN_MOUNT, PRIMARY_A, tasks=tasks)
+-    exposed = sorted(c["key"] for c in opens if c["task"] in g1 and
++    pairs, _ = common.make_pairs(cells, OPEN_MOUNT, PRIMARY_A, tasks=scope - set(saturated))
++    exposed = sorted(c["key"] for c in opens if c["task"] in scope and
+                      (c["row"].get("oracle_exposed_defects") or (c["grade"] or {}).get("oracle_exposed_defects")))
+-    out = {"saturated_exempt": saturated, "exposed_open_runs": exposed, "expected_effect": PC_EXPECTED,
+-           "n_pairs": len(pairs)}
+-    if not pairs:
+-        out.update(status="no_valid_pairs", outcome="control not exercised" if not exposed else "inconclusive")
+-        return out
+-    b = stats.cluster_bootstrap(pairs, n=BOOT, seed=seed, interval=INTERVAL)
+-    out.update(status="ok", delta=b["delta"], ci90=b["ci90"], se=b["se"], n_prs=b["n_prs"])
+-    if not exposed:
+-        out["outcome"] = "control not exercised"
+-    elif b["delta"] > 0:
+-        out["outcome"] = "pass"
+-    elif b["delta"] < 0:
+-        out["outcome"] = "void"
++    b = stats.cluster_bootstrap(pairs, n=BOOT, seed=seed, interval=INTERVAL) if pairs else None
++    return saturated, pairs, exposed, b
++
++
++def positive_control(cells, reg, seed):
++    """PREREGISTRATION §8 (addendum 10): a1_full_openmount − a1_full on EVERY registered group's
++    pairs, PRs whose closed-mount recall exceeds 0.9 exempt (no headroom); exposure = the oracle
++    detector's per-run verdict over every open run of the registered groups; outcome by pc_outcome
++    (90 % cluster-t interval, expected effect beside). `outcome_pre_addendum_10` is the label the
++    pre-addendum code gave (G1-only pairs; pc_outcome_pre_addendum_10) — both reads are reported."""
++    opens = [c for c in cells if c["arm"] == OPEN_MOUNT]
++    if not opens:
++        return {"status": "not_run"}
++    groups = reg.get("groups") or []
++    scope = set(t for g in groups for t in g) if groups else {c["task"] for c in opens}
++    saturated, pairs, exposed, b = _pc_scope(cells, opens, scope, seed)
++    g1 = set(groups[0]) if groups else scope
++    old = (saturated, pairs, exposed, b) if g1 == scope else _pc_scope(cells, opens, g1, seed)
++    out = {"rule": PC_RULE, "saturated_exempt": saturated, "exposed_open_runs": exposed,
++           "n_exposed_open_runs": len(exposed), "expected_effect": PC_EXPECTED,
++           "n_pairs": len(pairs), "eligible_pairs": len(pairs),
++           "outcome_pre_addendum_10": pc_outcome_pre_addendum_10(
++               len(old[2]), len(old[1]), old[3]["delta"] if old[3] else None)}
++    if b is None:
++        out.update(status="no_valid_pairs", n_prs=0)
+     else:
+-        out["outcome"] = "inconclusive"
++        out.update(status="ok", delta=b["delta"], ci90=b["ci90"], ci90_t=b["ci90_t"], se=b["se"], n_prs=b["n_prs"])
++    out["outcome"] = pc_outcome(len(exposed), len(pairs), out.get("delta"), out.get("ci90_t"))
++    out["consequence"] = PC_CONSEQUENCE[out["outcome"]]
+     return out
+ 
+ 
+@@ -421,9 +460,9 @@ def all_spend(cells, arm_a, arm_b, tasks):
+     return tot
+ 
+ 
+-def contrast(cells, arm_a, arm_b, seed, restrict_fn=None):
++def contrast(cells, arm_a, arm_b, seed, restrict_fn=None, min_prs=MIN_PRS):
+     pairs, lost = common.make_pairs(cells, arm_a, arm_b, restrict_fn=restrict_fn)
+-    r = primary_read(pairs, seed)
++    r = primary_read(pairs, seed, min_prs=min_prs)
+     r["arm_a"], r["arm_b"], r["pairs_lost"] = arm_a, arm_b, len(lost)
+     return r, pairs
+ 
+@@ -560,6 +599,53 @@ def pipeline_independent_fn(ca, cb):
+     return keep
+ 
+ 
++def stratified_recall(pairs, cells_by_key):
++    """co-read (b): caught / defects / recall per arm by label_source and by review_driven over the
++    valid pairs (labels_meta of the pair's cells; a defect without metadata counts as "unlabelled")"""
++    out = {"label_source": {}, "review_driven": {}}
++    for p in pairs:
++        meta = dict(cells_by_key[p["full"]["key"]]["labels_meta"])
++        meta.update(cells_by_key[p["matched"]["key"]]["labels_meta"])
++        for side, arm in (("full", PRIMARY_A), ("matched", PRIMARY_B)):
++            got = set(p[side]["caught_ids"])
++            for d in p[side]["defect_ids"]:
++                m = meta.get(d) or {}
++                rd = m.get("review_driven")
++                for dim, k in (("label_source", str(m.get("label_source") or "unlabelled")),
++                               ("review_driven", "true" if rd is True else "false" if rd is False else "unlabelled")):
++                    st = out[dim].setdefault(k, {PRIMARY_A: {"caught": 0, "defects": 0}, PRIMARY_B: {"caught": 0, "defects": 0}})
++                    st[arm]["defects"] += 1
++                    st[arm]["caught"] += d in got
++    for dim in out.values():
++        for st in dim.values():
++            for r in st.values():
++                r["recall"] = r["caught"] / float(r["defects"]) if r["defects"] else None
++    return out
++
++
++def co_reads(cells, reg, upto, seed):
++    """PREREGISTRATION §5 co-reads at look `upto` (groups 1 … upto; descriptive, never in decide /
++    look_table): (a) the pipeline-independent Δ, (b) recall per arm by label_source and review_driven,
++    (c) the cost-matched Δ — the exact-dollar trim on the pairs within the 25 % dollar tolerance —
++    with the dollar-matching table of every pair. min_prs = 1: a co-read prints its figure below the
++    6-PR decision minimum (the look's own decision rule is untouched)."""
++    groups = reg.get("groups") or []
++    tasks = set(t for g in groups[:upto] for t in g)
++    lc = [c for c in cells if c["task"] in tasks]
++    by_key = {c["key"]: c for c in lc}
++    pi, pi_pairs = contrast(lc, PRIMARY_A, PRIMARY_B, seed, restrict_fn=pipeline_independent_fn, min_prs=1)
++    if pi_pairs and all(p["full"]["defects"] == 0 for p in pi_pairs):
++        pi = {"status": "no_labels_meta"}
++    pairs, _ = common.make_pairs(lc, PRIMARY_A, PRIMARY_B)
++    dm = dollar_table(pairs)
++    ok = {(r["pr"], r["trial"]) for r in dm["pairs"] if r["within_25pct"]}
++    ep, missing = exact_dollar_pairs([p for p in pairs if (p["pr"], p["trial"]) in ok], by_key)
++    cm = primary_read(ep, seed, min_prs=1)
++    return {"look": upto, "pipeline_independent": pi, "stratified": stratified_recall(pairs, by_key),
++            "cost_matched": {"read": cm, "n_pairs_within_tolerance": len(ok), "pairs_without_sessions": missing,
++                             "dollar_matching": dm}}
++
++
+ def final_reads(cells, inputs, reg, seed, planned_se, sens_dir=None, judge_dir=None):
+     out = {}
+     pairs, lost = common.make_pairs(cells, PRIMARY_A, PRIMARY_B)
+@@ -700,6 +786,44 @@ def md_primary(title, r):
+         alt, iv(r.get("ci95_" + alt)))
+ 
+ 
++def md_positive_control(pc):
++    if pc.get("status") == "not_run":
++        return "\nPositive control: status `not_run`.\n"
++    return "\nPositive control (%s; %s − %s, every group, saturated PRs exempt %s): %s%s; eligible pairs %d, " \
++        "exposed open runs %d%s. Pre-addendum-10 label (G1 only): %s.\n" % (
++            pc["rule"], OPEN_MOUNT, PRIMARY_A, ", ".join(pc.get("saturated_exempt") or []) or "none", pc["outcome"],
++            "; Δ %s, 90 %% %s, expected %s" % (f4(pc["delta"]), iv(pc["ci90_t"]), f4(pc["expected_effect"]))
++            if pc.get("status") == "ok" else " (status `%s`)" % pc.get("status"),
++            pc["eligible_pairs"], pc["n_exposed_open_runs"],
++            " — %s" % pc["consequence"] if pc.get("consequence") else "", pc["outcome_pre_addendum_10"])
++
++
++def md_co_reads(co):
++    L = ["## Co-reads (§5, reported at every look)\n\n",
++         "Descriptive: they qualify the primary and never enter the decision.\n\n"]
++    pi = co["pipeline_independent"]
++    L.append(md_primary("(a) pipeline-independent %s − %s" % (PRIMARY_A, PRIMARY_B), pi) if pi.get("status") == "ok"
++             else "| (a) pipeline-independent | status `%s` |\n" % pi.get("status"))
++    cm = co["cost_matched"]
++    L.append(md_primary("(c) cost-matched (exact-dollar trim, pairs within ±25 %)", cm["read"]))
++    L.append("\n(b) Recall per arm by stratum (valid pairs):\n\n| stratum | %s caught / defects | recall | %s caught / defects | recall |\n"
++             "|---|---|---|---|---|\n" % (PRIMARY_A, PRIMARY_B))
++    for dim in ("label_source", "review_driven"):
++        for k in sorted(co["stratified"][dim]):
++            r = co["stratified"][dim][k]
++            a, b = r[PRIMARY_A], r[PRIMARY_B]
++            L.append("| %s = %s | %d / %d | %s | %d / %d | %s |\n" % (
++                dim, k, a["caught"], a["defects"], f4(a["recall"]), b["caught"], b["defects"], f4(b["recall"])))
++    dm = cm["dollar_matching"]
++    L.append("\n(c) Dollar matching: %d of %d pairs within ±25 %% of the full cell's cost (pairs outside stay in the primary); "
++             "trimmed pairs without per-session data %d.\n\n" % (dm["within"], dm["n"], cm["pairs_without_sessions"]))
++    L.append("| PR | trial | cost full | cost matched | ratio | within |\n|---|---|---|---|---|---|\n")
++    for r in dm["pairs"]:
++        L.append("| %s | %d | %s | %s | %s | %s |\n" % (r["pr"], r["trial"], f4(r["cost_full"]), f4(r["cost_matched"]),
++                                                      f4(r["ratio"]), "yes" if r["within_25pct"] else "no"))
++    return "".join(L) + "\n"
++
++
+ def render_md(doc):
+     L = ["# cycle-132 reads — mode `%s`\n" % doc["mode"], "\n"]
+     inp = doc["inputs"]
+@@ -734,6 +858,8 @@ def render_md(doc):
+         L.append("\n" + PARTITION_LEGEND + "\n")
+         L.append("\nBoundary constant %s; MDE %s; planned final SE %s.\n\n" % (
+             f4(doc["boundary_constant"]), f4(doc["mde"]), f4(doc["planned_final_se"])))
++    if doc.get("co_reads"):
++        L.append(md_co_reads(doc["co_reads"]))
+     if doc["mode"] == "final":
+         L.append("## Pre-registered reads\n\n")
+         L.append(md_primary("primary %s − %s" % (PRIMARY_A, PRIMARY_B), doc["primary"]))
+@@ -764,13 +890,10 @@ def render_md(doc):
+             v = sec[k]
+             L.append("| %s | %s |\n" % (k, "Δ %s, 95 %% %s, PRs %s" % (f4(v["delta"]), iv(v["ci95"]), v["n_prs"])
+                                         if v.get("status") == "ok" else "status `%s`" % v.get("status")))
+-        pc = sec["positive_control"]
+-        L.append("\nPositive control (%s − %s, G1, saturated PRs exempt %s): %s%s.\n" % (
+-            OPEN_MOUNT, PRIMARY_A, ", ".join(pc.get("saturated_exempt") or []) or "none", pc.get("outcome", pc.get("status")),
+-            "; Δ %s, 90 %% %s, expected %s, exposed open runs %d" % (f4(pc["delta"]), iv(pc["ci90"]), f4(pc["expected_effect"]),
+-                                                                  len(pc["exposed_open_runs"])) if pc.get("status") == "ok" else ""))
++        L.append(md_positive_control(sec["positive_control"]))
+         if doc.get("void"):
+-            L.append("\n**VOID: the positive control read negative with verified exposure; every other read is reported void.**\n")
++            L.append("\n**VOID: the positive control's 90 % cluster-t interval lies entirely below 0 with verified exposure; "
++                     "every other read is reported void.**\n")
+         dm = sec["dollar_matching"]
+         L.append("\nDollar matching: %d of %d pairs within ±25 %% of the full cell's cost.\n\n" % (dm["within"], dm["n"]))
+         L.append("| PR | trial | cost full | cost matched | ratio | within |\n|---|---|---|---|---|---|\n")
+@@ -971,6 +1094,7 @@ def main(argv=None):
+                            guard=guard(cells, inputs, [PRIMARY_A, PRIMARY_B]),
+                            positive_control=positive_control(cells, reg, seed))
+                 doc["decision"] = doc["looks"][-1].get("decision")
++                doc["co_reads"] = co_reads(cells, reg, a.look, seed)
+             else:
+                 doc["mode"] = "final"
+                 doc.update(final_reads(cells, inputs, reg, seed, planned_se, a.sensitivity_grades, a.judge))

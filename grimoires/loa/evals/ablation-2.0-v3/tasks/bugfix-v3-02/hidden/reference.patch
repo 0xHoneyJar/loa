@@ -1,0 +1,31 @@
+diff --git a/evals/analysis/c132/judge_agree.py b/evals/analysis/c132/judge_agree.py
+index 560f54eda..b0f08f87b 100644
+--- a/evals/analysis/c132/judge_agree.py
++++ b/evals/analysis/c132/judge_agree.py
+@@ -251,8 +251,15 @@ def run(key, labels, rows, seed, n):
+             "corrected": corrected["strict"], "corrected_lenient": corrected["lenient"], "real_strays": real_strays}
+ 
+ 
+-def render_md(doc):
+-    L = ["# Grader 1.3.2 vs the blind judge\n\n",
++def grader_title(rows):
++    """the grader version(s) on the rows, sorted and comma-joined; "" when no row carries one"""
++    vs = sorted({str(r["grader_version"]) for r in rows or () if isinstance(r, dict) and r.get("grader_version")})
++    return ", ".join(vs)
++
++
++def render_md(doc, rows=None):
++    gv = grader_title(rows)
++    L = ["# Grader %svs the blind judge\n\n" % (gv + " " if gv else ""),
+          "%d items sampled, %d judged; seed %d; %d bootstrap resamples. The grader stays the primary; the corrected figures are sensitivities.\n\n"
+          % (doc["items"], doc["judged"], doc["seed"], doc["boot"])]
+     for mode in ("strict", "lenient"):
+@@ -304,7 +311,7 @@ def main(argv=None):
+     with open(os.path.join(a.out, "result.json"), "w", encoding="utf-8") as f:
+         f.write(dumps(doc))
+     with open(os.path.join(a.out, "result.md"), "w", encoding="utf-8") as f:
+-        f.write(render_md(doc))
++        f.write(render_md(doc, rows))
+     return 0
+ 
+ 

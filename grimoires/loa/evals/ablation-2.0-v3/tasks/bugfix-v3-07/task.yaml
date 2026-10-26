@@ -1,0 +1,16 @@
+id: bugfix-v3-07
+schema_version: 1
+type: bug-fix
+source: {kind: "loa-history", fix_commit: "426c6c3d15f69a3b927356709dfbdd87bc3d9e22", base_commit: "ca71fbc75636b9937ac3b53763c72bf556e54af5", date: "2026-10-21", origin: "touched paths left out of the task (--ignore-paths): evals/harness/ablation-grade.sh, evals/harness/ablation-row.sh, evals/harness/lib/sandbox-mount.sh, evals/harness/took-effect.sh, evals/tests/ablation-grade.bats, evals/tests/ablation-row.bats, evals/tests/analysis-c132.bats, evals/tests/fixtures/mount-lib-stub.sh, evals/tests/pipeline-run.bats, evals/tests/sandbox-mount.bats, evals/tests/took-effect.bats, grimoires/loa/decisions.yaml, grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-5.md, grimoires/loa/evals/ablation-2.0-c132/PREREGISTRATION-addendum-6.md, grimoires/loa/known-failures.md"}
+post_cutoff: true
+fixture: tasks/bugfix-v3-07/fixture
+criterion: "a cell carries its contamination's detail string and a new sensitivity re-includes the matched-bare cells contaminated only by non-repository egress, leaving the primary read and the missingness counts unchanged"
+success_criterion: "hidden/tests/evals/analysis/c132/tests/test_reads.py (overlaid at evals/analysis/c132/tests/test_reads.py) passes 37 of 37 under python3 -m pytest -q evals/analysis/c132/tests/test_reads.py; red at base (2 failed), green with hidden/reference.patch"
+test_command: ["python3", "-m", "pytest", "-q", "evals/analysis/c132/tests/test_reads.py"]
+regression_command: null
+reference_patch: hidden/reference.patch
+grader_protected: ["evals/analysis/c132/tests/_path.py", "evals/analysis/c132/tests/fixtures/merge/annotation.schema.json", "evals/analysis/c132/tests/fixtures/power-mini/candidates.tsv", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-91/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-92/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-93/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-94/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/rows.jsonl", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-a/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-b/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-c/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-d/task.yaml", "evals/analysis/c132/tests/synth.py"]
+structural_check: null
+bounds: {max_turns: {}, timeout_min: {}}
+review_catch: null
+suite_version: 3

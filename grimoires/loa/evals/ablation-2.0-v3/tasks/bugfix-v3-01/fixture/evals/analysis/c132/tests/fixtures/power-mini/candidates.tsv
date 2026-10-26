@@ -1,0 +1,9 @@
+fixture	sprint	head_date	labels	exposure_fable_5_1	diff_lines	contamination_note
+pr-11	260	2026-10-10	5	pre-cutoff	900	synthetic
+pr-14	261	2026-10-11	4	pre-cutoff	300	
+pr-19	262	2026-10-12	6	post-cutoff	1200	
+pr-20	263	2026-10-13	3	post-cutoff	200	
+pr-21	264	2026-10-14	1	post-cutoff	100	
+pr-22	265	2026-10-15	7	post-cutoff	2500	
+pr-23	266	2026-10-16	5		700	
+pr-24	267	2026-10-17	9	post-cutoff	4000	
