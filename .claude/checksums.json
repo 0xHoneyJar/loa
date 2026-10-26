@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-26T07:20:27Z",
+  "generated": "2026-10-26T07:53:42Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1781,7 +1781,7 @@
     ".claude/skills/bridgebuilder-review/resources/__tests__/scoring.test.ts": "f801c125b27a9b59ba00797b1c93e3fb8cc077210a072ed840e83879efeba280",
     ".claude/skills/bridgebuilder-review/resources/__tests__/template.test.ts": "5cbb3374dbe51f75e9cba8b6ed479d2810a157fb13bd2ce977d1f0976c0e625a",
     ".claude/skills/bridgebuilder-review/resources/__tests__/truncation-registry.test.ts": "9f5d9e674c17fbcfd01ab094768e82d170c6d4767012a16be0d336f6c3739424",
-    ".claude/skills/bridgebuilder-review/resources/__tests__/truncation.test.ts": "ecde502bd02ec0d1a6d3045e4151242c8b1d4d5ea7f65bdd2e33372ebfbd3e3f",
+    ".claude/skills/bridgebuilder-review/resources/__tests__/truncation.test.ts": "1feaf1b06d8ef70979aa6079e159a6f1453bfe538bab34b720a51b4dd44154d7",
     ".claude/skills/bridgebuilder-review/resources/__tests__/trusted-config.test.ts": "e0baf4515070e1a7bc10963ece14b3f6442930b5aa0d0dd6f39725e97589c77a",
     ".claude/skills/bridgebuilder-review/resources/__tests__/writer-role.test.ts": "648cdfb2a999d07f962646ebdeb0de9c85fc7c963e6174af3b201b4c7defe3fd",
     ".claude/skills/bridgebuilder-review/resources/adapters/adapter-factory.ts": "e40e075c96c8c73244d6344a6a18e6f128ccf86bb35b56325fb3d88fd3efda18",

@@ -1568,7 +1568,8 @@ describe(".reviewignore provenance (cycle-135 C-2, bd-i4fyw)", () => {
       git(root, "commit", "-q", "-m", "drop");
       const noFile = git(root, "rev-parse", "HEAD");
       writeFileSync(join(root, ".reviewignore"), "checkout-only.md\n");
-      for (const sha of [noFile, "0".repeat(40), "abc123", "--output=/tmp/x"]) {
+      // (Bridgebuilder round 1, PR #1302: `noFile` — a readable base that lacks the file — is `none`, see the next tests)
+      for (const sha of ["0".repeat(40), "abc123", "--output=/tmp/x"]) {
         const { value, err } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: sha }));
         assert.deepEqual(value, { patterns: ["checkout-only.md"], source: "base_unavailable" }, sha);
         const warns = err.split("\n").filter((l) => l.includes("WARN"));
@@ -1600,6 +1601,25 @@ describe(".reviewignore provenance (cycle-135 C-2, bd-i4fyw)", () => {
       const noFile = git(root, "rev-parse", "HEAD");
       const { value } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: noFile }));
       assert.deepEqual(value, { patterns: [], source: "none" });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // Bridgebuilder round 1 (PR #1302, anthropic MEDIUM): a readable base that lacks `.reviewignore` is a definitive answer —
+  // no patterns apply, even when the PR adds the file (its patterns take effect after merge); the review is not degraded.
+  it("absent at a readable base with a checkout copy is none — the PR's new file is not applied — with one WARN", () => {
+    const { root } = twoCommitRepo();
+    try {
+      git(root, "rm", "-q", ".reviewignore");
+      git(root, "commit", "-q", "-m", "drop");
+      const noFile = git(root, "rev-parse", "HEAD");
+      writeFileSync(join(root, ".reviewignore"), "added-by-the-pr.md\n");
+      const { value, err } = captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: noFile }));
+      assert.deepEqual(value, { patterns: [], source: "none" });
+      const warns = err.split("\n").filter((l) => l.includes("WARN"));
+      assert.equal(warns.length, 1, err);
+      assert.ok(warns[0].includes("absent at the base") && warns[0].includes("not applied"), warns[0]);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -1884,16 +1904,22 @@ describe("trusted-config precedence for the review-scope keys (review round 1, H
     assert.equal(config.maxContentFetches, 3);
   });
 
-  it("no trusted source on a pull request: the head values apply (today's behaviour)", async () => {
-    const { config } = await configModule.resolveConfig({}, {}, HEAD_PARSED as never);
+  // Bridgebuilder round 1 (PR #1302, anthropic HIGH; bd-ous65): with no readable trusted source the scope keys fail
+  // CLOSED to their defaults — the PR head cannot widen its own review through a shallow checkout.
+  it("no trusted source on a pull request: the defaults apply, the head's values are ignored with WARNs (fail closed)", async () => {
+    const { config } = await configModule.resolveConfig({ exclude: ["cli/**"] }, {}, HEAD_PARSED as never);
     const trusted = captureStderr(() => configModule.loadTrustedConfig({ pr: 1 }, prDeps(undefined, HEAD_YAML))).value;
     assert.equal(trusted.source, "none");
-    const { err } = captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, {}));
-    assert.deepEqual(config.protectedPaths, []);
-    assert.equal(config.fetchMissingPatches, false);
-    assert.equal(config.maxContentFetches, 0);
-    assert.ok(config.excludePatterns.includes(".github/workflows/ci.yml"));
-    assert.equal(err, "");
+    const { err } = captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, { exclude: ["cli/**"] }));
+    assert.equal(config.protectedPaths, undefined, "protected_paths falls to the default list");
+    assert.equal(config.fetchMissingPatches, undefined, "fetch_missing_patches falls to the default (true)");
+    assert.equal(config.maxContentFetches, undefined, "max_content_fetches falls to the default (20)");
+    assert.ok(!config.excludePatterns.includes(".github/workflows/ci.yml"), "the head's exclude_patterns are dropped");
+    assert.ok(config.excludePatterns.includes("cli/**"), "--exclude stays additive");
+    assert.ok(/no trusted config could be read/.test(err) && /fall to their defaults/.test(err), err);
+    for (const key of ["protected_paths", "exclude_patterns", "fetch_missing_patches", "max_content_fetches"]) {
+      assert.ok(err.includes(`bridgebuilder.${key}:`), `WARN names ${key}: ${err}`);
+    }
   });
 
   it("local mode: the working tree is the trusted source, nothing changes and nothing is warned", async () => {
@@ -1911,5 +1937,21 @@ describe("trusted-config precedence for the review-scope keys (review round 1, H
     const trusted = configModule.loadTrustedConfig({ pr: 1 }, prDeps(TRUSTED_YAML, TRUSTED_YAML));
     const { err } = captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, {}));
     assert.equal(err, "");
+  });
+});
+
+// Bridgebuilder round 1 (PR #1302, anthropic HIGH): a wildcard pattern with a trailing `/` is a directory line, like
+// gitignore — it covers the directory's subtree (`**/fixtures/` ⇢ `**/fixtures/**`); before this fix it matched nothing.
+describe("wildcard directory lines (trailing slash)", () => {
+  it("a wildcard pattern with a trailing slash covers the directory's subtree", () => {
+    assert.equal(truncation.matchesExcludePattern("a/fixtures/x.ts", ["**/fixtures/"]), true);
+    assert.equal(truncation.matchesExcludePattern("evals/tests/fixtures/p/q.json", ["**/fixtures/"]), true);
+    assert.equal(truncation.matchesExcludePattern("docs/x.yml", ["**/fixtures/"]), false);
+    assert.equal(truncation.matchesExcludePattern("docs/a/b.md", ["docs/*/"]), true);
+    assert.equal(truncation.matchesExcludePattern("x/docs/a/b.md", ["docs/*/"]), false);
+  });
+  it("the pattern is recorded as written and stays a wildcard", () => {
+    assert.equal(truncation.isWildcardPattern("**/fixtures/"), true);
+    assert.deepEqual(truncation.normalizeExcludePatterns(["**/fixtures/"], "test"), ["**/fixtures/"]);
   });
 });
