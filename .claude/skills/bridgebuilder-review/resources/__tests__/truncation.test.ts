@@ -59,15 +59,38 @@ describe("loadReviewIgnore", () => {
     }
   });
 
-  it("normalizes directory patterns (trailing / becomes /**)", () => {
+  // cycle-135 C-1 (bd-ow72o): formerly "trailing / becomes /**"; the conversion is gone — a directory line is a
+  // non-wildcard segment pattern (FR-2: `.github/workflows/` is an explicit name).
+  it("keeps directory patterns as written (no / → /** conversion)", () => {
     const tmpDir = join(tmpdir(), `loa-test-${Date.now()}`);
     mkdirSync(tmpDir, { recursive: true });
     try {
       writeFileSync(join(tmpDir, ".reviewignore"), "vendor/\nbuild/\n");
       const patterns = loadReviewIgnore(tmpDir);
-      assert.ok(patterns.includes("vendor/**"), "should normalize vendor/ to vendor/**");
-      assert.ok(patterns.includes("build/**"), "should normalize build/ to build/**");
+      assert.ok(patterns.includes("vendor/"), "vendor/ stays vendor/");
+      assert.ok(patterns.includes("build/"), "build/ stays build/");
+      assert.ok(!patterns.includes("vendor/**") && !patterns.includes("build/**"), "no ** conversion");
     } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("normalises .reviewignore lines through the one loader (leading / or ./, ! rejected)", () => {
+    const tmpDir = join(tmpdir(), `loa-test-norm-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    mkdirSync(tmpDir, { recursive: true });
+    const original = process.stderr.write;
+    let err = "";
+    (process.stderr as unknown as { write: (c: unknown) => boolean }).write = (c: unknown) => {
+      err += String(c);
+      return true;
+    };
+    try {
+      writeFileSync(join(tmpDir, ".reviewignore"), "/abs.md\n./rel/\n  spaced.txt  \n!negated.md\n+(a|b).md\n");
+      const patterns = loadReviewIgnoreUserPatterns(tmpDir);
+      assert.deepEqual(patterns, ["abs.md", "rel/", "spaced.txt"]);
+      assert.ok(err.includes("!negated.md") && err.includes("+(a|b).md"), err);
+    } finally {
+      process.stderr.write = original;
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
@@ -156,13 +179,14 @@ describe("truncateFiles", () => {
       assert.equal(result.included[0].filename, "src/main.ts");
     });
 
-    it("excludes files matching substring pattern", () => {
-      const files = [file(".env.local", 1, 0), file("src/config.ts", 3, 1)];
+    // cycle-135 C-1 (bd-ow72o): formerly "excludes files matching substring pattern" (`.env` excluded `.env.local`).
+    // A non-wildcard pattern now names a whole segment: `.env` excludes `.env` and `config/.env`, not `.env.local`.
+    it("non-wildcard pattern excludes the whole segment only (no substring match)", () => {
+      const files = [file(".env.local", 1, 0), file("config/.env", 1, 0), file(".env", 1, 0), file("src/config.ts", 3, 1)];
       const config = { ...defaultConfig, excludePatterns: [".env"] };
       const result = truncateFiles(files, config);
 
-      assert.equal(result.included.length, 1);
-      assert.equal(result.included[0].filename, "src/config.ts");
+      assert.deepEqual(result.included.map((f) => f.filename).sort(), [".env.local", "src/config.ts"]);
     });
 
     it("excluded-by-pattern files appear in excluded list with annotation", () => {
@@ -536,7 +560,8 @@ describe("truncateFiles", () => {
           "secrets/\nvendor/internal-blob.bin\n# comment\n",
         );
         const patterns = loadReviewIgnoreUserPatterns(tmpDir);
-        assert.deepEqual(patterns.sort(), ["secrets/**", "vendor/internal-blob.bin"]);
+        // cycle-135 C-1: directory lines are kept as written (no `/` → `/**` conversion)
+        assert.deepEqual(patterns.sort(), ["secrets/", "vendor/internal-blob.bin"]);
         // CRITICAL: must NOT include LOA defaults like ".claude/**"
         assert.equal(patterns.includes(".claude/**"), false);
         assert.equal(patterns.includes("grimoires/**"), false);

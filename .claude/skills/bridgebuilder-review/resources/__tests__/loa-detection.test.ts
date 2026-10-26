@@ -1,7 +1,7 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import path, { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
   detectLoa,
@@ -14,8 +14,9 @@ import {
   matchesExcludePattern,
   SECURITY_PATTERNS,
   isLoaSystemZone,
-  hasNativeGlob,
 } from "../core/truncation.js";
+// cycle-135 C-1 (bd-ow72o): namespace access so a missing export fails its own case, not the whole file.
+import * as truncation from "../core/truncation.js";
 import type { PullRequestFile } from "../ports/git-provider.js";
 
 function file(
@@ -411,19 +412,20 @@ describe("matchesExcludePattern — dot-led segments (bd-a8l0c)", () => {
     assert.ok(!matchesExcludePattern("evals/tests/other/x.md", ["evals/tests/fixtures/**"]));
   });
 
-  // Holds on the native-glob branch only: the Node < 22 fallback's single-`*`
-  // branch (simplifiedGlobMatch prefix/suffix check) crosses `/`.
-  it("single * stays within one path segment (Node 22+ native-glob branch)", { skip: !hasNativeGlob }, () => {
+  // cycle-135 C-1 (bd-ow72o): one matcher on every Node version — no longer skipped.
+  it("single * stays within one path segment", () => {
     assert.ok(!matchesExcludePattern("evals/tests/fixtures/a/b.md", ["evals/tests/fixtures/*.md"]));
   });
 
-  // The unanchored substring match of non-wildcard patterns is pre-existing and tracked separately (not fixed here).
   it("exact pattern still matches itself", () => {
     assert.ok(matchesExcludePattern(".loa-version.json", [".loa-version.json"]));
   });
 
-  it("substring pattern behaviour is unchanged", () => {
+  // cycle-135 C-1 (bd-ow72o): formerly "substring pattern behaviour is unchanged"; a directory name now matches
+  // the whole segment (same result here), never a substring of one.
+  it("directory-name pattern matches the whole segment", () => {
     assert.ok(matchesExcludePattern("grimoires/loa/prd.md", ["grimoires/"]));
+    assert.ok(!matchesExcludePattern("xgrimoires/loa/prd.md", ["grimoires/"]));
   });
 
   it("leading globstar matches zero segments (**/*.md excludes a root dot-file)", () => {
@@ -446,9 +448,11 @@ describe("matchesExcludePattern — dot-led segments (bd-a8l0c)", () => {
     assert.ok(!matchesExcludePattern("src/a/b.ts", ["src/**.ts"]));
   });
 
-  it("brace and class patterns are not dot-agnostic (known limitation)", () => {
-    assert.ok(!matchesExcludePattern(".hidden.ts", ["**/*.{ts,js}"]));
-    assert.ok(!matchesExcludePattern(".hidden/apple.md", ["**/[ab]*.md"]));
+  // cycle-135 C-1 (bd-ow72o): formerly "brace and class patterns are not dot-agnostic (known limitation)" with
+  // both results false; the one matcher translates braces and classes, so they are dot-agnostic like the rest.
+  it("brace and class patterns are dot-agnostic", () => {
+    assert.ok(matchesExcludePattern(".hidden.ts", ["**/*.{ts,js}"]));
+    assert.ok(matchesExcludePattern(".hidden/apple.md", ["**/[ab]*.md"]));
   });
 
   it("consecutive globstars collapse to one (a/**/**/b.md)", () => {
@@ -641,4 +645,146 @@ describe("matchesExcludePattern — enhanced glob patterns", () => {
     assert.ok(matchesExcludePattern("src/file.test.ts", ["src/**/*.test.ts"]));
     assert.ok(matchesExcludePattern("pkg(1).ts", ["pkg(1).ts"]));
   });
+});
+
+// --- cycle-135 C-1 (bd-ow72o): one matcher, one grammar ---
+
+/** Run `fn` with process.stderr.write captured; returns the captured text. */
+function captureStderr(fn: () => void): string {
+  const original = process.stderr.write;
+  let out = "";
+  (process.stderr as unknown as { write: (chunk: unknown) => boolean }).write = (chunk: unknown) => {
+    out += String(chunk);
+    return true;
+  };
+  try {
+    fn();
+  } finally {
+    process.stderr.write = original;
+  }
+  return out;
+}
+
+/** [filename, pattern, expected] — the grammar every Node version must give identically. */
+const GRAMMAR_CASES: Array<[string, string, boolean]> = [
+  // non-wildcard, no "/": a whole segment at any depth
+  ["PROCESS.md", "PROCESS.md", true],
+  ["docs/PROCESS.md", "PROCESS.md", true],
+  ["MYPROCESS.md", "PROCESS.md", false],
+  ["PROCESS.md.old", "PROCESS.md", false],
+  ["a/vendor/b.js", "vendor", true],
+  ["a/vendors/b.js", "vendor", false],
+  // non-wildcard with "/": root-anchored path or subtree
+  ["a/b", "a/b", true],
+  ["a/b/c", "a/b", true],
+  ["x/a/b", "a/b", false],
+  ["a/bc", "a/b", false],
+  // one trailing "/" stripped
+  ["secrets/k.env", "secrets/", true],
+  ["src/secrets/k.env", "secrets/", true],
+  ["mysecrets/k.env", "secrets/", false],
+  [".github/workflows/ci.yml", ".github/workflows/", true],
+  ["x/.github/workflows/ci.yml", ".github/workflows/", false],
+  // dot-segment globs, zero-segment globstar, single *
+  [".hidden.md", "**/*.md", true],
+  ["a/.hidden/b.md", "**/*.md", true],
+  ["fixtures/.hidden.json", "fixtures/*.json", true],
+  ["fixtures/a/b.json", "fixtures/*.json", false],
+  ["fixtures/.hidden.json", "fixtures/**/*.json", true],
+  // one-level braces and classes, dot-led paths included
+  [".claude/x.json", "**/*.{json,md}", true],
+  [".hidden/y.md", "**/*.{json,md}", true],
+  [".hidden/y.ts", "**/*.{json,md}", false],
+  [".github/x.ts", "**/*.[jt]s", true],
+  [".cfg/y.js", "**/*.[jt]s", true],
+  [".cfg/y.cs", "**/*.[jt]s", false],
+  [".d/c.md", "**/[!ab]*.md", true],
+  [".d/a.md", "**/[!ab]*.md", false],
+  ["src/a1.ts", "src/a[0-9].ts", true],
+  ["src/ab.ts", "src/a[0-9].ts", false],
+];
+
+describe("matchesExcludePattern — one grammar (cycle-135 C-1, bd-ow72o)", () => {
+  it("the defaults exclude whole names, never substrings", () => {
+    for (const name of ["util.loa-version.json.ts", "x/.loa-version.json.bak", "MYPROCESS.md", "PROCESS.md.old"]) {
+      assert.ok(!matchesExcludePattern(name, LOA_EXCLUDE_PATTERNS), `${name} must not be excluded by the defaults`);
+    }
+    for (const name of [".loa-version.json", "docs/PROCESS.md", "BUTTERFREEZONE.md"]) {
+      assert.ok(matchesExcludePattern(name, LOA_EXCLUDE_PATTERNS), `${name} must be excluded by the defaults`);
+    }
+  });
+
+  it("a/b excludes a/b/c and not x/a/b", () => {
+    assert.ok(matchesExcludePattern("a/b/c", ["a/b"]));
+    assert.ok(!matchesExcludePattern("x/a/b", ["a/b"]));
+  });
+
+  for (const [filename, pattern, expected] of GRAMMAR_CASES) {
+    it(`${pattern} ${expected ? "matches" : "does not match"} ${filename}`, () => {
+      assert.equal(matchesExcludePattern(filename, [pattern]), expected);
+    });
+  }
+
+  it("gives identical results with path.matchesGlob removed (the matcher never consults it)", () => {
+    const holder = path as unknown as Record<string, unknown>;
+    const had = Object.prototype.hasOwnProperty.call(holder, "matchesGlob");
+    const saved = holder.matchesGlob;
+    delete holder.matchesGlob;
+    try {
+      for (const [filename, pattern, expected] of GRAMMAR_CASES) {
+        assert.equal(matchesExcludePattern(filename, [pattern]), expected, `${pattern} vs ${filename}`);
+      }
+      assert.ok(matchesExcludePattern("util.ts", ["util.ts"]));
+    } finally {
+      if (had) holder.matchesGlob = saved;
+    }
+  });
+
+  it("the Node < 22 fallback and the native-glob probe are gone", () => {
+    const mod = truncation as unknown as Record<string, unknown>;
+    assert.equal(mod.hasNativeGlob, undefined);
+    assert.equal(mod.simplifiedGlobMatch, undefined);
+  });
+
+  it("isWildcardPattern is the [*?{[] test", () => {
+    for (const p of ["*.md", "a?", "{a,b}", "[ab]"]) assert.equal(truncation.isWildcardPattern(p), true, p);
+    for (const p of ["a/b", "PROCESS.md", "x}", "y]"]) assert.equal(truncation.isWildcardPattern(p), false, p);
+  });
+});
+
+describe("normalizeExcludePatterns (cycle-135 C-1, bd-ow72o)", () => {
+  it("trims, strips one leading ./ or /, drops blank entries and keeps the trailing /", () => {
+    const out = truncation.normalizeExcludePatterns(["  /README.md ", "./x", "docs/", "\t", ""], "test");
+    assert.deepEqual(out, ["README.md", "x", "docs/"]);
+    assert.ok(matchesExcludePattern("README.md", out));
+    assert.ok(matchesExcludePattern("x/y.ts", out));
+    assert.ok(matchesExcludePattern("docs/a.md", out));
+    assert.ok(!matchesExcludePattern("src/README.md.bak", out));
+  });
+
+  it("rejects a ! negation line with one WARN naming it", () => {
+    let out: string[] = [];
+    const err = captureStderr(() => {
+      out = truncation.normalizeExcludePatterns(["!keep.md", "drop.md"], ".reviewignore");
+    });
+    assert.deepEqual(out, ["drop.md"]);
+    assert.equal(err.split("\n").filter((l) => l.includes("WARN")).length, 1, err);
+    assert.ok(err.includes("!keep.md"), err);
+  });
+
+  for (const bad of ["+(a|b).md", "a\\*.md", "@(x).md", "x/!(y).md", "{a,{b,c}}.md", "{a,b.md", "a,b}.md*", "[ab.md", "src/[z-a].ts"]) {
+    it(`rejects ${bad} at load with one WARN and it matches nothing`, () => {
+      let out: string[] = ["sentinel"];
+      const err = captureStderr(() => {
+        out = truncation.normalizeExcludePatterns([bad], "test");
+      });
+      assert.deepEqual(out, []);
+      assert.equal(err.split("\n").filter((l) => l.includes("WARN")).length, 1, err);
+      assert.ok(err.includes(JSON.stringify(bad)), err); // the WARN names the pattern JSON-quoted (no log injection)
+      // passed straight to the matcher (bypassing load), a rejected pattern still matches nothing
+      for (const name of [bad, "a.md", "b.md", "a*.md", "x/y.md", "src/a.ts"]) {
+        assert.equal(matchesExcludePattern(name, [bad]), false, `${bad} vs ${name}`);
+      }
+    });
+  }
 });
