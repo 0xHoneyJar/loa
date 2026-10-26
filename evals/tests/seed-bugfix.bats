@@ -8,7 +8,13 @@
 # whose every field validates; a fix touching .claude/ is refused by name and
 # writes nothing; --dry-run writes nothing; a fix whose test is already green
 # at the parent fails its proof (exit 1, nothing written); a fix outside the
-# allowed roots is skipped; usage errors are exit 2.
+# allowed roots is skipped; usage errors are exit 2; --id-prefix names the ids
+# (bugfix-v3-01) and refuses a prefix outside [a-z0-9][a-z0-9-]{0,60}; a failed proof
+# leaves nothing staged, so the next candidate takes the freed id (SB-8); --fixture-scope
+# roots carries the whole allowed-roots slice and names the changed test files (SB-9); a
+# fixture file of git mode 100755 keeps its executable bit (SB-10); the proof runs under the
+# grader's deadline and kills the whole process group at it (SB-11); --ignore-paths leaves the
+# fix's documentation out of the task (SB-12); --runner picks the hidden check of a mixed candidate (SB-13).
 # =============================================================================
 
 setup() {
@@ -132,7 +138,7 @@ commit_claude_fix() {
   [ "$(yq -r .source.fix_commit "$S/tasks/bugfix-01/task.yaml")" != "$SHA" ]
 }
 
-@test "SB-3 --dry-run lists candidates and refusals and writes nothing" {
+@test "SB-3 --dry-run lists candidates and refusals and writes nothing; --rev bounds the listing to a revision" {
   commit_clean_fix
   commit_claude_fix
   run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run
@@ -141,6 +147,15 @@ commit_claude_fix() {
   grep -q '^refused .*: .claude/x.sh$' <<<"$output"
   grep -q '1 candidate(s), 1 refused, 0 skipped; dry run, nothing written' <<<"$output"
   [ ! -e "$S" ]
+  # --rev lists the commits reachable from a revision: HEAD~1 leaves out the newest (the .claude/ fix)
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run --rev HEAD~1
+  [ "$status" -eq 0 ]
+  grep -q '^candidate ' <<<"$output"
+  ! grep -q '^refused' <<<"$output" || false
+  grep -q '1 candidate(s), 0 refused, 0 skipped; dry run, nothing written' <<<"$output"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run --rev no-such-branch
+  [ "$status" -eq 2 ]
+  grep -q 'rev is not a commit' <<<"$output"
 }
 
 @test "SB-4 a fix whose test is already green at the parent fails its proof: exit 1, nothing written" {
@@ -188,4 +203,228 @@ commit_claude_fix() {
   run "$SEED" --help
   [ "$status" -eq 0 ]
   grep -q 'Exit: 0 done' <<<"$output"
+}
+
+@test "SB-7 --id-prefix names the task ids (a version-bearing id, bugfix-v3-01); a prefix outside the grammar is exit 2" {
+  commit_clean_fix
+  FIX="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --id-prefix bugfix-v3 --suite-version 3
+  [ "$status" -eq 0 ]
+  grep -qx "proof bugfix-v3-01 ${FIX:0:12}: red 2 failed / green 3 passed" <<<"$output"
+  grep -q "^wrote $S/tasks/bugfix-v3-01\$" <<<"$output"
+  [ "$(ls "$S/tasks")" = "bugfix-v3-01" ]
+  [ "$(yq -r .id "$S/tasks/bugfix-v3-01/task.yaml")" = "bugfix-v3-01" ]
+  [ "$(yq -r .fixture "$S/tasks/bugfix-v3-01/task.yaml")" = "tasks/bugfix-v3-01/fixture" ]
+  [ "$(yq -r .suite_version "$S/tasks/bugfix-v3-01/task.yaml")" = "3" ]
+  # the next free number continues the prefix, the default prefix is untouched
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --id-prefix bugfix-v3 --suite-version 3
+  [ "$status" -eq 0 ]
+  grep -q "^wrote $S/tasks/bugfix-v3-02\$" <<<"$output"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G"
+  [ "$status" -eq 0 ]
+  grep -q "^wrote $S/tasks/bugfix-01\$" <<<"$output"
+  # grammar: lower-case letters, digits and hyphens, a letter or digit first
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run --id-prefix Bugfix
+  [ "$status" -eq 2 ]
+  grep -q 'id-prefix must match' <<<"$output"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run --id-prefix -v3
+  [ "$status" -eq 2 ]
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run --id-prefix 'a/b'
+  [ "$status" -eq 2 ]
+}
+
+@test "SB-8 a failed proof leaves nothing staged: the next candidate takes the freed id instead of dying on EEXIST" {
+  commit_clean_fix
+  CLEAN="$(git -C "$G" rev-parse HEAD)"
+  # the newer candidate (tried first) fails its proof: its test is already green at the parent
+  printf '\ndef test_more():\n    assert round_half(0.2) == 0\n' >> "$G/tools/mathx/tests/test_rounding.py"
+  echo '# comment' >> "$G/tools/mathx/rounding.py"
+  gc add -A; gc commit -q -m "fix: a cosmetic change"
+  GREEN="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" --since 2000-01-01 --select 2 --out "$S" --repo "$G"
+  [ "$status" -eq 1 ]
+  grep -q "^proof-failed ${GREEN:0:12}: not red at base" <<<"$output"
+  ! grep -q 'File exists' <<<"$output" || false
+  grep -qx "proof bugfix-01 ${CLEAN:0:12}: red 2 failed / green 3 passed" <<<"$output"
+  grep -q "^wrote $S/tasks/bugfix-01\$" <<<"$output"
+  grep -q 'selected 2, written 1, proof failed 1' <<<"$output"
+  [ "$(ls "$S/tasks")" = "bugfix-01" ]
+  [ "$(yq -r .source.fix_commit "$S/tasks/bugfix-01/task.yaml")" = "$CLEAN" ]
+}
+
+@test "SB-9 --fixture-scope roots: the fixture is the whole allowed-roots slice, the command names the changed test file, the brief names no test" {
+  # a helper in another directory, present at the parent and untouched by the fix: the touched-scope fixture misses it;
+  # a data file beside the tests is test infrastructure (protected) in either scope
+  mkdir -p "$G/tools/common"
+  echo "2.5 3" > "$G/tools/mathx/tests/cases.txt"
+  cat > "$G/tools/common/util.py" <<'PY'
+import math
+
+
+def half_away(x):
+    return int(math.copysign(math.floor(abs(x) + 0.5), x))
+PY
+  gc add -A; gc commit -q -m "chore: a shared helper"
+  cat > "$G/tools/mathx/rounding.py" <<'PY'
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "common"))
+from util import half_away  # noqa: E402
+
+
+def round_half(x):
+    """Round to the nearest integer, halves away from zero."""
+    return half_away(x)
+PY
+  cat >> "$G/tools/mathx/tests/test_rounding.py" <<'PY'
+
+def test_negative_half():
+    assert round_half(-2.5) == -3
+PY
+  gc add -A; gc commit -q -m "fix(mathx): negative halves round away from zero"
+  FIX="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G"
+  [ "$status" -eq 1 ]
+  grep -q "^proof-failed ${FIX:0:12}: not green at reference" <<<"$output"
+  [ ! -e "$S/tasks" ]
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --fixture-scope roots --suite-version "$(yq -r .suite_version "$REPO_ROOT/evals/suites/ablation-2.0.yaml")"
+  [ "$status" -eq 0 ]
+  grep -qx "proof bugfix-01 ${FIX:0:12}: red 1 failed / green 2 passed" <<<"$output"
+  D="$S/tasks/bugfix-01"
+  # the roots slice: the helper's directory is in, docs/ (outside the roots) is out
+  [ "$(cd "$D/fixture" && find . -type f | sort | tr '\n' ' ')" = "./tools/common/util.py ./tools/mathx/rounding.py ./tools/mathx/tests/cases.txt ./tools/mathx/tests/conftest.py ./tools/mathx/tests/test_rounding.py " ]
+  [ "$(yq -o=json -I=0 .test_command "$D/task.yaml")" = '["python3","-m","pytest","-q","tools/mathx/tests/test_rounding.py"]' ]
+  [ "$(yq -o=json -I=0 .grader_protected "$D/task.yaml")" = '["tools/mathx/tests/cases.txt","tools/mathx/tests/conftest.py"]' ]
+  grep -q 'Run the tests under `tools/mathx/tests` that cover the code you change, with `python3 -m pytest -q <file>`' "$D/TASK.md"
+  ! grep -qE 'test_rounding|half_away|hidden' "$D/TASK.md" || false
+  run "$VS" --root "$S" --allow-partial
+  [ "$status" -eq 0 ]
+}
+
+@test "SB-10 a fixture file of git mode 100755 keeps its executable bit (a shell tool the hidden bats test runs)" {
+  export LOA_SEED_BATS="${LOA_SEED_BATS:-$BATS_ROOT/bin/bats}"
+  [ -x "$LOA_SEED_BATS" ] || skip "no bats binary for the proof"
+  mkdir -p "$G/tools/greet/tests"
+  printf '#!/usr/bin/env bash\necho "hello $1"\n' > "$G/tools/greet/greet.sh"; chmod +x "$G/tools/greet/greet.sh"
+  cat > "$G/tools/greet/tests/greet.bats" <<'B'
+setup() { T="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/greet.sh"; }
+@test "greets" { run "$T" world; [ "$status" -eq 0 ]; [ "$output" = "hello world" ]; }
+B
+  gc add -A; gc commit -q -m "chore: a greeter"
+  printf '#!/usr/bin/env bash\necho "hello ${1:-stranger}"\n' > "$G/tools/greet/greet.sh"
+  cat >> "$G/tools/greet/tests/greet.bats" <<'B'
+@test "greets a stranger" { run "$T"; [ "$status" -eq 0 ]; [ "$output" = "hello stranger" ]; }
+B
+  gc add -A; gc commit -q -m "fix(greet): a missing name is a stranger"
+  FIX="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --rev HEAD
+  [ "$status" -eq 0 ]
+  grep -qx "proof bugfix-01 ${FIX:0:12}: red 1 failed / green 2 passed" <<<"$output"
+  [ -x "$S/tasks/bugfix-01/fixture/tools/greet/greet.sh" ]
+  [ ! -x "$S/tasks/bugfix-01/fixture/tools/greet/tests/greet.bats" ]
+  [ "$(yq -o=json -I=0 .test_command "$S/tasks/bugfix-01/task.yaml")" = '["bats","tools/greet/tests"]' ]
+}
+
+@test "SB-11 the proof runs under the grader's deadline: a slow suite fails with exit 124 and leaves no process behind" {
+  export LOA_SEED_BATS="${LOA_SEED_BATS:-$BATS_ROOT/bin/bats}"
+  [ -x "$LOA_SEED_BATS" ] || skip "no bats binary for the proof"
+  mkdir -p "$G/tools/slow/tests"
+  printf '#!/usr/bin/env bash\necho "slow $1"\n' > "$G/tools/slow/slow.sh"; chmod +x "$G/tools/slow/slow.sh"
+  cat > "$G/tools/slow/tests/slow.bats" <<'B'
+setup() { T="$(cd "$(dirname "$BATS_TEST_FILENAME")/.." && pwd)/slow.sh"; }
+@test "slow" { sleep 37; run "$T" x; [ "$output" = "slow x" ]; }
+B
+  gc add -A; gc commit -q -m "chore: a slow tool"
+  printf '#!/usr/bin/env bash\necho "slow ${1:-y}"\n' > "$G/tools/slow/slow.sh"
+  printf '@test "default" { sleep 37; run "$T"; [ "$output" = "slow y" ]; }\n' >> "$G/tools/slow/tests/slow.bats"
+  gc add -A; gc commit -q -m "fix(slow): a default name"
+  FIX="$(git -C "$G" rev-parse HEAD)"
+  s=$SECONDS
+  LOA_EVAL_GRADE_TIMEOUT_S=3 run "$SEED" --since 2000-01-01 --out "$S" --repo "$G"
+  [ "$status" -eq 1 ]
+  grep -qx "proof-failed ${FIX:0:12}: not red at base (exit 124, 0 failed, 0 passed)" <<<"$output"
+  [ $((SECONDS - s)) -lt 30 ]
+  [ ! -e "$S/tasks" ]
+  # -x: the whole command line is exactly `sleep 37` (a shell whose argv quotes this file is not a survivor);
+  # SIGKILL delivery is asynchronous, so allow a few seconds
+  for _ in 1 2 3 4 5; do pgrep -x -f 'sleep 37' >/dev/null || break; sleep 1; done
+  ! pgrep -x -f 'sleep 37' >/dev/null || false
+  LOA_EVAL_GRADE_TIMEOUT_S=abc run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run
+  [ "$status" -eq 2 ]
+  grep -q 'LOA_EVAL_GRADE_TIMEOUT_S must be 1-9999' <<<"$output"
+}
+
+@test "SB-12 --ignore-paths leaves the fix's documentation out of the task: a commit touching grimoires/ is seeded without it, recorded in source.origin" {
+  mkdir -p "$G/grimoires/loa"
+  echo "notes" > "$G/grimoires/loa/NOTES.md"; gc add -A; gc commit -q -m "chore: notes"
+  cat > "$G/tools/mathx/rounding.py" <<'PY'
+import math
+
+
+def round_half(x):
+    """Round to the nearest integer, halves away from zero."""
+    return int(math.copysign(math.floor(abs(x) + 0.5), x))
+PY
+  printf '\ndef test_negative_half():\n    assert round_half(-2.5) == -3\n' >> "$G/tools/mathx/tests/test_rounding.py"
+  echo "- DEC: negative halves" >> "$G/grimoires/loa/NOTES.md"
+  gc add -A; gc commit -q -m "fix(mathx): negative halves round away from zero; decision recorded"
+  FIX="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run
+  [ "$status" -eq 0 ]
+  grep -qx "refused ${FIX:0:12}: grimoires/loa/NOTES.md" <<<"$output"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --ignore-paths grimoires --suite-version "$(yq -r .suite_version "$REPO_ROOT/evals/suites/ablation-2.0.yaml")"
+  [ "$status" -eq 0 ]
+  grep -qx "proof bugfix-01 ${FIX:0:12}: red 1 failed / green 2 passed" <<<"$output"
+  D="$S/tasks/bugfix-01"
+  [ -z "$(find "$D" -path '*grimoires*')" ]
+  ! grep -q 'NOTES' "$D/hidden/reference.patch" || false
+  [ "$(yq -r .source.origin "$D/task.yaml")" = "touched paths left out of the task (--ignore-paths): grimoires/loa/NOTES.md" ]
+  ! grep -q 'grimoires' "$D/TASK.md" || false
+  run "$VS" --root "$S" --allow-partial
+  [ "$status" -eq 0 ]
+  # a commit whose every path is ignored is skipped, not refused; a bad prefix is exit 2
+  echo "more" >> "$G/grimoires/loa/NOTES.md"; gc add -A; gc commit -q -m "fix: notes only"
+  ONLY="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --ignore-paths grimoires --dry-run
+  grep -qx "skipped ${ONLY:0:12}: every touched path is ignored" <<<"$output"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --ignore-paths ../x --dry-run
+  [ "$status" -eq 2 ]
+}
+
+@test "SB-13 --runner picks the hidden check of a mixed candidate; the other runner's changed test stays at base" {
+  export LOA_SEED_BATS="${LOA_SEED_BATS:-$BATS_ROOT/bin/bats}"
+  [ -x "$LOA_SEED_BATS" ] || skip "no bats binary for the proof"
+  printf '#!/usr/bin/env bash\npython3 -c "import sys; sys.path.insert(0, \\"%s\\"); from rounding import round_half; print(round_half(float(sys.argv[1])))" "$1"\n' "$G/tools/mathx" > "$G/tools/mathx/round.sh"
+  chmod +x "$G/tools/mathx/round.sh"
+  printf '@test "cli" { run "$(dirname "$BATS_TEST_FILENAME")/../round.sh" 2.5; [ "$output" = "3" ]; }\n' > "$G/tools/mathx/tests/cli.bats"
+  gc add -A; gc commit -q -m "chore: a cli"
+  cat > "$G/tools/mathx/rounding.py" <<'PY'
+import math
+
+
+def round_half(x):
+    """Round to the nearest integer, halves away from zero."""
+    return int(math.copysign(math.floor(abs(x) + 0.5), x))
+PY
+  printf '\ndef test_negative_half():\n    assert round_half(-2.5) == -3\n' >> "$G/tools/mathx/tests/test_rounding.py"
+  printf '@test "cli negative" { run "$(dirname "$BATS_TEST_FILENAME")/../round.sh" -2.5; [ "$output" = "-3" ]; }\n' >> "$G/tools/mathx/tests/cli.bats"
+  gc add -A; gc commit -q -m "fix(mathx): negative halves round away from zero, cli too"
+  FIX="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run
+  grep -qx "skipped ${FIX:0:12}: mixed test runners (pytest and bats)" <<<"$output"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --runner pytest --fixture-scope roots --suite-version "$(yq -r .suite_version "$REPO_ROOT/evals/suites/ablation-2.0.yaml")"
+  [ "$status" -eq 0 ]
+  grep -qx "proof bugfix-01 ${FIX:0:12}: red 1 failed / green 2 passed" <<<"$output"
+  D="$S/tasks/bugfix-01"
+  [ "$(jq -r '.files[].dest' "$D/hidden/manifest.json")" = "tools/mathx/tests/test_rounding.py" ]
+  # the bats test is in the fixture at its base version (one case), not under hidden/
+  [ "$(grep -c '^@test' "$D/fixture/tools/mathx/tests/cli.bats")" = "1" ]
+  [ ! -e "$D/hidden/tests/tools/mathx/tests/cli.bats" ]
+  [ "$(yq -r .source.origin "$D/task.yaml")" = "changed tests of the other runner left at base (--runner): tools/mathx/tests/cli.bats" ]
+  [ "$(yq -o=json -I=0 .test_command "$D/task.yaml")" = '["python3","-m","pytest","-q","tools/mathx/tests/test_rounding.py"]' ]
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --runner bats --dry-run
+  grep -q "^candidate ${FIX:0:12} " <<<"$output"
+  run "$VS" --root "$S" --allow-partial
+  [ "$status" -eq 0 ]
 }

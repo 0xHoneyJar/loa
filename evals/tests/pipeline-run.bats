@@ -521,11 +521,15 @@ YAML
   [ ! -e "$T/log/call-1.argv" ]
 }
 
-@test "leak guard: an arm id inside the sandbox tree is refused (exit 2)" {
-  echo "a1_full" > "$T/suite/tasks/bf-01/fx/src/notes.txt"
+@test "leak guard: an arm id in a sandbox file the pristine fixture does not carry is refused (exit 2); one the fixture carries is fixture-native (BV-1)" {
+  # suite v3: the fixture itself may name the arms (arm_ids_fixture_native); the pinned tree's .claude/ may not
+  mkdir -p "$T/src/.claude"
+  echo "a1_full" > "$T/src/.claude/notes.md"
+  ( cd "$T/src" && git add -A && git -c user.email=t@t -c user.name=t commit -qm notes )
   run_pr a1_full
   [ "$status" -eq 2 ]
-  [[ "$output" == *"arm id appears in the sandbox"* ]]
+  [[ "$output" == *"arm id appears in the sandbox: .claude/notes.md"* ]]
+  [ ! -e "$T/log/call-1.argv" ]
 }
 
 @test "leak guard: a fixture carrying a hidden directory is refused (exit 2)" {
@@ -1431,6 +1435,38 @@ arm_named_pr() {
   run_pr a1_full "$BUILD"
   [ "$status" -eq 0 ]
   [ "$(evline arm_ids_pr_native)" = none ]
+}
+
+@test "BV-1 a build task whose pristine fixture names the running arm launches (arm_ids_fixture_native); the same id planted outside the fixture (.claude/x.md) still refuses; the brief stays strict" {
+  # suite v3: fixtures cut from Loa's ablation analysis name every arm; the fixture is the same tree for every arm
+  printf 'ARMS = ["a0_bare", "a1_full"]\nprint(1)\n' > "$(dirname "$BUILD")/fx/src/app.py"
+  run_pr a1_full "$BUILD"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(evline arm_ids_fixture_native)" = "a0_bare,a1_full" ]
+  [ "$(evline arm_ids_pr_native)" = none ]
+  grep -q a1_full "$T/run/sandbox/src/app.py"
+  [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = completed ]
+  # the exemption covers fixture files only: the pinned tree's .claude/x.md naming the arm is still a leak
+  fresh_run
+  mkdir -p "$T/src/.claude"
+  printf 'notes for a1_full\n' > "$T/src/.claude/x.md"
+  ( cd "$T/src" && git add -A && git -c user.email=t@t -c user.name=t commit -qm x )
+  run_pr a1_full "$BUILD"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"arm id appears in the sandbox: .claude/x.md"* ]]
+  [ ! -e "$T/log/call-1.argv" ]
+  # the brief stays fully strict even when the fixture names the id
+  fresh_run
+  ( cd "$T/src" && git rm -q .claude/x.md && git -c user.email=t@t -c user.name=t commit -qm y )
+  export STUB_BRIEF_EXTRA="as a1_full"
+  run_pr a1_full "$BUILD"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"arm id appears in the sandbox: grimoires/loa/context/task-brief.md"* || "$output" == *"task-brief.md leaks arm id a1_full"* ]]
+  # a review-catch task keeps the PR rule only: a fixture-native id does not apply there
+  fresh_run; unset STUB_BRIEF_EXTRA
+  run_pr a1_full "$REVIEWC"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ "$(evline arm_ids_fixture_native)" = none ]
 }
 
 @test "PR-c132-10 the task brief stays fully strict: an arm id in the brief refuses even when the PR names the same id" {

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ablation-grade-stub.sh — stand-in for ablation-grade.sh in evals/tests/run-ablation.bats.
 #   ablation-grade-stub.sh <run-dir> <task-id> --suite-root R [--tasks-dir T] [--executor …]
-#     [--image …] [--docker-bin …] [--allow-partial]
+#     [--image …] [--docker-bin …] [--allow-partial] [--suite-file F]
 # Writes <run-dir>/grade.json: build tasks {hidden_tests 3/4, regressions none}, review-catch
 # {recall 1 of 2, verdict CHANGES_REQUIRED}. STUB_GRADE_LOG gets the argv (one line; " --allow-partial"
-# appended when given);
+# appended when given, then " --suite-file <basename>" when given — the runner passes its suite file through);
 # a run_id matching the glob in STUB_GRADE_FAIL exits 2 without writing; one matching the glob
 # in STUB_GRADE_HANG sleeps 600 s before writing (the runner's grade deadline, Sprint 260 LOW-4).
 # cycle-132: a run_id matching STUB_GRADE_CONTAM gets contaminated {phase, pattern: network_egress}; --union <cell>
@@ -20,6 +20,7 @@ ROOT="" TD=tasks AP=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --suite-root) ROOT="$2"; shift 2 ;;
+    --suite-file) AP="$AP --suite-file $(basename "$2")"; shift 2 ;;
     --tasks-dir) TD="$2"; shift 2 ;;
     --task-id) TASK="$2"; shift 2 ;;
     --executor|--image|--docker-bin) shift 2 ;;

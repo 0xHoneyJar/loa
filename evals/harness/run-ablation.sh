@@ -267,8 +267,9 @@
 #      version, pipeline.json image_digest must equal MANIFEST image_digest). A mismatch rows
 #      the trial infrastructure_error, records STATUS.json drift, launches nothing more and
 #      fails the batch once the running trials end
-#   5. ablation-grade.sh D <task> --suite-root … [--tasks-dir smoke] [--allow-partial] --executor … --image …
-#      --docker-bin … (scored runs that passed 3 and 4; exit 2 → row infrastructure_error)
+#   5. ablation-grade.sh D <task> --suite-root … --suite-file … [--tasks-dir smoke] [--allow-partial] --executor …
+#      --image … --docker-bin … (scored runs that passed 3 and 4; exit 2 → row infrastructure_error; the batch's
+#      --suite-file reaches the grader's freeze check, so a suite frozen against ablation-2.0-v3.yaml grades)
 #      under timeout -s TERM -k 30 $LOA_ABLATION_GRADE_TIMEOUT_S (default
 #      1800; unwrapped when timeout is absent): exit 124 or 137 → row infrastructure_error,
 #      `run-ablation: grade timed out after Ns` in the trial log, grade_rc keeps the exit
@@ -1629,7 +1630,7 @@ post_checks() {
         done < <(jq -r 'to_entries[] | [.key, (.value.phases | join(",")), (.value.output_tokens | tostring)] | @tsv' <<<"$PR_EXTRA")
         if [[ "$PR_DRIFT" != null ]]; then PR_OVERRIDE=infrastructure_error; printf 'run-ablation: drift %s\n' "$PR_DRIFT" >> "$plog"; fi
         if [[ -z "$PR_OVERRIDE" ]]; then
-          local -a g=("$GRADE_BIN" "$rd" "$task" --suite-root "$SUITE_ROOT" --executor "$EXECUTOR" --image "$IMAGE" --docker-bin "$DOCKER_BIN")
+          local -a g=("$GRADE_BIN" "$rd" "$task" --suite-root "$SUITE_ROOT" --suite-file "$SUITE_FILE" --executor "$EXECUTOR" --image "$IMAGE" --docker-bin "$DOCKER_BIN")
           [[ "$SMOKE" == true ]] && g+=(--tasks-dir smoke)
           [[ "$ALLOW_PARTIAL" == true ]] && g+=(--allow-partial)
           PR_GRC=0; ${GRADE_TMO[@]+"${GRADE_TMO[@]}"} "${g[@]}" >> "$plog" 2>&1 || PR_GRC=$?
@@ -1868,7 +1869,7 @@ PY
     else te=fail; ter="took-effect exit $trc: $(grep -E ' FAIL' <<<"$tout" | head -4 | cut -c1-200 | tr '\n' ';' || true)"; fi
   fi
   if [[ -z "$override" ]]; then
-    local -a g=("$GRADE_BIN" --union "$cell" --task-id "$task" --suite-root "$SUITE_ROOT")
+    local -a g=("$GRADE_BIN" --union "$cell" --task-id "$task" --suite-root "$SUITE_ROOT" --suite-file "$SUITE_FILE")
     [[ "$SMOKE" == true ]] && g+=(--tasks-dir smoke)
     [[ "$ALLOW_PARTIAL" == true ]] && g+=(--allow-partial)
     ${GRADE_TMO[@]+"${GRADE_TMO[@]}"} "${g[@]}" >> "$clog" 2>&1 || grc=$?

@@ -1,0 +1,16 @@
+id: bugfix-v3-06
+schema_version: 1
+type: bug-fix
+source: {kind: "loa-history", fix_commit: "9544948b6413fe838783a2f8daf4d7236efde800", base_commit: "c24083920ec996c90a187c6bf4f19ba551e78479", date: "2026-10-22", origin: "touched paths left out of the task (--ignore-paths): evals/tests/analysis-c132.bats"}
+post_cutoff: true
+fixture: tasks/bugfix-v3-06/fixture
+criterion: "the contaminated-cells sensitivity is a family with one re-read per observed contamination class plus every class at once, the network-egress class split into nonrepo, repo and unstated, and the legacy single-class name still runs its member"
+success_criterion: "hidden/tests/evals/analysis/c132/tests/test_reads.py (overlaid at evals/analysis/c132/tests/test_reads.py) passes 39 of 39 under python3 -m pytest -q evals/analysis/c132/tests/test_reads.py; red at base (3 failed), green with hidden/reference.patch"
+test_command: ["python3", "-m", "pytest", "-q", "evals/analysis/c132/tests/test_reads.py"]
+regression_command: null
+reference_patch: hidden/reference.patch
+grader_protected: ["evals/analysis/c132/tests/_path.py", "evals/analysis/c132/tests/fixtures/merge/annotation.schema.json", "evals/analysis/c132/tests/fixtures/power-mini/candidates.tsv", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-91/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-92/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-93/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/fixtures/pr-94/head.diff", "evals/analysis/c132/tests/fixtures/power-mini/rows.jsonl", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-a/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-b/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-c/task.yaml", "evals/analysis/c132/tests/fixtures/power-mini/suite/tasks/review-d/task.yaml", "evals/analysis/c132/tests/synth.py"]
+structural_check: null
+bounds: {max_turns: {}, timeout_min: {}}
+review_catch: null
+suite_version: 3

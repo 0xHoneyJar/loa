@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import site
 import subprocess
 import sys
@@ -27,7 +28,7 @@ TYPE = {"bugfix": "bug-fix", "refactor": "refactor"}
 ID_PREFIX = {"bugfix": "bugfix", "refactor": "refactor"}
 INFRA_ROOT_FILES = ("pytest.ini", "pyproject.toml", "setup.cfg", "tox.ini")
 CUTOFF = "2026-08-01"
-RUN_TIMEOUT = 120
+RUN_TIMEOUT = 120   # the proof's per-run deadline in seconds; LOA_EVAL_GRADE_TIMEOUT_S (the grader's) overrides it, see parse()
 MAX_COVERING_TESTS = 20
 
 
@@ -82,8 +83,8 @@ def under_roots(p, roots):
     return any(p == r or p.startswith(r + "/") for r in roots)
 
 
-def commits_since(repo, since):
-    raw = git(repo, "log", f"--since={since}", "--no-merges", "--format=%H%x1f%P%x1f%cs%x1f%s%x1e")
+def commits_since(repo, since, rev="HEAD"):
+    raw = git(repo, "log", rev, f"--since={since}", "--no-merges", "--format=%H%x1f%P%x1f%cs%x1f%s%x1e")
     for rec in raw.split("\x1e"):
         rec = rec.strip("\n")
         if not rec:
@@ -135,28 +136,35 @@ def tree_files(repo, commit, prefix=None):
 
 
 # ---------------------------------------------------------------- materialise
-def write_file(root, rel, data):
+def write_file(root, rel, data, mode=None):
+    """Write bytes under root; a blob of git mode 100755 keeps its executable bit (a shell tool the tests run)."""
     if not safe_path(rel):
         raise ValueError(f"unsafe path: {rel!r}")
     dest = os.path.join(root, rel)
     os.makedirs(os.path.dirname(dest), exist_ok=True)
     with open(dest, "wb") as fh:
         fh.write(data)
+    if mode == "100755":
+        os.chmod(dest, 0o755)
 
 
-def put_from(repo, commit, rel, root, dest_rel=None):
+def put_from(repo, commit, rel, root, dest_rel=None, skip_links=False):
     b = blob(repo, commit, rel)
     if b is None:
         return False
     mode, data = b
     if mode == "120000":
+        if skip_links:
+            return False
         raise ValueError(f"symlink in history: {rel}")
-    write_file(root, dest_rel or rel, data)
+    write_file(root, dest_rel or rel, data, mode)
     return True
 
 
 def helper_files(repo, commit, test_paths):
-    """Test infrastructure the tests rely on: conftest.py up to the root, helpers in each test dir, root runner configs."""
+    """Test infrastructure the tests rely on: conftest.py up to the root, every non-test file in and below each
+    test's directory (import shims, synthetic-data builders, fixtures: an agent must not be able to change what
+    the hidden check runs against), root runner configs."""
     have = set(tree_files(repo, commit))
     found = set()
     for t in test_paths:
@@ -167,10 +175,9 @@ def helper_files(repo, commit, test_paths):
             if c in have:
                 found.add(c)
         for f in have:
-            if os.path.dirname(f) == d and f not in test_paths:
-                base = os.path.basename(f)
-                if base in ("conftest.py", "__init__.py") or base.endswith(".bash") or "helper" in base:
-                    found.add(f)
+            if (f.startswith(d + "/") if d else True) and f not in test_paths and runner_of(f) is None \
+                    and safe_path(f) and not mount_owned(f):
+                found.add(f)
     for f in INFRA_ROOT_FILES:
         if f in have:
             found.add(f)
@@ -186,6 +193,38 @@ def sibling_files(repo, commit, sources, roots, exclude):
                 and not mount_owned(f) and under_roots(f, roots):
             out.append(f)
     return sorted(out)
+
+
+def root_files(repo, commit, roots, exclude):
+    """--fixture-scope roots: every file under the allowed roots at commit (the repository slice the tests
+    see), minus exclude; mount-owned paths never (and symlinks are skipped by the caller: a frozen suite holds none)."""
+    out = set()
+    for r in roots:
+        for f in tree_files(repo, commit, r):
+            if f not in exclude and safe_path(f) and not mount_owned(f):
+                out.add(f)
+    return sorted(out)
+
+
+def fixture_tests(fx):
+    """Every file under the fixture's top-level tests/ (validate-suite.sh: grader_protected names each of them)."""
+    out = []
+    t = os.path.join(fx, "tests")
+    if os.path.isdir(t) and not os.path.islink(t):
+        for r, _, fs in os.walk(t):
+            for f in fs:
+                out.append(os.path.relpath(os.path.join(r, f), fx))
+    return sorted(out)
+
+
+def copy_scope(repo, parent, fx, scope, sources, roots, exclude):
+    """The fixture's context files: the touched files' directory siblings (touched) or the whole roots slice (roots)."""
+    if scope == "roots":
+        for p in root_files(repo, parent, roots, exclude):
+            put_from(repo, parent, p, fx, skip_links=True)
+    else:
+        for p in sibling_files(repo, parent, sources, roots, exclude):
+            put_from(repo, parent, p, fx)
 
 
 def counts(output, runner):
@@ -209,11 +248,20 @@ def run_tests(tree, cmd, runner):
     elif runner == "bats" and os.environ.get("LOA_SEED_BATS"):
         argv[0] = os.environ["LOA_SEED_BATS"]
     try:
-        p = subprocess.run(argv, cwd=tree, env=env, capture_output=True, timeout=RUN_TIMEOUT)
-        text = (p.stdout + p.stderr).decode("utf-8", "replace")
-        rc = p.returncode
-    except subprocess.TimeoutExpired:
-        text, rc = "timeout", 124
+        # its own session: at the deadline the whole group dies (bats leaves grandchildren that would
+        # otherwise hold the pipe open and run the rest of the suite before the call returns)
+        p = subprocess.Popen(argv, cwd=tree, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             start_new_session=True)
+        try:
+            out, _ = p.communicate(timeout=RUN_TIMEOUT)
+            text, rc = out.decode("utf-8", "replace"), p.returncode
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(p.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            p.communicate()
+            text, rc = "timeout", 124
     except OSError as e:
         text, rc = f"cannot run {argv[0]}: {e}", 127
     finally:
@@ -291,21 +339,27 @@ def task_yaml(tid, mode, source, criterion, success, test_cmd, ref_patch, protec
 
 
 # ---------------------------------------------------------------- selection
-def classify(mode, repo, sha, parents, roots):
-    """('candidate', files) | ('refused', path) | ('skipped', reason)."""
+def classify(mode, repo, sha, parents, roots, ignore=(), runner=None):
+    """('candidate', (files, ignored)) | ('refused', path) | ('skipped', reason).
+    ignore: path prefixes whose touched files are left out of the task (--ignore-paths) before any rule
+    runs; runner: with a mixed candidate (--runner), the runner whose changed tests are the hidden check."""
     if len(parents) != 1:
         return "skipped", "not a single-parent commit"
     files = changed_files(repo, parents[0], sha)
     for _, p in files:
         if not safe_path(p):
             return "refused", "unsafe path " + json.dumps(p)
+    ignored = [p for _, p in files if under_roots(p, ignore)]
+    files = [(st, p) for st, p in files if p not in ignored]
+    if not files:
+        return "skipped", "every touched path is ignored"
     for _, p in files:
         if mount_owned(p):
             return "refused", p
     for _, p in files:
         if not under_roots(p, roots):
             return "skipped", f"outside the allowed roots: {p}"
-    for a, d, p in numstat(repo, parents[0], sha):
+    for a, d, p in numstat(repo, parents[0], sha, [p for _, p in files]):
         if a == "-" or d == "-":
             return "skipped", f"binary change: {p}"
     tests = [p for _, p in files if is_test(p)]
@@ -319,14 +373,16 @@ def classify(mode, repo, sha, parents, roots):
         runners = {runner_of(p) for p in added_or_modified} - {None}
         if not runners:
             return "skipped", "no runnable test file (test_*.py, *_test.py, *.bats) added or changed"
-        if len(runners) > 1:
+        if runner and runner not in runners:
+            return "skipped", f"no {runner} test added or changed"
+        if len(runners) > 1 and not runner:
             return "skipped", "mixed test runners (pytest and bats)"
     else:
         if tests:
             return "skipped", f"touches a test file: {tests[0]}"
         if len(sources) < 2:
             return "skipped", f"touches {len(sources)} source file(s), want at least 2"
-    return "candidate", files
+    return "candidate", (files, ignored)
 
 
 def next_id(tasks_dir, prefix, taken):
@@ -367,21 +423,36 @@ def test_dirs(paths):
 
 
 # ---------------------------------------------------------------- build one task
-def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets, roots):
+def origin_note(ignored, other_runner_tests):
+    """source.origin: what the task leaves out of the commit (grader-side record; TASK.md never carries it)."""
+    parts = []
+    if ignored:
+        parts.append("touched paths left out of the task (--ignore-paths): " + ", ".join(sorted(ignored)))
+    if other_runner_tests:
+        parts.append("changed tests of the other runner left at base (--runner): " + ", ".join(sorted(other_runner_tests)))
+    return "; ".join(parts)
+
+
+def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets, roots, scope="touched",
+                 runner=None, ignored=()):
     tdir = os.path.join(stage, tid)
     fx = os.path.join(tdir, "fixture")
     os.makedirs(fx)
     tests_am = [p for s, p in files if is_test(p) and s in "AM"]
     sources = [p for s, p in files if not is_test(p)]
-    runner = {runner_of(p) for p in tests_am} - {None}
-    runner = runner.pop()
+    # --runner: a changed test of the other runner is not a hidden test (it stays at its base version
+    # wherever the fixture scope carries it); its name goes to source.origin
+    other = [p for p in tests_am if runner and runner_of(p) not in (None, runner)]
+    tests_am = [p for p in tests_am if p not in other]
+    runner = runner or ({runner_of(p) for p in tests_am} - {None}).pop()
     for p in sources:
         put_from(repo, parent, p, fx)
-    for p in sibling_files(repo, parent, sources, roots, set(sources) | set(tests_am)):
-        put_from(repo, parent, p, fx)
+    copy_scope(repo, parent, fx, scope, sources, roots, set(sources) | set(tests_am))
     for p in tests_am:
         put_from(repo, parent, p, fx)          # the base version of a changed test (absent when added)
     protected = [h for h in helper_files(repo, parent, tests_am) if h not in tests_am and h not in sources]
+    if scope == "roots":
+        protected = sorted(set(protected) | set(fixture_tests(fx)) - set(sources))
     for h in protected:
         put_from(repo, parent, h, fx)
     hidden = os.path.join(tdir, "hidden")
@@ -394,7 +465,9 @@ def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets
                parent, sha, "--", *sources, binary=True)
     write_file(hidden, "reference.patch", diff)
     runnable = [p for p in tests_am if runner_of(p)]
-    test_cmd = (["python3", "-m", "pytest", "-q"] if runner == "pytest" else ["bats"]) + test_dirs(runnable)
+    runner_argv = ["python3", "-m", "pytest", "-q"] if runner == "pytest" else ["bats"]
+    # roots: the test directories hold the suite's other tests too, so the command names the changed files
+    test_cmd = runner_argv + (runnable if scope == "roots" else test_dirs(runnable))
 
     # proof: red at base, green at reference (hidden tests overlaid on both)
     work = tempfile.mkdtemp(prefix="seed-proof.")
@@ -423,22 +496,31 @@ def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets
     success = (f"{hidden_list} (overlaid at {', '.join(runnable)}) passes {pass_r} of {pass_r} under {' '.join(test_cmd)}; "
                f"red at base ({fail_b} failed), green with hidden/reference.patch")
     source = {"kind": "loa-history", "fix_commit": sha, "base_commit": parent, "date": date}
+    origin = origin_note(ignored, other)
+    if origin:
+        source["origin"] = origin
     write_file(tdir, "task.yaml", task_yaml(tid, "bugfix", source, criterion, success, test_cmd,
                                            "hidden/reference.patch", protected, SUITE_VERSION).encode())
+    if scope == "roots":   # the brief may not name a hidden test file: the directory and the runner only
+        run_line = (f"Run the tests under `{'`, `'.join(test_dirs(runnable))}` that cover the code you change, "
+                    f"with `{' '.join(runner_argv)} <file>`.")
+    else:
+        run_line = f"Run the tests with `{' '.join(test_cmd)}`."
     task_md = (f"# Task: {rest}\n\n"
                f"**Bug (observed):** with the code as it is, {fail_b} of {fail_b + pass_b} checks for this behaviour fail "
                f"when the test command below runs.\n\n"
                f"**Expected:** {rest}. Every check passes and behaviour elsewhere is unchanged.\n\n"
-               f"Fix the bug in place and add a regression test of your own. Run the tests with `{' '.join(test_cmd)}`.\n")
+               f"Fix the bug in place and add a regression test of your own. {run_line}\n")
     write_file(tdir, "TASK.md", task_md.encode())
     if not secrets_clean(no_secrets, tdir):
         return "secret", "a secret pattern in the materialised task"
     return tdir, proof
 
 
-def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secrets, roots):
+def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secrets, roots, scope="touched",
+                   runner=None, ignored=()):
     sources = [p for s, p in files if not is_test(p)]
-    tests = covering_tests(repo, parent, sources, roots)
+    tests = [t for t in covering_tests(repo, parent, sources, roots) if runner is None or runner_of(t) == runner]
     runners = {runner_of(t) for t in tests}
     if not tests:
         return "skip", "no test at the parent names a touched file"
@@ -450,11 +532,12 @@ def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secre
     os.makedirs(fx)
     for p in sources:
         put_from(repo, parent, p, fx)
-    for p in sibling_files(repo, parent, sources, roots, set(sources) | set(tests)):
-        put_from(repo, parent, p, fx)
+    copy_scope(repo, parent, fx, scope, sources, roots, set(sources) | set(tests))
     for t in tests:
         put_from(repo, parent, t, fx)
     protected = [h for h in helper_files(repo, parent, tests) if h not in tests and h not in sources]
+    if scope == "roots":
+        protected = sorted(set(protected) | set(fixture_tests(fx)) - set(sources))
     for h in protected:
         put_from(repo, parent, h, fx)
     hidden = os.path.join(tdir, "hidden")
@@ -462,7 +545,7 @@ def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secre
                parent, sha, binary=True)
     write_file(hidden, "reference.patch", diff)
     write_file(hidden, "manifest.json", b'{"files": []}\n')
-    test_cmd = (["python3", "-m", "pytest", "-q"] if runner == "pytest" else ["bats"]) + test_dirs(tests)
+    test_cmd = (["python3", "-m", "pytest", "-q"] if runner == "pytest" else ["bats"]) + (tests if scope == "roots" else test_dirs(tests))
 
     work = tempfile.mkdtemp(prefix="seed-proof.")
     try:
@@ -488,6 +571,9 @@ def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secre
     success = (f"structural check (to be authored under hidden/structural/) red at base and green with hidden/reference.patch; "
                f"{' '.join(test_cmd)} passes {pass_b} of {pass_b} at base and {pass_r} of {pass_r} at reference")
     source = {"kind": "loa-history", "fix_commit": sha, "base_commit": parent, "date": date, "churn": churn}
+    origin = origin_note(ignored, [])
+    if origin:
+        source["origin"] = origin
     write_file(tdir, "task.yaml", task_yaml(tid, "refactor", source, criterion, success, test_cmd,
                                            "hidden/reference.patch", protected, SUITE_VERSION).encode())
     task_md = (f"# Task: {rest}\n\n"
@@ -519,8 +605,13 @@ def parse(argv):
     ap.add_argument("--select", type=int, default=4)
     ap.add_argument("--out", required=True)
     ap.add_argument("--repo")
+    ap.add_argument("--rev", default="HEAD")
     ap.add_argument("--paths", default=DEFAULT_PATHS)
     ap.add_argument("--suite-version", type=int, default=1)
+    ap.add_argument("--id-prefix")
+    ap.add_argument("--fixture-scope", choices=("touched", "roots"), default="touched")
+    ap.add_argument("--ignore-paths", default="")
+    ap.add_argument("--runner", choices=("pytest", "bats"))
     ap.add_argument("--dry-run", action="store_true")
     try:
         a = ap.parse_args(argv)
@@ -534,13 +625,29 @@ def parse(argv):
         raise Usage("--select must be at least 1")
     if a.suite_version < 1:
         raise Usage("--suite-version must be at least 1")
+    t = os.environ.get("LOA_EVAL_GRADE_TIMEOUT_S", "")
+    if t:
+        if not re.fullmatch(r"[1-9][0-9]{0,3}", t):
+            raise Usage(f"LOA_EVAL_GRADE_TIMEOUT_S must be 1-9999 seconds, got {t!r}")
+        global RUN_TIMEOUT
+        RUN_TIMEOUT = int(t)
+    a.id_prefix = a.id_prefix or ID_PREFIX[a.mode]
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,60}", a.id_prefix):
+        raise Usage(f"--id-prefix must match [a-z0-9][a-z0-9-]{{0,60}}, got {a.id_prefix!r}")
     a.repo = a.repo or a.repo_default
     if subprocess.run(["git", "-C", a.repo, "rev-parse", "--git-dir"], capture_output=True).returncode != 0:
         raise Usage(f"not a git repository: {a.repo}")
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/~^-]{0,120}", a.rev) or a.rev.startswith("-") or \
+            subprocess.run(["git", "-C", a.repo, "rev-parse", "--verify", "--quiet", a.rev + "^{commit}"],
+                           capture_output=True).returncode != 0:
+        raise Usage(f"--rev is not a commit of {a.repo}: {a.rev!r}")
     roots = [r.strip().strip("/") for r in a.paths.split(",") if r.strip().strip("/")]
     if not roots or any(not safe_path(r) or mount_owned(r) for r in roots):
         raise Usage(f"--paths must be relative roots outside the mount-owned paths: {a.paths!r}")
     a.roots = roots
+    a.ignore = [r.strip().strip("/") for r in a.ignore_paths.split(",") if r.strip().strip("/")]
+    if any(not safe_path(r) for r in a.ignore):
+        raise Usage(f"--ignore-paths must be relative prefixes: {a.ignore_paths!r}")
     return a
 
 
@@ -554,10 +661,10 @@ def main(argv):
     SUITE_VERSION = a.suite_version
     name = f"seed-{a.mode}"
     cands, refused, skipped = [], 0, 0
-    for sha, parents, date, subject in commits_since(a.repo, a.since):
+    for sha, parents, date, subject in commits_since(a.repo, a.since, a.rev):
         if not SUBJECT[a.mode].match(subject):
             continue
-        verdict, detail = classify(a.mode, a.repo, sha, parents, a.roots)
+        verdict, detail = classify(a.mode, a.repo, sha, parents, a.roots, a.ignore, a.runner)
         if verdict == "refused":
             refused += 1
             out(f"refused {sha[:12]}: {detail}")
@@ -576,15 +683,21 @@ def main(argv):
     written = failed = 0
     taken = set()
     try:
-        for sha, parent, date, subject, files in selected:
-            tid = next_id(tasks_dir, ID_PREFIX[a.mode], taken)
+        for sha, parent, date, subject, (files, ignored) in selected:
+            tid = next_id(tasks_dir, a.id_prefix, taken)
             try:
                 if a.mode == "bugfix":
-                    tdir, info = build_bugfix(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots)
+                    tdir, info = build_bugfix(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots,
+                                              a.fixture_scope, a.runner, ignored)
                 else:
-                    tdir, info = build_refactor(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots)
+                    tdir, info = build_refactor(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots,
+                                                a.fixture_scope, a.runner, ignored)
             except (ValueError, RuntimeError, OSError) as e:
                 tdir, info = None, str(e)
+            if tdir in ("secret", "skip", None):
+                # a candidate that is not written leaves nothing staged: its id is reused by the
+                # next one, and a stale <stage>/<tid> would make every later build fail with EEXIST
+                shutil.rmtree(os.path.join(stage, tid), ignore_errors=True)
             if tdir == "secret":
                 refused += 1
                 out(f"refused {sha[:12]}: {info}")
