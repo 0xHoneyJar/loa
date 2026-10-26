@@ -1,0 +1,131 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "MEDIUM",
+      "category": "config",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/core/truncation.ts:matchesExcludePattern",
+      "anchor_type": "line",
+      "anchor_line": 198,
+      "anchor_line_end": 200,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The dot-agnostic retry at truncation.ts:198 applies to every wildcard exclusion pattern the native matcher rejects, not only to patterns that name a tree. On Node >= 22 this silently widens existing operator denylists into dot-led directories: `**/*.yml` or `**/*.yaml` now excludes `.github/workflows/*.yml`, `**/*.json` now excludes `.claude/settings.json`, `.vscode/settings.json` and `.devcontainer/devcontainer.json`, `**/*.sh` now excludes `.husky/*` hooks. Before this change the native shell dot-file rule kept those paths in the review set, so operators who tuned patterns under that behaviour lose coverage of the most attack-prone files in a repository (CI workflows, agent permission/hook settings, git hooks) with no configuration change on their side. For a review tool, excluding more is the fail-open direction; the implementer's rationale (\"hiding dot-files from an exclusion only leaks files into the review set\") treats extra review as the harm rather than the safe default. The exclusion is recorded as `excluded_pattern` in the coverage record, but it is indistinguishable from exclusions the native matcher would also have made, so the regression is invisible unless someone diffs coverage records across versions.",
+      "failure_mode": "An operator on Node >= 22 with a broad wildcard exclusion such as `**/*.yml` or `**/*.json` stops reviewing `.github/workflows/*.yml`, `.claude/settings.json`, `.husky/*` and similar paths after upgrading. A fork PR that edits a `pull_request_target` workflow to exfiltrate secrets, or edits `.claude/settings.json` to add a hook command, passes Bridgebuilder with the file silently marked excluded_pattern.",
+      "suggested_fix": "Limit the dot-agnostic retry so it cannot reach root-level dot-directories by accident: either (a) apply the retry only when the pattern's first segment is a literal that already matched (the reported case `evals/tests/fixtures/**` qualifies; `**/*.yml` does not), or (b) keep a small never-exclude-by-wildcard list (`.github/**`, `.claude/settings*.json`, `.husky/**`, `.circleci/**`, `.gitlab-ci.yml`, `.devcontainer/**`) that only a pattern containing an explicit dot-led literal segment can exclude. In either case give retry-only exclusions a distinct coverage reason (e.g. `excluded_pattern_dot`) and log a one-line notice listing them, so the widened denylist is visible to the operator.",
+      "anchor_status": "valid",
+      "failure_scenario": "An operator on Node >= 22 with a broad wildcard exclusion such as `**/*.yml` or `**/*.json` stops reviewing `.github/workflows/*.yml`, `.claude/settings.json`, `.husky/*` and similar paths after upgrading. A fork PR that edits a `pull_request_target` workflow to exfiltrate secrets, or edits `.claude/settings.json` to add a hook command, passes Bridgebuilder with the file silently marked excluded_pattern.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "MEDIUM",
+      "category": "input-validation",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/core/truncation.ts:matchesExcludePattern",
+      "anchor_type": "line",
+      "anchor_line": 197,
+      "anchor_line_end": 197,
+      "scope": "diff",
+      "trigger_anchor": ".claude/skills/bridgebuilder-review/resources/__tests__/loa-detection.test.ts:423",
+      "cross_file_justification": null,
+      "description": "Non-wildcard patterns are matched with `filename.includes(pattern)` at truncation.ts:197, i.e. an unanchored substring test, and the new test at loa-detection.test.ts:423 now pins that `x/.loa-version.json.bak` is excluded by the pattern `.loa-version.json` as intended, contract-level behaviour. The PR author controls filenames. Any path that merely contains an excluded substring is dropped from the review set: `src/grimoires/backdoor.ts` for the default `grimoires/`, `lib/.claude/run.sh` for the default `.claude/`, `util.loa-version.json.ts` for `.loa-version.json`, or `vendor/evals/tests/fixtures/x.ts` for an operator's `evals/tests/fixtures/` prefix. The LOA_EXCLUDE_PATTERNS tests in the same file show these substring patterns are applied by default when a LOA repository is detected, so in every LOA repo a PR author has a ready-made way to hide a file from Bridgebuilder by choosing its path. This is pre-existing, but this sprint explicitly asserts the over-match as correct, which makes tightening it a breaking change later.",
+      "failure_mode": "A PR author places a malicious or sensitive change at a path that embeds a default or operator substring pattern anywhere in it. matchesExcludePattern returns true, the file is marked excluded_pattern, and the review never sees it even though it is outside every directory the operator meant to exclude.",
+      "suggested_fix": "Anchor non-wildcard patterns: treat a pattern ending in `/` as a path prefix (`filename.startsWith(pattern)`) and any other non-wildcard pattern as exact filename or basename equality. If substring matching must be kept for compatibility, require an explicit marker (e.g. a leading `*`), and change the test at loa-detection.test.ts:423 to assert the tightened behaviour instead of pinning the over-match. Apply the same anchoring in the Node < 22 branch so the two code paths agree.",
+      "anchor_status": "valid",
+      "failure_scenario": "A PR author places a malicious or sensitive change at a path that embeds a default or operator substring pattern anywhere in it. matchesExcludePattern returns true, the file is marked excluded_pattern, and the review never sees it even though it is outside every directory the operator meant to exclude.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/skills/bridgebuilder-review/resources/core/truncation.ts:dotSegmentGlobMatch",
+      "anchor_type": "line",
+      "anchor_line": 168,
+      "anchor_line_end": 172,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The lead's review states the compiled regex has \"no adjacent ambiguous quantifiers\". That holds for the globstar groups, which consume whole `/`-terminated segments deterministically, but not for several `*` inside one segment: `*.*.*.*` compiles to `[^/]*\\.[^/]*\\.[^/]*\\.[^/]*` and a segment that contains many of the literal separator but makes the overall match fail (e.g. 254 dots followed by `/zzz`) forces roughly C(n, k) attempts, where n is the segment length and k the number of literal separators between stars. The filename is PR-author controlled and the regex runs for every (file, wildcard pattern) pair the native matcher rejects, which is the common case. Because `[^/]*` cannot cross a segment and filesystem name length caps n at 255, the cost stays tolerable for k <= 3 (a few million steps) and only becomes a stall for patterns with five or more literal separators between stars, which operators rarely write. The memo map at truncation.ts:149 is also unbounded, but patterns come from config, CLI and `.reviewignore`, so growth is negligible in a per-PR process.",
+      "failure_mode": "A PR containing many long filenames crafted against an operator pattern with several stars in one segment (e.g. `**/*-*-*-*-*-*.snap`) makes the exclusion pass take seconds to minutes per file, so the review round times out or is reported degraded.",
+      "suggested_fix": "Reject or warn on patterns with more than three `*`/`?` wildcards in a single segment when compiling in dotSegmentGlobMatch, and cap the filename length passed to the regex (GitHub paths are far shorter than any legitimate limit). Alternatively translate each in-segment wildcard group with a possessive-style structure (e.g. `[^/.]*` when the literal separator is `.`) so the stars cannot overlap the separators they are split on.",
+      "anchor_status": "valid",
+      "failure_scenario": "A PR containing many long filenames crafted against an operator pattern with several stars in one segment (e.g. `**/*-*-*-*-*-*.snap`) makes the exclusion pass take seconds to minutes per file, so the review round times out or is reported degraded.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-bug-278",
+    "timestamp": "2026-10-26T00:33:03Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 21676,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "9ec422c523c8cc5b4919d35ea25682dd62271315b20ce27a16e120558784c729",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

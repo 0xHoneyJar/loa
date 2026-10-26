@@ -7,17 +7,19 @@
     }
   ],
   "cycle": "cycle-134-post-ship-fixes",
-  "head": "3e903cb83e40eed684a09c65581326675e34276a",
+  "head": "b880a1cd93ee9331a5e958d04231395248858bbf",
   "lite_tree": null,
   "paths": [
     "grimoires/loa/a2a/sprint-276",
+    "grimoires/loa/a2a/bug-20261025-c47e71",
+    "grimoires/loa/a2a/bug-20261025-826c6b",
     "grimoires/loa/a2a/flatline",
     "grimoires/loa/a2a/prompts",
     "grimoires/loa/NOTES.md",
     "grimoires/loa/archive/notes"
   ],
-  "prev": "e45c2469a769eb3614028116ba3420291b306908",
+  "prev": "382bb7c0a01257e89bdaa2f00f05510122ad9870",
   "results_roots": [],
-  "scan_tree": "7146365f3ff4df37bdbcb8ad2fe0f72b989e4a82",
-  "stage": "stage 2"
+  "scan_tree": "4142ef8a05082f5ef80e8f9fe830ca433256d450",
+  "stage": "stage 3"
 }

@@ -51,7 +51,7 @@ Written at the pre-merge gate (Task 1.12); the post-merge rows are filled after 
 | Check | Evidence | Result |
 |---|---|---|
 | the sprint merge classified `cycle` and the pipeline prepared (did not publish) a candidate — the live observation of the classifier change | post-merge.yml run 40181759240 on `a8d7c973`: Classify Merge success, Prepare Release (Cycle) success, Notify success; the merge subject is `Merge pull request #1296 from …` (the merge-commit prefix form, DEC-0993); no tag, no release | **MET** |
-| merge-triggered CI on `main` | runs on `a8d7c973`: CI, Security Audit, Secret Scanning, Audit Secret Redaction, README version sync, Prompt Budget, drift gates … success; BATS Tests on `a8d7c973`: in_progress  (the PR head `5e3f44f5` is the merge's second parent; its BATS run 40176717036 was green) | **MET** |
+| merge-triggered CI on `main` | runs on `a8d7c973`: CI, Security Audit, Secret Scanning, Audit Secret Redaction, README version sync, Prompt Budget, drift gates … success; BATS Tests on `a8d7c973` (run 40181759206): success (finished 10:59Z; 77 min, the same tree passed on the PR head, run 40176717036)  (the PR head `5e3f44f5` is the merge's second parent; its BATS run 40176717036 was green) | **MET** |
 | record branch | `record/cycle-134-post-ship-fixes` stage 1 `e45c2469` (parents `origin/record/cycle-133-follow-through`, `a8d7c973`; 169 files; one accepted prose hit) | **MET** |
 | archive | `chore/cycle-134-archive` → PR #1297 merged `3e903cb8` (21/21 checks); `grimoires/loa/archive/cycle-134-post-ship-fixes/` with the `[Unreleased]` entries and the README; ledger archived | **MET** |
 

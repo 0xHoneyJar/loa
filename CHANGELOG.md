@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **classify-pr-type**: housekeeping merges from a `chore/` branch or with a `chore(archive|ledger|decisions):` prefix classify `other` even when the branch name carries the cycle id — the archive, ledger and decisions-confirm merges no longer run the cycle release pipeline (they take the Bugfix-or-Other job like any non-cycle merge; a candidate is still prepared, publication stays explicit) (bd-ahxmh)
+- **bridgebuilder**: exclusion globs (`--exclude`, `.reviewignore`, `exclude_patterns`) match path segments that start with a dot, so `evals/tests/fixtures/**` excludes the pinned-framework fixtures and a round no longer degrades on `file_cap` because of them (bd-a8l0c). Behaviour change for Node ≥ 22 operators: a broad wildcard exclusion such as `**/*.yml` now also excludes dot-led paths like `.github/workflows/ci.yml` — the coverage record lists every excluded file with its reason, so check `.reviewignore` and `exclude_patterns` for patterns that are broader than intended. Known limitation: brace and character-class patterns (`**/*.{json,md}`, `**/*.[jt]s`) are not made dot-agnostic and still skip dot-led paths, so list such trees with a `**` or prefix pattern instead.
+
 ### Fixed (cycle-134 "post-ship fixes", Sprint 276 — the Bridgebuilder round-2 findings on rc.8 and the red post-merge run)
 
 - **`took-effect.sh` clause (g) hook rule** (bd-bex39, Bridgebuilder F-001 MEDIUM): hook executions were compared against the configured-command count, so a session that fires a recurring hook event more than once false-failed. The rule now identifies each `hook_started` by its `(event, query)` group against the pinned user settings (`home_hook_groups`, hex-encoded; the old `home_hook_counts` grammar still accepted) and checks c = k·n with 0 ≤ k ≤ the transcript's trigger count (k = 0 is legal: clause (g) asks whether a hook of the PR ran). Tool-hook events are never emitted in `-p` mode on Claude Code 2.1.310 (Q-1 probe), so their grammar stays unconfirmed. Revert: the previous count rule.

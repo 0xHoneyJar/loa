@@ -1,0 +1,6 @@
+sprint: sprint-bug-278
+sprint-bug-278 (bug 20261025-826c6b) — Bridgebuilder exclusion globs match dot-led segments with a segment-aware, dot-agnostic retry (bd-a8l0c)
+
+Completion timestamp: 2026-10-26T00:52:50Z
+Branch: fix/post-ship-bugs-classifier-bb-glob
+Head: 84c328455
