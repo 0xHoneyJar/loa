@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "generated_at": "2026-10-26T05:32:28Z",
-  "source_hash": "f6692c060307a73f7d22e62ca45583faeb852612703f30437facc43fe4f3e17d",
+  "generated_at": "2026-10-26T05:39:07Z",
+  "source_hash": "06c044835082342d6728a6a95ce0b65305afd6f2b2cdd4a2d606989bcfa77233",
   "file_count": 51,
   "files": [
     {
@@ -22,7 +22,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts",
-      "sha256": "cf728d5744cf00f2dec4bc5144d0d61f95f195e58c8bc4663cc8ae599ab3415a"
+      "sha256": "21988a4ea2806366f8ca51cd565b85df09ceb7b8d8ae03ba5ff99ff6e67f76a2"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/adapters/index.ts",
@@ -114,7 +114,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/paged-fetch.ts",
-      "sha256": "c3b4bbef2040f6637c83928af9c2c5a7420355e25afa8f86be3fd46bf32652c3"
+      "sha256": "95ce9304288c49c09e9c5b563876d46ac0d70b30227ce0a45deadc382cd519c1"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/progress.ts",
@@ -182,7 +182,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/git-provider.ts",
-      "sha256": "3e207bf4e3495781df5541abe89761fe37e8a4e7c94f1615af934ab377a2ecc9"
+      "sha256": "0bb50e55e6669873199fc25fe7c561df0e3352cdcf8c2743186d5bdb8ff5eba3"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/ports/hasher.ts",

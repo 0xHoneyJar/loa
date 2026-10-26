@@ -9,6 +9,12 @@
  * omitted (`byte_budget`). Pass 2 re-pages only the pages holding planned files and keeps their patch text. After pass
  * 2 both SHAs are revalidated; any base/head change discards the attempt, restarts once, then degrades as
  * `pr_head_moved`. GitHub omissions are recorded, never silent (coverage record).
+ *
+ * cycle-135 C-3 (FR-3, D-1.3, bd-w5pd9): between the selection and the byte planning, an added file GitHub listed
+ * without a patch that survived the exclusions is read by content (`getFileContent`, pinned to the listing's head sha,
+ * bounded by count, deadline and the aggregate byte budget) and enters planning with a synthesized patch, so it is
+ * selected, planned and reviewed like any patched file (`reviewed[].source: "contents"`). Any other outcome leaves it
+ * `no_patch` with `omitted[].fetch` naming why.
  */
 import { GitProviderError } from "../ports/git-provider.js";
 import { createHash } from "node:crypto";
@@ -17,6 +23,9 @@ import { FETCH_DEGRADED_REASONS, orderDegradedReasons } from "./degraded-reason.
 /** GitHub's `pulls/N/files` lists at most this many files (30 pages of 100). */
 export const FILES_ENDPOINT_CAP = 3000;
 const PAGE_SIZE = 100;
+/** cycle-135 C-3: default `max_content_fetches` and the total deadline for the content reads of one attempt. */
+export const DEFAULT_MAX_CONTENT_FETCHES = 20;
+export const CONTENT_FETCH_DEADLINE_MS = 120_000;
 /** Omission reasons that count against coverage when the file is a reviewable code file. */
 export const REVIEWABLE_OMISSION_REASONS = new Set([
     "file_cap", "byte_budget", "no_patch", "patch_truncated", "page_incomplete", "excluded_fail_closed",
@@ -84,6 +93,16 @@ export function cutPatch(patch, maxBytes) {
     }
     return lastNl > 0 ? patch.slice(0, lastNl) : patch.slice(0, i);
 }
+/**
+ * cycle-135 C-3: the patch for a whole added file — `@@ -0,0 +1,N @@` then every line with a `+` prefix (bytes
+ * verbatim, so CRLF keeps its `\r`), and git's `\ No newline at end of file` marker when the content lacks one.
+ */
+export function synthesizeAddedPatch(content) {
+    const finalNewline = content.endsWith("\n");
+    const lines = (finalNewline ? content.slice(0, -1) : content).split("\n");
+    return `@@ -0,0 +1,${lines.length} @@\n` + lines.map((l) => "+" + l).join("\n") +
+        (finalNewline ? "" : "\n\\ No newline at end of file");
+}
 function countHunks(patch) {
     let n = 0;
     for (const line of patch.split("\n"))
@@ -128,15 +147,92 @@ export function evaluateCoverage(input) {
         return { degraded: false, degraded_reasons: [] };
     return { degraded: true, degraded_reasons: reasons, mergeBlockedReason: "incomplete_coverage" };
 }
-function omission(file, reason) {
-    return { file, reason, reviewable: REVIEWABLE_OMISSION_REASONS.has(reason) && isReviewableCodeFile(file) };
+function omission(file, reason, fetch) {
+    return {
+        file, reason, reviewable: REVIEWABLE_OMISSION_REASONS.has(reason) && isReviewableCodeFile(file),
+        ...(fetch ? { fetch } : {}),
+    };
 }
 async function recheck(git, owner, repo, prNumber, pin) {
     const now = await git.getPR(owner, repo, prNumber);
     if (now.base_sha !== pin.base_sha || now.head_sha !== pin.head_sha)
         throw new PrHeadMoved(now);
 }
-async function attempt(git, owner, repo, prNumber, config, restarts) {
+/**
+ * cycle-135 C-3 (sdd.md C-3, D-1.3a/b): read the content of every eligible file — added, no patch, additions > 0, and
+ * kept by the selection (it survived the Loa-tier and user exclusions and the file cap: `(diff unavailable)`) — in
+ * listing order, sequentially, at most `maxContentFetches`, within the deadline from the first read, each bounded by
+ * what the aggregate `maxDiffBytes` has left after the patches synthesized so far. A synthesized patch sets the entry's
+ * `patchBytes` (it enters byte planning like any patch) and is returned for pass 2, pinned to `pin.head_sha` by
+ * construction (an attempt that restarts discards it with the rest of its state).
+ */
+async function fetchMissingPatches(git, owner, repo, pin, listed, sel, config, now) {
+    const synthesized = new Map();
+    const outcomes = new Map();
+    if (config.fetchMissingPatches === false || typeof git.getFileContent !== "function")
+        return { synthesized, outcomes };
+    const kept = new Set(sel.excluded.filter((e) => /\(diff unavailable\)/.test(e.stats)).map((e) => e.filename));
+    const cap = config.maxContentFetches ?? DEFAULT_MAX_CONTENT_FETCHES;
+    let fetches = 0;
+    let planned = 0;
+    let start;
+    let pastDeadline = false;
+    for (const f of listed) {
+        if (!kept.has(f.filename) || f.status !== "added" || f.patchBytes != null || !(f.additions > 0))
+            continue;
+        if (pastDeadline) {
+            outcomes.set(f.filename, "deadline");
+            continue;
+        }
+        if (fetches >= cap) {
+            outcomes.set(f.filename, "skipped_cap");
+            continue;
+        }
+        const t = now();
+        if (start === undefined)
+            start = t;
+        else if (t - start >= CONTENT_FETCH_DEADLINE_MS) {
+            pastDeadline = true;
+            outcomes.set(f.filename, "deadline");
+            continue;
+        }
+        // (the remaining aggregate budget; ordinary patches are charged later, in selection order, by the planning)
+        const remaining = Math.min(config.maxDiffBytes, config.maxDiffBytes - planned);
+        if (remaining <= 0) {
+            outcomes.set(f.filename, "too_large");
+            continue;
+        }
+        fetches++;
+        let res;
+        try {
+            res = await git.getFileContent(owner, repo, f.filename, pin.head_sha, remaining);
+        }
+        catch {
+            // (network, auth, a path that moved, a malformed envelope, an allowlist refusal: today's no_patch, named)
+            outcomes.set(f.filename, "error");
+            continue;
+        }
+        if (res.kind !== "text") {
+            outcomes.set(f.filename, res.kind);
+            continue;
+        }
+        if (res.content.length === 0) {
+            outcomes.set(f.filename, "error");
+            continue;
+        } // (additions > 0 says it is not empty)
+        const patch = synthesizeAddedPatch(res.content);
+        const bytes = utf8Bytes(patch);
+        if (bytes > remaining) {
+            outcomes.set(f.filename, "too_large");
+            continue;
+        } // never truncated
+        planned += bytes;
+        f.patchBytes = bytes;
+        synthesized.set(f.filename, patch);
+    }
+    return { synthesized, outcomes };
+}
+async function attempt(git, owner, repo, prNumber, config, restarts, deps) {
     const pin = await git.getPR(owner, repo, prNumber);
     const listedTotal = Math.min(pin.changed_files, FILES_ENDPOINT_CAP);
     const pages = Math.ceil(listedTotal / PAGE_SIZE);
@@ -179,17 +275,32 @@ async function attempt(git, owner, repo, prNumber, config, restarts) {
     const listed = [...meta.values()].map((m) => m.file);
     // ── Global selection over the complete metadata list ─────────────────────
     // (the byte budget is applied below with cut semantics, so truncateFiles selects on filters, tiers and the file cap)
-    const sel = truncateFiles(listed, { ...config, maxDiffBytes: Number.MAX_SAFE_INTEGER });
+    const selConfig = { ...config, maxDiffBytes: Number.MAX_SAFE_INTEGER };
+    let sel = truncateFiles(listed, selConfig);
+    // ── cycle-135 C-3: content for added files listed without a patch ────────
+    // (after the exclusions, before the byte planning: a synthesized patchBytes is planned like a GitHub one; the
+    // selection is re-run so the file takes its place in the order — same filters, same order, now with a patch)
+    const { synthesized, outcomes } = await fetchMissingPatches(git, owner, repo, pin, listed, sel, config, deps.now ?? Date.now);
+    if (synthesized.size > 0)
+        sel = truncateFiles(listed, selConfig);
     const byName = new Map(listed.map((f) => [f.filename, f]));
     const omitted = [];
-    for (const ex of sel.excluded)
-        omitted.push(omission(ex.filename, exclusionReason(ex.stats, byName.get(ex.filename))));
+    for (const ex of sel.excluded) {
+        const reason = exclusionReason(ex.stats, byName.get(ex.filename));
+        omitted.push(omission(ex.filename, reason, reason === "no_patch" ? outcomes.get(ex.filename) : undefined));
+    }
     // Byte budget planned on the recorded sizes, in selection order.
     const plan = [];
     const budgetExcluded = [];
     let remaining = config.maxDiffBytes;
     for (const f of sel.included) {
         const size = f.patchBytes ?? 0;
+        if (synthesized.has(f.filename) && size > remaining) {
+            // cycle-135 C-3: a synthesized patch is never cut — it stays today's no_patch, named too_large
+            omitted.push(omission(f.filename, "no_patch", "too_large"));
+            budgetExcluded.push({ filename: f.filename, stats: `+${f.additions} -${f.deletions} (diff unavailable)` });
+            continue;
+        }
         if (size <= remaining) {
             plan.push({ file: f, bytes: size, cut: false });
             remaining -= size;
@@ -205,8 +316,15 @@ async function attempt(git, owner, repo, prNumber, config, restarts) {
     }
     // ── Pass 2: patches for planned files only ───────────────────────────────
     const planned = new Map(plan.map((p) => [p.file.filename, p]));
-    const neededPages = [...new Set(plan.map((p) => meta.get(p.file.filename).page))].sort((a, b) => a - b);
+    // (a synthesized patch is pre-retained: its page holds no patch text for it)
+    const neededPages = [...new Set(plan.filter((p) => !synthesized.has(p.file.filename))
+            .map((p) => meta.get(p.file.filename).page))].sort((a, b) => a - b);
     const retained = new Map();
+    for (const p of plan) {
+        const patch = synthesized.get(p.file.filename);
+        if (patch !== undefined)
+            retained.set(p.file.filename, { ...p.file, patch });
+    }
     const failedPages = new Set();
     for (const k of neededPages) {
         await recheck(git, owner, repo, prNumber, pin);
@@ -248,7 +366,10 @@ async function attempt(git, owner, repo, prNumber, config, restarts) {
         if (truncated)
             omitted.push(omission(f.filename, "patch_truncated"));
         files.push(f);
-        reviewed.push({ file: f.filename, bytes, hunks: countHunks(f.patch) });
+        reviewed.push({
+            file: f.filename, bytes, hunks: countHunks(f.patch),
+            ...(synthesized.has(f.filename) ? { source: "contents" } : {}),
+        });
     }
     omitted.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : a.reason < b.reason ? -1 : a.reason > b.reason ? 1 : 0));
     const unknown = Math.max(0, pin.changed_files - meta.size);
@@ -271,11 +392,11 @@ async function attempt(git, owner, repo, prNumber, config, restarts) {
     };
 }
 /** The two-pass fetch with one restart on a base/head move (sdd.md C-1). */
-export async function fetchPRFilesTwoPass(git, owner, repo, prNumber, config) {
+export async function fetchPRFilesTwoPass(git, owner, repo, prNumber, config, deps = {}) {
     let restarts = 0;
     for (;;) {
         try {
-            return await attempt(git, owner, repo, prNumber, config, restarts);
+            return await attempt(git, owner, repo, prNumber, config, restarts, deps);
         }
         catch (err) {
             if (!(err instanceof PrHeadMoved))
