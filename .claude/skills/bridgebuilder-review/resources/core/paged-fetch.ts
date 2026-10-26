@@ -19,7 +19,7 @@
 import { GitProviderError } from "../ports/git-provider.js";
 import type { FileContentResult, IGitProvider, PullRequestFile, PullRequestRef } from "../ports/git-provider.js";
 import { createHash } from "node:crypto";
-import { deriveCallConfig, truncateFiles } from "./truncation.js";
+import { deriveCallConfig, matchesExcludePattern, truncateFiles } from "./truncation.js";
 import { FETCH_DEGRADED_REASONS, orderDegradedReasons, type DegradedReason } from "./degraded-reason.js";
 import type { BridgebuilderConfig, CoverageRecord, OmissionReason, ReviewItem, TruncationResult } from "./types.js";
 
@@ -41,10 +41,43 @@ export type SelectionConfig = Pick<
 export const DEFAULT_MAX_CONTENT_FETCHES = 20;
 export const CONTENT_FETCH_DEADLINE_MS = 120_000;
 
+type ReviewignoreSource = NonNullable<CoverageRecord["reviewignore_source"]>;
+
 /** Test seams of the two-pass fetch (production passes none). */
 export interface TwoPassDeps {
   /** cycle-135 C-3: the clock for the content-fetch deadline (default `Date.now`). */
   now?: () => number;
+  /** cycle-135 C-2: the selection (default `truncateFiles`); tests substitute the producer of `protectedKept`. */
+  truncate?: (files: PullRequestFile[], config: SelectionConfig & { reviewignoreBaseSha?: string }) => TruncationResult;
+  /** cycle-135 C-2: where `.reviewignore` is read from for this PR (default `defaultReviewignoreSource`). */
+  reviewignoreSource?: (repoRoot: string | undefined, opts: { baseSha?: string }) => ReviewignoreSource | undefined;
+}
+
+/**
+ * cycle-135 C-2 (D-1.2a, bd-i4fyw): the `.reviewignore` provenance for the coverage record.
+ * LEAD (Task 1.7, the B→A seam): implementer A's `parseReviewignoreFile(repoRoot, { baseSha })` → `{ patterns, source }`
+ * is not in B's tree; when it is exported from truncation.ts, make this one line
+ * `return parseReviewignoreFile(repoRoot ?? process.cwd(), opts).source;` (wrapped as A's fail-closed contract needs).
+ * Until then the record omits `reviewignore_source` (undefined), and renders no provenance line.
+ */
+function defaultReviewignoreSource(_repoRoot: string | undefined, _opts: { baseSha?: string }): ReviewignoreSource | undefined {
+  return undefined;
+}
+
+/** cycle-135 C-2: the ` [pattern: <p>]` suffix A's selection appends to an exclusion's stats (to the final `]`). */
+const PATTERN_SUFFIX = / \[pattern: (.+)\]$/;
+const WILDCARD = /[*?{[]/;
+
+/**
+ * The pattern that excluded a file: the stats suffix when the selection wrote one; else, for a config
+ * `exclude_patterns` exclusion, the matching pattern with a non-wildcard one first (sdd.md § 5.2's precedence).
+ */
+function exclusionPattern(stats: string, filename: string, excludePatterns: readonly string[] | undefined): string | undefined {
+  const m = PATTERN_SUFFIX.exec(stats);
+  if (m) return m[1];
+  if (!/\(excluded by pattern\)/.test(stats)) return undefined;
+  const matching = (excludePatterns ?? []).filter((p) => matchesExcludePattern(filename, [p]));
+  return matching.find((p) => !WILDCARD.test(p)) ?? matching[0];
 }
 
 type FetchOutcome = NonNullable<CoverageRecord["omitted"][number]["fetch"]>;
@@ -177,10 +210,11 @@ export function evaluateCoverage(input: {
 }
 
 function omission(
-  file: string, reason: OmissionReason, fetch?: FetchOutcome,
+  file: string, reason: OmissionReason, fetch?: FetchOutcome, pattern?: string,
 ): CoverageRecord["omitted"][number] {
   return {
     file, reason, reviewable: REVIEWABLE_OMISSION_REASONS.has(reason) && isReviewableCodeFile(file),
+    ...(pattern !== undefined ? { pattern } : {}),
     ...(fetch ? { fetch } : {}),
   };
 }
@@ -290,20 +324,24 @@ async function attempt(
 
   // ── Global selection over the complete metadata list ─────────────────────
   // (the byte budget is applied below with cut semantics, so truncateFiles selects on filters, tiers and the file cap)
-  const selConfig = { ...config, maxDiffBytes: Number.MAX_SAFE_INTEGER };
-  let sel = truncateFiles(listed, selConfig);
+  // (cycle-135 C-2: the selection is given the PR base sha, so `.reviewignore` is the base ref's copy — D-1.2a)
+  const selConfig = { ...config, maxDiffBytes: Number.MAX_SAFE_INTEGER, reviewignoreBaseSha: pin.base_sha };
+  const select = deps.truncate ?? truncateFiles;
+  let sel = select(listed, selConfig);
 
   // ── cycle-135 C-3: content for added files listed without a patch ────────
   // (after the exclusions, before the byte planning: a synthesized patchBytes is planned like a GitHub one; the
   // selection is re-run so the file takes its place in the order — same filters, same order, now with a patch)
   const { synthesized, outcomes } = await fetchMissingPatches(git, owner, repo, pin, listed, sel, config, deps.now ?? Date.now);
-  if (synthesized.size > 0) sel = truncateFiles(listed, selConfig);
+  if (synthesized.size > 0) sel = select(listed, selConfig);
 
   const byName = new Map(listed.map((f) => [f.filename, f]));
   const omitted: CoverageRecord["omitted"] = [];
   for (const ex of sel.excluded) {
-    const reason = exclusionReason(ex.stats, byName.get(ex.filename));
-    omitted.push(omission(ex.filename, reason, reason === "no_patch" ? outcomes.get(ex.filename) : undefined));
+    const reason = exclusionReason(ex.stats.replace(PATTERN_SUFFIX, ""), byName.get(ex.filename));
+    const pattern = reason === "excluded_loa" || reason === "excluded_pattern"
+      ? exclusionPattern(ex.stats, ex.filename, config.excludePatterns) : undefined;
+    omitted.push(omission(ex.filename, reason, reason === "no_patch" ? outcomes.get(ex.filename) : undefined, pattern));
   }
 
   // Byte budget planned on the recorded sizes, in selection order.
@@ -387,6 +425,7 @@ async function attempt(
   const unknown = Math.max(0, pin.changed_files - meta.size);
   const verdict = evaluateCoverage({ omitted, unknown_omitted: unknown, fetchReasons });
   const totalBytes = reviewed.reduce((n, r) => n + r.bytes, 0);
+  const reviewignoreSource = (deps.reviewignoreSource ?? defaultReviewignoreSource)(config.repoRoot, { baseSha: pin.base_sha });
   return {
     files,
     selection: { ...sel, included: files, excluded: [...sel.excluded, ...budgetExcluded, ...pageExcluded], totalBytes },
@@ -400,6 +439,10 @@ async function attempt(
       unknown_omitted: unknown,
       ...verdict,
       restarts,
+      // cycle-135 C-2 (consumer side): what protection kept, and where `.reviewignore` came from
+      protected_kept: sel.protectedKept ?? [],
+      ...(reviewignoreSource !== undefined ? { reviewignore_source: reviewignoreSource } : {}),
+      reviewignore_changed_in_pr: meta.has(".reviewignore"),
     },
   };
 }
@@ -519,7 +562,35 @@ export function formatCoverageSection(coverage: CoverageRecord): string {
     const ordered = [...coverage.omitted].sort((a, b) => Number(b.reviewable) - Number(a.reviewable));
     lines.push("");
     lines.push(`First ${Math.min(20, ordered.length)} omitted paths:`);
-    for (const o of ordered.slice(0, 20)) lines.push(`- \`${safePath(o.file)}\` — ${o.reason}${o.reviewable ? " (reviewable)" : ""}`);
+    for (const o of ordered.slice(0, 20)) {
+      // cycle-135 C-2/C-3: the excluding pattern and the content-fetch outcome, when recorded
+      lines.push(`- \`${safePath(o.file)}\` — ${o.reason}${o.reviewable ? " (reviewable)" : ""}` +
+        (o.pattern !== undefined ? ` · pattern \`${safePath(o.pattern)}\`` : "") +
+        (o.fetch ? ` · fetch: ${o.fetch}` : ""));
+    }
+  }
+  const fromContents = coverage.reviewed.filter((r) => r.source === "contents");
+  if (fromContents.length > 0) {
+    // cycle-135 C-3: patches synthesized from the file's content (an added file GitHub listed without one)
+    lines.push("");
+    lines.push(`Reviewed from file contents (${fromContents.length}):`);
+    for (const r of fromContents) lines.push(`- \`${safePath(r.file)}\` (source: contents)`);
+  }
+  const kept = coverage.protected_kept ?? [];
+  if (kept.length > 0) {
+    // cycle-135 C-2: protected files a wildcard user exclusion would have removed, with their final status
+    lines.push("");
+    lines.push(`Protected paths kept (${kept.length}):`);
+    for (const k of kept) {
+      const cut = coverage.omitted.filter((o) => o.file === k.file).map((o) => o.reason);
+      lines.push(`- \`${safePath(k.file)}\` — kept despite \`${safePath(k.pattern)}\`` +
+        (cut.length > 0 ? ` then omitted (${cut.join(", ")})` : ""));
+    }
+  }
+  if (coverage.reviewignore_source !== undefined || coverage.reviewignore_changed_in_pr) {
+    lines.push("");
+    lines.push(`.reviewignore: ${coverage.reviewignore_source ?? "not recorded"}` +
+      (coverage.reviewignore_changed_in_pr ? " (changed in this PR)" : ""));
   }
   if (coverage.degraded) {
     lines.push("");

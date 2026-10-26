@@ -99,10 +99,45 @@ head move restarts the fetch once, and a second move degrades as `pr_head_moved`
 bounded by `gh_max_buffer_bytes`.
 
 Every review carries a **coverage record**: `{base_sha, head_sha, changed_files, listed, reviewed: [{file, bytes,
-hunks}], omitted: [{file, reason, reviewable}], unknown_omitted, degraded, degraded_reasons, mergeBlockedReason,
-restarts}`. It is in full in the summary JSON (`verdicts[].coverage`). The posted review shows counts per reason, the
-first 20 omitted paths and a `<!-- bridgebuilder-coverage: {…} -->` marker with both SHAs. The marker holds the full
-record when it fits 20,000 characters, else the counts and the record's sha256.
+hunks, source?}], omitted: [{file, reason, reviewable, pattern?, fetch?}], unknown_omitted, degraded, degraded_reasons,
+mergeBlockedReason, restarts, protected_kept, reviewignore_source?, reviewignore_changed_in_pr}`. It is in full in the
+summary JSON (`verdicts[].coverage`). The posted review shows counts per reason, the first 20 omitted paths and a
+`<!-- bridgebuilder-coverage: {…} -->` marker with both SHAs. The marker holds the full record when it fits 20,000
+characters, else the counts and the record's sha256. The cycle-135 fields (all optional, so older records stay
+readable):
+
+- `omitted[].pattern` names the default or user pattern that excluded an `excluded_loa` or `excluded_pattern` file.
+  The posted line reads `` `file` — excluded_pattern · pattern `<p>` ``.
+- `protected_kept: [{file, pattern}]` lists protected files that a wildcard user exclusion would have removed, with the
+  first matching wildcard. The posted review renders them under "Protected paths kept (n)" as
+  `` `file` — kept despite `<pattern>` ``, followed by `then omitted (<reason>)` when a budget still cut the file.
+- `reviewignore_source` is `base`, `checkout` or `none`, the place `.reviewignore` was read from.
+  `reviewignore_changed_in_pr` is true when the PR's file list contains `.reviewignore`. The posted review shows one
+  `.reviewignore: <source>` line, with `(changed in this PR)` when it applies.
+- Every name and pattern in the posted text is escaped: backticks and line breaks become `'`, and `<`/`>` are
+  percent-encoded.
+
+**Added files without a patch (cycle-135 C-3, bd-w5pd9).** GitHub's files list sometimes names an added file without
+a patch. When such a file survives the exclusions and the file cap and has `additions > 0`, pass 1 reads its content
+with `gh api /repos/<o>/<r>/contents/<path>?ref=<head sha>`. The read is pinned to the listing's head sha and has one
+allowlisted shape with no headers. It runs before the byte planning. The synthesized patch is `@@ -0,0 +1,N @@` plus
+`+` lines, with CRLF kept and git's `\ No newline at end of file` marker when needed. Its bytes, header and prefixes
+included, count against `max_diff_bytes` in listing order. The file is then reviewed like any other and recorded with
+`reviewed[].source: "contents"`; the posted review lists it under "Reviewed from file contents (n)" as
+`` `file` (source: contents) ``. Every other outcome leaves today's `no_patch` omission and records why in
+`omitted[].fetch`, shown as `· fetch: <outcome>`:
+
+| `fetch` | Meaning |
+|---|---|
+| `binary` | a NUL byte in the first 8 KiB, or bytes that are not UTF-8 |
+| `too_large` | the content or its synthesized patch exceeds what the byte budget has left (never cut), or GitHub answered `encoding: none` (> 1 MiB) |
+| `error` | the read failed or returned a malformed envelope or base64 |
+| `skipped_cap` | beyond `bridgebuilder.max_content_fetches` (default 20; `0` reads nothing) |
+| `deadline` | beyond the 120 s budget for all content reads of the review |
+
+`bridgebuilder.fetch_missing_patches: false` turns the read off: such files stay `no_patch` with no `fetch` field. A
+head move that restarts the fetch discards every synthesized patch. Modified, renamed and removed files without a
+patch are unchanged.
 
 | Omission reason | Blocks the merge |
 |---|---|
