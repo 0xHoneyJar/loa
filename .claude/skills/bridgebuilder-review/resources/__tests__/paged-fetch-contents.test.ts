@@ -1,0 +1,269 @@
+// cycle-135 Sprint 279 Task 1.3 (sdd.md C-3, FR-3, D-1.3, D-1.3a, D-1.3b, bd-w5pd9): an added file GitHub listed
+// without a patch is fetched by content in pass 1 and reviewed like any patched file. Every case drives the REAL
+// two-pass fetch and the REAL truncateFiles selection through a provider double (listing → content → selection →
+// pass 2 → coverage); one case runs the REAL GitHubCLIAdapter behind a stub `gh`.
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+
+import { fetchPRFilesTwoPass } from "../core/paged-fetch.js";
+import { GitHubCLIAdapter, type GhExec } from "../adapters/github-cli.js";
+import { GitProviderError, type PullRequestFile, type PullRequestRef } from "../ports/git-provider.js";
+
+const BASE = "b".repeat(40);
+const HEAD = "a".repeat(40);
+const HEAD2 = "c".repeat(40);
+
+type Content = { kind: "text"; content: string; bytes: number } | { kind: "binary" } | { kind: "too_large" };
+interface ContentCall { owner: string; repo: string; path: string; ref: string; maxBytes: number }
+
+interface Fixture {
+  files: PullRequestFile[];
+  /** path → what the content read returns for a ref (an Error is thrown); default: not found. */
+  serve?: (path: string, ref: string, maxBytes: number) => Content | Error;
+  /** Head sha served by the Nth (0-based) read of pulls/N; the last entry repeats. */
+  heads?: string[];
+  /** The provider has no getFileContent (an older provider or test double). */
+  noMethod?: boolean;
+}
+
+/** Text the way a provider returns it: over the bound → too_large (the adapter's size check). */
+function text(content: string) {
+  return (maxBytes: number): Content => {
+    const bytes = Buffer.byteLength(content);
+    return bytes > maxBytes ? { kind: "too_large" } : { kind: "text", content, bytes };
+  };
+}
+
+function provider(fx: Fixture) {
+  const contentCalls: ContentCall[] = [];
+  let prReads = 0;
+  const heads = fx.heads ?? [HEAD];
+  const git = {
+    async getPR(): Promise<PullRequestRef> {
+      const head = heads[Math.min(prReads, heads.length - 1)];
+      prReads++;
+      return { base_sha: BASE, head_sha: head, changed_files: fx.files.length };
+    },
+    async getPRFilesPage(_o: string, _r: string, _n: number, page: number): Promise<PullRequestFile[]> {
+      return fx.files.slice((page - 1) * 100, page * 100).map((f) => ({ ...f }));
+    },
+    ...(fx.noMethod ? {} : {
+      async getFileContent(owner: string, repo: string, path: string, ref: string, maxBytes: number): Promise<Content> {
+        contentCalls.push({ owner, repo, path, ref, maxBytes });
+        const out = fx.serve ? fx.serve(path, ref, maxBytes) : new GitProviderError("NOT_FOUND", "no fixture");
+        if (out instanceof Error) throw out;
+        return out;
+      },
+    }),
+  };
+  return { git, contentCalls };
+}
+
+const SEL = { excludePatterns: [] as string[], maxDiffBytes: 512_000, maxFilesPerPr: 50, loaAware: false, selfReview: false };
+
+const added = (filename: string, additions = 3): PullRequestFile => ({ filename, status: "added", additions, deletions: 0 });
+const patched = (filename: string, patch: string, additions = 1): PullRequestFile =>
+  ({ filename, status: "modified", additions, deletions: 0, patch });
+
+describe("content fetch for patch-less added files (C-3)", () => {
+  it("end to end: the added file is reviewed with the synthesized patch, source contents, and the coverage is not degraded", async () => {
+    const p = provider({
+      files: [patched("src/a.ts", "@@ -1 +1 @@\n+a"), added("src/new.ts")],
+      serve: (path, _ref, max) => (path === "src/new.ts" ? text("one\ntwo\nthree\n")(max) : new Error("unexpected")),
+    });
+    const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, SEL);
+    const synth = "@@ -0,0 +1,3 @@\n+one\n+two\n+three";
+    assert.deepEqual(res.files.find((f) => f.filename === "src/new.ts")?.patch, synth);
+    assert.deepEqual(res.coverage.reviewed.find((r) => r.file === "src/new.ts"),
+      { file: "src/new.ts", bytes: Buffer.byteLength(synth), hunks: 1, source: "contents" });
+    assert.equal(res.coverage.reviewed.find((r) => r.file === "src/a.ts")?.source, undefined, "a GitHub patch carries no source");
+    assert.deepEqual(res.coverage.omitted, []);
+    assert.equal(res.coverage.degraded, false);
+    assert.deepEqual(p.contentCalls, [{ owner: "o", repo: "r", path: "src/new.ts", ref: HEAD, maxBytes: 512_000 }],
+      "the ref is the listing's head sha; the bound is the remaining aggregate budget");
+    assert.ok(res.selection.included.some((f) => f.filename === "src/new.ts"));
+  });
+
+  it("binary, too_large and a provider error leave the file no_patch (reviewable) with the fetch outcome", async () => {
+    const outcomes: Array<[string, Content | Error, string]> = [
+      ["binary", { kind: "binary" }, "binary"],
+      ["too_large", { kind: "too_large" }, "too_large"],
+      ["provider error", new GitProviderError("NETWORK", "gh command failed"), "error"],
+      ["malformed envelope (adapter throws)", new GitProviderError("NETWORK", "malformed contents envelope"), "error"],
+      ["any thrown error", new Error("allowlist refusal"), "error"],
+    ];
+    for (const [label, out, fetch] of outcomes) {
+      const p = provider({ files: [added("src/new.ts")], serve: () => out });
+      const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, SEL);
+      assert.deepEqual(res.coverage.omitted, [{ file: "src/new.ts", reason: "no_patch", reviewable: true, fetch }], label);
+      assert.deepEqual(res.files, [], label);
+      assert.equal(res.coverage.degraded, true, `${label}: a reviewable no_patch still degrades, exactly as today`);
+      assert.equal(p.contentCalls.length, 1, label);
+    }
+  });
+
+  it("an excluded patch-less file is never fetched (counting double)", async () => {
+    const p = provider({
+      files: [added("generated/big.ts"), added("src/keep.ts")],
+      serve: (_p, _r, max) => text("x\n")(max),
+    });
+    const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, { ...SEL, excludePatterns: ["generated/**"] });
+    assert.deepEqual(p.contentCalls.map((c) => c.path), ["src/keep.ts"]);
+    const ex = res.coverage.omitted.find((o) => o.file === "generated/big.ts");
+    assert.equal(ex?.reason, "excluded_pattern");
+    assert.equal(ex?.fetch, undefined);
+  });
+
+  it("a file beyond max_files_per_pr is not fetched (it is a file_cap omission either way)", async () => {
+    const p = provider({ files: [added("src/big.ts", 50), added("src/small.ts", 2)], serve: (_p, _r, max) => text("x\n")(max) });
+    const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, { ...SEL, maxFilesPerPr: 1 });
+    assert.deepEqual(p.contentCalls.map((c) => c.path), ["src/big.ts"]);
+    assert.equal(res.coverage.omitted.find((o) => o.file === "src/small.ts")?.reason, "file_cap");
+  });
+
+  it("max_content_fetches: the files beyond the cap are skipped_cap, in listing order", async () => {
+    const files = [added("src/a.ts"), added("src/b.ts"), added("src/c.ts")];
+    const p = provider({ files, serve: (_p, _r, max) => text("x\n")(max) });
+    const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, { ...SEL, maxContentFetches: 2 } as typeof SEL);
+    assert.deepEqual(p.contentCalls.map((c) => c.path), ["src/a.ts", "src/b.ts"]);
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/c.ts", reason: "no_patch", reviewable: true, fetch: "skipped_cap" }]);
+    assert.deepEqual(res.coverage.reviewed.map((r) => [r.file, r.source]), [["src/a.ts", "contents"], ["src/b.ts", "contents"]]);
+
+    const zero = provider({ files, serve: (_p, _r, max) => text("x\n")(max) });
+    const none = await fetchPRFilesTwoPass(zero.git, "o", "r", 7, { ...SEL, maxContentFetches: 0 } as typeof SEL);
+    assert.equal(zero.contentCalls.length, 0);
+    assert.deepEqual(none.coverage.omitted.map((o) => o.fetch), ["skipped_cap", "skipped_cap", "skipped_cap"]);
+  });
+
+  it("the 120 s deadline (injected clock) stops further fetches: the rest are deadline", async () => {
+    const files = [added("src/a.ts"), added("src/b.ts"), added("src/c.ts")];
+    const p = provider({ files, serve: (_p, _r, max) => text("x\n")(max) });
+    const times = [1_000, 60_000, 121_000];
+    let i = 0;
+    const now = () => times[Math.min(i++, times.length - 1)];
+    const res = await (fetchPRFilesTwoPass as (...a: unknown[]) => ReturnType<typeof fetchPRFilesTwoPass>)(
+      p.git, "o", "r", 7, SEL, { now });
+    assert.deepEqual(p.contentCalls.map((c) => c.path), ["src/a.ts", "src/b.ts"]);
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/c.ts", reason: "no_patch", reviewable: true, fetch: "deadline" }]);
+  });
+
+  it("several patch-less files compete for the aggregate max_diff_bytes budget, header and `+` prefixes counted", async () => {
+    // "aaaaaaaaa\n" × 3 = 30 content bytes → "@@ -0,0 +1,3 @@\n" (16) + "+aaaaaaaaa" × 3 joined (32) = 48 patch bytes
+    const content = "aaaaaaaaa\n".repeat(3);
+    const synthBytes = 16 + 32;
+    const files = [added("src/a.ts"), added("src/b.ts"), added("src/c.ts")];
+    const p = provider({ files, serve: (_p, _r, max) => text(content)(max) });
+    const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, { ...SEL, maxDiffBytes: 100 });
+    assert.deepEqual(p.contentCalls.map((c) => c.maxBytes), [100, 100 - synthBytes, 100 - 2 * synthBytes]);
+    assert.deepEqual(res.coverage.reviewed.map((r) => [r.file, r.bytes]), [["src/a.ts", synthBytes], ["src/b.ts", synthBytes]]);
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/c.ts", reason: "no_patch", reviewable: true, fetch: "too_large" }]);
+    assert.ok(res.coverage.reviewed.reduce((n, r) => n + r.bytes, 0) <= 100);
+  });
+
+  it("content that fits the bound but whose synthesized patch does not is too_large, never truncated", async () => {
+    // 40 content bytes in 4 lines → 16 + 4 + 39 = 59 patch bytes > 50
+    const p = provider({ files: [added("src/a.ts")], serve: (_p, _r, max) => text("aaaaaaaaa\n".repeat(4))(max) });
+    const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, { ...SEL, maxDiffBytes: 50 });
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/a.ts", reason: "no_patch", reviewable: true, fetch: "too_large" }]);
+    assert.deepEqual(res.files, []);
+  });
+
+  it("a synthesized patch that does not fit after the GitHub patches stays no_patch (too_large), never cut", async () => {
+    // the ordinary patch (larger change, selected first) leaves 10 bytes; the 48-byte synthesized patch is not cut
+    const big = "@@ -1 +1 @@\n" + "+x".repeat(44);
+    const p = provider({
+      files: [patched("src/big.ts", big, 90), added("src/new.ts")],
+      serve: (_p, _r, max) => text("aaaaaaaaa\n".repeat(3))(max),
+    });
+    const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, { ...SEL, maxDiffBytes: Buffer.byteLength(big) + 10 });
+    assert.deepEqual(res.files.map((f) => f.filename), ["src/big.ts"]);
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/new.ts", reason: "no_patch", reviewable: true, fetch: "too_large" }]);
+  });
+
+  it("the restart path (head moved at the post-pass-1 re-check) discards the synthesized patches and refetches at the new head", async () => {
+    // reads: pin, before page 1, pass-2 re-check (moved) → restart at HEAD2
+    const p = provider({
+      files: [patched("src/a.ts", "@@ -1 +1 @@\n+a"), added("src/new.ts")],
+      heads: [HEAD, HEAD, HEAD2],
+      serve: (_p, ref, max) => text(ref === HEAD ? "old\n" : "new\n")(max),
+    });
+    const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, SEL);
+    assert.equal(res.coverage.restarts, 1);
+    assert.equal(res.coverage.head_sha, HEAD2);
+    assert.deepEqual(p.contentCalls.map((c) => c.ref), [HEAD, HEAD2], "each attempt asks for its own pinned head");
+    assert.equal(res.files.find((f) => f.filename === "src/new.ts")?.patch, "@@ -0,0 +1,1 @@\n+new");
+  });
+
+  it("fetch_missing_patches: false → no provider call, no_patch as today (no fetch outcome)", async () => {
+    const p = provider({ files: [added("src/new.ts")], serve: (_p, _r, max) => text("x\n")(max) });
+    const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, { ...SEL, fetchMissingPatches: false } as typeof SEL);
+    assert.equal(p.contentCalls.length, 0);
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/new.ts", reason: "no_patch", reviewable: true }]);
+  });
+
+  it("a provider without getFileContent → no fetch, today's behaviour", async () => {
+    const p = provider({ files: [added("src/new.ts")], noMethod: true });
+    const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, SEL);
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/new.ts", reason: "no_patch", reviewable: true }]);
+  });
+
+  it("modified, renamed and zero-addition added files without a patch are never fetched (no_patch / renamed pinned)", async () => {
+    const p = provider({
+      files: [
+        { filename: "src/mod.ts", status: "modified", additions: 9000, deletions: 0 },
+        { filename: "src/moved.ts", status: "renamed", additions: 4, deletions: 1 },
+        { filename: "assets/logo.png", status: "added", additions: 0, deletions: 0 },
+      ],
+      serve: (_p, _r, max) => text("x\n")(max),
+    });
+    const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, SEL);
+    assert.equal(p.contentCalls.length, 0);
+    assert.deepEqual(res.coverage.omitted, [
+      { file: "assets/logo.png", reason: "no_patch", reviewable: false },
+      { file: "src/mod.ts", reason: "no_patch", reviewable: true },
+      { file: "src/moved.ts", reason: "no_patch", reviewable: true },
+    ]);
+  });
+
+  it("synthesized-patch matrix: final newline, CRLF, multibyte UTF-8, diff-marker content", async () => {
+    const cases: Array<[string, string, number]> = [
+      ["a\nb", "@@ -0,0 +1,2 @@\n+a\n+b\n\\ No newline at end of file", 1],
+      ["a\r\nb\r\n", "@@ -0,0 +1,2 @@\n+a\r\n+b\r", 1],
+      ["only\r\n", "@@ -0,0 +1,1 @@\n+only\r", 1],
+      ["héllo ✓ 𝄞\nñ\n", "@@ -0,0 +1,2 @@\n+héllo ✓ 𝄞\n+ñ", 1],
+      ["+++ b/x\n--- a/x\n@@ -1 +1 @@\n-old\n", "@@ -0,0 +1,4 @@\n++++ b/x\n+--- a/x\n+@@ -1 +1 @@\n+-old", 1],
+      ["\n\n", "@@ -0,0 +1,2 @@\n+\n+", 1],
+    ];
+    for (const [content, patch, hunks] of cases) {
+      const p = provider({ files: [added("src/f.ts")], serve: (_p, _r, max) => text(content)(max) });
+      const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, SEL);
+      assert.equal(res.files[0]?.patch, patch, JSON.stringify(content));
+      assert.deepEqual(res.coverage.reviewed, [{ file: "src/f.ts", bytes: Buffer.byteLength(patch), hunks, source: "contents" }],
+        JSON.stringify(content));
+    }
+  });
+
+  it("through the real adapter: the base64 envelope (60-char lines) becomes a reviewed file; an envelope-shaped text file is text", async () => {
+    const raw = JSON.stringify({ type: "file", encoding: "base64", size: 2, content: "aGk=" }) + "\n";
+    const b64 = Buffer.from(raw).toString("base64").replace(/.{60}/g, "$&\n") + "\n";
+    const calls: string[][] = [];
+    const exec: GhExec = async (_f, args) => {
+      calls.push(args);
+      const ep = args[1];
+      if (ep === "/repos/o/r/pulls/7") return { stdout: JSON.stringify({ base: { sha: BASE }, head: { sha: HEAD }, changed_files: 1 }) };
+      if (ep === "/repos/o/r/pulls/7/files?per_page=100&page=1") {
+        return { stdout: JSON.stringify([{ filename: "fixtures/env.json", status: "added", additions: 1, deletions: 0 }]) };
+      }
+      if (ep === `/repos/o/r/contents/fixtures/env.json?ref=${HEAD}`) {
+        return { stdout: JSON.stringify({ type: "file", encoding: "base64", size: Buffer.byteLength(raw), content: b64 }) };
+      }
+      throw new Error(`unexpected gh call: ${args.join(" ")}`);
+    };
+    const git = new GitHubCLIAdapter({ reviewMarker: "bridgebuilder-review", exec });
+    const res = await fetchPRFilesTwoPass(git, "o", "r", 7, SEL);
+    assert.equal(res.files[0]?.patch, "@@ -0,0 +1,1 @@\n+" + raw.slice(0, -1));
+    assert.equal(res.coverage.reviewed[0]?.source, "contents");
+    assert.equal(res.coverage.degraded, false);
+    assert.ok(calls.some((a) => a.length === 2 && a[1].startsWith("/repos/o/r/contents/")), "the contents call carries no flags");
+  });
+});
