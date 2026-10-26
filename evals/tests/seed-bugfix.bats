@@ -253,8 +253,10 @@ commit_claude_fix() {
 }
 
 @test "SB-9 --fixture-scope roots: the fixture is the whole allowed-roots slice, the command names the changed test file, the brief names no test" {
-  # a helper in another directory, present at the parent and untouched by the fix: the touched-scope fixture misses it
+  # a helper in another directory, present at the parent and untouched by the fix: the touched-scope fixture misses it;
+  # a data file beside the tests is test infrastructure (protected) in either scope
   mkdir -p "$G/tools/common"
+  echo "2.5 3" > "$G/tools/mathx/tests/cases.txt"
   cat > "$G/tools/common/util.py" <<'PY'
 import math
 
@@ -291,9 +293,9 @@ PY
   grep -qx "proof bugfix-01 ${FIX:0:12}: red 1 failed / green 2 passed" <<<"$output"
   D="$S/tasks/bugfix-01"
   # the roots slice: the helper's directory is in, docs/ (outside the roots) is out
-  [ "$(cd "$D/fixture" && find . -type f | sort | tr '\n' ' ')" = "./tools/common/util.py ./tools/mathx/rounding.py ./tools/mathx/tests/conftest.py ./tools/mathx/tests/test_rounding.py " ]
+  [ "$(cd "$D/fixture" && find . -type f | sort | tr '\n' ' ')" = "./tools/common/util.py ./tools/mathx/rounding.py ./tools/mathx/tests/cases.txt ./tools/mathx/tests/conftest.py ./tools/mathx/tests/test_rounding.py " ]
   [ "$(yq -o=json -I=0 .test_command "$D/task.yaml")" = '["python3","-m","pytest","-q","tools/mathx/tests/test_rounding.py"]' ]
-  [ "$(yq -o=json -I=0 .grader_protected "$D/task.yaml")" = '["tools/mathx/tests/conftest.py"]' ]
+  [ "$(yq -o=json -I=0 .grader_protected "$D/task.yaml")" = '["tools/mathx/tests/cases.txt","tools/mathx/tests/conftest.py"]' ]
   grep -q 'Run the tests under `tools/mathx/tests` that cover the code you change, with `python3 -m pytest -q <file>`' "$D/TASK.md"
   ! grep -qE 'test_rounding|half_away|hidden' "$D/TASK.md" || false
   run "$VS" --root "$S" --allow-partial

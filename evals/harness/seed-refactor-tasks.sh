@@ -16,8 +16,8 @@
 #               file under the allowed roots instead, as seed-bugfix-tasks.sh), the tests
 #               under the allowed roots that name a touched file (its basename,
 #               or a Python module's stem; at most 20), and their infrastructure
-#               (conftest.py up to the root, __init__.py, *.bash and *helper*
-#               files beside each test, root runner configs) — a plain tree;
+#               (conftest.py up to the root, every non-test file in and below each
+#               test's directory, root runner configs) — a plain tree;
 #               a file of git mode 100755 keeps its executable bit
 #   hidden/     reference.patch = the commit's diff (a/ b/ prefixes, patch -p1),
 #               manifest.json {"files": []} until the structural check exists

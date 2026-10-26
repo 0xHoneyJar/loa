@@ -162,7 +162,9 @@ def put_from(repo, commit, rel, root, dest_rel=None, skip_links=False):
 
 
 def helper_files(repo, commit, test_paths):
-    """Test infrastructure the tests rely on: conftest.py up to the root, helpers in each test dir, root runner configs."""
+    """Test infrastructure the tests rely on: conftest.py up to the root, every non-test file in and below each
+    test's directory (import shims, synthetic-data builders, fixtures: an agent must not be able to change what
+    the hidden check runs against), root runner configs."""
     have = set(tree_files(repo, commit))
     found = set()
     for t in test_paths:
@@ -173,10 +175,9 @@ def helper_files(repo, commit, test_paths):
             if c in have:
                 found.add(c)
         for f in have:
-            if os.path.dirname(f) == d and f not in test_paths:
-                base = os.path.basename(f)
-                if base in ("conftest.py", "__init__.py") or base.endswith(".bash") or "helper" in base:
-                    found.add(f)
+            if (f.startswith(d + "/") if d else True) and f not in test_paths and runner_of(f) is None \
+                    and safe_path(f) and not mount_owned(f):
+                found.add(f)
     for f in INFRA_ROOT_FILES:
         if f in have:
             found.add(f)

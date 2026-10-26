@@ -24,8 +24,9 @@
 #               non-test files in their directories (the modules they most
 #               likely use), the base version of each changed test, and the
 #               test infrastructure the tests rely on (conftest.py up to the
-#               root, __init__.py, *.bash and *helper* files beside each test,
-#               root pytest.ini / pyproject.toml / setup.cfg / tox.ini) — a
+#               root, every non-test file in and below each test's directory —
+#               import shims, data builders, fixtures — and the root pytest.ini /
+#               pyproject.toml / setup.cfg / tox.ini) — a
 #               plain tree, no .git. With --fixture-scope roots the context is
 #               instead EVERY file under the allowed roots at the parent (the
 #               repository slice the tests see: libraries in other directories,
