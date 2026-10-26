@@ -13,6 +13,8 @@ import { ReviewPipeline } from "../core/reviewer.js";
 import { BridgebuilderContext } from "../core/context.js";
 import { summarizeReviewVerdict } from "../core/review-verdict.js";
 import { DEGRADED_REASONS } from "../core/run-outcome.js";
+// cycle-135 (review round 1): the fetch-side set is the module's own, so a new fetch-side reason needs no table edit here
+import { FETCH_DEGRADED_REASONS } from "../core/degraded-reason.js";
 import { DEFAULT_EXCLUDE_PATTERNS } from "../config.js";
 import type { BridgebuilderConfig } from "../core/types.js";
 import type { PostReviewInput } from "../ports/review-poster.js";
@@ -345,7 +347,7 @@ describe("each degraded reason's verdict (C-1 × C-2 decision table)", () => {
       } else {
         assert.equal(v.verdict, "UNKNOWN");
         assert.equal(v.mergeBlocked, true);
-        assert.equal(v.mergeBlockedReason, ["files_payload_oversize", "files_list_truncated", "page_incomplete", "patch_fetch_rate_limited", "pr_head_moved"].includes(reason) ? "incomplete_coverage" : reason);
+        assert.equal(v.mergeBlockedReason, FETCH_DEGRADED_REASONS.has(reason) ? "incomplete_coverage" : reason);
       }
     });
     it(`${reason}: a HIGH finding still yields REQUEST_CHANGES (rule 1 first)`, () => {
