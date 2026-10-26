@@ -1,4 +1,4 @@
-# approved-by: pending
+# approved-by: deep-name 2026-10-26
 # fixture pr-83 | external https://github.com/vuejs/core pull request #15757 | base 4ab865a848a1 | head af5fcd68c381 | fix ff3501429d49..ff3501429d49
 # seeded by evals/harness/seed-corpus-from-external.sh; defects V01 … from the blind annotation (two Opus 5.5 annotators, annotation_merge.py; label_source fix-commit, review_driven false), fix rows carried; approval pending
 defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven

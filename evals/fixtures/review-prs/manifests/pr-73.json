@@ -1,8 +1,8 @@
 {
   "fixture": "pr-73",
   "label_set": "v2",
-  "approved": false,
-  "approved_by": "pending",
+  "approved": true,
+  "approved_by": "deep-name 2026-10-26",
   "record": {
     "sprint": null,
     "record_ref": null,

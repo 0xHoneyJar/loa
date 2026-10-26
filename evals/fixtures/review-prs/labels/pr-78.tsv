@@ -1,4 +1,4 @@
-# approved-by: pending
+# approved-by: deep-name 2026-10-26
 # fixture pr-78 | external https://github.com/fastify/fastify pull request #7054 | base e6860c59fcf4 | head 7f16cfe3e3c4 | fix 5c081d4b7237..5c081d4b7237
 # seeded by evals/harness/seed-corpus-from-external.sh; defects V01 … from the blind annotation (two Opus 5.5 annotators, annotation_merge.py; label_source fix-commit, review_driven false), fix rows carried; approval pending
 defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven

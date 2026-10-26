@@ -1,4 +1,4 @@
-# approved-by: pending
+# approved-by: deep-name 2026-10-26
 # fixture pr-81 | external https://github.com/bats-core/bats-core pull request #1240 | base ae4b94d7cc35 | head 2dd6ab7335d0 | fix 62edb3cbdcf0..62edb3cbdcf0
 # seeded by evals/harness/seed-corpus-from-external.sh; defects V01 … from the blind annotation (two Opus 5.5 annotators, annotation_merge.py; label_source fix-commit, review_driven false), fix rows carried; approval pending
 defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven

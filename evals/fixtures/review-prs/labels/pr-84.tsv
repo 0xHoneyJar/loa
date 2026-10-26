@@ -1,4 +1,4 @@
-# approved-by: pending
+# approved-by: deep-name 2026-10-26
 # fixture pr-84 | external https://github.com/biomejs/biome pull request #12540 | base 0be8d10cd226 | head 5df6c5088cf5 | fix 5699601ea942..5699601ea942
 # seeded by evals/harness/seed-corpus-from-external.sh; defects V01 … from the blind annotation (two Opus 5.5 annotators, annotation_merge.py; label_source fix-commit, review_driven false), fix rows carried; approval pending
 defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
