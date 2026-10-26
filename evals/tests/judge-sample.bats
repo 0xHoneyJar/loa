@@ -394,3 +394,22 @@ print("ok")
 PY
   [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
+
+@test "JS-21 the finding is located through the bare line form the grader credits (\`x.sh:9\` (also \`:11\`)) and through an envelope finding's anchor path; a bare line in a paragraph that does not name the file is not" {
+  printf '# Review\n\nUnrelated :11 mention without the file name.\n\nIn `head/f.sh:9` (also `:11`) the loop is off by one: BARE FORM.\n\nThe guard at head/g.sh:40 is never reached.\n' \
+    > "$RES/b1/a1_full/review-x-t1/sandbox/review.md"
+  printf '# Review\n\nNothing about the loop here.\n' > "$RES/b1/a1_full/review-x-t2/sandbox/review.md"
+  mkdir -p "$RES/b1/a1_full/review-x-t2/eval"
+  printf '{"findings": [{"id": "F-1", "title": "ENVELOPE FINDING", "description": "the loop bound is off by one", "anchor": "head/f.sh:loop_body", "anchor_line": 11, "severity": "high"}]}\n' \
+    > "$RES/b1/a1_full/review-x-t2/eval/adversarial-review.json"
+  run bash "$JS" "${ARGS[@]}" --out "$T/o" --per-stratum 5 --min-total 0
+  [ "$status" -eq 0 ]
+  j="$(item_at "$T/o" b1/a1_full/review-x/1 head/f.sh 11)"
+  grep -qF 'BARE FORM' "$T/o/packets/$j.md"
+  run grep -c 'Unrelated :11\|could not be located' "$T/o/packets/$j.md"
+  [ "$output" = 0 ]
+  j="$(item_at "$T/o" b1/a1_full/review-x/2 head/f.sh 11)"
+  grep -qF 'ENVELOPE FINDING' "$T/o/packets/$j.md"
+  grep -qF 'head/f.sh:loop_body' "$T/o/packets/$j.md"
+  grep -qF 'head/f.sh:11' "$T/o/packets/$j.md"
+}

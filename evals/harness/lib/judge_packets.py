@@ -5,12 +5,17 @@ packets and the pair judge's packets would make their verdicts incomparable):
 
   sources(run_dir)            the arm's own texts as paragraphs — sandbox/review.md, the a2a feedback files, the
                               adversarial envelopes' findings; a matched cell's sessions/s<i>/ copies of the same
-  finding_text(paras, region) the first paragraph citing the region's file at its start or end line; over CUT
+  finding_text(paras, region) the first paragraph citing the region's file at its start or end line — the path
+                              with the line attached (`x.sh:242`), else a paragraph naming the file with the bare
+                              line the grader's parser also credits (`x.sh:242` (also `:239-244`)); over CUT
                               characters it is reduced to the bullet(s) that cite the region under the note
                               "(the citing bullet(s) of a N-line list; k of m chars shown)"; a long paragraph
                               without list structure is shown whole; nothing exceeds CAP characters (" …" when cut).
                               The cycle-132 rule p[:1500] + " …" hid the citing bullet in 616 of 1,283 pair packets
-                              (loa-smol out/s1a/RESULTS.md Q1b); judge-v2 addendum 1 replaced it with this one.
+                              (loa-smol out/s1a/RESULTS.md Q1b); judge-v2 addendum 1 replaced it with this one. The
+                              cycle-132 packets also read "(the finding's prose could not be located; the citation
+                              only)" in 351 of 1,903 items: the bare-line form and the envelopes' anchor paths are
+                              now located too.
   regions(path)               the `path:line[-line]` citations of a gates-combined.md (a union file's "## session"
                               lines are skipped), sorted and deduplicated, as (path, start, end)
   citations(path)             the same citations in file order, duplicates dropped (the grader's cites order)
@@ -117,10 +122,18 @@ def sources(run_dir):
                     continue
                 for fd in env.get("findings") or []:
                     if isinstance(fd, dict):
-                        bits = [str(fd.get(k)) for k in ("title", "description", "file", "anchor_line", "evidence")
+                        bits = [str(fd.get(k)) for k in ("title", "description", "file", "anchor", "anchor_line", "evidence")
                                 if fd.get(k) not in (None, "")]
-                        if fd.get("file") and isinstance(fd.get("anchor_line"), int):
-                            bits.append("%s:%d" % (fd["file"], fd["anchor_line"]))
+                        # the citation the grader derives from a numeric anchor (ablation-grade.sh envelope_texts): the
+                        # anchor's path part when it has an extension, else the finding's file; :line[-end]
+                        al, ae = fd.get("anchor_line"), fd.get("anchor_line_end")
+                        anc = fd.get("anchor") if isinstance(fd.get("anchor"), str) else ""
+                        ap = anc.split(":", 1)[0].strip() if ":" in anc else ""
+                        if not re.search(r"\.[A-Za-z0-9]{1,12}$", ap):
+                            ap = fd.get("file") if isinstance(fd.get("file"), str) else ""
+                        if ap and isinstance(al, int) and not isinstance(al, bool) and al >= 1:
+                            ok_end = isinstance(ae, int) and not isinstance(ae, bool) and ae > al
+                            bits.append("%s:%d-%d" % (ap, al, ae) if ok_end else "%s:%d" % (ap, al))
                         texts.append(" — ".join(bits))
     paras = []
     for t in texts:
@@ -129,31 +142,38 @@ def sources(run_dir):
 
 
 def finding_text(paras, region):
-    """the first paragraph citing the region's file at its start or end line. Over CUT characters the paragraph is
-    reduced to the line block(s) that cite the region — each from its bullet, numbered-item, heading or finding-id
-    line to the next such start — under a note naming the list's line count and the characters shown (loa-smol
-    judge-v2 addendum 1: the cycle-132 rule p[:1500] + " …" hid the citing bullet in 616 of 1,283 pair packets). A
-    long paragraph without that structure is shown whole. Never more than CAP characters (then cut with " …")."""
+    """the first paragraph citing the region's file at its start or end line: the path with the line attached, else
+    (second pass) a paragraph that names the file and carries the bare `:line` the grader's parser also credits.
+    Over CUT characters the paragraph is reduced to the line block(s) that cite the region — each from its bullet,
+    numbered-item, heading or finding-id line to the next such start — under a note naming the list's line count
+    and the characters shown (loa-smol judge-v2 addendum 1: the cycle-132 rule p[:1500] + " …" hid the citing
+    bullet in 616 of 1,283 pair packets). A long paragraph without that structure is shown whole. Never more than
+    CAP characters (then cut with " …")."""
     path, a, b = region
     base = re.escape(strip_side(path).rsplit("/", 1)[-1])
-    pat = re.compile(base + r"[`*)\]]{0,3}:(%d|%d)(?!\d)" % (a, b))
-    for p in paras:
-        if not pat.search(p):
-            continue
-        if len(p) <= CUT:
-            return p
-        lines = p.split("\n")
-        starts = [i for i, ln in enumerate(lines) if BULLET.match(ln)] or [0]
-        keep = set()
-        for h in (i for i, ln in enumerate(lines) if pat.search(ln)):
-            s = max([x for x in starts if x <= h], default=0)
-            e = min([x for x in starts if x > h], default=len(lines))
-            keep.update(range(s, e))
-        out = p
-        if len(keep) < len(lines):
-            shown = "\n".join(lines[i] for i in sorted(keep))
-            out = "(the citing bullet(s) of a %d-line list; %d of %d chars shown)\n%s" % (len(lines), len(shown), len(p), shown)
-        return out if len(out) <= CAP else out[:CAP] + " …"
+    lines_re = r":(%d|%d)(?!\d)" % (a, b)
+    adjacent = re.compile(base + r"[`*)\]]{0,3}" + lines_re)
+    # the bare form the grader's parser also credits: `path:242` (also `:239-244`) — a `:line` not attached to a
+    # path, in a paragraph that names the file
+    bare = re.compile(r"(?<![\w/.\-])" + lines_re)
+    for pat, want_base in ((adjacent, False), (bare, True)):
+        for p in paras:
+            if not pat.search(p) or (want_base and not re.search(base, p)):
+                continue
+            if len(p) <= CUT:
+                return p
+            lines = p.split("\n")
+            starts = [i for i, ln in enumerate(lines) if BULLET.match(ln)] or [0]
+            keep = set()
+            for h in (i for i, ln in enumerate(lines) if pat.search(ln)):
+                s = max([x for x in starts if x <= h], default=0)
+                e = min([x for x in starts if x > h], default=len(lines))
+                keep.update(range(s, e))
+            out = p
+            if len(keep) < len(lines):
+                shown = "\n".join(lines[i] for i in sorted(keep))
+                out = "(the citing bullet(s) of a %d-line list; %d of %d chars shown)\n%s" % (len(lines), len(shown), len(p), shown)
+            return out if len(out) <= CAP else out[:CAP] + " …"
     return None
 
 
