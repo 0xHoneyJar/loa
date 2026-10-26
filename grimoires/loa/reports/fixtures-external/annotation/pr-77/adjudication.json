@@ -1,0 +1,22 @@
+{
+ "H08": {
+  "verdict": "defect",
+  "group": "D2",
+  "file": "cli/tools/installer/npm_compat.rs",
+  "description": "ensure_types_node downloads whatever @types/node is the registry's latest and reuses any previously materialized copy regardless of version, so type-check results drift with registry releases and stale copies are never refreshed.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "agreed defect, group, severity, category and description (@types/node fetched at the registry's floating latest and any materialized copy reused whatever its version); anchors: union — A adds 570-571 and the reuse check at 621-623, B keeps the four decisive lines; both sites carry the behaviour",
+  "anchor_lines": [
+   569,
+   570,
+   571,
+   572,
+   575,
+   576,
+   621,
+   622,
+   623
+  ]
+ }
+}

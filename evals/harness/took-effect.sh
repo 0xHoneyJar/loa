@@ -184,6 +184,13 @@
 #                              run_dir inside sessions/). On a session's own run dir (its parent is
 #                              sessions/) the rule reads OK "session of a matched cell" — the cell
 #                              rule decides; anywhere else it FAILs.
+#   runtime_mount_present      (2026-10-26, the grader-side node_modules; pipeline-run.sh § Runtime mounts) with
+#                              --task-yaml (required): a task declaring runtime.node_modules has arm_evidence
+#                              runtime_node_modules equal to it, and every captured phase launcher_argv carries, as
+#                              one element each, <node_modules>:/workspace/node_modules:ro and, for every other dst
+#                              of the evidence's runtime_mounts list, <some src>:<dst>:ro; a task declaring
+#                              runtime.image has arm_evidence runtime_image equal to it and that image as a
+#                              launcher_argv element. A task declaring neither passes ("task declares no runtime").
 # Matched cells (cycle-132): --run-dir on a cell directory (meta/cell.json, no meta/pipeline.json; the
 # arm from meta/arm) evaluates bare_sessions_matched as above and every other listed rule on each valid
 # session's final run dir (OK when every valid session passes; evidence names the first that fails).
@@ -584,6 +591,38 @@ print("%s; %s" % (tail, "; ".join(walked) if walked else "record cross-checked a
 PY
 }
 
+rule_runtime_mount_present() {
+  local nm img ev_nm ev_img mounts f n=0 miss="" d
+  [[ -n "$TASK_YAML_OPT" ]] || { EVID="--task-yaml is required"; return 1; }
+  nm="$(yq -r '.runtime.node_modules // ""' "$TASK_YAML_OPT" 2>/dev/null || true)"
+  img="$(yq -r '.runtime.image // ""' "$TASK_YAML_OPT" 2>/dev/null || true)"
+  if [[ -z "$nm" && -z "$img" ]]; then EVID="task declares no runtime"; return 0; fi
+  nm="${nm%/}"
+  ev_nm="$(jq -r '.arm_evidence.runtime_node_modules // ""' "$R/meta/pipeline.json" 2>/dev/null || true)"
+  ev_img="$(jq -r '.arm_evidence.runtime_image // ""' "$R/meta/pipeline.json" 2>/dev/null || true)"
+  mounts="$(jq -r '.arm_evidence.runtime_mounts // ""' "$R/meta/pipeline.json" 2>/dev/null || true)"
+  [[ -z "$nm" || "$ev_nm" == "$nm" ]] || { EVID="evidence runtime_node_modules=${ev_nm:-<none>}, task $nm"; return 1; }
+  [[ -z "$img" || "$ev_img" == "$img" ]] || { EVID="evidence runtime_image=${ev_img:-<none>}, task $img"; return 1; }
+  [[ -z "$nm" || "$mounts" == /workspace/node_modules* ]] || { EVID="evidence runtime_mounts=${mounts:-<none>} does not start at /workspace/node_modules"; return 1; }
+  while IFS= read -r f; do
+    n=$((n + 1))
+    if [[ -n "$nm" ]]; then
+      jq -e --arg m "$nm:/workspace/node_modules:ro" '(.launcher_argv // []) | index($m) != null' "$f" >/dev/null 2>&1 \
+        || { miss="$miss $(basename "$f"):/workspace/node_modules"; continue; }
+      while IFS= read -r d; do
+        [[ -n "$d" && "$d" != /workspace/node_modules ]] || continue
+        jq -e --arg d ":$d:ro" '(.launcher_argv // []) | map(select(type == "string" and endswith($d))) | length > 0' "$f" >/dev/null 2>&1 \
+          || miss="$miss $(basename "$f"):$d"
+      done < <(tr ',' '\n' <<<"$mounts")
+    fi
+    if [[ -n "$img" ]]; then
+      jq -e --arg i "$img" '(.launcher_argv // []) | index($i) != null' "$f" >/dev/null 2>&1 || miss="$miss $(basename "$f"):image"
+    fi
+  done < <(argv_files)
+  [[ $n -gt 0 ]] || { EVID="no phase argv captured"; return 1; }
+  [[ -z "$miss" ]] || { EVID="missing in launcher_argv:$miss"; return 1; }
+  EVID="$( [[ -n "$nm" ]] && printf 'mounts %s' "$(tr ',' ' ' <<<"$mounts" | wc -w | tr -d ' ')" || printf 'no mount' ) in $n argv${img:+, image $img}"
+}
 rule_applicability_refused() {
   local f="$R/meta/refused.json" a t
   if [[ ! -f "$f" ]]; then

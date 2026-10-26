@@ -93,13 +93,30 @@
 #     --tmpfs /tmp:rw,size=1g --pids-limit 512 --memory 4g --cpus 2
 #     -v <run>/sandbox:/workspace:rw -v <run>/meta/home:/home/evaluser:rw
 #     -w /workspace -e <KEY=value…> -e AWS_BEARER_TOKEN_BEDROCK <image> python3 -I -c <shim> … claude …
-# Exactly two mounts. meta/home/ (mode 0700) holds a copy of $HOME/.codex/config.toml and
+# Exactly two mounts, plus the task's read-only runtime mounts (§ Runtime mounts below). meta/home/ (mode 0700)
+# holds a copy of $HOME/.codex/config.toml and
 # a copy of $HOME/.codex/auth.json whose tokens.refresh_token is the placeholder
 # "loa-ablation-no-refresh-token" (mode 0600; the real one is single-use and a container
 # refresh burned the host's; the codex CLI treats a MISSING key as logged out, KF-048)
 # when present, and empty .claude/ and .aws/; the CLI's session store
 # lives there for the whole run, so A6's --resume works across phases. No ~/.claude
 # file is ever copied. The directory is deleted at exit and on interrupt.
+# Runtime mounts (task.yaml `runtime`, 2026-10-26 — the grader-side node_modules; ablation-grade.sh honours the same
+# key for its grading containers). A build task may declare
+#   runtime: {node_modules: </abs/path/to/checkout/node_modules>, image: <image>}
+# node_modules names an installed checkout's root node_modules on THIS host: absolute, basename node_modules, no ':' or
+# ',', an existing directory (a missing directory is infrastructure_error; the host executor refuses the key the same
+# way, it mounts nothing; a review-catch task or a malformed key is exit 2 before any write). Every phase container then
+# gets, read-only, that directory at /workspace/node_modules and, for every fixture directory holding a package.json
+# whose counterpart <checkout>/<dir>/node_modules exists, that directory at /workspace/<dir>/node_modules (the pnpm
+# layout: a package's node_modules holds relative links into the root's .pnpm store, which resolve inside the mounts;
+# lib/seed_tasks.py link_node_modules is the proof-side twin; runtime_mounts below is the rule). Nothing is copied: the
+# sandbox holds only the empty mountpoint directories, `node_modules/` is excluded in the sandbox .git (no snapshot
+# carries a dependency; a fixture holding node_modules at its root is refused), and the pre-launch arm-id scan skips
+# node_modules. `image` overrides --image for this task (loa-ablation:node-dev for TypeScript tasks; image_digest is
+# that image's). Evidence (meta/arm-evidence.txt): runtime_node_modules=<path>, runtime_mounts=<dst,…>,
+# runtime_image=<image>; meta/runtime-mounts.tsv lists <src>\t<dst>; the launcher_argv capture carries the -v flags;
+# took-effect.sh runtime_mount_present checks them against the task. --dry-run prints `runtime: node_modules=… image=…`.
 # image_digest = the image's RepoDigest or id (container), else the fingerprint (host).
 # Versions: `fingerprint` is computed from the HOST toolchain; in container mode the
 # toolchain that runs the phases is the image's (Claude Code 2.1.299, codex 0.162.1 by
@@ -315,6 +332,30 @@ esac
 OVERLAY_MODE="$(jq -r '.review_catch.overlay_mode // "head"' <<<"$TASK_JSON")"
 case "$OVERLAY_MODE" in head|base) ;; *) die_usage "task review_catch.overlay_mode must be head or base, got '$OVERLAY_MODE'" ;; esac
 
+# runtime (header § Runtime mounts): shape errors are exit 2 here; host conditions (a missing directory, the host
+# executor) are infrastructure_error once the run directory exists
+RUNTIME_NM="" RUNTIME_IMAGE="" RUNTIME_MOUNTS=()
+case "$(jq -r 'if has("runtime") then (.runtime | type) else "absent" end' <<<"$TASK_JSON")" in
+  absent|null) ;;
+  object)
+    while IFS= read -r rk; do
+      case "$rk" in node_modules|image) ;; *) die_usage "task runtime.$rk is not a known key (node_modules, image)" ;; esac
+    done < <(jq -r '.runtime | keys[]' <<<"$TASK_JSON")
+    RUNTIME_NM="$(jq -r '.runtime.node_modules // ""' <<<"$TASK_JSON")"
+    RUNTIME_IMAGE="$(jq -r '.runtime.image // ""' <<<"$TASK_JSON")"
+    if [[ -n "$RUNTIME_NM" ]]; then
+      [[ "$KIND" == build ]] || die_usage "task runtime.node_modules applies to build tasks only (type $TASK_TYPE)"
+      [[ "$RUNTIME_NM" == /* && "$(basename "$RUNTIME_NM")" == node_modules && "$RUNTIME_NM" != *:* && "$RUNTIME_NM" != *,* && "$RUNTIME_NM" != *$'\n'* ]] \
+        || die_usage "task runtime.node_modules must be an absolute path (no ':' or ',') to a directory named node_modules: $RUNTIME_NM"
+      RUNTIME_NM="${RUNTIME_NM%/}"
+    fi
+    if [[ -n "$RUNTIME_IMAGE" ]]; then
+      [[ "$RUNTIME_IMAGE" =~ ^[A-Za-z0-9._:/@-]{1,200}$ ]] || die_usage "task runtime.image has unexpected characters: $RUNTIME_IMAGE"
+      IMAGE="$RUNTIME_IMAGE"   # the task's image overrides --image
+    fi ;;
+  *) die_usage "task runtime must be a mapping {node_modules, image} or null" ;;
+esac
+
 # --- arm and phase plan -------------------------------------------------------
 ARM_DEF="$(jq -c --arg a "$ARM" '[.arms // [] | .[] | select(.id == $a)][0] // empty' <<<"$SUITE_JSON")"
 ALL_ARM_IDS="$(jq -r '[.arms // [] | .[] | .id] | .[]' <<<"$SUITE_JSON")"
@@ -463,6 +504,7 @@ if [[ "$DRY_RUN" == true ]]; then
         | if length == 0 then "-" else join(",") end' <<<"$vocab")"
   fi
   printf 'sandbox: mount=%s overlay=%s config_variant=%s config_edits=%s\n' "$sb_mount" "$sb_overlay" "$sb_variant" "$sb_edits"
+  [[ -n "$RUNTIME_NM$RUNTIME_IMAGE" ]] && printf 'runtime: node_modules=%s image=%s\n' "${RUNTIME_NM:--}" "${RUNTIME_IMAGE:--}"
   [[ "$EVAL_ONLY" == true ]] && echo "eval_only: true (batch context $BATCH_CONTEXT)"
   exit 0
 fi
@@ -479,6 +521,8 @@ printf '%s\n' "$ARM" > "$META/arm"
 PHASES_FILE="$META/phases.jsonl"; : > "$PHASES_FILE"
 export ARM_EVIDENCE_FILE="$META/arm-evidence.txt"; : > "$ARM_EVIDENCE_FILE"
 [[ -n "$BATCH_CONTEXT" ]] && printf 'batch_context=%s\n' "$BATCH_CONTEXT" >> "$ARM_EVIDENCE_FILE"
+[[ -n "$RUNTIME_NM" ]] && printf 'runtime_node_modules=%s\n' "$RUNTIME_NM" >> "$ARM_EVIDENCE_FILE"
+[[ -n "$RUNTIME_IMAGE" ]] && printf 'runtime_image=%s\n' "$RUNTIME_IMAGE" >> "$ARM_EVIDENCE_FILE"
 MOUNT_LOG="$META/mount.log"; : > "$MOUNT_LOG"
 
 STARTED="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -688,12 +732,14 @@ if [[ "$EXECUTOR" == container ]]; then
   command -v "$DOCKER_BIN" >/dev/null 2>&1 || [[ -x "$DOCKER_BIN" ]] || infra "docker CLI not found: $DOCKER_BIN"
   IMAGE_DIGEST="$("$DOCKER_BIN" image inspect --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{else}}{{.Id}}{{end}}' "$IMAGE" 2>/dev/null || true)"
   [[ -n "$IMAGE_DIGEST" ]] || infra "container image not found: $IMAGE"
+  [[ -z "$RUNTIME_NM" || -d "$RUNTIME_NM" ]] || infra "task runtime.node_modules is not a directory on this host: $RUNTIME_NM"
   if [[ "$MOUNT_MODE" == home-scope ]]; then
     CC_VERSION="$("$DOCKER_BIN" image inspect --format '{{index .Config.Labels "org.loa.claude_code_version"}}' "$IMAGE" 2>/dev/null || true)"
     [[ "$CC_VERSION" == "$SM_SURFACE_DERIVED_FOR" ]] \
       || infra "refused: mount_mode home-scope: the surface is derived for Claude Code $SM_SURFACE_DERIVED_FOR but the image records '${CC_VERSION:-none}' (org.loa.claude_code_version); re-run the scope spike and re-derive lib/sandbox-mount.sh surface()"
   fi
 else
+  [[ -z "$RUNTIME_NM" ]] || infra "task runtime.node_modules needs --executor container (a read-only bind mount; the host executor mounts nothing)"
   IMAGE_DIGEST="$FINGERPRINT"
 fi
 
@@ -762,6 +808,19 @@ sgit() {  # git on the sandbox repo, isolated from the operator's git config
   env -i PATH="$PATH" HOME="$META" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 LC_ALL=C \
     git -C "$WS" "$@"
 }
+runtime_mounts() {  # runtime_mounts <fixture> <node_modules> → "<host src>\t<container dst>" lines (§ Runtime mounts): the
+                    # root, then every fixture directory holding a package.json whose counterpart
+                    # <checkout>/<dir>/node_modules is a directory (LC_ALL=C order; node_modules subtrees never walked)
+  local fx="$1" nm="$2" checkout rel src
+  checkout="$(dirname "$nm")"
+  printf '%s\t/workspace/node_modules\n' "$nm"
+  while IFS= read -r rel; do
+    [[ -n "$rel" ]] || continue
+    src="$checkout/$rel/node_modules"
+    if [[ -d "$src" ]]; then printf '%s\t/workspace/%s/node_modules\n' "$src" "$rel"; fi
+  done < <(cd "$fx" && find . -mindepth 2 -type f -name package.json -not -path '*/node_modules/*' | sed 's|^\./||; s|/package.json$||' | LC_ALL=C sort)
+  return 0
+}
 
 if [[ "$KIND" == build ]]; then
   fx_rel="$(jq -r '.fixture // ""' <<<"$TASK_JSON")"
@@ -770,6 +829,19 @@ if [[ "$KIND" == build ]]; then
   case "/$FIXTURE_DIR/" in */hidden/*) infra "fixture resolves inside a hidden directory: $fx_rel" ;; esac
   lib_call check_fixture_path_rule "$FIXTURE_DIR"
   cp -a "$FIXTURE_DIR/." "$WS/"
+  if [[ -n "$RUNTIME_NM" ]]; then
+    # the runtime mounts (header § Runtime mounts): empty mountpoint directories only, nothing copied
+    if [[ -e "$FIXTURE_DIR/node_modules" || -L "$FIXTURE_DIR/node_modules" ]]; then
+      infra "fixture holds node_modules at its root while runtime.node_modules is set: $fx_rel"
+    fi
+    runtime_mounts "$FIXTURE_DIR" "$RUNTIME_NM" > "$META/runtime-mounts.tsv"
+    while IFS=$'\t' read -r m_src m_dst; do
+      [[ -n "$m_dst" ]] || continue
+      RUNTIME_MOUNTS+=("$m_src"$'\t'"$m_dst")
+      mkdir -p "$WS/${m_dst#/workspace/}"
+    done < "$META/runtime-mounts.tsv"
+    printf 'runtime_mounts=%s\n' "$(cut -f2 "$META/runtime-mounts.tsv" | paste -sd, -)" >> "$ARM_EVIDENCE_FILE"
+  fi
 else
   fx_rel="$(jq -r '.review_catch.fixture // .fixture // ""' <<<"$TASK_JSON")"
   [[ -n "$fx_rel" ]] || infra "review-catch task has no review_catch.fixture"
@@ -789,6 +861,7 @@ sgit config user.email eval@loa
 sgit config commit.gpgsign false
 {
   printf '%s\n' '/.claude/' '/CLAUDE.md' '/.loa.config.yaml' '/grimoires/' '/.run/' '/.beads/' '/.eval/'
+  if [[ -n "$RUNTIME_NM" ]]; then printf '%s\n' 'node_modules/'; fi   # § Runtime mounts: no snapshot carries a dependency
 } >> "$WS/.git/info/exclude"
 sgit add -A
 sgit commit -q --allow-empty -m base
@@ -946,7 +1019,7 @@ while IFS= read -r arm_hit; do
   if [[ "$ARM_PR_NATIVE" == true ]] && pr_derived "$rel"; then continue; fi
   if [[ "$ARM_FIXTURE_NATIVE" == true && "$KIND" != review-catch ]] && fixture_derived "$rel"; then continue; fi
   infra "arm id appears in the sandbox: $rel"
-done < <(grep -rIl --exclude-dir=.git -F -e "$ARM" "$WS" 2>/dev/null | LC_ALL=C sort || true)
+done < <(grep -rIl --exclude-dir=.git ${RUNTIME_NM:+--exclude-dir=node_modules} -F -e "$ARM" "$WS" 2>/dev/null | LC_ALL=C sort || true)
 if [[ "$HS" == true ]]; then
   arm_hit="$(grep -rIl -F -e "$ARM" "$HOME_DIR/.claude" 2>/dev/null | LC_ALL=C sort | sed -n '1p' || true)"
   [[ -z "$arm_hit" ]] || infra "arm id appears in the HOME framework: ${arm_hit#"$HOME_DIR"/}"
@@ -1131,6 +1204,8 @@ run_phase() {  # run_phase <name> <label>
           -v "$WS:/workspace:rw"
           -v "$HOME_DIR:/home/evaluser:rw"
           -w /workspace)
+    local rt_m   # § Runtime mounts: the task's node_modules directories, read-only, after the two sandbox mounts
+    for rt_m in ${RUNTIME_MOUNTS[@]+"${RUNTIME_MOUNTS[@]}"}; do full+=(-v "${rt_m%%$'\t'*}:${rt_m#*$'\t'}:ro"); done
     for kv in "${envkv[@]}"; do
       k="${kv%%=*}"
       if [[ "$SECRET_KEYS" == *" $k "* ]]; then full+=(-e "$k"); else full+=(-e "$kv"); fi

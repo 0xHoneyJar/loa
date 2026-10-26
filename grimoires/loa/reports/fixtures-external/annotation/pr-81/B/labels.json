@@ -1,0 +1,22 @@
+{
+  "hunks": {
+    "H01": {"verdict": "not-defect", "not_defect_class": "docs", "group": null,
+            "file": "docs/CHANGELOG.md", "anchor_lines": [],
+            "description": "Adds a changelog entry for the --jobs GNU parallel abort fix.", "severity": null, "category": null},
+    "H02": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "libexec/bats-core/bats-exec-suite", "anchor_lines": [114, 115],
+            "description": "Because `!` negates only the `type -p` check, the abort runs only when parallel is missing and `parallel --version` also succeeds, which can never both happen, so --jobs without GNU parallel never aborts here and fails later instead.", "severity": "medium", "category": "logic"}
+  },
+  "incidents": {
+    "I01": {"verdict": "not-at-head", "group": null, "file": "docs/CHANGELOG.md",
+            "anchor_lines": [], "description": "Dynamic test duplicate-check fix in code not shown in the change's hunks; only changelog and tests cite change files.", "severity": null},
+    "I02": {"verdict": "not-at-head", "group": null, "file": "test/bats.bats",
+            "anchor_lines": [], "description": "Test-only noclobber fix to tests added after the change.", "severity": null},
+    "I03": {"verdict": "not-at-head", "group": null, "file": "docs/CHANGELOG.md",
+            "anchor_lines": [], "description": "Loader stack trace fix unrelated to the change; only changelog and tests cited.", "severity": null},
+    "I04": {"verdict": "not-at-head", "group": null, "file": "docs/CHANGELOG.md",
+            "anchor_lines": [], "description": "Changelog reference update for an unrelated later formatter fix.", "severity": null},
+    "I05": {"verdict": "not-at-head", "group": null, "file": "docs/CHANGELOG.md",
+            "anchor_lines": [], "description": "Changelog entry for an unrelated license change.", "severity": null}
+  }
+}

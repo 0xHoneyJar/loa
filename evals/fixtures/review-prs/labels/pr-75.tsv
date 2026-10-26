@@ -1,0 +1,10 @@
+# approved-by: deep-name 2026-10-26
+# fixture pr-75 | external https://github.com/vitejs/vite pull request #23828 | base a9222e780251 | head 42af28ed6ade | fix 197daf6c4c7b..197daf6c4c7b
+# seeded by evals/harness/seed-corpus-from-external.sh; defects V01 … from the blind annotation (two Opus 5.5 annotators, annotation_merge.py; label_source fix-commit, review_driven false), fix rows carried; approval pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	medium	logic	packages/vite/src/node/server/middlewares/indexHtml.ts	<head>	fix-commit	hunk:H02	A,B	adjudicated	agreed defect, group, severity, category and description (the fallback page carries no <meta charset>); anchors differ by line 572 (A): union	false
+V01	medium	logic	packages/vite/src/node/server/middlewares/indexHtml.ts	<script>globalThis.__vite_is_fallback_page__ = true</script>	fix-commit	hunk:H02	A,B	adjudicated	agreed defect, group, severity, category and description (the fallback page carries no <meta charset>); anchors differ by line 572 (A): union	false
+V01	medium	logic	packages/vite/src/node/server/middlewares/indexHtml.ts	<script type="module">	fix-commit	hunk:H02	A,B	adjudicated	agreed defect, group, severity, category and description (the fallback page carries no <meta charset>); anchors differ by line 572 (A): union	false
+V01	medium	logic	packages/vite/src/node/server/middlewares/indexHtml.ts	${hmrRuntime.replaceAll('</script>', '<\\/script>')}	fix-commit	hunk:H02	A,B	adjudicated	agreed defect, group, severity, category and description (the fallback page carries no <meta charset>); anchors differ by line 572 (A): union	false
+F001	-	fix	packages/vite/src/node/server/middlewares/indexHtml.ts	const hmrRuntime = await getHmrImplementation(server.config)	fix	fix/197daf6c4c7b:567-567	-	-	-	-
+F002	-	fix	packages/vite/src/node/server/middlewares/indexHtml.ts	-	fix	fix/197daf6c4c7b:571-571	-	-	-	-

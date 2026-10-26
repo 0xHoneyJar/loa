@@ -762,7 +762,8 @@ ROW="$(jq -n -c \
       suite_manifest_sha256: ($m.suite_manifest_sha256 // null),
       suite_version: ($m.suite_version // $p.suite_version // $task.suite_version // null),
       host_fingerprint: ($m.fingerprint // $p.fingerprint // null),
-      image_digest: ($m.image_digest // $p.image_digest // null),
+      image_digest: (if (($p.arm_evidence // {}).runtime_image // "") != "" then ($p.image_digest // $m.image_digest // null)
+                     else ($m.image_digest // $p.image_digest // null) end),   # a task-declared image (runtime.image): the digest of the image the run used
       executor_mode: ($m.executor_mode // $p.executor_mode // null),
       agy_opt_in: ($m.agy_opt_in // false),
       started: ($p.started // ""),

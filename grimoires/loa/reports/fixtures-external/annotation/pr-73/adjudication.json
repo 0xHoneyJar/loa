@@ -1,0 +1,35 @@
+{
+ "H01": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+  "description": "When build.chunkImportMap is enabled but getImportMap returns undefined (no import map asset in the bundle), the non-null assertion lets head dereference importMap.mapping and crash instead of skipping import-map handling.",
+  "severity": "medium",
+  "category": "error-handling",
+  "reason": "agreed defect, group, severity, category and description; anchors differ by line 409 (A: the dereference that crashes): union",
+  "anchor_lines": [
+   407,
+   408,
+   409
+  ]
+ },
+ "I02": {
+  "verdict": "defect-at-head",
+  "group": "D2",
+  "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+  "description": "With chunk import maps, the head code leaves preload dependencies and import-map key selection out of chunk hashing, so a chunk's hash can stay the same while its preload keys change, which leaves stale cached chunks.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "agreed defect-at-head, group and severity (preload dependencies left out of the chunk hash, so a hash can stay the same while the chunk's preload keys change — the pr-55 D1 defect seen from this fixture's file); both left category null, an incident-only defect needs one: logic (pr-55 I02 precedent); anchors: union — A could not fix the exact lines and took the hashing block 405-412, B the three lines where the import-map keys are selected; the union keeps every head line either annotator tied to the behaviour",
+  "anchor_lines": [
+   405,
+   406,
+   407,
+   408,
+   409,
+   410,
+   411,
+   412
+  ]
+ }
+}

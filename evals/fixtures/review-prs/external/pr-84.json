@@ -1,0 +1,69 @@
+{
+  "base_commit": "0be8d10cd226050c08eaba7d76aaf9d7650dd17f",
+  "files": {
+    "base": [
+      {
+        "blob": "2b1f39e23f58477ab881b10eee96c47aa69ac2a6",
+        "path": "crates/biome_js_syntax/src/parentheses/expression.rs",
+        "sha256": "8763de8ab3a99d117e220a6f5ceea3bd22b07259d75459f2cc5cabae6773551a",
+        "size": 45484
+      }
+    ],
+    "head": [
+      {
+        "blob": "3c1256c7362bdf90d4513930aa96687155fbd13c",
+        "path": ".changeset/fix-instantiation-expression-non-null.md",
+        "sha256": "1f6cc6c9ed6df667d4e257fa5b6b7d54a56f1951045fc5fc90c985694ecbaaab",
+        "size": 339
+      },
+      {
+        "blob": "b1422d5f377eb516024f809abe88c13f07cd6ce1",
+        "path": "crates/biome_js_formatter/tests/specs/ts/expression/instantiation_expression_non_null.ts",
+        "sha256": "57945eb86b4bb62d58650fe49559f229ecdb717ac5eba93fd9e58a0a43cf187c",
+        "size": 272
+      },
+      {
+        "blob": "2711f4e7608a2ae5054d752ceb9cf106ae92e437",
+        "path": "crates/biome_js_formatter/tests/specs/ts/expression/instantiation_expression_non_null.ts.snap",
+        "sha256": "f2b746cc16397b8311f24d3d0e2e48a2f70f89e5f2852ae95880b8693eb678a3",
+        "size": 714
+      },
+      {
+        "blob": "e3650f34d6866c70afeb0daaeb6f87907dfdbb31",
+        "path": "crates/biome_js_syntax/src/parentheses/expression.rs",
+        "sha256": "27e60bf9c74cd938ef01cdfc4cb84faf5f7a18645b797f3b6bb5fba1be4374b7",
+        "size": 45852
+      }
+    ]
+  },
+  "fix_commit": "5699601ea942b35b8fe9b17ee61faaef2346a34d",
+  "fix_first": "5699601ea942b35b8fe9b17ee61faaef2346a34d",
+  "fix_parent": "b62494ac1de56e0f73c44d743d1864fc12b4db07",
+  "fixture": "pr-84",
+  "head_commit": "5df6c5088cf5996710fc6ee0f809aeefc2e4d03e",
+  "licence": "Apache-2.0",
+  "licence_files": [
+    {
+      "blob": "cd7ef7e8fb62176ffc2d5816059620132f33c580",
+      "path": "LICENSE-APACHE",
+      "sha256": "e2746aba8799f7a3378259f36a83a079e811ca7926cbdd248a2eb7ca9cbbac5d",
+      "size": 10858
+    },
+    {
+      "blob": "723a1b43273813bbc246cb7736e48343b33d5fe0",
+      "path": "LICENSE-MIT",
+      "sha256": "35365b6285e1f8cac61549f321befdbbe6139bf1e3d7ef6ccf1f1294ab015202",
+      "size": 1174
+    }
+  ],
+  "merge_commit": "7d3e8a1ef070ea5af92b9cdc3ca017036e981465",
+  "pr": 12540,
+  "pr_base_sha": "0be8d10cd226050c08eaba7d76aaf9d7650dd17f",
+  "pr_url": "https://github.com/biomejs/biome/pull/12540",
+  "schema_version": 1,
+  "scope_paths": null,
+  "skipped": [],
+  "source_url": "https://github.com/biomejs/biome",
+  "trees": "committed",
+  "visibility": "public"
+}

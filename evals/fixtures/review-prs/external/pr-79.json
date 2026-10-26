@@ -1,0 +1,69 @@
+{
+  "base_commit": "dfd9dc0b9becb0cd2090da2a4d9f978fa5482857",
+  "files": {
+    "base": [
+      {
+        "blob": "6cdd9ae5ab27b8320ea0b9e9bfe17d0c52727a6c",
+        "path": "test/types/fastify.tst.ts",
+        "sha256": "542f6ad4835a52e5bc1371ab9ac4e54ce7a414a1a95983b39e1a63c92f3fbda2",
+        "size": 13328
+      },
+      {
+        "blob": "777f84cdf36bd0725a5a10f1d33dbf818ee25e44",
+        "path": "types/instance.d.ts",
+        "sha256": "6d30a8a1bb280403f6182b8cb60dc792d74a7ce32b7d0a447722cb2ba8f6857b",
+        "size": 37458
+      },
+      {
+        "blob": "dce4cff28c873dad51291c33bf07b2852d1e730c",
+        "path": "types/route.d.ts",
+        "sha256": "aaf7da505f9167078132deef7f189f772e69b84b186a2ff3cefe64812a4093d5",
+        "size": 12823
+      }
+    ],
+    "head": [
+      {
+        "blob": "89f6988dc8c827b5242bbca88b23982fe07099f8",
+        "path": "test/types/fastify.tst.ts",
+        "sha256": "c6bd370dc94511fcba67977d771eadc633fc86408e8c447da1f76017cdfe96ac",
+        "size": 13527
+      },
+      {
+        "blob": "b0b31f7fb4662f4776db062802b954d320d719d0",
+        "path": "types/instance.d.ts",
+        "sha256": "ed88904685c88c8b3afc0dfd977187ac5ed144ff0933089ea16a3e7e8ead32a5",
+        "size": 37480
+      },
+      {
+        "blob": "239bf763e034c8227751f7cc4fe717c757170213",
+        "path": "types/route.d.ts",
+        "sha256": "14f0f5344f657ffbeaf884d7838d12797a15f4c062e11f43a99b8933ec195ead",
+        "size": 12834
+      }
+    ]
+  },
+  "fix_commit": "09b4a17a12a67407a4131d48c26a0dc309c55ecf",
+  "fix_first": "09b4a17a12a67407a4131d48c26a0dc309c55ecf",
+  "fix_parent": "6ed472b6fe023cd0e6283badda231b84e45582d0",
+  "fixture": "pr-79",
+  "head_commit": "33ac0616a8567634b8742eb3dcf1ac1955ff1d9e",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "266e719722c4d45a9d6282e5ca9e8a77b2b67f8c",
+      "path": "LICENSE",
+      "sha256": "23c91863859171455a536380991b4160fee4e19e2d8dc353ecf7143cc4e53ca2",
+      "size": 1123
+    }
+  ],
+  "merge_commit": "6ed472b6fe023cd0e6283badda231b84e45582d0",
+  "pr": 6901,
+  "pr_base_sha": "dfd9dc0b9becb0cd2090da2a4d9f978fa5482857",
+  "pr_url": "https://github.com/fastify/fastify/pull/6901",
+  "schema_version": 1,
+  "scope_paths": null,
+  "skipped": [],
+  "source_url": "https://github.com/fastify/fastify",
+  "trees": "committed",
+  "visibility": "public"
+}

@@ -1,0 +1,25 @@
+commit 5c1f3935e43b35679c71ea7a65275a348d1efbd1
+Date: 2026-10-24T12:28:44+02:00
+
+fix(types): add logSerializers to RouteShorthandOptions
+
+The runtime accepts logSerializers as a per-route option
+(lib/route.js) and it is documented under the shared options in
+docs/Reference/Routes.md, but RouteShorthandOptions did not include
+it. The serializers are passed as pino child logger bindings, so the
+return type is widened to match pino serializer semantics: serializer
+functions may return objects as well as strings.
+
+
+diff --git a/types/route.d.ts b/types/route.d.ts
+index 503bf830..375e15c3 100644
+--- a/types/route.d.ts
++++ b/types/route.d.ts
+@@ -68,6 +68,7 @@ export interface RouteShorthandOptions<
+   bodyLimit?: number;
+   handlerTimeout?: number;
+   logLevel?: LogLevel;
++  logSerializers?: Record<string, (value: any) => any>;
+   config?: FastifyContextConfig & ContextConfig;
+   constraints?: RouteConstraint,
+   prefixTrailingSlash?: 'slash' | 'no-slash' | 'both';

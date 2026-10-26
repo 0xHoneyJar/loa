@@ -1,0 +1,6 @@
+# approved-by: pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	medium	logic	libexec/bats-core/bats-exec-suite	if ! type -p "${parallel_binary_name}" >/dev/null && "${parallel_binary_name}" --version &>/dev/null && [[ -z "$bats_no_parallelize_across_files" ]]; then	fix-commit	hunk:H02	A,B	agreed	-	false
+V01	medium	logic	libexec/bats-core/bats-exec-suite	abort "Cannot execute \"${num_jobs}\" jobs without GNU parallel"	fix-commit	hunk:H02	A,B	agreed	-	false
+F001	-	fix	docs/CHANGELOG.md	* pretty formatter was not the default on interactive shells anymore (#1220)	fix	fix/62edb3cbdcf0:20-20	-	-	-	-
+F002	-	fix	libexec/bats-core/bats-exec-suite	if ! type -p "${parallel_binary_name}" >/dev/null && "${parallel_binary_name}" --version &>/dev/null && [[ -z "$bats_no_parallelize_across_files" ]]; then	fix	fix/62edb3cbdcf0:114-114	-	-	-	-

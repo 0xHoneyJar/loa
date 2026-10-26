@@ -1,0 +1,74 @@
+{
+  "fixture": "pr-82",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "deep-name 2026-10-26",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "672f15a5ccdeb34e0188966e59c65598d78d2212",
+    "fix_commit": "ef81ddcfc94399c043b349a986a1b231b6bac7d6",
+    "incidents_meta": {
+      "main_sha": "ca034820b8288ab6da3a033626a7857401ee64a5"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "packages/shared/src/domAttrConfig.ts",
+      "anchor_line": 15,
+      "anchors": [
+        15,
+        22,
+        23,
+        24,
+        25,
+        26
+      ],
+      "must_match": "const specialBooleanAttrs = `itemscope,allowfullscreen,formnovalidate,ismap,nomodule,novalidate,playsinline,readonly`",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H04",
+      "source_commit": "672f15a5",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "agreed defect, group, severity, category and description (disablepictureinpicture / disableremoteplayback missing from the boolean-attribute lists, so false renders the attribute); anchors: union \u2014 A adds 24-26, the rest of the list where the two names belong",
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "packages/runtime-dom/__tests__/patchAttrs.spec.ts",
+      "start": 49,
+      "end": 49,
+      "source": "fix/ef81ddcfc943:49-49"
+    },
+    {
+      "id": "F002",
+      "file": "packages/server-renderer/__tests__/ssrRenderAttrs.spec.ts",
+      "start": 62,
+      "end": 62,
+      "source": "fix/ef81ddcfc943:62-62"
+    },
+    {
+      "id": "F003",
+      "file": "packages/shared/src/domAttrConfig.ts",
+      "start": 7,
+      "end": 7,
+      "source": "fix/ef81ddcfc943:7-7"
+    },
+    {
+      "id": "F004",
+      "file": "packages/shared/src/domAttrConfig.ts",
+      "start": 15,
+      "end": 15,
+      "source": "fix/ef81ddcfc943:15-15"
+    }
+  ]
+}

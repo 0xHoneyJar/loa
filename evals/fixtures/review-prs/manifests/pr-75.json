@@ -1,0 +1,58 @@
+{
+  "fixture": "pr-75",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "deep-name 2026-10-26",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "42af28ed6ade7b68b5e72908366219b843f52e78",
+    "fix_commit": "197daf6c4c7bfdaa005bebcc41dd2ff22fa3a5b6",
+    "incidents_meta": {
+      "main_sha": "e954a9cda0b5254be495a937333a0be1b8503d8f"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "packages/vite/src/node/server/middlewares/indexHtml.ts",
+      "anchor_line": 571,
+      "anchors": [
+        571,
+        572,
+        573,
+        574
+      ],
+      "must_match": "<head>",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H02",
+      "source_commit": "42af28ed",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "agreed defect, group, severity, category and description (the fallback page carries no <meta charset>); anchors differ by line 572 (A): union",
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "packages/vite/src/node/server/middlewares/indexHtml.ts",
+      "start": 567,
+      "end": 567,
+      "source": "fix/197daf6c4c7b:567-567"
+    },
+    {
+      "id": "F002",
+      "file": "packages/vite/src/node/server/middlewares/indexHtml.ts",
+      "start": 571,
+      "end": 571,
+      "source": "fix/197daf6c4c7b:571-571"
+    }
+  ]
+}

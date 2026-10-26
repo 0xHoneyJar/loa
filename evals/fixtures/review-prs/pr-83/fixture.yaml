@@ -1,0 +1,34 @@
+name: pr-83
+version: "1.0.0"
+language: "typescript"
+runtime: none
+dependency_strategy: none
+description: "external fixture: vuejs/core pull request #15757 reviewed at its head (pre-fix); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: external
+deprecated: false
+kind: external
+source_url: "https://github.com/vuejs/core"
+pr: 15757
+pr_url: "https://github.com/vuejs/core/pull/15757"
+pr_created: "2026-10-03"
+pr_merged: "2026-10-12"
+base_commit: "4ab865a848a1da3d10fb674f857e5fff13094644"
+pr_base_sha: "4ab865a848a1da3d10fb674f857e5fff13094644"
+head_commit: "af5fcd68c3814e9947a81444fe42c33b0968ca15"
+merge_commit: "0bea14b962f1f6e27d2d994132efc2269945ab0f"
+fix_commit: "ff3501429d4970c37194708b055492a56d9e5be5"
+fix_first: "ff3501429d4970c37194708b055492a56d9e5be5"
+fix_parent: "d084b904903a7710ea19b7256b7c681e838eb63e"
+fix_committed: "2026-10-13"
+fix_after_cutoff:
+  fable_5_1: true      # knowledge cutoff 2026-06
+incident: null
+licence: "MIT"
+visibility: public
+trees: committed
+exposure:
+  fable_5_1: post-cutoff      # knowledge cutoff 2026-06; head committed 2026-10-08 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-10-08; sandbox has network; egress scanned (grader class 9)"

@@ -1,0 +1,18 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "lib/reply.js", "anchor_lines": [283, 285, 288],
+            "description": "reply.header('set-cookie', array) stores the caller's array by reference, so later set-cookie calls push into it and mutate the caller's (often module-level) array, making cookies accumulate and leak across requests.",
+            "severity": "high", "category": "logic"},
+    "H03": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "test/internals/reply.test.js", "anchor_lines": [],
+            "description": "Adds a regression test that a caller's set-cookie array is not mutated across requests.",
+            "severity": null, "category": null}
+  },
+  "incidents": {
+    "I01": {"verdict": "not-at-head", "group": null, "file": "lib/reply.js",
+            "anchor_lines": [],
+            "description": "Stream trailer flushing race/hang in sendStream is unrelated to the set-cookie header change under review, and the head-side code for it is not shown, so it cannot be attributed to head from the available text.",
+            "severity": null}
+  }
+}

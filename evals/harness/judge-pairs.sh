@@ -15,7 +15,7 @@
 #                  [--raters codex,claude] [--max-usd 6] [--session-usd 6] [--chunk 64] [--dry-run]
 #                  [--descriptions FILE] [--claude-model ID] [--codex-model ID] [--codex-bin B] [--blind-session B]
 #                  [--executor container|host] [--claude-bin B] [--docker-bin D] [--image loa-ablation:259]
-#                  [--rater-timeout-min 40] [--run-id ID] [--grade-out FILE] [--allow-partial] [--allow-unfrozen]
+#                  [--rater-timeout-min 40] [--codex-retries 0] [--run-id ID] [--grade-out FILE] [--allow-partial] [--allow-unfrozen]
 #                  [--ledger FILE] [--trace-prefix P] [--forbid TOKEN …]
 #
 # <run-dir>  a pipeline-run.sh run directory (<root>/<batch>/<arm>/<task>-t<n>[-r<k>]); with --union a matched cell
@@ -41,6 +41,12 @@
 #   --blind-session B  the Claude session runner (default blind-session.sh beside this script)
 #   --executor, --claude-bin, --docker-bin, --image   passed to blind-session.sh (tests: host + a stub CLI)
 #   --rater-timeout-min M   a codex call's deadline (default 40; a Claude session keeps blind-session.sh's 60)
+#   --codex-retries N  retry a codex chunk up to N more times (default 0) when the call failed transiently — no final
+#                      message, no turn.completed event, not the deadline (exit 124/137): the CLI's "model is at capacity",
+#                      a timed-out model refresh, a dropped connection — pausing $LOA_JUDGE_CODEX_RETRY_S × attempt seconds
+#                      (default 60) between tries; the failed try's events and stderr are kept as <chunk>.events.try<k>.jsonl /
+#                      <chunk>.err.try<k>, and every try is one ledger row (the trace id gains -try<k> from the second).
+#                      The Claude lane is untouched: a transient codex failure no longer discards a paid Claude session
 #   --run-id ID        the grader's --run-id (default: the directory's name — what the verdict rows must name)
 #   --grade-out FILE   where the regrade goes (default <run-dir>/grade.json; the previous grade.json is kept at
 #                      <out>/grade.before-judge.json)
@@ -49,6 +55,7 @@
 #                      request_id, agent, provider, model, tokens_*, latency_ms, cost_micro_usd, usage_source,
 #                      pricing_source, pricing_mode, phase_id, sprint_id, attempt, interaction_id, transport)
 #   --trace-prefix P   the ledger rows' trace_id prefix (default judge-pairs-); the id is P<run id>-<rater>-<chunk>
+#                      (a retried codex call: P<run id>-codex-<chunk>-try<k>)
 #   --forbid TOKEN     a further token the packets must not carry (repeatable)
 #
 # Steps:
@@ -107,7 +114,7 @@ log() { printf 'judge-pairs: %s\n' "$*"; }
 
 RUN="" UNION=0 TASK="" SUITE="" REPO="$REPO_ROOT" OUT="" RATERS="codex,claude" MAX_USD=6 SESSION_USD=6 CHUNK=64 DRY=0
 DESCS="" CLAUDE_MODEL="global.anthropic.claude-opus-5-5" CODEX_MODEL="codex-headless" CODEX_BIN="codex" BLIND_SESSION="$SCRIPT_DIR/blind-session.sh"
-EXECUTOR="" CLAUDE_BIN="" DOCKER_BIN="" IMAGE="" RATER_TIMEOUT=40 RUN_ID="" GRADE_OUT="" LEDGER="" TRACE_PREFIX="judge-pairs-"
+EXECUTOR="" CLAUDE_BIN="" DOCKER_BIN="" IMAGE="" RATER_TIMEOUT=40 CODEX_RETRIES=0 RUN_ID="" GRADE_OUT="" LEDGER="" TRACE_PREFIX="judge-pairs-"
 GRADER_FLAGS=() FORBID=()
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -131,6 +138,7 @@ while [[ $# -gt 0 ]]; do
     --docker-bin) DOCKER_BIN="${2:-}"; shift 2 ;;
     --image) IMAGE="${2:-}"; shift 2 ;;
     --rater-timeout-min) RATER_TIMEOUT="${2:-}"; shift 2 ;;
+    --codex-retries) CODEX_RETRIES="${2:-}"; shift 2 ;;
     --run-id) RUN_ID="${2:-}"; shift 2 ;;
     --grade-out) GRADE_OUT="${2:-}"; shift 2 ;;
     --allow-partial|--allow-unfrozen) GRADER_FLAGS+=("$1"); shift ;;
@@ -148,6 +156,8 @@ done
 [[ "$MAX_USD" =~ ^[0-9]+([.][0-9]+)?$ && "$SESSION_USD" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "--max-usd and --session-usd must be numbers" 2
 [[ "$CHUNK" =~ ^[1-9][0-9]?$ && "$CHUNK" -le 64 ]] || die "--chunk must be 1-64" 2
 [[ "$RATER_TIMEOUT" =~ ^[1-9][0-9]{0,2}$ ]] || die "--rater-timeout-min must be an integer 1-999" 2
+[[ "$CODEX_RETRIES" =~ ^[0-9]$ ]] || die "--codex-retries must be an integer 0-9" 2
+[[ "${LOA_JUDGE_CODEX_RETRY_S:-60}" =~ ^[0-9]{1,4}$ ]] || die "LOA_JUDGE_CODEX_RETRY_S must be an integer 0-9999" 2
 [[ -z "$RUN_ID" || "$RUN_ID" =~ ^[A-Za-z0-9._-]{1,128}$ ]] || die "--run-id must match [A-Za-z0-9._-]{1,128}" 2
 [[ "$CLAUDE_MODEL" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]*$ ]] || die "--claude-model is not a model id" 2
 [[ "$CODEX_MODEL" =~ ^[A-Za-z0-9._:/@+-]{1,200}$ ]] || die "--codex-model is not a model id" 2
@@ -456,20 +466,33 @@ codex_model_of() {  # codex_model_of <events file> → the model the session rol
 }
 codex_lane() {
   mkdir -p "$OUT/codex"
-  local c rc t0 t1 usage tid model
+  local c rc t0 t1 usage tid model try suffix
   for c in "${CHUNKS[@]}"; do
-    rc=0; t0="$(now_ms)"
-    printf '%s codex %s start\n' "$(stamp)" "$c" >> "$OUT/lanes.log"
-    feed "$c" | timeout --signal=TERM --kill-after=30 "$((RATER_TIMEOUT * 60))" "$CODEX_BIN" exec --skip-git-repo-check -C "$OUT/chunks/$c" \
-      --sandbox read-only --json -o "$OUT/codex/$c.last.txt" "$(cat "$OUT/prompt-codex.md")" > "$OUT/codex/$c.events.jsonl" 2> "$OUT/codex/$c.err" || rc=$?
-    t1="$(now_ms)"
-    printf '%s codex %s exit %s\n' "$(stamp)" "$c" "$rc" >> "$OUT/lanes.log"
+    for ((try = 1; try <= CODEX_RETRIES + 1; try++)); do
+      rc=0; t0="$(now_ms)"; suffix=""; [[ $try -gt 1 ]] && suffix="-try$try"
+      rm -f "$OUT/codex/$c.last.txt"
+      printf '%s codex %s start (try %s of %s)\n' "$(stamp)" "$c" "$try" "$((CODEX_RETRIES + 1))" >> "$OUT/lanes.log"
+      feed "$c" | timeout --signal=TERM --kill-after=30 "$((RATER_TIMEOUT * 60))" "$CODEX_BIN" exec --skip-git-repo-check -C "$OUT/chunks/$c" \
+        --sandbox read-only --json -o "$OUT/codex/$c.last.txt" "$(cat "$OUT/prompt-codex.md")" > "$OUT/codex/$c.events.jsonl" 2> "$OUT/codex/$c.err" || rc=$?
+      t1="$(now_ms)"
+      printf '%s codex %s exit %s (try %s)\n' "$(stamp)" "$c" "$rc" "$try" >> "$OUT/lanes.log"
+      usage="$(jq -c 'select(.type == "turn.completed") | .usage | {in: (.input_tokens // 0), out: (.output_tokens // 0), reasoning: (.reasoning_output_tokens // 0), cache_read: (.cached_input_tokens // 0)}' "$OUT/codex/$c.events.jsonl" 2>/dev/null | tail -1)"
+      tid="$(jq -r 'select(.type == "thread.started").thread_id // empty' "$OUT/codex/$c.events.jsonl" 2>/dev/null | head -1)"
+      model="$(codex_model_of "$OUT/codex/$c.events.jsonl")"
+      ledger_row "codex-$c$suffix" codex-headless openai "$model" "${usage:-{\}}" "$((t1 - t0))" 0 "$([[ -n "$usage" ]] && echo actual || echo unknown)" unknown "$tid" cli:codex "$model"
+      # a transient failure (no final message, no completed turn, not the deadline) is retried after a pause
+      if [[ ! -s "$OUT/codex/$c.last.txt" && -z "$usage" && $rc -ne 124 && $rc -ne 137 && $try -le $CODEX_RETRIES ]]; then
+        cp "$OUT/codex/$c.events.jsonl" "$OUT/codex/$c.events.try$try.jsonl" 2>/dev/null || true
+        cp "$OUT/codex/$c.err" "$OUT/codex/$c.err.try$try" 2>/dev/null || true
+        printf '%s codex %s transient failure (exit %s, no verdicts): retry %s of %s after %s s\n' "$(stamp)" "$c" "$rc" "$try" "$CODEX_RETRIES" \
+          "$(( ${LOA_JUDGE_CODEX_RETRY_S:-60} * try ))" >> "$OUT/lanes.log"
+        sleep "$(( ${LOA_JUDGE_CODEX_RETRY_S:-60} * try ))"
+        continue
+      fi
+      break
+    done
     stamp > "$OUT/codex/$c.finished"
-    usage="$(jq -c 'select(.type == "turn.completed") | .usage | {in: (.input_tokens // 0), out: (.output_tokens // 0), reasoning: (.reasoning_output_tokens // 0), cache_read: (.cached_input_tokens // 0)}' "$OUT/codex/$c.events.jsonl" 2>/dev/null | tail -1)"
-    tid="$(jq -r 'select(.type == "thread.started").thread_id // empty' "$OUT/codex/$c.events.jsonl" 2>/dev/null | head -1)"
-    model="$(codex_model_of "$OUT/codex/$c.events.jsonl")"
     printf '%s\n' "$model" > "$OUT/codex/$c.model"
-    ledger_row "codex-$c" codex-headless openai "$model" "${usage:-{\}}" "$((t1 - t0))" 0 "$([[ -n "$usage" ]] && echo actual || echo unknown)" unknown "$tid" cli:codex "$model"
   done
 }
 claude_lane() {

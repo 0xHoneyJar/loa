@@ -1,0 +1,36 @@
+{
+ "context": 12,
+ "feedback_files": [],
+ "fix_regions_only": {
+  "removed": [
+   "H02"
+  ],
+  "rule": "hunks not overlapping a seeder fix region (\u00b13 head lines) removed before annotation; full packet in annotation/packets-full/"
+ },
+ "fixture": "pr-78",
+ "hunk_count": 2,
+ "hunks": {
+  "H01": {
+   "cited_by": [],
+   "file": "lib/reply.js",
+   "head_end": 286,
+   "head_start": 286,
+   "insertion": true,
+   "review_driven": false
+  },
+  "H03": {
+   "cited_by": [],
+   "file": "test/internals/reply.test.js",
+   "head_end": 1005,
+   "head_start": 1005,
+   "insertion": true,
+   "review_driven": false
+  }
+ },
+ "incident_ids": [
+  "I01"
+ ],
+ "incidents": "incidents/pr-78.tsv",
+ "record_ref": null,
+ "review_driven_count": 0
+}

@@ -1,0 +1,20 @@
+{
+  "hunks": {
+    "H01": {"verdict": "not-defect", "not_defect_class": "docs", "group": null,
+            "file": "packages/vite/src/node/server/middlewares/indexHtml.ts", "anchor_lines": [],
+            "description": "Adds a comment explaining why the fallback page needs a charset declaration; no behaviour change by itself (the fix is H02).",
+            "severity": null, "category": null},
+    "H02": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "packages/vite/src/node/server/middlewares/indexHtml.ts", "anchor_lines": [571, 573, 574],
+            "description": "The generated fallback HTML has no <meta charset>, so browsers may decode it with a legacy encoding and corrupt the inlined non-ASCII HMR runtime script.",
+            "severity": "medium", "category": "logic"}
+  },
+  "incidents": {
+    "I01": {"verdict": "not-at-head", "group": null, "file": "packages/vite/src/node/plugins/resolve.ts",
+            "anchor_lines": [], "description": "Adds support for subpath import keys containing multiple '#'; this is unrelated to the change's fallback-HTML behaviour, and nothing shown ties it to the head code under review.", "severity": null},
+    "I02": {"verdict": "not-at-head", "group": null, "file": "packages/vite/src/node/plugins/resolve.ts",
+            "anchor_lines": [], "description": "Adds convertExternalRequire for the ssr webworker target; this is an unrelated later feature fix, and nothing shown ties it to the head code under review.", "severity": null},
+    "I03": {"verdict": "not-at-head", "group": null, "file": "packages/vite/src/node/plugins/resolve.ts",
+            "anchor_lines": [], "description": "Passes isBundled to the resolver for bundled-dev builtin named imports; this is unrelated to the head change, and nothing shown ties it to the head code.", "severity": null}
+  }
+}

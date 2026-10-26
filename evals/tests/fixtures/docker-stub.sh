@@ -6,7 +6,10 @@
 #   docker kill … / docker rm …           records the argv line to $DOCKER_STUB_LOG/kill.log
 #                                         or rm.log and exits 0
 #   (each -v spec and, for the non-/workspace mounts, every path under its source go
-#    to $DOCKER_STUB_LOG/run-<n>.mounts)
+#    to $DOCKER_STUB_LOG/run-<n>.mounts; a mount nested under /workspace — the runtime
+#    node_modules mounts, `-v <src>:/workspace/<rel>:ro` — is emulated for the command's
+#    duration by a symlink <ws>/<rel> -> <src> in place of the empty mountpoint directory
+#    the harness made, and the directory is put back afterwards)
 #   docker run <flags> <image> <cmd…>     records argv (NUL-separated) to
 #                                         $DOCKER_STUB_LOG/run-<n>.argv, then runs
 #                                         <cmd…> on the host: /workspace in args and
@@ -40,13 +43,14 @@ if [[ "$log" != /dev/null ]]; then
   printf '%s\0' run "$@" > "$log/run-$n.argv"
 fi
 ws="" wd="/"
-mounts=() envs=()
+mounts=() envs=() nested=()
 # flags that take a value (docker 26.1 run); everything else before the image is boolean
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -v|--volume)
       src="${2%%:*}" rest="${2#*:}"; dst="${rest%%:*}"; [[ "$dst" == /workspace ]] && ws="$src"
       mounts+=("$dst=$src")
+      [[ "$dst" == /workspace/* ]] && nested+=("$dst=$src")
       # record each mount and, for the non-/workspace mounts, every path under its source
       if [[ "$log" != /dev/null ]]; then
         { printf '%s\n' "$2"
@@ -88,4 +92,19 @@ if [[ -n "${DOCKER_STUB_PATH:-}" ]]; then
 fi
 cd "$(map "$wd")"
 # the container's environment is exactly the -e set (plus nothing from this host)
-exec env -i ${menv[@]+"${menv[@]}"} "${cmd[@]}"
+if [[ ${#nested[@]} -eq 0 ]]; then exec env -i ${menv[@]+"${menv[@]}"} "${cmd[@]}"; fi
+# nested mounts: emulate each by a symlink at the mountpoint for the command's duration, then restore the directory
+links=()
+for m in "${nested[@]}"; do
+  dst="${m%%=*}" src="${m#*=}"; tgt="$ws/${dst#/workspace/}"
+  rmdir "$tgt" 2>/dev/null || true
+  if [[ -e "$tgt" || -L "$tgt" ]]; then echo "docker-stub: mountpoint $tgt is not an empty directory" >&2; exit 2; fi
+  mkdir -p "$(dirname "$tgt")"; ln -s "$src" "$tgt"; links+=("$tgt")
+done
+restore() { local l; for l in ${links[@]+"${links[@]}"}; do rm -f "$l"; mkdir -p "$l"; done; }
+child=""
+trap 'kill -TERM "$child" 2>/dev/null' TERM
+env -i ${menv[@]+"${menv[@]}"} "${cmd[@]}" & child=$!
+rc=0; wait "$child" || rc=$?
+restore
+exit "$rc"

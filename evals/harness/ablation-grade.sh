@@ -106,6 +106,16 @@
 #     --tmpfs /tmp:rw,size=256m --pids-limit 256 --memory 2g --cpus 2 --cap-drop ALL
 #     --security-opt no-new-privileges --user <uid>:<gid> -v <tree>:/workspace:rw -w /workspace
 #     -e HOME=/tmp -e LC_ALL=C -e TMPDIR=/tmp <image> timeout --signal=TERM --kill-after=10 120 <cmd…>
+# Runtime mounts (task.yaml `runtime`, 2026-10-26; pipeline-run.sh § Runtime mounts is the executor's twin): a build
+# task declaring runtime: {node_modules: </abs/.../node_modules>, image: <img>} is graded with that directory
+# bind-mounted read-only at /workspace/node_modules and, for every fixture directory holding a package.json whose
+# counterpart <checkout>/<dir>/node_modules is a directory, at /workspace/<dir>/node_modules — in every grading
+# container (final, implement, fix1, base; the self-check too; the -v flags follow the tree's), in the task's image
+# when it names one (grade.json image). The trees never hold the dependencies: every `node_modules` directory of the
+# sandbox and of a snapshot is left out of the grading trees and of churn (the mountpoints are empty directories made
+# just before each command). A path that is not an absolute (no ':' or ',') existing directory named node_modules, a
+# fixture holding node_modules at its root, a non-build task with the key, or --executor host with it is exit 2.
+# grade.json gains runtime {node_modules, image, mounts: [<container dst>…]} for such a task (absent otherwise).
 # (MEDIUM-A1) The docker client gets its own deadline (120 + 10 + 60 s); when it passes, or
 # the grader fails while the client runs, the client's process group is killed and
 # `docker kill <name>` then `docker rm -f <name>` run (errors ignored): the result is
@@ -503,6 +513,8 @@ HARNESS_NAMES = {"conftest.py", "pytest.ini", ".pytest.ini", "pyproject.toml", "
                  "setup_suite.bash"}
 EXCLUDE_TOP = {".git", ".claude", "CLAUDE.md", ".loa.config.yaml", "grimoires", ".run", ".beads", ".eval", "pr"}
 EXCLUDE_ANY = {"__pycache__", ".pytest_cache"}
+EXCLUDE_RT = [frozenset()]   # runtime mounts: {"node_modules"} while a task with runtime.node_modules is graded
+RUNTIME = [None]             # the task whose runtime mounts the containers get (grade sets it)
 PHASE_ORDER = ["PLAN", "BARE", "IMPLEMENT", "REVIEW", "FIX1", "AUDIT", "FIX2"]
 
 
@@ -538,6 +550,8 @@ try:
     A = ap.parse_args(sys.argv[4:])
 except SystemExit:
     sys.exit(2)
+IMAGE = [A.image]   # the image of this grade's containers: --image, else the task's runtime.image (grade sets it)
+IMAGE_RX = re.compile(r"[A-Za-z0-9._:/@-]{1,200}")
 
 
 # ------------------------------------------------------------------ small helpers
@@ -676,7 +690,7 @@ def copy_tree(src, dst, top_exclude=frozenset()):
         rel = os.path.relpath(root, src)
         keep = []
         for d in sorted(dirs):
-            if (rel == "." and d in top_exclude) or d in EXCLUDE_ANY:
+            if (rel == "." and d in top_exclude) or d in EXCLUDE_ANY or d in EXCLUDE_RT[0]:
                 continue
             sp = os.path.join(root, d)
             dp = os.path.join(dst, rel, d)
@@ -755,6 +769,30 @@ def load_task(task_yaml, suite_root):
             raise GradeError(f"fixture not found: {rel}")
         if not is_within(t.fixture, t.dir):
             raise GradeError(f"fixture must be inside the task directory: {rel}")
+    t.runtime_nm = t.runtime_image = None
+    t.runtime_mounts = []
+    rt = t.spec.get("runtime")
+    if rt is not None:   # header § Runtime mounts
+        if not isinstance(rt, dict) or any(k not in ("node_modules", "image") for k in rt):
+            raise GradeError("runtime must be a mapping {node_modules, image} or null")
+        if not t.build and rt:
+            raise GradeError("runtime applies to build tasks only")
+        im, nm = rt.get("image"), rt.get("node_modules")
+        if im is not None:
+            if not isinstance(im, str) or not IMAGE_RX.fullmatch(im):
+                raise GradeError(f"runtime.image has unexpected characters: {im!r}")
+            t.runtime_image = im
+        if nm is not None:
+            if (not isinstance(nm, str) or not nm.startswith("/") or os.path.basename(nm.rstrip("/")) != "node_modules"
+                    or ":" in nm or "," in nm or "\n" in nm):
+                raise GradeError(f"runtime.node_modules must be an absolute path (no ':' or ',') to a directory named node_modules: {nm!r}")
+            nm = nm.rstrip("/")
+            if not os.path.isdir(nm):
+                raise GradeError(f"runtime.node_modules is not a directory on this host: {nm}")
+            if os.path.lexists(os.path.join(t.fixture, "node_modules")):
+                raise GradeError("the fixture holds node_modules at its root while runtime.node_modules is set")
+            t.runtime_nm = nm
+            t.runtime_mounts = runtime_mounts(t.fixture, nm)
     t.hidden = os.path.join(t.dir, "hidden")
     man = read_json(os.path.join(t.hidden, "manifest.json")) if t.build else None
     t.overlay = []
@@ -834,6 +872,30 @@ def load_task(task_yaml, suite_root):
     return t
 
 
+def runtime_mounts(fixture, nm):
+    """pipeline-run.sh runtime_mounts, the same rule: (host src, tree-relative dst) — the root, then every fixture
+    directory holding a regular package.json whose counterpart <checkout>/<dir>/node_modules is a directory, in
+    LC_ALL=C order of the directory path; node_modules subtrees and symlinked directories are never walked"""
+    checkout = os.path.dirname(nm)
+    rels = []
+    for r, ds, fs in os.walk(fixture, followlinks=False):
+        ds[:] = sorted(d for d in ds if d != "node_modules" and not os.path.islink(os.path.join(r, d)))
+        rel = os.path.relpath(r, fixture)
+        pj = os.path.join(r, "package.json")
+        if rel != "." and "package.json" in fs and os.path.isfile(pj) and not os.path.islink(pj):
+            rels.append(rel)
+    out = [(nm, "node_modules")]
+    for rel in sorted(rels):
+        src = os.path.join(checkout, rel, "node_modules")
+        if os.path.isdir(src):
+            out.append((src, rel + "/node_modules"))
+    return out
+
+
+def runtime_mounts_of(t):
+    return list(t.runtime_mounts) if t is not None and getattr(t, "runtime_nm", None) else []
+
+
 def count_cases(path):
     try:
         text = open(path, encoding="utf-8", errors="replace").read()
@@ -891,9 +953,9 @@ def docker_ready():
     d = A.docker_bin
     if not (shutil.which(d) or (os.path.isfile(d) and os.access(d, os.X_OK))):
         raise GradeError(f"docker CLI not found: {d} (container mode)")
-    p = run([d, "image", "inspect", "--format", "{{.Id}}", A.image])
+    p = run([d, "image", "inspect", "--format", "{{.Id}}", IMAGE[0]])
     if p.returncode != 0:
-        raise GradeError(f"image not found: {A.image}")
+        raise GradeError(f"image not found: {IMAGE[0]}")
 
 
 def shape_command(cmd, root):
@@ -968,13 +1030,19 @@ def exec_in_tree(tree, cmd):
     if A.executor == "container":
         argv, kind = shape_command(cmd, "/workspace")
         name = container_name(tree)
+        rt = []   # the runtime mounts (header § Runtime mounts): read-only, their mountpoints empty directories of the tree
+        for src, dst in runtime_mounts_of(RUNTIME[0]):
+            os.makedirs(os.path.join(tree, *dst.split("/")), exist_ok=True)
+            rt += ["-v", f"{src}:/workspace/{dst}:ro"]
         full = [A.docker_bin, "run", "--rm", "--init", "--name", name, "--network", "none", "--read-only",
                 "--tmpfs", "/tmp:rw,size=256m", "--pids-limit", "256", "--memory", "2g", "--cpus", "2",
                 "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
-                "--user", f"{os.getuid()}:{os.getgid()}", "-v", f"{tree}:/workspace:rw", "-w", "/workspace",
-                "-e", "HOME=/tmp", "-e", "LC_ALL=C", "-e", "TMPDIR=/tmp", A.image] + deadline + argv
+                "--user", f"{os.getuid()}:{os.getgid()}", "-v", f"{tree}:/workspace:rw"] + rt + ["-w", "/workspace",
+                "-e", "HOME=/tmp", "-e", "LC_ALL=C", "-e", "TMPDIR=/tmp", IMAGE[0]] + deadline + argv
         cwd = None
     else:
+        if runtime_mounts_of(RUNTIME[0]):
+            raise GradeError("runtime.node_modules needs --executor container (a read-only bind mount; the host executor mounts nothing)")
         argv, kind = shape_command(cmd, tree)
         home = tempfile.mkdtemp(prefix="home.", dir=SCRATCH)
         full = ["env", "-i", "PATH=" + os.environ.get("PATH", "/usr/bin:/bin"), "HOME=" + home, "LC_ALL=C",
@@ -1511,7 +1579,7 @@ def extract_snapshot(run_dir, label, commit, tree):
 
     def keep(member, path):
         parts = safe_rel(member.name)
-        if parts is None or parts[0] in EXCLUDE_TOP or any(x in EXCLUDE_ANY for x in parts):
+        if parts is None or parts[0] in EXCLUDE_TOP or any(x in EXCLUDE_ANY or x in EXCLUDE_RT[0] for x in parts):
             return None
         if member.isfile() and member.size > FILE_CAP:
             OVERSIZED[0] += 1
@@ -1536,7 +1604,7 @@ def churn(a, b):
     def listing(root):
         out = {}
         for r, ds, fs in os.walk(root, followlinks=False):
-            ds[:] = [d for d in ds if d not in EXCLUDE_ANY and not os.path.islink(os.path.join(r, d))]
+            ds[:] = [d for d in ds if d not in EXCLUDE_ANY and d not in EXCLUDE_RT[0] and not os.path.islink(os.path.join(r, d))]
             for name in fs + [d for d in os.listdir(r) if os.path.islink(os.path.join(r, d)) and os.path.isdir(os.path.join(r, d))]:
                 p = os.path.join(r, name)
                 out[os.path.relpath(p, root)] = p
@@ -3359,9 +3427,15 @@ def grade(t, run_dir, frozen):
     else:
         rv = review_md_verdict(os.path.join(sb, "review.md"), sb)
         verdict = {"source_file": "review.md", "value": rv} if rv else None
+    # header § Runtime mounts: this task's image, mounts and tree exclusions for every container of this grade
+    IMAGE[0] = t.runtime_image or A.image
+    RUNTIME[0] = t
+    EXCLUDE_RT[0] = frozenset({"node_modules"}) if t.runtime_nm else frozenset()
+    if t.runtime_nm and A.executor != "container":
+        raise GradeError("runtime.node_modules needs --executor container (a read-only bind mount; the host executor mounts nothing)")
     g = {"schema_version": 1, "grader_version": GRADER_VERSION, "task_id": t.id, "task_type": t.type,
          "suite_frozen": frozen, "executor_mode": A.executor,
-         "image": A.image if A.executor == "container" else None, "snapshots_graded": [],
+         "image": IMAGE[0] if A.executor == "container" else None, "snapshots_graded": [],
          "hidden_tests": None, "structural": None, "regressions": None, "snapshot_tests": None,
          "recall": None, "false_positives": None, "verdict": verdict,
          "verdicts": {"review": v_review, "audit": v_audit},
@@ -3370,6 +3444,9 @@ def grade(t, run_dir, frozen):
          "oversized_files_skipped": 0, "history_probes": 0, "heredoc_interpreters": 0, "contaminated": None,
          "contamination_exempt": [], "oracle_exposed_defects": None, "oracle_exposed_unknown": None,
          "oracle_exposed_events": None, "oracle_exposed_by_form": None, "oracle_scan_skipped": None, "corpus_sha256": None}
+    if t.runtime_nm or t.runtime_image:
+        g["runtime"] = {"node_modules": t.runtime_nm, "image": t.runtime_image,
+                        "mounts": ["/workspace/" + d for _s, d in t.runtime_mounts]}
     acc = {"review": None, "audit": None}
     SNAPSHOT_LINKS_DROPPED[0] = 0
     OVERSIZED[0] = 0

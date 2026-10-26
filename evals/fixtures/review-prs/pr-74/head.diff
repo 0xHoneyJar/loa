@@ -1,0 +1,83 @@
+diff --git a/packages/vite/src/node/plugins/css.ts b/packages/vite/src/node/plugins/css.ts
+index f4a6b4643..1d154731c 100644
+--- a/packages/vite/src/node/plugins/css.ts
++++ b/packages/vite/src/node/plugins/css.ts
+@@ -3332,7 +3332,7 @@ async function compileLightningCSS(
+               if (isPreProcessor(lang)) {
+                 const result = await compileCSSPreprocessors(
+                   environment,
+-                  id,
++                  filePath,
+                   lang,
+                   code,
+                   workerController,
+@@ -3341,7 +3341,11 @@ async function compileLightningCSS(
+                 // TODO: support source map
+                 return result.code
+               } else if (lang === 'sss') {
+-                const sssResult = await transformSugarSS(environment, id, code)
++                const sssResult = await transformSugarSS(
++                  environment,
++                  filePath,
++                  code,
++                )
+                 // TODO: support source map
+                 return sssResult.code
+               }
+diff --git a/playground/css/__tests__/tests.ts b/playground/css/__tests__/tests.ts
+index 69c87e948..4b97617ea 100644
+--- a/playground/css/__tests__/tests.ts
++++ b/playground/css/__tests__/tests.ts
+@@ -517,6 +517,15 @@ test('@import scss', async () => {
+   expect(await getColor('.at-import-scss')).toBe('red')
+ })
+ 
++test('preprocessor imported from css resolves relative imports', async () => {
++  const color = await page.evaluate(() =>
++    getComputedStyle(document.documentElement)
++      .getPropertyValue('--preprocessor-import-color')
++      .trim(),
++  )
++  expect(color).toBe('cornflowerblue')
++})
++
+ test.runIf(isBuild)('manual chunk path', async () => {
+   // assert that the manual-chunk css is output in the directory specified in manualChunk (#12072)
+   expect(
+diff --git a/playground/css/main.js b/playground/css/main.js
+index f27882059..41eea3e0d 100644
+--- a/playground/css/main.js
++++ b/playground/css/main.js
+@@ -7,6 +7,7 @@ import './less-plugin.less'
+ import './stylus.styl'
+ import './manual-chunk.css'
+ import './postcss-inject-url.css'
++import './preprocessor-import/main.css'
+ 
+ import urlCss from './url-imported.css?url'
+ appendLinkStylesheet(urlCss)
+diff --git a/playground/css/preprocessor-import/components/_vars.scss b/playground/css/preprocessor-import/components/_vars.scss
+new file mode 100644
+index 000000000..107a336fe
+--- /dev/null
++++ b/playground/css/preprocessor-import/components/_vars.scss
+@@ -0,0 +1 @@
++$color: cornflowerblue;
+diff --git a/playground/css/preprocessor-import/components/box.scss b/playground/css/preprocessor-import/components/box.scss
+new file mode 100644
+index 000000000..a282fccbf
+--- /dev/null
++++ b/playground/css/preprocessor-import/components/box.scss
+@@ -0,0 +1,5 @@
++@use './vars' as vars;
++
++:root {
++  --preprocessor-import-color: #{vars.$color};
++}
+diff --git a/playground/css/preprocessor-import/main.css b/playground/css/preprocessor-import/main.css
+new file mode 100644
+index 000000000..f8b0b51ac
+--- /dev/null
++++ b/playground/css/preprocessor-import/main.css
+@@ -0,0 +1 @@
++@import './components/box.scss';

@@ -1,0 +1,4 @@
+id	kind	ref	date	files	excerpt
+I01	fix-commit	0d86b3485fbb	2026-10-21T06:25:09Z	packages/vite/src/node/plugins/resolve.ts	fix(resolve): support subpath imports with multiple `#` (#23631) Co-authored-by: sapphi-red <green@sapphi.red>
+I02	fix-commit	a711f1c6328c	2026-10-22T04:25:23Z	packages/vite/src/node/plugins/resolve.ts	fix(ssr): convert external require against built-in modules to import for `ssr.target=webworker` (#23759)
+I03	fix-commit	4260c756944a	2026-10-22T06:25:17Z	packages/vite/src/node/plugins/resolve.ts	fix(bundled-dev): allow named imports from Node built-ins (#23858)

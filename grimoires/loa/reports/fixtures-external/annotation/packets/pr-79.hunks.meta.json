@@ -1,0 +1,23 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-79",
+  "hunk_count": 1,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "types/route.d.ts",
+      "head_end": 49,
+      "head_start": 49,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [
+    "I01",
+    "I02"
+  ],
+  "incidents": "incidents/pr-79.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

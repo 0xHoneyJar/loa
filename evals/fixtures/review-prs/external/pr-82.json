@@ -1,0 +1,69 @@
+{
+  "base_commit": "4ab865a848a1da3d10fb674f857e5fff13094644",
+  "files": {
+    "base": [
+      {
+        "blob": "d181a1b038b5b2f269f0f7d5cd86393a0342d28a",
+        "path": "packages/runtime-dom/__tests__/patchAttrs.spec.ts",
+        "sha256": "306811f08188c12136f17ba803c62ab6adb1b2ae69cef2b26e4a82c977a348b6",
+        "size": 4287
+      },
+      {
+        "blob": "09bf42301cbf2f257e9881effc407bcd16fac17d",
+        "path": "packages/server-renderer/__tests__/ssrRenderAttrs.spec.ts",
+        "sha256": "11c5f050826d0d6514e4364b4bf629453c9db835b3785fe990dcf8625636556c",
+        "size": 5655
+      },
+      {
+        "blob": "bac07abe5a3f031909c2f0509a595d95bb395e24",
+        "path": "packages/shared/src/domAttrConfig.ts",
+        "sha256": "40638faef48f0be9dd51c5bd29fb6194b85b70a707026010e8ae5a6d2ba25c70",
+        "size": 7910
+      }
+    ],
+    "head": [
+      {
+        "blob": "07913828f23cdaa1b11314b312cdcdc8e4c0d207",
+        "path": "packages/runtime-dom/__tests__/patchAttrs.spec.ts",
+        "sha256": "65cc514f7e1045883df43f6e3ef487e5316aeb27cb1d196316f7b211795d2d40",
+        "size": 4681
+      },
+      {
+        "blob": "b7c3b94e491ff875cafe89a0997c8f15b63ec28f",
+        "path": "packages/server-renderer/__tests__/ssrRenderAttrs.spec.ts",
+        "sha256": "d54a07358cf80cd2e957558904f16804a147589dd70b8d016bd3c10d9e098b0c",
+        "size": 5835
+      },
+      {
+        "blob": "207d9a5918e305bccf02fe6edd267c1680330f85",
+        "path": "packages/shared/src/domAttrConfig.ts",
+        "sha256": "0ba2b8fd7f334ff13e580214e3a9c934f63add06f6e893f23b130de440ca4349",
+        "size": 7954
+      }
+    ]
+  },
+  "fix_commit": "ef81ddcfc94399c043b349a986a1b231b6bac7d6",
+  "fix_first": "ef81ddcfc94399c043b349a986a1b231b6bac7d6",
+  "fix_parent": "08f5abf9bc89594f94ac22882bcbc2ed55b1c9df",
+  "fixture": "pr-82",
+  "head_commit": "672f15a5ccdeb34e0188966e59c65598d78d2212",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "8fd17290c81906dc34d5a12c41609fcb9f810e62",
+      "path": "LICENSE",
+      "sha256": "49190d1f742dd61e47fe816df4963e5186a2a62100d9122f9883a60ea32973ac",
+      "size": 1112
+    }
+  ],
+  "merge_commit": "a084e4486f1c4dc118518d43a1c7547031c53a5c",
+  "pr": 15627,
+  "pr_base_sha": "4ab865a848a1da3d10fb674f857e5fff13094644",
+  "pr_url": "https://github.com/vuejs/core/pull/15627",
+  "schema_version": 1,
+  "scope_paths": null,
+  "skipped": [],
+  "source_url": "https://github.com/vuejs/core",
+  "trees": "committed",
+  "visibility": "public"
+}

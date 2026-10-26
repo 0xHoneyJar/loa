@@ -1,0 +1,113 @@
+{
+  "fixture": "pr-83",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "deep-name 2026-10-26",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "af5fcd68c3814e9947a81444fe42c33b0968ca15",
+    "fix_commit": "ff3501429d4970c37194708b055492a56d9e5be5",
+    "incidents_meta": {
+      "main_sha": "ca034820b8288ab6da3a033626a7857401ee64a5"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "packages/runtime-core/src/renderer.ts",
+      "anchor_line": 2292,
+      "anchors": [
+        2292,
+        2293,
+        2294,
+        2295,
+        2296,
+        2297,
+        2298,
+        2299,
+        2300,
+        2301,
+        2302,
+        2303,
+        2304,
+        2305,
+        2306,
+        2307,
+        2308,
+        2309,
+        2310,
+        2323,
+        2324,
+        2331,
+        2336,
+        2338
+      ],
+      "must_match": "@L2292",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H07,H08,H09,H10",
+      "source_commit": "af5fcd68",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "agreed defect, group, severity, category and description (removing a Fragment that carries a transition bypasses the leave transition and afterLeave); anchors: union \u2014 A anchors the whole remove branch 2292-2310, B skips the lines inside the DEV-only root-fragment path; both sets end at the same hunk",
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "packages/runtime-core/src/renderer.ts",
+      "start": 94,
+      "end": 94,
+      "source": "fix/ff3501429d49:94-94"
+    },
+    {
+      "id": "F002",
+      "file": "packages/runtime-core/src/renderer.ts",
+      "start": 2292,
+      "end": 2309,
+      "source": "fix/ff3501429d49:2292-2309"
+    },
+    {
+      "id": "F003",
+      "file": "packages/runtime-core/src/renderer.ts",
+      "start": 2322,
+      "end": 2322,
+      "source": "fix/ff3501429d49:2322-2322"
+    },
+    {
+      "id": "F004",
+      "file": "packages/runtime-core/src/renderer.ts",
+      "start": 2324,
+      "end": 2324,
+      "source": "fix/ff3501429d49:2324-2324"
+    },
+    {
+      "id": "F005",
+      "file": "packages/runtime-core/src/renderer.ts",
+      "start": 2331,
+      "end": 2331,
+      "source": "fix/ff3501429d49:2331-2331"
+    },
+    {
+      "id": "F006",
+      "file": "packages/runtime-core/src/renderer.ts",
+      "start": 2336,
+      "end": 2336,
+      "source": "fix/ff3501429d49:2336-2336"
+    },
+    {
+      "id": "F007",
+      "file": "packages/runtime-core/src/renderer.ts",
+      "start": 2338,
+      "end": 2338,
+      "source": "fix/ff3501429d49:2338-2338"
+    }
+  ]
+}

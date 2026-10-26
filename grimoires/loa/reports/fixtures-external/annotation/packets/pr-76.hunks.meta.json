@@ -1,0 +1,60 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-76",
+  "hunk_count": 6,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "ext/napi/js_native_api.rs",
+      "head_end": 3976,
+      "head_start": 3976,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "tests/napi/dataview_test.js",
+      "head_end": 20,
+      "head_start": 20,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H03": {
+      "cited_by": [],
+      "file": "tests/napi/src/dataview.rs",
+      "head_end": 90,
+      "head_start": 85,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H04": {
+      "cited_by": [],
+      "file": "tests/napi/src/dataview.rs",
+      "head_end": 97,
+      "head_start": 97,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H05": {
+      "cited_by": [],
+      "file": "tests/napi/src/dataview.rs",
+      "head_end": 117,
+      "head_start": 117,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H06": {
+      "cited_by": [],
+      "file": "tests/napi/src/dataview.rs",
+      "head_end": 126,
+      "head_start": 126,
+      "insertion": true,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [],
+  "incidents": "incidents/pr-76.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

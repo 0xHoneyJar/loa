@@ -1,0 +1,22 @@
+{
+  "hunks": {
+    "H01": {"verdict": "not-defect", "not_defect_class": "docs", "group": null,
+            "file": "docs/CHANGELOG.md", "anchor_lines": [],
+            "description": "Adds a changelog entry for the --jobs GNU parallel availability fix.", "severity": null, "category": null},
+    "H02": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "libexec/bats-core/bats-exec-suite", "anchor_lines": [114, 115],
+            "description": "The negation applies only to `type -p`, so the condition needs parallel to be both missing and runnable and is never true; --jobs without GNU parallel never aborts here and fails later instead.", "severity": "medium", "category": "logic"}
+  },
+  "incidents": {
+    "I01": {"verdict": "not-at-head", "group": null, "file": "docs/CHANGELOG.md",
+            "anchor_lines": [], "description": "Dynamic test duplicate-check fix in code outside this change; only adds changelog and tests here.", "severity": null},
+    "I02": {"verdict": "not-at-head", "group": null, "file": "test/bats.bats",
+            "anchor_lines": [], "description": "Fixes tests added later under noclobber; not head code.", "severity": null},
+    "I03": {"verdict": "not-at-head", "group": null, "file": "docs/CHANGELOG.md",
+            "anchor_lines": [], "description": "Stack traces for failed helper loads; unrelated to this change's behaviour.", "severity": null},
+    "I04": {"verdict": "not-at-head", "group": null, "file": "docs/CHANGELOG.md",
+            "anchor_lines": [], "description": "Pretty formatter summary colour; changelog-only edit unrelated to head.", "severity": null},
+    "I05": {"verdict": "not-at-head", "group": null, "file": "docs/CHANGELOG.md",
+            "anchor_lines": [], "description": "License parsability changelog entry; unrelated.", "severity": null}
+  }
+}

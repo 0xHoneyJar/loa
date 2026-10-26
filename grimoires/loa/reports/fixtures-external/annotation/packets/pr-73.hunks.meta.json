@@ -1,0 +1,23 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-73",
+  "hunk_count": 1,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "head_end": 408,
+      "head_start": 407,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [
+    "I01",
+    "I02"
+  ],
+  "incidents": "incidents/pr-73.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

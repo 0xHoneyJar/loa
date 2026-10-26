@@ -1,0 +1,52 @@
+{
+  "fixture": "pr-74",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "deep-name 2026-10-26",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "6f443140ca26ca8e85ed473c8664947d2012832b",
+    "fix_commit": "50b382d31835b8b4bc8b6964738ac03146e44261",
+    "incidents_meta": {
+      "main_sha": "e954a9cda0b5254be495a937333a0be1b8503d8f"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "packages/vite/src/node/plugins/css.ts",
+      "anchor_line": 397,
+      "must_match": "const decodedUrl = decodeURI(url)",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H02",
+      "source_commit": "6f443140",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "packages/vite/src/node/plugins/css.ts",
+      "start": 75,
+      "end": 75,
+      "source": "fix/50b382d31835:75-75"
+    },
+    {
+      "id": "F002",
+      "file": "packages/vite/src/node/plugins/css.ts",
+      "start": 397,
+      "end": 397,
+      "source": "fix/50b382d31835:397-397"
+    }
+  ]
+}

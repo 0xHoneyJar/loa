@@ -1,0 +1,14 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts", "anchor_lines": [407, 408],
+            "description": "When build.chunkImportMap is enabled the head code non-null-asserts getImportMap's result, so a bundle with no import map asset gives undefined and the importMap.mapping access crashes instead of the block being skipped.",
+            "severity": "medium", "category": "error-handling"}
+  },
+  "incidents": {
+    "I01": {"verdict": "not-at-head", "group": null, "file": "playground/js-sourcemap/__tests__/js-sourcemap.spec.ts",
+            "anchor_lines": [], "description": "Sourcemap snapshot updated after a later rolldown dependency bump; not a defect in the head code.", "severity": null},
+    "I02": {"verdict": "defect-at-head", "group": "D2", "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+            "anchor_lines": [407, 408, 409], "description": "With chunk import maps, the head code leaves preload dependencies and import-map key selection out of chunk hashing, so a chunk's hash can stay the same while its preload keys change, which leaves stale cached chunks.", "severity": "medium"}
+  }
+}

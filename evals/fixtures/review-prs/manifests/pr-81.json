@@ -1,0 +1,56 @@
+{
+  "fixture": "pr-81",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "deep-name 2026-10-26",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "2dd6ab7335d0602c666c94b3e92053b20881cb63",
+    "fix_commit": "62edb3cbdcf07edb4b84ffc15e1baeac4d43d015",
+    "incidents_meta": {
+      "main_sha": "5b61d8f22b46abf001e218cdd63f2938c356fa93"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "libexec/bats-core/bats-exec-suite",
+      "anchor_line": 114,
+      "anchors": [
+        114,
+        115
+      ],
+      "must_match": "if ! type -p \"${parallel_binary_name}\" >/dev/null && \"${parallel_binary_name}\" --version &>/dev/null && [[ -z \"$bats_no_parallelize_across_files\" ]]; then",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H02",
+      "source_commit": "2dd6ab73",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "docs/CHANGELOG.md",
+      "start": 20,
+      "end": 20,
+      "source": "fix/62edb3cbdcf0:20-20"
+    },
+    {
+      "id": "F002",
+      "file": "libexec/bats-core/bats-exec-suite",
+      "start": 114,
+      "end": 114,
+      "source": "fix/62edb3cbdcf0:114-114"
+    }
+  ]
+}

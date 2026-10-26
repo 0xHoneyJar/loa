@@ -1,0 +1,117 @@
+{
+  "base_commit": "4ab865a848a1da3d10fb674f857e5fff13094644",
+  "files": {
+    "base": [
+      {
+        "blob": "b4443f096739b2c2cd83f5a5ed40648c9cb11a9b",
+        "path": "packages/runtime-core/__tests__/apiCreateApp.spec.ts",
+        "sha256": "af9fc905f3ecdca43aee50b5be2335ee56b1414e410dd8bd89de716a7f1b7f4b",
+        "size": 16218
+      },
+      {
+        "blob": "000a0d57852f0b553761a01038b862e0230657f8",
+        "path": "packages/runtime-core/__tests__/scheduler.spec.ts",
+        "sha256": "c1f5e744d6355cfa4aa79fa17ea74e50fd4b3c4be0698b07cdc9a6548977369c",
+        "size": 21245
+      },
+      {
+        "blob": "4540ba1b03a81caaa51c6a0e5539e37463ddec16",
+        "path": "packages/runtime-core/src/apiWatch.ts",
+        "sha256": "85fbbc9d9976e70110684dce4c7bf2002b20c43f35fee5b274276adc9c2a6c1e",
+        "size": 7712
+      },
+      {
+        "blob": "162a6ad44e7b9e3ace9ce29643ffad6aab0f2f04",
+        "path": "packages/runtime-core/src/component.ts",
+        "sha256": "d057f27e77d745768b9592288a1700edb6966a2b2f5e5e8b54202c6e55db0a31",
+        "size": 35088
+      },
+      {
+        "blob": "9fb44063884809c62cdf48dbb9a88d2eb2108a52",
+        "path": "packages/runtime-core/src/renderer.ts",
+        "sha256": "fe065416f66615b5954811a09e7957fa393cd07b859fecd54c9ccb2961bbc724",
+        "size": 76164
+      },
+      {
+        "blob": "4355018a094f4c41a89e18753b4ae96943235b44",
+        "path": "packages/runtime-core/src/scheduler.ts",
+        "sha256": "bf3f34d69d14277ad3b1249dad9413c973a078d8e202c40e4370ff4deaf63b53",
+        "size": 9290
+      },
+      {
+        "blob": "aa5e95a7e798ef420ae952a9fb5e51445fa715f7",
+        "path": "packages/vue-compat/__tests__/instance.spec.ts",
+        "sha256": "18d2bc950ef5e75f571be2de36a6265fea2a39c6d3a1dca11d6d7bbb97d2cddc",
+        "size": 9481
+      }
+    ],
+    "head": [
+      {
+        "blob": "17fd83fb8b1aef4cdb272786f3addd60e65ff179",
+        "path": "packages/runtime-core/__tests__/apiCreateApp.spec.ts",
+        "sha256": "61d324c77f36e0e19b43f78ea05772c098554c2fc560c01b183dc308856ec958",
+        "size": 28803
+      },
+      {
+        "blob": "ae7bae24515ff4147d03e85d518ed30805ab0a45",
+        "path": "packages/runtime-core/__tests__/scheduler.spec.ts",
+        "sha256": "cd44136181fa8e12fa53584ddc741c04540ecbfdb7072a35478a837c636422de",
+        "size": 21900
+      },
+      {
+        "blob": "2a201eff9540a74c477c13ce4bde53e1c33a28f3",
+        "path": "packages/runtime-core/src/apiWatch.ts",
+        "sha256": "c688147266ed71cfd3d097d79ebca998eb6d2e2c278d28a9134c97d05d384a72",
+        "size": 7889
+      },
+      {
+        "blob": "52915be9108651801b3adbd7373b35e365fcc9be",
+        "path": "packages/runtime-core/src/component.ts",
+        "sha256": "8a16d5eb3a1838583d4371ca88f81712e9495f253bb6695fc146bab1fe1c7a85",
+        "size": 35143
+      },
+      {
+        "blob": "9c02917b64ac02b7a6e3a3fdee3434644ca24301",
+        "path": "packages/runtime-core/src/renderer.ts",
+        "sha256": "555f76f4a8f2641b37cfdd2e0b9577a4f3024c628b0f7b232042e34d12f43ced",
+        "size": 76370
+      },
+      {
+        "blob": "ae74a815346461d634f8252364a612c4df0a99e0",
+        "path": "packages/runtime-core/src/scheduler.ts",
+        "sha256": "1185932ae1d95b7e3709d445fb156dc622532b6de20d4891f264338a96c6eb35",
+        "size": 11165
+      },
+      {
+        "blob": "ca7207c7ccf6c7b7de354b2ea25af2555e1ba939",
+        "path": "packages/vue-compat/__tests__/instance.spec.ts",
+        "sha256": "36b54666420710a00038c8395f89b21e9138529ed9e42431891967e61729c714",
+        "size": 11611
+      }
+    ]
+  },
+  "fix_commit": "ff3501429d4970c37194708b055492a56d9e5be5",
+  "fix_first": "ff3501429d4970c37194708b055492a56d9e5be5",
+  "fix_parent": "d084b904903a7710ea19b7256b7c681e838eb63e",
+  "fixture": "pr-83",
+  "head_commit": "af5fcd68c3814e9947a81444fe42c33b0968ca15",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "8fd17290c81906dc34d5a12c41609fcb9f810e62",
+      "path": "LICENSE",
+      "sha256": "49190d1f742dd61e47fe816df4963e5186a2a62100d9122f9883a60ea32973ac",
+      "size": 1112
+    }
+  ],
+  "merge_commit": "0bea14b962f1f6e27d2d994132efc2269945ab0f",
+  "pr": 15757,
+  "pr_base_sha": "4ab865a848a1da3d10fb674f857e5fff13094644",
+  "pr_url": "https://github.com/vuejs/core/pull/15757",
+  "schema_version": 1,
+  "scope_paths": null,
+  "skipped": [],
+  "source_url": "https://github.com/vuejs/core",
+  "trees": "committed",
+  "visibility": "public"
+}

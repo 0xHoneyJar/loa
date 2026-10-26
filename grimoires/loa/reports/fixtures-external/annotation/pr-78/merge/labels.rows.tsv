@@ -1,0 +1,7 @@
+# approved-by: pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	high	logic	lib/reply.js	Array.prototype.push.apply(this[kReplyHeaders][key], value)	fix-commit	hunk:H01	A,B	agreed	-	false
+V01	high	logic	lib/reply.js	this[kReplyHeaders][key].push(value)	fix-commit	hunk:H01	A,B	agreed	-	false
+V01	high	logic	lib/reply.js	this[kReplyHeaders][key] = value	fix-commit	hunk:H01	A,B	agreed	-	false
+F001	-	fix	lib/reply.js	-	fix	fix/5c081d4b7237:286-286	-	-	-	-
+F002	-	fix	test/internals/reply.test.js	-	fix	fix/5c081d4b7237:1005-1005	-	-	-	-

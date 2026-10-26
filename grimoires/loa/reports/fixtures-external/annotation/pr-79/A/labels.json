@@ -1,0 +1,14 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "types/route.d.ts", "anchor_lines": [49],
+            "description": "RouteShorthandHook rebuilds the hook signature from Parameters<T> only, dropping the hook's `this` type, so shorthand route hooks lose their typed `this` (e.g. FastifyInstance) context.",
+            "severity": "medium", "category": "contract"}
+  },
+  "incidents": {
+    "I01": {"verdict": "not-at-head", "group": null, "file": "types/instance.d.ts",
+            "anchor_lines": [], "description": "The addresses() return type omits socket-path strings. This looks like a long-standing declaration unrelated to this change's hook typing, and nothing shown proves the change's head introduced or touched it.", "severity": null},
+    "I02": {"verdict": "not-at-head", "group": null, "file": "types/route.d.ts",
+            "anchor_lines": [], "description": "logSerializers is missing from RouteShorthandOptions. This is a separate, pre-existing type gap that the change under review did not touch.", "severity": null}
+  }
+}

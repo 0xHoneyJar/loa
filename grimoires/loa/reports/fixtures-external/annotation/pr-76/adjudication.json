@@ -1,0 +1,15 @@
+{
+ "H01": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": "ext/napi/js_native_api.rs",
+  "description": "byte_length + byte_offset can overflow usize (panic in debug, wraparound in release), bypassing the bounds check so an out-of-range DataView is created over the ArrayBuffer.",
+  "severity": "high",
+  "category": "security",
+  "reason": "agreed defect, group, anchors, severity and description (byte_length + byte_offset can overflow usize, so the bounds check passes and an out-of-bounds DataView is created over the ArrayBuffer); category: the codebook's one word names the kind of defect — a bypassable bounds check in native-API code whose consequence is an out-of-bounds view (memory unsafety) is a security defect (A); input-validation (B) describes the mechanism, not the harm",
+  "anchor_lines": [
+   3976,
+   3988
+  ]
+ }
+}
