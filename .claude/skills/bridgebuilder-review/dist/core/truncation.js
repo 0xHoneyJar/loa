@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, statSync, openSync, fstatSync, closeSync, constants as fsConstants, } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
-import path from "node:path";
 // cycle-124 FR-3 (SDD §2.1): yaml-derived budgets — Anthropic maxInput is
 // effective_input_ceiling − 20000 so BB never prepares more than cheval's
 // pre-flight gate accepts (exit 7 above the ceiling).
@@ -60,124 +60,195 @@ export function getSecurityCategory(filename) {
     const match = SECURITY_PATTERNS.find((p) => p.pattern.test(filename));
     return match?.category;
 }
-// --- Pattern Matching (SDD Section 3.8) ---
-/** Detect if Node 22+ path.matchesGlob is available (BB-F4). */
-export const hasNativeGlob = typeof path.matchesGlob === "function";
-/**
- * Simple glob matcher fallback for Node <22.
- * Supports: `*.ext`, `prefix*`, `prefix*suffix`, exact match, substring match,
- * `?` single character wildcards, and `**` recursive directory matching.
- */
-function simplifiedGlobMatch(filename, pattern) {
-    // Handle ** recursive patterns: src/**/*.ts
-    if (pattern.includes("**")) {
-        // Convert glob to regex: ** matches any number of path segments
-        const escaped = pattern
-            .split("**")
-            .map((part) => part
-            .split("*")
-            .map((seg) => seg.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\?/g, "[^/]"))
-            .join("[^/]*"))
-            .join(".*");
-        return new RegExp(`^${escaped}$`).test(filename);
-    }
-    // Handle ? single character wildcard (matches any char except /)
-    if (pattern.includes("?")) {
-        const escaped = pattern
-            .split("*")
-            .map((part) => part.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\?/g, "[^/]"))
-            .join("[^/]*");
-        return new RegExp(`^${escaped}$`).test(filename);
-    }
-    // Original simplified matching for basic patterns
-    if (pattern.startsWith("*")) {
-        const suffix = pattern.slice(1);
-        if (filename.endsWith(suffix))
-            return true;
-    }
-    else if (pattern.endsWith("*")) {
-        const prefix = pattern.slice(0, -1);
-        if (filename.startsWith(prefix))
-            return true;
-    }
-    else if (pattern.includes("*")) {
-        const [before, after] = pattern.split("*", 2);
-        if (filename.startsWith(before) && filename.endsWith(after))
-            return true;
-    }
-    else {
-        if (filename === pattern || filename.includes(pattern))
-            return true;
-    }
-    return false;
+// --- Pattern Matching (SDD Section 3.8; cycle-135 C-1, bd-ow72o) ---
+//
+// One grammar, one matcher, every Node version (D-1.1a): `path.matchesGlob` is never consulted, so the result
+// cannot drift between Node 20 and Node 22. Patterns are repository-relative and normalised once where they are
+// loaded (`normalizeExcludePatterns`: config `exclude_patterns`, `--exclude`, `.reviewignore`, the defaults).
+//
+//   non-wildcard (no `*`, `?`, `{`, `[`) — gitignore-like whole segments (DEC-1013): one trailing `/` is ignored;
+//     without a `/` the pattern is one segment at any depth (`PROCESS.md` ⇢ `docs/PROCESS.md`, never
+//     `MYPROCESS.md`); with a `/` it is anchored at the root and covers the path and its subtree (`a/b` ⇢ `a/b/c`,
+//     never `x/a/b`). A leading `/` is the root anchor for a single segment (`/README.md` names only the root file).
+//   wildcard — `*` and `?` within one segment, `**` as a whole segment (zero or more segments), one level of
+//     `{a,b}` alternation, `[ab]` / `[a-z]` / `[!ab]` classes; all of them match dot-led names (bd-a8l0c). A
+//     wildcard without a `/` floats like gitignore (an implicit leading `**/`, inserted in compileGlob; the pattern
+//     itself is recorded as written): `*.pem` ⇢ `keys/a.pem`; a wildcard with a `/` is root-anchored. A trailing
+//     `/` is a directory line and covers the subtree (`**/fixtures/` ⇢ `**/fixtures/**`); a leading `/` anchors a
+//     slashless wildcard to the root (`/*.yml`). A negated class never matches `/`.
+//   rejected at load with one WARN, and matching nothing if they reach the matcher anyway — a `!` negation line,
+//     backslash escapes, extglob `+( @( !( ?( *(`, nested or unbalanced braces, unterminated, empty or nested
+//     classes, a class whose range does not compile.
+/** cycle-135 C-1: a pattern with any of `*`, `?`, `{`, `[` is a glob; anything else names whole segments. */
+export function isWildcardPattern(pattern) {
+    return /[*?{[]/.test(pattern);
 }
-/**
- * Segment-aware glob match that ignores the shell dot-file rule (bd-a8l0c).
- * A `**` segment is a globstar and matches zero or more whole path segments;
- * `**` inside a segment is a plain `*`. `*` and `?` stay within one segment.
- * All of them match names that start with a dot. Compiled once per pattern.
- * Brace (`{a,b}`) and class (`[ab]`) forms are not translated (they are escaped
- * as literals), so such patterns keep the native dot-file rule.
- */
-const dotSegmentGlobCache = new Map();
-function dotSegmentGlobMatch(filename, pattern) {
-    let re = dotSegmentGlobCache.get(pattern);
-    if (!re) {
-        // Collapse consecutive globstar segments (a/**/**/b → a/**/b).
-        const segs = pattern.split("/").filter((seg, i, all) => !(seg === "**" && all[i - 1] === "**"));
-        let src = "";
-        segs.forEach((seg, i) => {
-            const first = i === 0;
-            const last = i === segs.length - 1;
-            if (seg === "**") {
-                if (first && last)
-                    src += ".*";
-                else if (first)
-                    src += "(?:[^/]*/)*";
-                else if (last)
-                    src += "(?:/.*)?";
-                else
-                    src += "/(?:[^/]*/)*";
-                return;
-            }
-            if (!first && segs[i - 1] !== "**")
-                src += "/";
-            src += seg
-                .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-                .replace(/\*+/g, "*")
-                .replace(/\*/g, "[^/]*")
-                .replace(/\?/g, "[^/]");
-        });
-        re = new RegExp(`^${src}$`);
-        dotSegmentGlobCache.set(pattern, re);
-    }
-    return re.test(filename);
+/** cycle-135 C-1 (bd-ow72o): gitignore-like whole-segment match for a non-wildcard pattern (DEC-1013). */
+function segmentMatch(filename, pattern) {
+    let p = pattern.endsWith("/") ? pattern.slice(0, -1) : pattern;
+    // (Bridgebuilder round 2, PR #1302): a leading `/` is the root anchor — the name stops floating
+    const anchored = p.startsWith("/");
+    if (anchored)
+        p = p.slice(1);
+    if (p === "")
+        return false;
+    if (!anchored && !p.includes("/"))
+        return `/${filename}/`.includes(`/${p}/`);
+    return filename === p || filename.startsWith(`${p}/`);
 }
-export function matchesExcludePattern(filename, patterns) {
-    for (const pattern of patterns) {
-        if (hasNativeGlob) {
-            // Node 22+: native path.matchesGlob() first (brace expansion, character
-            // classes). Exclusion globs are a denylist: a glob that names a tree
-            // excludes every file under it, dot-led segments included (`.claude`,
-            // `.github`, dot-files). The native matcher's shell dot-file rule
-            // (`*`/`**` never match a leading `.`) is wrong for a denylist, so a
-            // wildcard pattern it rejects is retried dot-agnostically (bd-a8l0c).
-            if (path.matchesGlob(filename, pattern)) {
-                return true;
-            }
-            // Fallback to simplified match for non-glob patterns (exact/substring)
-            if (!pattern.includes("*") && !pattern.includes("?")) {
-                if (filename === pattern || filename.includes(pattern))
-                    return true;
-            }
-            else if (dotSegmentGlobMatch(filename, pattern)) {
-                return true;
-            }
+/** Translate one non-globstar segment to a regex source; throws on a construct outside the grammar. */
+function translateGlobSegment(seg) {
+    let out = "";
+    let inBrace = false;
+    for (let i = 0; i < seg.length; i++) {
+        const c = seg[i];
+        if (c === "*") {
+            while (seg[i + 1] === "*")
+                i++; // `**` inside a segment is a plain `*`
+            out += "[^/]*";
+        }
+        else if (c === "?") {
+            out += "[^/]";
+        }
+        else if (c === "[") {
+            let j = i + 1;
+            const negate = seg[j] === "!";
+            if (negate)
+                j++;
+            const close = seg.indexOf("]", j);
+            if (close <= j)
+                throw new Error("unterminated or empty character class");
+            const body = seg.slice(j, close);
+            if (body.includes("["))
+                throw new Error("nested character class");
+            // (Bridgebuilder round 2, PR #1302): a negated class stays inside the segment — it never matches `/`
+            out += `[${negate ? "^/" : ""}${body.replace(/[\^\]\\]/g, "\\$&")}]`;
+            i = close;
+        }
+        else if (c === "{") {
+            if (inBrace)
+                throw new Error("nested braces");
+            inBrace = true;
+            out += "(?:";
+        }
+        else if (c === "}") {
+            if (!inBrace)
+                throw new Error("unbalanced braces");
+            inBrace = false;
+            out += ")";
+        }
+        else if (c === "," && inBrace) {
+            out += "|";
         }
         else {
-            if (simplifiedGlobMatch(filename, pattern))
-                return true;
+            out += c.replace(/[.+^${}()|[\]\\]/g, "\\$&");
         }
+    }
+    if (inBrace)
+        throw new Error("unbalanced braces");
+    return out;
+}
+/** Compile a wildcard pattern (segment-aware, dot-agnostic); throws on a construct outside the grammar. */
+function compileGlob(pattern) {
+    // sprint-279 review round 1 (MEDIUM 4): a slashless wildcard floats — `*.pem` is `**/*.pem` (gitignore semantics,
+    // matching the non-wildcard segment rule); no default pattern is a slashless wildcard.
+    // (Bridgebuilder round 2, PR #1302): a leading `/` is the root anchor — `/*.yml` names root-level files only.
+    let effective = pattern.startsWith("/") ? pattern.slice(1) : pattern.includes("/") ? pattern : `**/${pattern}`;
+    // Bridgebuilder round 1 (PR #1302): a trailing `/` is a directory line, like gitignore — it covers the subtree
+    // (`**/fixtures/` ⇢ `**/fixtures/**`); before, the trailing empty segment made the pattern match nothing.
+    if (effective.endsWith("/"))
+        effective = `${effective}**`;
+    // Collapse consecutive globstar segments (a/**/**/b → a/**/b).
+    const segs = effective.split("/").filter((seg, i, all) => !(seg === "**" && all[i - 1] === "**"));
+    let src = "";
+    segs.forEach((seg, i) => {
+        const first = i === 0;
+        const last = i === segs.length - 1;
+        if (seg === "**") {
+            if (first && last)
+                src += ".*";
+            else if (first)
+                src += "(?:[^/]*/)*";
+            else if (last)
+                src += "(?:/.*)?";
+            else
+                src += "/(?:[^/]*/)*";
+            return;
+        }
+        if (!first && segs[i - 1] !== "**")
+            src += "/";
+        src += translateGlobSegment(seg);
+    });
+    return new RegExp(`^${src}$`); // a class range that does not compile (`[z-a]`) throws here
+}
+/** Why `pattern` is outside the grammar, or null when it is inside (cycle-135 C-1). */
+export function excludePatternGrammarError(pattern) {
+    if (pattern.startsWith("!"))
+        return "negation (!) lines are not supported";
+    if (pattern.includes("\\"))
+        return "backslash escapes are not supported";
+    if (/[+@!?*]\(/.test(pattern))
+        return "extglob is not supported";
+    if (isWildcardPattern(pattern)) {
+        try {
+            compileGlob(pattern);
+        }
+        catch (err) {
+            return err.message;
+        }
+    }
+    return null;
+}
+/**
+ * cycle-135 C-1 (bd-ow72o): the one loader every pattern source goes through. Trims; drops blank entries; strips one
+ * leading `./` (patterns are repository-relative) and keeps a leading `/` as the root anchor; keeps a trailing `/` (the matcher ignores one); rejects a
+ * pattern outside the grammar with one WARN naming it (a rejected pattern is dropped and so matches nothing).
+ */
+export function normalizeExcludePatterns(raw, source) {
+    const out = [];
+    for (const entry of raw) {
+        const trimmed = entry.trim();
+        if (trimmed === "")
+            continue;
+        const why = excludePatternGrammarError(trimmed);
+        if (why !== null) {
+            process.stderr.write(`[bridgebuilder] WARN: ${source}: exclusion pattern ${JSON.stringify(trimmed)} rejected — ${why}; it matches nothing (bd-ow72o)\n`);
+            continue;
+        }
+        // (Bridgebuilder round 2, PR #1302): `./` is stripped; a leading `/` is KEPT — it is gitignore's root anchor
+        const stripped = trimmed.startsWith("./") ? trimmed.slice(2) : trimmed;
+        if (stripped !== "" && stripped !== "/")
+            out.push(stripped);
+    }
+    return out;
+}
+/** One compiled predicate per pattern (memoized); a pattern outside the grammar compiles to "matches nothing". */
+const patternMatcherCache = new Map();
+function patternMatcher(pattern) {
+    let m = patternMatcherCache.get(pattern);
+    if (!m) {
+        if (excludePatternGrammarError(pattern) !== null) {
+            m = () => false;
+        }
+        else if (isWildcardPattern(pattern)) {
+            const re = compileGlob(pattern);
+            m = (filename) => re.test(filename);
+        }
+        else {
+            m = (filename) => segmentMatch(filename, pattern);
+        }
+        patternMatcherCache.set(pattern, m);
+    }
+    return m;
+}
+/**
+ * True when `filename` matches any of `patterns` under the grammar above (cycle-135 C-1, bd-ow72o): non-wildcard →
+ * whole segments, wildcard → the segment-aware glob. Pure; no exceptions at match time.
+ */
+export function matchesExcludePattern(filename, patterns) {
+    for (const pattern of patterns) {
+        if (patternMatcher(pattern)(filename))
+            return true;
     }
     return false;
 }
@@ -222,8 +293,9 @@ export function deriveCallConfig(config, pr) {
 }
 // --- Loa Detection (Task 1.2 — SDD Section 3.1) ---
 /** Default Loa framework exclude patterns.
- * Use ** for recursive directory matching (BB-F4). */
-export const LOA_EXCLUDE_PATTERNS = [
+ * Use ** for recursive directory matching (BB-F4). Non-wildcard entries name whole segments (cycle-135 C-1:
+ * `PROCESS.md` excludes `docs/PROCESS.md`, never `MYPROCESS.md`); the list goes through the one loader. */
+export const LOA_EXCLUDE_PATTERNS = normalizeExcludePatterns([
     // Core framework (existing)
     ".claude/**",
     "grimoires/**",
@@ -240,7 +312,67 @@ export const LOA_EXCLUDE_PATTERNS = [
     "BUTTERFREEZONE.md",
     "INSTALLATION.md",
     "grimoires/**/NOTES.md",
-];
+], "LOA_EXCLUDE_PATTERNS");
+/**
+ * cycle-135 C-2 (bd-i4fyw, DEC-1014): paths a wildcard user exclusion (`--exclude`, `exclude_patterns`,
+ * `.reviewignore`) cannot remove from the review. An explicit (non-wildcard) user pattern still excludes them; the
+ * Loa tier is not subject to this list. `bridgebuilder.protected_paths` replaces it; `[]` disables it.
+ */
+export const DEFAULT_PROTECTED_PATHS = Object.freeze(normalizeExcludePatterns([
+    ".github/workflows/**",
+    ".github/actions/**",
+    ".github/CODEOWNERS",
+    ".claude/settings.json",
+    ".claude/settings.local.json",
+    ".claude/hooks/**",
+    ".husky/**",
+    ".reviewignore",
+], "DEFAULT_PROTECTED_PATHS"));
+/**
+ * cycle-135 C-2 (bd-i4fyw, SDD § 5.2): split `files` by the user patterns, order-independently. Every matching user
+ * pattern is resolved first. An explicit match — a non-wildcard pattern that is root-anchored (a `/` after one
+ * trailing `/` is ignored) or equals the file's full path — excludes (that pattern recorded: an explicit name wins
+ * over protection). Otherwise a file matching a protected pattern (same matcher) is kept with the first matching
+ * pattern recorded: wildcards and floating segment names (`ci.yml`, `.github`, `settings.json`) do not defeat
+ * protection (sprint-279 review round 1, HIGH 2). Otherwise the file is excluded (an explicit or non-wildcard match
+ * recorded first, else the first match). Files no pattern matches appear in neither list.
+ */
+export function partitionUserExclusions(files, userPatterns, protectedPatterns) {
+    const excluded = [];
+    const protectedKept = [];
+    if (userPatterns.length === 0)
+        return { excluded, protectedKept };
+    for (const f of files) {
+        const matched = userPatterns.filter((p) => matchesExcludePattern(f.filename, [p]));
+        if (matched.length === 0)
+            continue;
+        const explicit = matched.find((p) => isExplicitFor(p, f.filename));
+        if (explicit !== undefined) {
+            excluded.push({ file: f.filename, pattern: explicit });
+        }
+        else if (matchesExcludePattern(f.filename, protectedPatterns)) {
+            protectedKept.push({ file: f.filename, pattern: matched[0] });
+        }
+        else {
+            excluded.push({ file: f.filename, pattern: matched.find((p) => !isWildcardPattern(p)) ?? matched[0] });
+        }
+    }
+    return { excluded, protectedKept };
+}
+/** An explicit (protection-defeating) pattern: non-wildcard and root-anchored, or the file's full path. */
+function isExplicitFor(pattern, filename) {
+    if (isWildcardPattern(pattern))
+        return false;
+    const p = pattern.endsWith("/") ? pattern.slice(0, -1) : pattern;
+    return p.startsWith("/") || p.includes("/") || p === filename; // (a leading `/` is the root anchor: explicit)
+}
+/**
+ * cycle-135 C-2: the suffix an omission's stats carry to name the pattern that excluded it (Loa-tier and
+ * user-pattern omissions). Grammar: the stats end with ` [pattern: <p>]`; parse with `/ \[pattern: (.*)\]$/`.
+ */
+function patternSuffix(pattern) {
+    return ` [pattern: ${pattern}]`;
+}
 /**
  * Parse a `.reviewignore` file's user-curated patterns from disk.
  *
@@ -257,9 +389,17 @@ export const LOA_EXCLUDE_PATTERNS = [
  * silently coercing unreadable to "no rules". Errno-explicit handling closes
  * the TOCTOU/ambiguous-stat class (Go's golang/go#41112 lesson applied here).
  *
- * @throws Error when `.reviewignore` exists but cannot be read or parsed.
+ * cycle-135 C-2 (bd-i4fyw, DEC-1027): with `opts.baseSha` the base version is read (`git show <sha>:.reviewignore`,
+ * the same line validation) so a PR cannot change the exclusions its own review applies. A failed base read fails
+ * CLOSED (sprint-279 review round 1, HIGH 1): the checkout copy governs and the source is `base_unavailable` (the
+ * review degrades as reviewignore_unavailable), with one WARN naming why. A readable base that LACKS the file is a
+ * definitive answer (Bridgebuilder round 1, PR #1302): no patterns apply and the source is `none` — a copy the PR adds
+ * is reported in a WARN, never applied (its patterns take effect after merge). Without a base sha the checkout file is
+ * read as before.
+ *
+ * @throws Error when the checkout `.reviewignore` exists but cannot be read or parsed, or repoRoot is invalid.
  */
-function parseReviewignoreFile(repoRoot) {
+export function parseReviewignoreFile(repoRoot, opts = {}) {
     // BB-801-002-gpt (iter-1 MEDIUM): validate repoRoot resolves to a
     // directory BEFORE proceeding.
     //
@@ -282,6 +422,27 @@ function parseReviewignoreFile(repoRoot) {
         enriched.code = "EBADREPOROOT";
         throw enriched;
     }
+    if (opts.baseSha === undefined)
+        return readCheckoutReviewignore(repoRoot);
+    const base = readBaseReviewignore(repoRoot, opts.baseSha);
+    if (base.ok)
+        return { patterns: base.patterns, source: "base" };
+    if (base.absent) {
+        // Bridgebuilder round 1 (PR #1302): a readable base without the file is definitive — no patterns apply. The checkout
+        // is still read (a symlink there is still refused); a copy the PR adds is reported, never applied.
+        const checkout = readCheckoutReviewignore(repoRoot);
+        if (checkout.source !== "none") {
+            process.stderr.write(`[bridgebuilder] WARN: .reviewignore is absent at the base ${JSON.stringify(opts.baseSha)}; the checkout copy (added or kept by this PR) is not applied — its patterns take effect after merge (source: none; bd-i4fyw)\n`);
+        }
+        return { patterns: [], source: "none" };
+    }
+    // before the checkout read, so the reason survives a checkout refusal (which throws)
+    process.stderr.write(`[bridgebuilder] WARN: .reviewignore at base ${JSON.stringify(opts.baseSha)} not read — ${base.why}; the checkout copy governs (source: base_unavailable, the review degrades as reviewignore_unavailable; bd-i4fyw)\n`);
+    const checkout = readCheckoutReviewignore(repoRoot);
+    return { patterns: checkout.patterns, source: "base_unavailable" };
+}
+/** The checkout `.reviewignore` read (fail-closed on anything but genuine absence). */
+function readCheckoutReviewignore(repoRoot) {
     const reviewignorePath = resolve(repoRoot, ".reviewignore");
     // BB801-002 (iter-3 MEDIUM, conf 0.82): TOCTOU-resistant validation +
     // read. Previously: lstatSync, then readFileSync(path). Path-based
@@ -313,7 +474,7 @@ function parseReviewignoreFile(repoRoot) {
         const code = err.code;
         if (code === "ENOENT") {
             // O_NOFOLLOW: ENOENT only on genuine absence (broken symlink → ELOOP)
-            return [];
+            return { patterns: [], source: "none" };
         }
         if (code === "ELOOP") {
             // BB801-R8 (iter-4 LOW): ESYMLINKREJECTED — the policy is "we reject
@@ -347,17 +508,47 @@ function parseReviewignoreFile(repoRoot) {
             // Best-effort close
         }
     }
+    return { patterns: parseReviewignoreLines(content), source: "checkout" };
+}
+/** The `.reviewignore` line grammar, shared by the checkout and the base read. */
+function parseReviewignoreLines(content) {
     const patterns = [];
-    for (const rawLine of content.split("\n")) {
-        const line = rawLine.trim();
-        if (!line || line.startsWith("#"))
-            continue;
-        const pattern = line.endsWith("/") ? `${line}**` : line;
+    // cycle-135 C-1 (bd-ow72o): lines go through the one loader; the former `/` → `/**` conversion is gone — a
+    // directory line is a non-wildcard segment pattern (FR-2: `.github/workflows/` is an explicit name).
+    const lines = content.split("\n").filter((l) => !l.trim().startsWith("#"));
+    for (const pattern of normalizeExcludePatterns(lines, ".reviewignore")) {
         if (!patterns.includes(pattern)) {
             patterns.push(pattern);
         }
     }
     return patterns;
+}
+/** cycle-135 C-2: bounds of the base-ref `.reviewignore` read. */
+const REVIEWIGNORE_GIT_TIMEOUT_MS = 10_000;
+const REVIEWIGNORE_MAX_BYTES = 1024 * 1024;
+function readBaseReviewignore(repoRoot, baseSha) {
+    const none = (why, absent = false) => ({ ok: false, absent, why });
+    if (!/^[0-9a-f]{40}$/.test(baseSha))
+        return none("not a 40-hex commit sha");
+    const opts = {
+        encoding: "utf-8",
+        timeout: REVIEWIGNORE_GIT_TIMEOUT_MS,
+        maxBuffer: REVIEWIGNORE_MAX_BYTES,
+        stdio: ["ignore", "pipe", "pipe"],
+    };
+    try {
+        const entry = execFileSync("git", ["-C", repoRoot, "ls-tree", "-z", baseSha, "--", ".reviewignore"], opts);
+        if (entry === "")
+            return none("absent at the base", true);
+        const mode = entry.split(" ", 1)[0];
+        if (mode !== "100644" && mode !== "100755")
+            return none(`not a regular file at the base (mode ${mode})`);
+        const content = execFileSync("git", ["-C", repoRoot, "show", `${baseSha}:.reviewignore`], opts);
+        return { ok: true, patterns: parseReviewignoreLines(content) };
+    }
+    catch (err) {
+        return none(String(err.message ?? err).split("\n")[0].slice(0, 200));
+    }
 }
 /**
  * Load `.reviewignore` operator-curated patterns from repo root.
@@ -378,9 +569,9 @@ function parseReviewignoreFile(repoRoot) {
  * @throws Error when `.reviewignore` exists but cannot be read or parsed —
  *         caller MUST handle and decide whether to halt or fall back.
  */
-export function loadReviewIgnoreUserPatterns(repoRoot) {
+export function loadReviewIgnoreUserPatterns(repoRoot, opts = {}) {
     const root = repoRoot ?? process.cwd();
-    return parseReviewignoreFile(root);
+    return parseReviewignoreFile(root, opts).patterns;
 }
 /**
  * @deprecated PR #801 iter-4 BB801-R4 (MEDIUM): this is the legacy
@@ -413,7 +604,7 @@ export function loadReviewIgnore(repoRoot) {
     const root = repoRoot ?? process.cwd();
     const basePatterns = [...LOA_EXCLUDE_PATTERNS];
     try {
-        const userPatterns = parseReviewignoreFile(root);
+        const userPatterns = parseReviewignoreFile(root).patterns;
         for (const pattern of userPatterns) {
             if (!basePatterns.includes(pattern)) {
                 basePatterns.push(pattern);
@@ -556,8 +747,9 @@ export function applyLoaTierExclusion(files, loaPatterns) {
     const tier2Summary = [];
     let bytesSaved = 0;
     for (const file of files) {
-        // Check if file is under a Loa path
-        if (!matchesExcludePattern(file.filename, loaPatterns)) {
+        // Check if file is under a Loa path (cycle-135 C-2: the matching default is named in the stats)
+        const loaPattern = loaPatterns.find((p) => matchesExcludePattern(file.filename, [p]));
+        if (loaPattern === undefined) {
             passthrough.push(file);
             continue;
         }
@@ -572,7 +764,8 @@ export function applyLoaTierExclusion(files, loaPatterns) {
         if (tier === "tier1") {
             tier1Excluded.push({
                 filename: file.filename,
-                stats: `+${file.additions} -${file.deletions} (Loa framework, content excluded)`,
+                stats: `+${file.additions} -${file.deletions} (Loa framework, content excluded)${patternSuffix(loaPattern)}`,
+                pattern: loaPattern,
             });
         }
         else {
@@ -580,8 +773,9 @@ export function applyLoaTierExclusion(files, loaPatterns) {
             const summary = file.patch ? extractFirstHunk(file.patch) : "";
             tier2Summary.push({
                 filename: file.filename,
-                stats: `+${file.additions} -${file.deletions} (Loa framework, summary only)`,
+                stats: `+${file.additions} -${file.deletions} (Loa framework, summary only)${patternSuffix(loaPattern)}`,
                 summary,
+                pattern: loaPattern,
             });
         }
     }
@@ -999,6 +1193,13 @@ function hasPatch(file) {
 }
 export function truncateFiles(files, config) {
     const patterns = config.excludePatterns ?? [];
+    // cycle-135 C-2 (bd-i4fyw): protection against wildcard user exclusions; `[]` disables it.
+    const protectedPatterns = config.protectedPaths ?? DEFAULT_PROTECTED_PATHS;
+    // file → the first wildcard that matched it; a later explicit user exclusion removes the entry (order-independent
+    // across sources); a Loa-tier strip leaves it (the coverage renders the final status).
+    const protectedKept = new Map();
+    const protectedKeptList = () => [...protectedKept].map(([file, pattern]) => ({ file, pattern }));
+    let reviewignoreSource;
     // Step 0: Loa-aware filtering (prepended, not replacing user patterns)
     // Load .reviewignore and merge with LOA_EXCLUDE_PATTERNS (#303)
     // Self-review opt-in (#796 / vision-013): when the PR carries the
@@ -1009,6 +1210,7 @@ export function truncateFiles(files, config) {
     let loaBanner;
     let loaStats;
     let allExcluded = false;
+    // cycle-135 (review round 1, LOW 5): `pattern` is the structured excluding pattern; the stats suffix stays one release.
     const loaExcludedEntries = [];
     let afterLoa = files;
     // BB-797-001 (iter-3): typed self-review boolean — downstream prose-free.
@@ -1040,7 +1242,9 @@ export function truncateFiles(files, config) {
             // filter path, which preserves the framework-exclusion safety floor.
             let userPatterns = [];
             try {
-                userPatterns = loadReviewIgnoreUserPatterns(config.repoRoot);
+                const ri = parseReviewignoreFile(config.repoRoot ?? process.cwd(), { baseSha: config.reviewignoreBaseSha });
+                userPatterns = ri.patterns;
+                reviewignoreSource = ri.source;
             }
             catch (err) {
                 // BB-797-001 iter-5 (HIGH): fail-CLOSED on EVERY axis the operator
@@ -1082,11 +1286,18 @@ export function truncateFiles(files, config) {
             if (userPatterns.length > 0) {
                 const passthrough = [];
                 let userBytesSaved = 0;
+                // cycle-135 C-2 (bd-i4fyw): user-pattern site 1 of 3 (self-review branch, `.reviewignore`).
+                const part = partitionUserExclusions(files, userPatterns, protectedPatterns);
+                const excludedBy = new Map(part.excluded.map((e) => [e.file, e.pattern]));
+                for (const k of part.protectedKept)
+                    protectedKept.set(k.file, k.pattern);
                 for (const f of files) {
-                    if (matchesExcludePattern(f.filename, userPatterns)) {
+                    const pattern = excludedBy.get(f.filename);
+                    if (pattern !== undefined) {
                         loaExcludedEntries.push({
                             filename: f.filename,
-                            stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern)`,
+                            stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern)${patternSuffix(pattern)}`,
+                            pattern,
                         });
                         userBytesSaved += f.patch ? new TextEncoder().encode(f.patch).byteLength : 0;
                         if (matchesExcludePattern(f.filename, LOA_EXCLUDE_PATTERNS)) {
@@ -1142,11 +1353,13 @@ export function truncateFiles(files, config) {
                     included: [],
                     excluded: loaExcludedEntries,
                     totalBytes: 0,
+                    protectedKept: protectedKeptList(),
                     allExcluded: true,
                     loaBanner,
                     loaStats,
                     selfReviewActive,
                     selfReviewState,
+                    reviewignoreSource,
                 };
             }
         }
@@ -1180,7 +1393,9 @@ export function truncateFiles(files, config) {
             // defaults to whatever survived phase 1.
             let userPatterns = [];
             try {
-                userPatterns = loadReviewIgnoreUserPatterns(config.repoRoot);
+                const ri = parseReviewignoreFile(config.repoRoot ?? process.cwd(), { baseSha: config.reviewignoreBaseSha });
+                userPatterns = ri.patterns;
+                reviewignoreSource = ri.source;
             }
             catch (err) {
                 // Fail-CLOSED. ENOENT was handled inside parseReviewignoreFile
@@ -1227,11 +1442,18 @@ export function truncateFiles(files, config) {
             let userBytesSaved = 0;
             if (userPatterns.length > 0) {
                 const survivors = [];
+                // cycle-135 C-2 (bd-i4fyw): user-pattern site 2 of 3 (default-mode Loa branch, phase 1, `.reviewignore`).
+                const part = partitionUserExclusions(files, userPatterns, protectedPatterns);
+                const excludedBy = new Map(part.excluded.map((e) => [e.file, e.pattern]));
+                for (const k of part.protectedKept)
+                    protectedKept.set(k.file, k.pattern);
                 for (const f of files) {
-                    if (matchesExcludePattern(f.filename, userPatterns)) {
+                    const pattern = excludedBy.get(f.filename);
+                    if (pattern !== undefined) {
                         loaExcludedEntries.push({
                             filename: f.filename,
-                            stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern, strict deny)`,
+                            stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern, strict deny)${patternSuffix(pattern)}`,
+                            pattern,
                         });
                         userExcludedCount++;
                         userBytesSaved += f.patch ? new TextEncoder().encode(f.patch).byteLength : 0;
@@ -1255,6 +1477,7 @@ export function truncateFiles(files, config) {
                 loaExcludedEntries.push({
                     filename: entry.filename,
                     stats: entry.stats,
+                    pattern: entry.pattern,
                 });
             }
             const totalLoaExcluded = tierResult.tier1Excluded.length + tierResult.tier2Summary.length;
@@ -1282,11 +1505,13 @@ export function truncateFiles(files, config) {
                     included: [],
                     excluded: loaExcludedEntries,
                     totalBytes: 0,
+                    protectedKept: protectedKeptList(),
                     allExcluded: true,
                     loaBanner,
                     loaStats,
                     selfReviewActive,
                     selfReviewState,
+                    reviewignoreSource,
                 };
             }
         }
@@ -1294,22 +1519,36 @@ export function truncateFiles(files, config) {
     // Step 1: Separate files matching excludePatterns (sole enforcement point — IMP-005)
     const afterExclude = [];
     const excludedByPattern = [];
+    // cycle-135 C-2 (bd-i4fyw): user-pattern site 3 of 3 (`exclude_patterns` + `--exclude`, every repository).
+    const part = partitionUserExclusions(afterLoa, patterns, protectedPatterns);
+    const excludedBy = new Map(part.excluded.map((e) => [e.file, e.pattern]));
+    for (const k of part.protectedKept)
+        if (!protectedKept.has(k.file))
+            protectedKept.set(k.file, k.pattern);
     for (const f of afterLoa) {
-        if (matchesExcludePattern(f.filename, patterns)) {
+        const pattern = excludedBy.get(f.filename);
+        if (pattern !== undefined) {
+            protectedKept.delete(f.filename); // an explicit name here wins over a wildcard `.reviewignore` kept it from
             excludedByPattern.push({
                 filename: f.filename,
-                stats: `+${f.additions} -${f.deletions} (excluded by pattern)`,
+                stats: `+${f.additions} -${f.deletions} (excluded by pattern)${patternSuffix(pattern)}`,
+                pattern,
             });
         }
         else {
             afterExclude.push(f);
         }
     }
-    // Step 2: Classify into high-risk and normal
+    // Step 2: Classify into protected-kept, high-risk and normal (cycle-135 C-2: protected-kept files first, so the
+    // file cap and the byte budget cannot drop them before anything else)
+    const protectedFirst = [];
     const highRisk = [];
     const normal = [];
     for (const file of afterExclude) {
-        if (isHighRisk(file.filename)) {
+        if (protectedKept.has(file.filename)) {
+            protectedFirst.push(file);
+        }
+        else if (isHighRisk(file.filename)) {
             highRisk.push(file);
         }
         else {
@@ -1317,10 +1556,11 @@ export function truncateFiles(files, config) {
         }
     }
     // Step 3: Sort each tier by change size (descending)
+    protectedFirst.sort((a, b) => changeSize(b) - changeSize(a));
     highRisk.sort((a, b) => changeSize(b) - changeSize(a));
     normal.sort((a, b) => changeSize(b) - changeSize(a));
-    // Interleave: high-risk first, then normal
-    const sorted = [...highRisk, ...normal];
+    // Interleave: protected-kept first, then high-risk, then normal
+    const sorted = [...protectedFirst, ...highRisk, ...normal];
     // Apply maxFilesPerPr cap
     const capped = sorted.slice(0, config.maxFilesPerPr);
     // Step 4: Include full diff content until byte budget exhausted
@@ -1360,11 +1600,13 @@ export function truncateFiles(files, config) {
         included,
         excluded: [...loaExcludedEntries, ...excludedByPattern, ...excluded],
         totalBytes,
+        protectedKept: protectedKeptList(),
         allExcluded,
         loaBanner,
         loaStats,
         selfReviewActive,
         selfReviewState,
+        reviewignoreSource,
     };
 }
 //# sourceMappingURL=truncation.js.map

@@ -3,7 +3,8 @@
 # post-merge-classifier.bats — Tests for classify-pr-type.sh (Issue #550)
 # =============================================================================
 # Sprint-bug-104. Validates the shared PR-type classifier that routes merged
-# PRs into the Simple Release or Full Pipeline job in post-merge automation.
+# PRs into the Simple Release or Full Pipeline job in post-merge automation
+# (or neither, for housekeeping merges: bd-nr5i6, cycle-135 C-4).
 
 setup() {
     export PROJECT_ROOT="$BATS_TEST_DIRNAME/../.."
@@ -253,43 +254,47 @@ setup() {
 }
 
 # =========================================================================
-# PCT-T28..PCT-T40: housekeeping merges (bd-ahxmh)
+# PCT-T28..PCT-T40: housekeeping merges (bd-ahxmh, bd-nr5i6)
 # =========================================================================
 # The archive branch carries the cycle id by convention (chore/cycle-NNN-archive),
 # so the cycle-NNN rule routed every archive merge to the cycle release path:
 # Post-Merge Pipeline runs 40112908074 (PR #1293) and 40182103691 (PR #1297)
 # each ran the cycle release pipeline. A chore/ branch merge or a
-# chore(archive|ledger|decisions): prefix is housekeeping → other; labels keep
+# chore(archive|ledger|decisions): prefix is housekeeping; labels keep
 # precedence; a bare chore: or chore(release): naming a cycle stays cycle.
+# bd-ahxmh (sprint-bug-277) routed housekeeping to `other`, which still ran the
+# Bugfix-or-Other prepare job; bd-nr5i6 (cycle-135 C-4) gives it its own value,
+# `housekeeping`, for which post-merge.yml runs neither prepare job
+# (post-merge-workflow-guards.bats). T35 (bare chore:) stays `other`.
 
-@test "PCT-T28: cycle-133 archive merge subject (PR #1293) → other (bd-ahxmh)" {
+@test "PCT-T28: cycle-133 archive merge subject (PR #1293) → housekeeping (bd-ahxmh, bd-nr5i6)" {
     run "$CLASSIFIER" --title "Merge pull request #1293 from 0xHoneyJar/chore/cycle-133-archive — cycle-133 archive"
     [ "$status" -eq 0 ]
-    [ "$output" = "other" ]
+    [ "$output" = "housekeeping" ]
 }
 
-@test "PCT-T29: cycle-134 archive merge subject (PR #1297) → other (bd-ahxmh)" {
+@test "PCT-T29: cycle-134 archive merge subject (PR #1297) → housekeeping (bd-ahxmh, bd-nr5i6)" {
     run "$CLASSIFIER" --title "Merge pull request #1297 from 0xHoneyJar/chore/cycle-134-archive — cycle-134 archive"
     [ "$status" -eq 0 ]
-    [ "$output" = "other" ]
+    [ "$output" = "housekeeping" ]
 }
 
-@test "PCT-T30: squash-form chore(archive): subject naming a cycle → other (bd-ahxmh)" {
+@test "PCT-T30: squash-form chore(archive): subject naming a cycle → housekeeping (bd-ahxmh, bd-nr5i6)" {
     run "$CLASSIFIER" --title "chore(archive): cycle-134 post-ship fixes — archive directory, ledger archived (#1297)"
     [ "$status" -eq 0 ]
-    [ "$output" = "other" ]
+    [ "$output" = "housekeeping" ]
 }
 
-@test "PCT-T31: publisher's chore(ledger): push subject naming a cycle → other (bd-ahxmh)" {
+@test "PCT-T31: publisher's chore(ledger): push subject naming a cycle → housekeeping (bd-ahxmh, bd-nr5i6)" {
     run "$CLASSIFIER" --title "chore(ledger): archive cycle-134-post-ship-fixes after merge"
     [ "$status" -eq 0 ]
-    [ "$output" = "other" ]
+    [ "$output" = "housekeeping" ]
 }
 
-@test "PCT-T32: decisions-confirm merge from a chore/ branch (PR #1298) → other (bd-ahxmh)" {
+@test "PCT-T32: decisions-confirm merge from a chore/ branch (PR #1298) → housekeeping (bd-ahxmh, bd-nr5i6)" {
     run "$CLASSIFIER" --title "Merge pull request #1298 from 0xHoneyJar/chore/cycle-134-decisions-confirm — confirmed rows"
     [ "$status" -eq 0 ]
-    [ "$output" = "other" ]
+    [ "$output" = "housekeeping" ]
 }
 
 @test "PCT-T33: chore/ branch merge with a cycle label → cycle (labels keep precedence)" {
@@ -322,10 +327,10 @@ setup() {
     [ "$output" = "cycle" ]
 }
 
-@test "PCT-T38: chore/ first segment with a release segment deeper → other (chore/ is housekeeping by convention)" {
+@test "PCT-T38: chore/ first segment with a release segment deeper → housekeeping (chore/ is housekeeping by convention; bd-nr5i6)" {
     run "$CLASSIFIER" --title "Merge pull request #1301 from 0xHoneyJar/chore/release/v2.1.0 — x"
     [ "$status" -eq 0 ]
-    [ "$output" = "other" ]
+    [ "$output" = "housekeeping" ]
 }
 
 # PCT-T39..PCT-T40 are pins (both pass before and after bd-ahxmh): label

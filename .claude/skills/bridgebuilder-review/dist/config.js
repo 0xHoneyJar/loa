@@ -6,6 +6,8 @@ import { isIPv6 } from "node:net";
 import { join } from "node:path";
 import { z } from "zod/v4";
 import { GENERATED_MODEL_REGISTRY } from "./config.generated.js";
+// cycle-135 C-1 (bd-ow72o): every exclusion-pattern source goes through the one loader.
+import { excludePatternGrammarError, normalizeExcludePatterns } from "./core/truncation.js";
 const execFileAsync = promisify(execFile);
 /**
  * Zod schema for multi-model configuration (SDD Section 2.7).
@@ -473,7 +475,10 @@ export function parseProviderDecls(raw, label, warnings) {
 /** The subtree Bridgebuilder reads from a Loa config, as one yq program (the same yq the agy gate uses). */
 const TRUSTED_VIEW_YQ = '{"providers": (.hounfour.providers // null), "locality": (.hounfour.locality // null), "exit": (.bridgebuilder.exit_on_degraded // null), ' +
     '"writer": (.bridgebuilder.writer_role_allowlist // null), ' +
-    '"aliases": (.hounfour.aliases // null), "allowlist": (.hounfour.secret_env_allowlist // null), "rootAllowlist": (.secret_env_allowlist // null)}';
+    '"aliases": (.hounfour.aliases // null), "allowlist": (.hounfour.secret_env_allowlist // null), "rootAllowlist": (.secret_env_allowlist // null), ' +
+    // sprint-279 review round 1 (HIGH 3): the review-scope keys (no `//` — it would turn `false` into null)
+    '"scope": {"protected_paths": .bridgebuilder.protected_paths, "exclude_patterns": .bridgebuilder.exclude_patterns, ' +
+    '"fetch_missing_patches": .bridgebuilder.fetch_missing_patches, "max_content_fetches": .bridgebuilder.max_content_fetches}}';
 /** Parse Loa config text (YAML or JSON) into the trusted view with yq; throws with yq's first stderr line on failure. */
 export function yqTrustedView(text) {
     try {
@@ -485,6 +490,7 @@ export function yqTrustedView(text) {
             providers: parsed?.providers ?? null, locality: parsed?.locality ?? null, exit: parsed?.exit ?? null,
             ...(parsed?.writer !== undefined && parsed?.writer !== null ? { writer: parsed.writer } : {}),
             aliases: parsed?.aliases ?? null, allowlist: parsed?.allowlist ?? null, rootAllowlist: parsed?.rootAllowlist ?? null,
+            ...(parsed?.scope !== undefined && parsed?.scope !== null ? { scope: parsed.scope } : {}),
         };
     }
     catch (err) {
@@ -685,7 +691,75 @@ export function loadTrustedConfig(opts, deps = defaultTrustedConfigDeps) {
         mode, source, ...(ref ? { ref } : {}), providers, headOnlyRefused, locality, exitOnDegraded, warnings,
         ...(writerRoleAllowlist ? { writerRoleAllowlist } : {}),
         aliases: stringAliases(view.aliases), headDrift,
+        // sprint-279 review round 1 (HIGH 3): on a pull request, the review-scope keys the trusted source states; with no
+        // readable source (Bridgebuilder round 1, PR #1302, bd-ous65) an all-null scope, so the keys fail closed to the defaults
+        ...(mode === "pull-request"
+            ? { reviewScope: view.scope ?? { protected_paths: null, exclude_patterns: null, fetch_missing_patches: null, max_content_fetches: null } }
+            : {}),
     };
+}
+/**
+ * sprint-279 review round 1 (HIGH 3, bd-i4fyw): on a pull request with a trusted source, `protected_paths`,
+ * `exclude_patterns`, `fetch_missing_patches` and `max_content_fetches` come from that source, so a PR cannot widen
+ * or narrow its own review (e.g. `protected_paths: []`). A head value whose effect differs is replaced with one WARN
+ * naming the key. These keys change review scope, not provider identity, so drift is warned, not refused (no exit
+ * 5). `--exclude` stays additive (the operator's argv). Local mode: unchanged. No readable trusted source on a pull
+ * request (Bridgebuilder round 1, PR #1302, bd-ous65): the four keys fall to their defaults with one WARN — fail closed,
+ * so a shallow checkout cannot be used to widen the PR's own review. main.ts calls this right after `loadTrustedConfig`.
+ */
+export function applyTrustedReviewScope(config, trusted, cli) {
+    const scope = trusted.reviewScope;
+    if (trusted.mode !== "pull-request" || scope === undefined)
+        return;
+    const where = trustedSourceDescription(trusted);
+    if (trusted.source === "none") {
+        process.stderr.write("[bridgebuilder] WARN: no trusted config could be read on this pull request — the review-scope keys (protected_paths, " +
+            "exclude_patterns, fetch_missing_patches, max_content_fetches) fall to their defaults (fail closed); the PR head's values are ignored (bd-ous65)\n");
+    }
+    const show = (v) => (v === undefined ? "unset" : JSON.stringify(v).slice(0, 300));
+    const warn = (key, head, value) => process.stderr.write(`[bridgebuilder] WARN: bridgebuilder.${key}: the PR head's value (${show(head)}) differs from ${where} ` +
+        `(${show(value)}) — the trusted value governs (review scope: warned, not refused; bd-i4fyw)\n`);
+    const isNull = (v) => v === null || v === undefined;
+    const pp = isNull(scope.protected_paths) ? undefined : validateProtectedPaths(scope.protected_paths);
+    if (!jsonDeepEqual(config.protectedPaths ?? null, pp ?? null))
+        warn("protected_paths", config.protectedPaths, pp);
+    if (pp === undefined)
+        delete config.protectedPaths;
+    else
+        config.protectedPaths = pp;
+    const rawEx = isNull(scope.exclude_patterns) ? [] : scope.exclude_patterns;
+    if (!Array.isArray(rawEx) || !rawEx.every((x) => typeof x === "string")) {
+        throw new Error(`bridgebuilder.exclude_patterns (${where}): expected a list of patterns, got ${show(rawEx)}`);
+    }
+    // (the CLI entries were warned about once in resolveConfig; rejected ones are dropped silently here)
+    const cliValid = (cli.exclude ?? []).filter((p) => excludePatternGrammarError(p.trim()) === null);
+    const ex = [
+        ...DEFAULT_EXCLUDE_PATTERNS,
+        ...normalizeExcludePatterns(rawEx, `bridgebuilder.exclude_patterns (${where})`),
+        ...normalizeExcludePatterns(cliValid, "--exclude"),
+    ];
+    if (!jsonDeepEqual(config.excludePatterns, ex))
+        warn("exclude_patterns", config.excludePatterns, ex);
+    config.excludePatterns = ex;
+    let fmp;
+    if (typeof scope.fetch_missing_patches === "boolean")
+        fmp = scope.fetch_missing_patches;
+    else if (!isNull(scope.fetch_missing_patches)) {
+        process.stderr.write(`[bridgebuilder] WARN: bridgebuilder.fetch_missing_patches (${where}): invalid value ${show(scope.fetch_missing_patches)} (expected true or false) — using the default (true)\n`);
+    }
+    if ((config.fetchMissingPatches ?? true) !== (fmp ?? true))
+        warn("fetch_missing_patches", config.fetchMissingPatches, fmp);
+    if (fmp === undefined)
+        delete config.fetchMissingPatches;
+    else
+        config.fetchMissingPatches = fmp;
+    const mcf = isNull(scope.max_content_fetches) ? undefined : validateMaxContentFetches(scope.max_content_fetches);
+    if ((config.maxContentFetches ?? 20) !== (mcf ?? 20))
+        warn("max_content_fetches", config.maxContentFetches, mcf);
+    if (mcf === undefined)
+        delete config.maxContentFetches;
+    else
+        config.maxContentFetches = mcf;
 }
 /** `hounfour.aliases` as a string map (non-string targets — cheval's dict form included — read through `target`/`model`). */
 function stringAliases(raw) {
@@ -1019,10 +1093,10 @@ export function agyGateStartupLines(gate, keyStatus) {
  * `bridgebuilder.exclude_patterns` and `--exclude`). Frozen review-PR fixtures and ablation grade trees are data, not
  * code under review; they made PR #1289's payload unreadable (KF-054). They apply under self-review too.
  */
-export const DEFAULT_EXCLUDE_PATTERNS = Object.freeze([
+export const DEFAULT_EXCLUDE_PATTERNS = Object.freeze(normalizeExcludePatterns([
     "evals/fixtures/review-prs/**",
     "grimoires/loa/reports/ablation-2.0/*-grades/**",
-]);
+], "DEFAULT_EXCLUDE_PATTERNS"));
 /** cycle-133 C-1: bounds for `bridgebuilder.gh_max_buffer_bytes` (default 64 MiB; 1 MiB … 512 MiB). */
 export const GH_MAX_BUFFER_BYTES_DEFAULT = 64 * 1024 * 1024;
 const GH_MAX_BUFFER_BYTES_MIN = 1024 * 1024;
@@ -1201,6 +1275,9 @@ export async function loadYamlConfig() {
                         case "exclude_patterns":
                             config.exclude_patterns = items;
                             break;
+                        case "protected_paths":
+                            config.protected_paths = items;
+                            break;
                     }
                     continue;
                 }
@@ -1260,6 +1337,29 @@ export async function loadYamlConfig() {
                     break;
                 case "pass1_cache_enabled":
                     config.pass1_cache_enabled = value === "true";
+                    break;
+                // cycle-135 C-2/C-3: `protected_paths: []` is the explicit opt-out; any other scalar is kept as written so
+                // resolveConfig rejects it (this parser's catch would swallow a throw here).
+                case "protected_paths":
+                    if (value !== "")
+                        config.protected_paths = value === "[]" ? [] : value;
+                    break;
+                case "fetch_missing_patches":
+                    if (value === "true" || value === "false") {
+                        config.fetch_missing_patches = value === "true";
+                    }
+                    else {
+                        process.stderr.write(`[bridgebuilder] WARN: bridgebuilder.fetch_missing_patches: invalid value ${JSON.stringify(value)} (expected true or false) — using the default (true)\n`);
+                    }
+                    break;
+                case "max_content_fetches":
+                    // sprint-279 review round 1 (LOW 6): an empty value is unset (Number("") would be 0 and disable every fetch)
+                    if (value === "") {
+                        process.stderr.write("[bridgebuilder] WARN: bridgebuilder.max_content_fetches: empty value — treated as unset (the default, 20)\n");
+                    }
+                    else {
+                        config.max_content_fetches = Number(value);
+                    }
                     break;
             }
         }
@@ -1404,10 +1504,16 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
             DEFAULTS.dryRun,
         excludePatterns: [
             ...DEFAULT_EXCLUDE_PATTERNS,
-            ...(yaml.exclude_patterns ?? []),
-            ...(cliArgs.exclude ?? []),
+            ...normalizeExcludePatterns(yaml.exclude_patterns ?? [], "bridgebuilder.exclude_patterns"),
+            ...normalizeExcludePatterns(cliArgs.exclude ?? [], "--exclude"),
         ],
         ghMaxBufferBytes: resolveGhMaxBufferBytes(yaml.gh_max_buffer_bytes),
+        // cycle-135 C-2/C-3: set only when configured; readers default them (DEFAULT_PROTECTED_PATHS, true, 20).
+        ...(yaml.protected_paths !== undefined ? { protectedPaths: validateProtectedPaths(yaml.protected_paths) } : {}),
+        ...(yaml.fetch_missing_patches !== undefined ? { fetchMissingPatches: yaml.fetch_missing_patches } : {}),
+        ...(yaml.max_content_fetches !== undefined
+            ? { maxContentFetches: validateMaxContentFetches(yaml.max_content_fetches) }
+            : {}),
         sanitizerMode: yaml.sanitizer_mode ?? DEFAULTS.sanitizerMode,
         maxRuntimeMinutes: yaml.max_runtime_minutes ?? DEFAULTS.maxRuntimeMinutes,
         ...(cliArgs.pr != null ? { targetPr: cliArgs.pr } : {}),
@@ -1450,6 +1556,39 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
         reviewMode: reviewModeSource,
     };
     return { config, provenance };
+}
+/**
+ * cycle-135 C-2 (bd-i4fyw): `bridgebuilder.protected_paths` — a list of non-empty, repository-relative patterns in
+ * the exclusion grammar. A leading `/` or `./` is stripped (through the one loader, normalizeExcludePatterns); a
+ * non-string, an empty entry, a `..` segment or a construct outside the grammar is a config error naming the entry.
+ */
+export function validateProtectedPaths(raw) {
+    if (!Array.isArray(raw)) {
+        throw new Error(`bridgebuilder.protected_paths: expected a list of path patterns, got ${JSON.stringify(raw)}`);
+    }
+    return raw.map((entry, i) => {
+        const where = `bridgebuilder.protected_paths[${i}]`;
+        if (typeof entry !== "string")
+            throw new Error(`${where}: expected a string, got ${JSON.stringify(entry)}`);
+        if (entry.trim() === "")
+            throw new Error(`${where}: empty entry`);
+        const why = excludePatternGrammarError(entry.trim());
+        if (why !== null)
+            throw new Error(`${where}: ${JSON.stringify(entry)} — ${why}`);
+        const [normalized] = normalizeExcludePatterns([entry], where);
+        if (normalized === undefined)
+            throw new Error(`${where}: ${JSON.stringify(entry)} is empty after normalisation`);
+        if (normalized.split("/").includes("..")) {
+            throw new Error(`${where}: ${JSON.stringify(entry)} — a ".." segment is not allowed (patterns are repository-relative)`);
+        }
+        return normalized;
+    });
+}
+/** cycle-135 C-3: `bridgebuilder.max_content_fetches` — an integer ≥ 0, else a config error. */
+export function validateMaxContentFetches(raw) {
+    if (Number.isInteger(raw) && raw >= 0)
+        return raw;
+    throw new Error(`bridgebuilder.max_content_fetches: invalid value ${JSON.stringify(raw)} (expected an integer ≥ 0)`);
 }
 /**
  * cycle-133 C-1: `bridgebuilder.gh_max_buffer_bytes` — an integer in 1 MiB … 512 MiB, else the default with a warning
