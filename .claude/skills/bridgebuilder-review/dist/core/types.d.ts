@@ -17,12 +17,18 @@ export interface CoverageRecord {
         file: string;
         bytes: number;
         hunks: number;
+        /** cycle-135 C-3: the patch was synthesized from the file's content (an added file GitHub returned without a patch). */
+        source?: "contents";
     }>;
     /** Named omissions; a patch_truncated file is also in `reviewed` (its retained bytes). */
     omitted: Array<{
         file: string;
         reason: OmissionReason;
         reviewable: boolean;
+        /** cycle-135 C-2: the default or user pattern that excluded the file (excluded_loa / excluded_pattern). */
+        pattern?: string;
+        /** cycle-135 C-3: the outcome of an attempted content fetch for a patch-less added file. */
+        fetch?: "binary" | "too_large" | "error" | "skipped_cap" | "deadline";
     }>;
     /** Files GitHub counted but the listing never named (changed_files − listed). */
     unknown_omitted: number;
@@ -31,6 +37,15 @@ export interface CoverageRecord {
     mergeBlockedReason?: "incomplete_coverage";
     /** Head/base moves that restarted the fetch (at most 1; a second move degrades as pr_head_moved). */
     restarts: number;
+    /** cycle-135 C-2: protected files a wildcard user exclusion would have removed; the first matching wildcard pattern. */
+    protected_kept?: Array<{
+        file: string;
+        pattern: string;
+    }>;
+    /** cycle-135 C-2: where the `.reviewignore` patterns came from (the PR base sha, the checkout, or nowhere). */
+    reviewignore_source?: "base" | "checkout" | "none";
+    /** cycle-135 C-2: the PR's file list contains `.reviewignore` (the file itself is protected and reviewed). */
+    reviewignore_changed_in_pr?: boolean;
 }
 export interface BridgebuilderConfig {
     repos: Array<{
@@ -48,6 +63,15 @@ export interface BridgebuilderConfig {
     repoOverridePath: string;
     dryRun: boolean;
     excludePatterns: string[];
+    /**
+     * cycle-135 C-2 (`bridgebuilder.protected_paths`): paths a wildcard user exclusion cannot remove from the review
+     * set. `undefined` = DEFAULT_PROTECTED_PATHS; `[]` disables protection; a set list replaces the default.
+     */
+    protectedPaths?: string[];
+    /** cycle-135 C-3 (`bridgebuilder.fetch_missing_patches`): fetch the content of added files GitHub returned without a patch. `undefined` = true. */
+    fetchMissingPatches?: boolean;
+    /** cycle-135 C-3 (`bridgebuilder.max_content_fetches`): at most this many content fetches per review. `undefined` = 20. */
+    maxContentFetches?: number;
     sanitizerMode: "default" | "strict";
     maxRuntimeMinutes: number;
     /** When set (via --pr flag), filters fetchPRItems() to this single PR number. */
@@ -292,6 +316,11 @@ export interface TruncationResult {
         stats: string;
     }>;
     totalBytes: number;
+    /** cycle-135 C-2: protected files kept although a wildcard user exclusion matched them (the first matching wildcard). */
+    protectedKept?: Array<{
+        file: string;
+        pattern: string;
+    }>;
     /** True when all files were excluded by Loa filtering (no app files remain). */
     allExcluded?: boolean;
     /** Banner string when Loa files were excluded. */
