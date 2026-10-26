@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-26T05:40:25Z",
+  "generated": "2026-10-26T05:41:03Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1491,7 +1491,7 @@
     ".claude/skills/autonomous-agent/resources/templates/escalation-report.md": "942df18bcc8ffa96dfe6a64c5fbf499f94480739f03fa32ed8661e20f5f6cb86",
     ".claude/skills/bridgebuilder-review/.gitignore": "4d56952b0fb13bf8f9b6c13a6d4c34a075bac3af447636a1df4335d7576e2f97",
     ".claude/skills/bridgebuilder-review/SKILL.md": "61dd4ee522c93b6038eb943c105942e60d0c7aed07146432f6403055b62d1f4f",
-    ".claude/skills/bridgebuilder-review/dist/.build-manifest.json": "0ff0248bb66f9a69a8415c7c29b76f80706c8950184f858c50d285c807dfed31",
+    ".claude/skills/bridgebuilder-review/dist/.build-manifest.json": "640436049f79d68910529fb50875f0860cfdd769764215a9757084b813a8291f",
     ".claude/skills/bridgebuilder-review/dist/BEAUVOIR.md": "42ef896b1a9fe74c3a823eb0b8e2422327eb2ee714ee2f4eeb38f2f8a6a25279",
     ".claude/skills/bridgebuilder-review/dist/__tests__/config.test.d.ts": "178de024d47b767d141a4b52d1bfb26c426125fa46f7913e494933a2383b41dd",
     ".claude/skills/bridgebuilder-review/dist/__tests__/config.test.d.ts.map": "a86ed24b37ce040c92d09a424e020a8db9ee1b07509c63f6a2deee7bf8a92378",
@@ -1770,7 +1770,7 @@
     ".claude/skills/bridgebuilder-review/resources/__tests__/paged-fetch.test.ts": "f50ace2533d0c35efcaa9cf3b3eee3c5aade38da434c97d9c650950d4fab87dd",
     ".claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts": "6e2c6f0c668fc4ed9f5a206090b1862a2ba7a2407ee69be5cf6e0e324525d81c",
     ".claude/skills/bridgebuilder-review/resources/__tests__/progress.test.ts": "3b5b989e385a8a0afbac13705e65e1b1cdc5812ca7fc7b709f90df32e04108c3",
-    ".claude/skills/bridgebuilder-review/resources/__tests__/progressive-truncation.test.ts": "f67aedb2571ebbde3ae274d1f9c2183251a18bb233ec1a421e6110d0f1e0789f",
+    ".claude/skills/bridgebuilder-review/resources/__tests__/progressive-truncation.test.ts": "560c8f732f84d62e2a7d852226679919b75f983dce72cf65468b4b08f60b51de",
     ".claude/skills/bridgebuilder-review/resources/__tests__/rating-stdin.test.ts": "3d1fd55534bd8f75795dc155ebe4c3423f7c98da4ae6cdf5eff8eb85aae514a3",
     ".claude/skills/bridgebuilder-review/resources/__tests__/rating.test.ts": "0a6af69e433d87789e72a8bc932c6ec479bb702dc0dd4c68ceba218f4f406b12",
     ".claude/skills/bridgebuilder-review/resources/__tests__/review-verdict.test.ts": "f27e3b21df05067dd18abb38a2b8966b90c4ed5d61755c62d147f7005877d9a6",
