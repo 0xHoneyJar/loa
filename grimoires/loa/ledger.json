@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": null,
+  "active_cycle": "cycle-135-review-coverage-followups",
   "cycles": [
     {
       "id": "cycle-036",
@@ -2775,9 +2775,28 @@
           "completed": "2026-10-25T07:32:51Z"
         }
       ]
+    },
+    {
+      "id": "cycle-135-review-coverage-followups",
+      "label": "cycle-135 — review-coverage follow-ups: segment-anchored exclusion matching (bd-ow72o), protected paths (bd-i4fyw), content fetch for patch-less added files (bd-w5pd9), housekeeping classifier value (bd-nr5i6), CPU-time test guardrails (bd-oglcu)",
+      "status": "active",
+      "created": "2026-10-26T04:22:43Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 279,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-26T04:43:01Z",
+          "completed": "2026-10-26T07:13:13Z"
+        }
+      ]
     }
   ],
-  "global_sprint_counter": 278,
+  "global_sprint_counter": 279,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -3248,6 +3267,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 277,
-  "last_updated": "2026-10-25T09:43:43Z"
+  "next_sprint_number": 280,
+  "last_updated": "2026-10-26T07:11:43Z"
 }

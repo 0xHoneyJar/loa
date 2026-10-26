@@ -3,7 +3,7 @@
  * carrying any of them exits `bridgebuilder.exit_on_degraded` (default 3) and its summary JSON carries `degraded: true`
  * and `degraded_reason`. Fetch-side reasons (the first five) always come with `mergeBlockedReason: incomplete_coverage`.
  */
-export declare const DEGRADED_REASONS: readonly ["files_payload_oversize", "files_list_truncated", "page_incomplete", "patch_fetch_rate_limited", "pr_head_moved", "incomplete_coverage", "enrichment_guard_rejected", "writer_not_eligible", "verdict_conflict"];
+export declare const DEGRADED_REASONS: readonly ["files_payload_oversize", "files_list_truncated", "page_incomplete", "patch_fetch_rate_limited", "pr_head_moved", "reviewignore_unavailable", "incomplete_coverage", "enrichment_guard_rejected", "writer_not_eligible", "verdict_conflict"];
 export type DegradedReason = typeof DEGRADED_REASONS[number];
 /** The enumeration as a value (`DegradedReason.pr_head_moved`), for callers that prefer member access. */
 export declare const DegradedReason: {

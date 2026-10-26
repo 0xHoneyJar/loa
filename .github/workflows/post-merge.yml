@@ -106,7 +106,12 @@ jobs:
   simple-release:
     name: Prepare Release (Bugfix or Other)
     needs: classify
-    if: needs.classify.outputs.pr_type != 'cycle' && needs.classify.outputs.pr_number != ''
+    # bd-nr5i6 (cycle-135 C-4): an allowlist, not `!= 'cycle'`. Housekeeping
+    # merges (archive, the ledger push, decisions confirmations) classify
+    # `housekeeping` and prepare nothing; an unknown, empty or malformed
+    # pr_type runs neither this job nor full-pipeline. Pinned and evaluated over
+    # the type x PR-number matrix in tests/unit/post-merge-workflow-guards.bats.
+    if: (needs.classify.outputs.pr_type == 'bugfix' || needs.classify.outputs.pr_type == 'other') && needs.classify.outputs.pr_number != ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

@@ -63,9 +63,84 @@ const FORBIDDEN_FLAGS = new Set([
     "--template",
     "--repo",
 ]);
-function assertAllowedArgs(args) {
+/** cycle-135 C-3: one owner or repo segment (GitHub's name characters; never a dot-only or option-like name). */
+const REPO_SEGMENT = /^[A-Za-z0-9_.-]+$/;
+function validRepoSegment(s) {
+    return REPO_SEGMENT.test(s) && !/^\.+$/.test(s) && !s.startsWith("-");
+}
+/**
+ * cycle-135 C-3 (sdd.md § 5.3, bd-w5pd9): a repository path for the contents endpoint, checked before encoding and
+ * again on the decoded request — non-empty segments, never `.` or `..`, no leading `/`, no `?`, `#` or control
+ * character. Returns the reason it is refused, or undefined.
+ */
+export function contentsPathProblem(path) {
+    if (path.length === 0)
+        return "empty path";
+    if (path.startsWith("/"))
+        return "leading /";
+    // (Bridgebuilder round 2, PR #1302: `\p{Cc}` — the Unicode control category — instead of a `\u0000-\u001f` range that
+    // two review voices misread as `^@-^_` in the diff; same refusals, C1 controls included)
+    if (/[?#]/.test(path) || /\p{Cc}/u.test(path))
+        return "?, # or a control character";
+    for (const seg of path.split("/")) {
+        if (seg === "")
+            return "empty segment";
+        if (seg === "." || seg === "..")
+            return "dot segment";
+    }
+    return undefined;
+}
+/** The canonical request: each path segment encoded with encodeURIComponent (so `/` inside a name is `%2F`). */
+export function contentsEndpoint(owner, repo, path, ref) {
+    return `/repos/${owner}/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${ref}`;
+}
+const CONTENTS_ENDPOINT = /^\/repos\/([^/?#]+)\/([^/?#]+)\/contents\/([^?#]*)\?ref=([0-9a-f]{40})$/;
+const CONTENTS_ENDPOINT_MAX = 2048;
+/**
+ * cycle-135 C-3: the only shape of the contents read — `api /repos/<o>/<r>/contents/<path>?ref=<40-hex>`, nothing
+ * after it (no header: the default JSON media type is the one the adapter parses). The decoded path is re-validated and
+ * must re-encode to exactly the request, so an encoded separator, dot segment or non-canonical escape is refused.
+ */
+function assertContentsArgs(args) {
+    const endpoint = args[1];
+    if (args.length !== 2)
+        throw new Error("gh api contents: no flags or extra arguments are allowed");
+    if (endpoint.length > CONTENTS_ENDPOINT_MAX)
+        throw new Error("gh api contents: endpoint too long");
+    const m = CONTENTS_ENDPOINT.exec(endpoint);
+    if (!m)
+        throw new Error(`gh api endpoint not allowlisted: ${endpoint}`);
+    const [, owner, repo, encoded, ref] = m;
+    if (!validRepoSegment(owner) || !validRepoSegment(repo))
+        throw new Error("gh api contents: invalid owner or repo");
+    let decoded;
+    try {
+        decoded = encoded.split("/").map((seg) => {
+            const d = decodeURIComponent(seg);
+            if (d.includes("/"))
+                throw new Error("encoded separator");
+            return d;
+        }).join("/");
+    }
+    catch {
+        throw new Error("gh api contents: path is not a canonical per-segment encoding");
+    }
+    const problem = contentsPathProblem(decoded);
+    if (problem)
+        throw new Error(`gh api contents: path refused (${problem})`);
+    if (contentsEndpoint(owner, repo, decoded, ref) !== endpoint) {
+        throw new Error("gh api contents: path is not a canonical per-segment encoding");
+    }
+}
+/** Exported for the allowlist tests (cycle-135 C-3); the adapter is the only caller. */
+export function assertAllowedArgs(args) {
     const cmd = args[0];
     if (cmd === "api") {
+        // cycle-135 C-3: the contents read has its own exact validator (its paths may exceed the generic 200-char bound)
+        if (typeof args[1] === "string" && /^\/repos\/[^/]+\/[^/]+\/contents\//.test(args[1])) {
+            assertContentsArgs(args);
+            return;
+        }
         // Enforce endpoint at args[1] position (not arbitrary arg)
         // Length bound prevents oversized path segments from reaching execFile
         const endpoint = args[1];
@@ -230,6 +305,72 @@ export class GitHubCLIAdapter {
             deletions: f.deletions,
             patch: typeof f.patch === "string" ? f.patch : undefined,
         }));
+    }
+    /**
+     * cycle-135 C-3 (sdd.md § 5.3, bd-w5pd9): one file's content at a pinned commit, for an added file the files list
+     * returned without a patch. Default JSON media type (Q-1: `type`, `encoding: base64`, `size` = decoded bytes,
+     * `content` wrapped every 60 characters); the buffer is sized for the envelope of `maxBytes`, so an overflow is
+     * `too_large`; the envelope is validated strictly and the bytes are tested for binary before any string is made.
+     */
+    async getFileContent(owner, repo, path, ref, maxBytes) {
+        const problem = contentsPathProblem(path);
+        if (problem)
+            throw new GitProviderError("NETWORK", `getFileContent: path refused (${problem})`);
+        if (!validRepoSegment(owner) || !validRepoSegment(repo))
+            throw new GitProviderError("NETWORK", "getFileContent: invalid owner or repo");
+        if (!/^[0-9a-f]{40}$/.test(ref))
+            throw new GitProviderError("NETWORK", "getFileContent: ref must be a 40-hex commit sha");
+        if (!Number.isInteger(maxBytes) || maxBytes < 0)
+            throw new GitProviderError("NETWORK", "getFileContent: maxBytes must be a non-negative integer");
+        // (review round 1: base64 is 4/3 of the bytes, and GitHub wraps it every 60 characters with a newline that arrives
+        // JSON-escaped as two bytes — 62/60 — plus the envelope's link metadata; the authoritative bound is `size` below)
+        const maxBuffer = Math.ceil(((maxBytes * 4) / 3) * 62 / 60) + 8192;
+        let raw;
+        try {
+            // (the envelope is ASCII JSON — base64 content — so the decoded string is the bytes; the content bytes come from
+            // the base64 below, never from the stdout encoding)
+            raw = await gh(["api", contentsEndpoint(owner, repo, path, ref)], GH_TIMEOUT_MS, this.exec, maxBuffer);
+        }
+        catch (err) {
+            if (err instanceof GitProviderError && err.code === "PAYLOAD_OVERSIZE")
+                return { kind: "too_large" };
+            throw err;
+        }
+        const data = parseJson(raw, "getFileContent");
+        if (typeof data !== "object" || data === null || Array.isArray(data)) {
+            throw new GitProviderError("NETWORK", "getFileContent: the contents response is not a file envelope");
+        }
+        const env = data;
+        if (env.type !== "file")
+            throw new GitProviderError("NETWORK", "getFileContent: the contents response is not type file");
+        if (env.encoding === "none")
+            return { kind: "too_large" }; // GitHub's answer above 1 MiB (Q-1)
+        if (env.encoding !== "base64")
+            throw new GitProviderError("NETWORK", "getFileContent: unexpected contents encoding");
+        if (typeof env.size !== "number" || !Number.isInteger(env.size) || env.size < 0) {
+            throw new GitProviderError("NETWORK", "getFileContent: contents size is not a non-negative integer");
+        }
+        if (env.size > maxBytes)
+            return { kind: "too_large" };
+        if (typeof env.content !== "string")
+            throw new GitProviderError("NETWORK", "getFileContent: contents content is not a string");
+        const b64 = env.content.replace(/\s+/g, "");
+        if (b64.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(b64)) {
+            throw new GitProviderError("NETWORK", "getFileContent: malformed base64 content");
+        }
+        const bytes = Buffer.from(b64, "base64");
+        if (bytes.length !== env.size)
+            throw new GitProviderError("NETWORK", "getFileContent: contents size disagrees with the decoded bytes");
+        if (bytes.subarray(0, 8192).includes(0))
+            return { kind: "binary" };
+        let content;
+        try {
+            content = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(bytes); // (ignoreBOM keeps a BOM verbatim)
+        }
+        catch {
+            return { kind: "binary" };
+        }
+        return { kind: "text", content, bytes: bytes.length };
     }
     async listOpenPRs(owner, repo) {
         const raw = await this.gh([

@@ -55,6 +55,20 @@ export interface CommitCompareResult {
     filesChanged: string[];
     totalCommits: number;
 }
+/**
+ * cycle-135 C-3 (sdd.md § 5.3, bd-w5pd9): the content of one file at a pinned commit, read for an added file GitHub
+ * listed without a patch. `bytes` is the decoded byte length; `binary` = a NUL in the first 8 KiB or invalid UTF-8;
+ * `too_large` = over the caller's bound (or GitHub's > 1 MiB `encoding: "none"` answer). Failures throw.
+ */
+export type FileContentResult = {
+    kind: "text";
+    content: string;
+    bytes: number;
+} | {
+    kind: "binary";
+} | {
+    kind: "too_large";
+};
 export interface IGitProvider {
     listOpenPRs(owner: string, repo: string): Promise<PullRequest[]>;
     getPRFiles(owner: string, repo: string, prNumber: number): Promise<PullRequestFile[]>;
@@ -71,5 +85,10 @@ export interface IGitProvider {
      * buffer, RATE_LIMITED on a rate limit.
      */
     getPRFilesPage?(owner: string, repo: string, prNumber: number, page: number): Promise<PullRequestFile[]>;
+    /**
+     * cycle-135 C-3: `contents/<path>?ref=<40-hex>` with at most `maxBytes` decoded bytes. Optional — a provider or test
+     * double without it means no content fetch (today's `no_patch`). Throws GitProviderError on a failed or malformed read.
+     */
+    getFileContent?(owner: string, repo: string, path: string, ref: string, maxBytes: number): Promise<FileContentResult>;
 }
 //# sourceMappingURL=git-provider.d.ts.map
