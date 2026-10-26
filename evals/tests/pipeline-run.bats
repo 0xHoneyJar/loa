@@ -1620,3 +1620,138 @@ EOF
   [ "$(jq -r '.phases | length' "$T/run/meta/pipeline.json")" = 0 ]
   [ ! -e "$T/log/call-1.argv" ]
 }
+
+# --- runtime mounts: the grader-side node_modules (2026-10-26; pipeline-run.sh § Runtime mounts) -------------------
+# make_node_task: a build task whose fixture is a two-package workspace (root package.json, pkg/package.json) and an
+# "installed checkout" beside it in the pnpm shape — the root node_modules holding the .pnpm store, pkg/node_modules a
+# relative link into it; the task declares runtime {node_modules, image}
+make_node_task() {
+  local d="$T/suite/tasks/ts-01" i="$T/installed"
+  mkdir -p "$d/fx/pkg/src" "$d/fx/pkg/tests" "$d/hidden/tests" "$i/node_modules/.pnpm/dep@1.0.0/node_modules/dep" "$i/pkg/node_modules"
+  echo '{"name": "ws", "private": true, "workspaces": ["pkg"]}' > "$d/fx/package.json"
+  echo '{"name": "pkg", "type": "module", "dependencies": {"dep": "1.0.0"}}' > "$d/fx/pkg/package.json"
+  echo 'export const one = 1;' > "$d/fx/pkg/src/one.mjs"
+  echo 'export default 41;' > "$i/node_modules/.pnpm/dep@1.0.0/node_modules/dep/index.mjs"
+  echo '{"name": "dep", "version": "1.0.0", "type": "module", "main": "index.mjs"}' > "$i/node_modules/.pnpm/dep@1.0.0/node_modules/dep/package.json"
+  ln -s ../../node_modules/.pnpm/dep@1.0.0/node_modules/dep "$i/pkg/node_modules/dep"
+  echo 'assert False' > "$d/hidden/tests/test_secret.py"
+  printf 'Make one two.\n' > "$d/TASK.md"
+  cat > "$d/task.yaml" <<YAML
+id: ts-01
+schema_version: 1
+type: bug-fix
+fixture: fx
+criterion: "one is two"
+test_command: ["node", "--test", "--test-reporter=tap", "pkg/tests/*.test.mjs"]
+runtime: {node_modules: "$i/node_modules", image: "loa-ablation:node-test"}
+YAML
+  NODE_TASK="$d/task.yaml" INSTALLED="$i"
+}
+run_node_container() {  # run_node_container <arm> [extra args]
+  local arm="$1"; shift
+  run "$PR" --task-yaml "$NODE_TASK" --arm "$arm" --run-dir "$T/run" --run-id r1 --trial 1 --source-tree "$T/src" \
+    --suite-file "$T/suite.yaml" --executor container --image loa-ablation:test --docker-bin "$T/docker" "$@"
+}
+
+@test "TS-1 runtime mounts: every phase container gets the task's node_modules read-only at /workspace/node_modules and the package's at /workspace/pkg/node_modules, in the task's image; the sandbox holds empty mountpoints only, git ignores them, the evidence and the dry run record it, took-effect runtime_mount_present reads it" {
+  make_node_task
+  # the dry run names the runtime
+  run "$PR" --task-yaml "$NODE_TASK" --arm a1_full --run-dir "$T/none" --run-id r1 --trial 1 --source-tree "$T/src" \
+    --suite-file "$T/suite.yaml" --executor container --image loa-ablation:test --docker-bin "$T/docker" --dry-run
+  [ "$status" -eq 0 ]
+  grep -qx "runtime: node_modules=$INSTALLED/node_modules image=loa-ablation:node-test" <<<"$output"
+  [ ! -e "$T/none" ]
+  run_node_container a1_full
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  local p="$T/run/meta/pipeline.json" a n
+  [ "$(jq -r '.status' "$p")" = completed ]
+  # every container (PLAN, IMPLEMENT, REVIEW, AUDIT) carries the two sandbox mounts plus the two runtime mounts, read-only, and the task's image
+  n="$(ls "$T"/dlog/run-*.argv | wc -l)"; [ "$n" -ge 4 ]
+  for f in "$T"/dlog/run-*.argv; do
+    a="$(tr '\0' '\n' < "$f")"
+    [ "$(grep -cx -- '-v' <<<"$a")" -eq 4 ]
+    local mounts; mounts="$(awk 'p {print; p = 0} $0 == "-v" {p = 1}' <<<"$a" | sort | tr '\n' ' ')"
+    [ "$mounts" = "$(printf '%s\n' "$T/run/meta/home:/home/evaluser:rw" "$T/run/sandbox:/workspace:rw" \
+        "$INSTALLED/node_modules:/workspace/node_modules:ro" "$INSTALLED/pkg/node_modules:/workspace/pkg/node_modules:ro" | sort | tr '\n' ' ')" ]
+    grep -qx 'loa-ablation:node-test' <<<"$a"
+    ! grep -qx 'loa-ablation:test' <<<"$a"
+  done
+  # the launcher capture took-effect reads carries them too
+  jq -e --arg m "$INSTALLED/node_modules:/workspace/node_modules:ro" '.launcher_argv | index($m) != null' "$T/run/meta/phase-PLAN.argv.json"
+  # the stub saw the installed store through the mount source, never through the sandbox
+  grep -q '\.pnpm/dep@1.0.0/node_modules/dep/index.mjs' "$T/dlog/run-1.mounts"
+  # the sandbox: empty mountpoint directories, nothing copied, git ignores anything under them, the snapshot carries none
+  [[ -d "$T/run/sandbox/node_modules" && -z "$(ls -A "$T/run/sandbox/node_modules")" ]]
+  [[ -d "$T/run/sandbox/pkg/node_modules" && -z "$(ls -A "$T/run/sandbox/pkg/node_modules")" ]]
+  [ ! -e "$T/run/sandbox/node_modules/.pnpm" ]
+  grep -qx 'node_modules/' "$T/run/sandbox/.git/info/exclude"
+  echo 'x' > "$T/run/sandbox/node_modules/planted.mjs"; echo 'y' > "$T/run/sandbox/pkg/node_modules/planted.mjs"
+  [ -z "$(git -C "$T/run/sandbox" status --porcelain)" ]
+  git -C "$T/run/sandbox" check-ignore -q node_modules/planted.mjs
+  git -C "$T/run/sandbox" check-ignore -q pkg/node_modules/planted.mjs
+  [ "$(git -C "$T/run/sandbox" ls-tree -r --name-only "$(jq -r '.implement' "$T/run/snapshots/index.json")" | grep -c node_modules || true)" -eq 0 ]
+  # evidence
+  [ "$(evline runtime_node_modules)" = "$INSTALLED/node_modules" ]
+  [ "$(evline runtime_mounts)" = "/workspace/node_modules,/workspace/pkg/node_modules" ]
+  [ "$(evline runtime_image)" = "loa-ablation:node-test" ]
+  [ "$(jq -r '.arm_evidence.runtime_image' "$p")" = "loa-ablation:node-test" ]
+  [ "$(cut -f2 "$T/run/meta/runtime-mounts.tsv" | paste -sd, -)" = "/workspace/node_modules,/workspace/pkg/node_modules" ]
+  # took-effect.sh runtime_mount_present on this run: OK with the mounts, FAIL once an argv loses one or the image
+  yq '(.arms[] | select(.id == "a1_full") | .took_effect) += ["runtime_mount_present"]' "$T/suite.yaml" > "$T/suite-rt.yaml"
+  run "$REPO_ROOT/evals/harness/took-effect.sh" --run-dir "$T/run" --suite-file "$T/suite-rt.yaml" --task-yaml "$NODE_TASK" --arm a1_full
+  grep -q 'runtime_mount_present OK mounts 2 in 4 argv, image loa-ablation:node-test' <<<"$output"
+  jq '.launcher_argv |= map(select(. != "'"$INSTALLED/pkg/node_modules:/workspace/pkg/node_modules:ro"'"))' "$T/run/meta/phase-REVIEW.argv.json" > "$T/x.json" && mv "$T/x.json" "$T/run/meta/phase-REVIEW.argv.json"
+  run "$REPO_ROOT/evals/harness/took-effect.sh" --run-dir "$T/run" --suite-file "$T/suite-rt.yaml" --task-yaml "$NODE_TASK" --arm a1_full
+  [ "$status" -eq 1 ]
+  grep -q 'runtime_mount_present FAIL missing in launcher_argv: phase-REVIEW.argv.json:/workspace/pkg/node_modules' <<<"$output"
+  run "$REPO_ROOT/evals/harness/took-effect.sh" --run-dir "$T/run" --suite-file "$T/suite-rt.yaml" --arm a1_full
+  [ "$status" -eq 1 ]
+  grep -q 'runtime_mount_present FAIL --task-yaml is required' <<<"$output"
+  # a task without the key passes the rule vacuously and keeps exactly two mounts
+  run "$REPO_ROOT/evals/harness/took-effect.sh" --run-dir "$T/run" --suite-file "$T/suite-rt.yaml" --task-yaml "$BUILD" --arm a1_full
+  grep -q 'runtime_mount_present OK task declares no runtime' <<<"$output"
+}
+
+@test "TS-2 runtime refusals: a relative or misnamed path, an unknown key, a bad image, a review-catch task are exit 2 before any write; the host executor, a missing directory and a fixture with its own node_modules are infrastructure_error with no phase" {
+  make_node_task
+  local d; d="$(dirname "$NODE_TASK")"
+  for bad in 'runtime: {node_modules: "installed/node_modules"}' 'runtime: {node_modules: "/tmp/not-nm"}' 'runtime: {foo: 1}' \
+             'runtime: {image: "bad image"}' 'runtime: 7' "runtime: {node_modules: \"$INSTALLED/node_modules:x\"}"; do
+    sed -i '/^runtime:/d' "$NODE_TASK"; printf '%s\n' "$bad" >> "$NODE_TASK"
+    run_node_container a1_full
+    [ "$status" -eq 2 ] || { echo "$bad: $status $output"; false; }
+    [[ "$output" == *"runtime"* ]]
+    [ ! -e "$T/run/meta/pipeline.json" ]
+    [ ! -e "$T/dlog/run-1.argv" ]
+    fresh_run
+  done
+  # review-catch: the key applies to build tasks only
+  printf 'runtime: {node_modules: "%s/node_modules"}\n' "$INSTALLED" >> "$REVIEWC"
+  run_node_container a1_full; fresh_run
+  run "$PR" --task-yaml "$REVIEWC" --arm a1_full --run-dir "$T/run" --run-id r1 --trial 1 --source-tree "$T/src" \
+    --suite-file "$T/suite.yaml" --executor container --docker-bin "$T/docker"
+  [ "$status" -eq 2 ]; [[ "$output" == *"build tasks only"* ]]; [ ! -e "$T/run/meta/pipeline.json" ]
+  fresh_run
+  # the host executor mounts nothing: refused as infrastructure_error, no CLI call
+  sed -i '/^runtime:/d' "$NODE_TASK"; printf 'runtime: {node_modules: "%s/node_modules"}\n' "$INSTALLED" >> "$NODE_TASK"
+  run_pr a1_full "$NODE_TASK"
+  [ "$status" -eq 2 ]
+  [ "$(jq -r '.status' "$T/run/meta/pipeline.json")" = infrastructure_error ]
+  [[ "$(jq -r '.reason' "$T/run/meta/pipeline.json")" == *"--executor container"* ]]
+  [ ! -e "$T/log/call-1.argv" ]
+  fresh_run
+  # a directory that is not on this host
+  sed -i '/^runtime:/d' "$NODE_TASK"; printf 'runtime: {node_modules: "%s/gone/node_modules"}\n' "$INSTALLED" >> "$NODE_TASK"
+  run_node_container a1_full
+  [ "$status" -eq 2 ]
+  [[ "$(jq -r '.reason' "$T/run/meta/pipeline.json")" == *"not a directory on this host"* ]]
+  [ ! -e "$T/dlog/run-1.argv" ]
+  fresh_run
+  # a fixture that vendors node_modules at its root cannot also mount one
+  sed -i '/^runtime:/d' "$NODE_TASK"; printf 'runtime: {node_modules: "%s/node_modules"}\n' "$INSTALLED" >> "$NODE_TASK"
+  mkdir -p "$d/fx/node_modules"; echo 'x' > "$d/fx/node_modules/vendored.mjs"
+  run_node_container a1_full
+  [ "$status" -eq 2 ]
+  [[ "$(jq -r '.reason' "$T/run/meta/pipeline.json")" == *"fixture holds node_modules"* ]]
+  [ ! -e "$T/dlog/run-1.argv" ]
+}

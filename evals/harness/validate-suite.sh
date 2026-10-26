@@ -31,7 +31,11 @@
 #      bare_sessions_matched_fable?} for review-catch, fixture and manifest present; cycle-132
 #      FR-3: each bare_sessions_matched* value, when present, an integer 2 … 30 — the k of the
 #      matched arms; run-ablation.sh refuses to plan a matched arm on a task without it),
-#      suite_version (= the suite file's), TASK.md present
+#      suite_version (= the suite file's), TASK.md present; runtime (optional, 2026-10-26: the grader-side
+#      node_modules, pipeline-run.sh / ablation-grade.sh § Runtime mounts): null, or a mapping of node_modules (an
+#      absolute path to a directory named node_modules, no ':' or ','; its existence is the host's business, checked
+#      at run and grade time, never here — a suite is frozen on one host) and image ([A-Za-z0-9._:/@-]{1,200});
+#      build types only, no other key
 #   2. counts: four tasks of each type under tasks/ (unless --allow-partial)
 #   3. allowlist: test_command[0] and regression_command[0] in python3 | pytest |
 #      bats | bash | node | npx
@@ -347,6 +351,23 @@ for line in open(tasks_tsv, encoding="utf-8"):
                     rel = os.path.relpath(os.path.join(r, f), fixture_dir)
                     if rel not in listed:
                         bad(tid, f"schema: grader_protected must list every file under fixture/tests/: missing {rel}")
+    rt = t.get("runtime")   # the grader-side node_modules (2026-10-26)
+    if rt is not None:
+        if not isinstance(rt, dict):
+            bad(tid, "schema: runtime must be a mapping {node_modules, image} or null")
+        else:
+            if not build:
+                bad(tid, "schema: runtime applies to build types only")
+            for k in rt:
+                if k not in ("node_modules", "image"):
+                    bad(tid, f"schema: runtime.{k} is not a known key (node_modules, image)")
+            nm = rt.get("node_modules")
+            if nm is not None and not (isinstance(nm, str) and nm.startswith("/") and os.path.basename(nm.rstrip("/")) == "node_modules"
+                                       and ":" not in nm and "," not in nm and "\n" not in nm and ".." not in nm.split("/")):
+                bad(tid, "schema: runtime.node_modules must be an absolute path (no ':' or ',') to a directory named node_modules")
+            im = rt.get("image")
+            if im is not None and not (isinstance(im, str) and re.fullmatch(r"[A-Za-z0-9._:/@-]{1,200}", im)):
+                bad(tid, "schema: runtime.image must be an image reference ([A-Za-z0-9._:/@-]{1,200})")
     bounds = t.get("bounds")
     if not isinstance(bounds, dict) or set(bounds) != {"max_turns", "timeout_min"}:
         bad(tid, "schema: bounds must be {max_turns: {}, timeout_min: {}}")
