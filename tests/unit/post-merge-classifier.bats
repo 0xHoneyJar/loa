@@ -253,7 +253,7 @@ setup() {
 }
 
 # =========================================================================
-# PCT-T28..PCT-T36: housekeeping merges (bd-ahxmh)
+# PCT-T28..PCT-T38: housekeeping merges (bd-ahxmh)
 # =========================================================================
 # The archive branch carries the cycle id by convention (chore/cycle-NNN-archive),
 # so the cycle-NNN rule routed every archive merge to the cycle release path:
@@ -314,4 +314,16 @@ setup() {
     run "$CLASSIFIER" --title "chore(release): v1.130.0 — named milestone (cycle-098 + cycle-099 + cheval headless adapters) (#747)"
     [ "$status" -eq 0 ]
     [ "$output" = "cycle" ]
+}
+
+@test "PCT-T37: release/ branch with a chore segment deeper in the path → cycle (clause anchored to the first segment)" {
+    run "$CLASSIFIER" --title "Merge pull request #1300 from 0xHoneyJar/release/chore/v2.1.0 — release"
+    [ "$status" -eq 0 ]
+    [ "$output" = "cycle" ]
+}
+
+@test "PCT-T38: chore/ first segment with a release segment deeper → other (chore/ is housekeeping by convention)" {
+    run "$CLASSIFIER" --title "Merge pull request #1301 from 0xHoneyJar/chore/release/v2.1.0 — x"
+    [ "$status" -eq 0 ]
+    [ "$output" = "other" ]
 }

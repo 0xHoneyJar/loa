@@ -65,8 +65,10 @@ classify_pr_type() {
     # own ledger push, decisions): a bare `chore:` or `chore(release):` that
     # names a cycle can be a release (PR #747, `chore(release): v1.130.0 …
     # (cycle-098 …)`) and keeps the cycle route. Case-sensitive on purpose:
-    # lowercase `chore` is the convention here, `Chore` is not.
-    if echo "$title" | grep -qE '^Merge pull request #[0-9]+ from [^ ]+/chore/|^chore\((archive|ledger|decisions)\):'; then
+    # lowercase `chore` is the convention here, `Chore` is not. The branch
+    # form anchors `chore/` to the first segment after the owner (`[^ /]+`),
+    # so a `release/chore/…` branch still reaches the release rule below.
+    if echo "$title" | grep -qE '^Merge pull request #[0-9]+ from [^ /]+/chore/|^chore\((archive|ledger|decisions)\):'; then
         echo "other"
         return 0
     fi
