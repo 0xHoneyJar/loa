@@ -139,6 +139,16 @@ A pipeline version is a commit of this repository together with the images it ru
 
 `evals/analysis/c132/reproduce.sh` reproduces the cycle-132 record at that cycle's own pin by default, and `--pin` names a later version.
 
+### Pipeline version (branch `instrument/build-variance` — suite v3, the build suite with variance)
+
+The commit that lands this paragraph is a new pipeline version (the images are unchanged: `loa-ablation:259`, `loa-egress-proxy:259`, Claude Code 2.1.299). What changed under `evals/harness`, and why, is in `grimoires/loa/evals/ablation-2.0-v3/README.md`; in one breath:
+
+- `seed-bugfix-tasks.sh` / `seed-refactor-tasks.sh` (`lib/seed_tasks.py`): `--rev` (the commits reachable from a revision), `--id-prefix` (version-bearing ids such as `bugfix-v3`), `--fixture-scope roots` (the whole allowed-roots slice at the parent, for tests that reach across directories), `--ignore-paths` (a commit's documentation under `grimoires/` left out of the task instead of refusing the commit), `--runner` (the hidden check's runner on a mixed candidate); fixture files keep their executable bit; every non-test file in and below a test's directory is protected infrastructure; a failed proof leaves nothing staged; the proof runs under the grader's deadline (`LOA_EVAL_GRADE_TIMEOUT_S`) and kills its whole process group at it. Tested by `evals/tests/seed-bugfix.bats` (13).
+- `ablation-grade.sh --suite-file F` reaches the freeze check (a suite frozen against `evals/suites/ablation-2.0-v3.yaml`, suite_version 3, grades); `run-ablation.sh` passes its suite file to every grader call.
+- `pipeline-run.sh`: an arm id a build task's own fixture names is fixture-native (`arm_ids_fixture_native` in arm-evidence) and not a leak in a sandbox file whose pristine fixture copy names it; the brief, the prompts and the pinned tree stay strict.
+
+Seeding a build suite from history: `seed-bugfix-tasks.sh --since DATE --rev <main sha> --select N --fixture-scope roots --paths <roots> --ignore-paths grimoires,… --id-prefix bugfix-vN --suite-version N --out <root>`; then the lead rewrites each `TASK.md`, a non-author session writes `REVIEW.md`, `freeze.sh --suite-file` freezes the root, `ablation-grade.sh --self-check base|reference --suite-file` per task is the hard gate's log, and a bare-arm calibration batch decides which tasks stay (the ones the bare arm failed at least once).
+
 ## Pipeline version (cycle-133 Sprint 274 pin — the measurement pin)
 
 The measurement pin (sdd.md § 7.3; sprint.md Task 3.5) is **the commit that lands this paragraph** — recorded with its tree
