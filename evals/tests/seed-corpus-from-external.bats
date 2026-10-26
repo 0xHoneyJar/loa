@@ -539,3 +539,29 @@ plant_unlicensed_pkg() { printf '{"name": "fleet", "private": true, "license": "
   grep -q '^  retrieval: public-repository$' "$D/pr-99/fixture.yaml"
   jq -e '.visibility == "public"' "$D/external/pr-99.json" >/dev/null
 }
+
+plant_notes() { mkdir -p "$U/grimoires/loa"; printf 'operator notes\n' > "$U/grimoires/loa/NOTES.md"; }
+@test "SX-29 --paths scopes the PR's files: an excluded file is in neither head/, base/, head.diff nor the fix regions and is listed as dropped; an empty scope and a malformed list refuse" {
+  build_upstream plant_notes
+  run seed --dry-run
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ -f "$(dry_corpus "$output")/pr-99/head/grimoires/loa/NOTES.md" ]          # without a scope the state file is in
+  run seed --dry-run --paths '!grimoires/*,!.beads/*'
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  D="$(dry_corpus "$output")"
+  [ ! -e "$D/pr-99/head/grimoires" ] && [ -f "$D/pr-99/head/src/app.py" ] && [ -f "$D/pr-99/head/src/util.py" ]
+  ! grep -q 'NOTES.md' "$D/pr-99/head.diff"
+  grep -q "^scope_paths: \"!grimoires/\*,!.beads/\*\"$" "$D/pr-99/fixture.yaml"
+  grep -q '^grimoires/loa/NOTES.md: outside the --paths scope$' "$D/labels/pr-99.dropped.txt"
+  jq -e '.scope_paths == "!grimoires/*,!.beads/*" and (.files.head | map(.path) | index("grimoires/loa/NOTES.md")) == null' "$D/external/pr-99.json" >/dev/null
+  [[ "$output" == *" 1 skipped;"* ]]
+  run seed --dry-run --paths 'nothing/*'
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"no file of its 3 changed file(s) is inside --paths 'nothing/*'"* ]]
+  run seed --dry-run --paths 'src/util.py'                 # in scope, but the fix touches src/app.py only
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"touches no file the PR changed inside --paths 'src/util.py'"* ]]
+  run seed --dry-run --paths 'a"b'
+  [ "$status" -eq 2 ]
+  corpus_unchanged
+}
