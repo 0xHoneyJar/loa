@@ -413,3 +413,17 @@ PY
   grep -qF 'head/f.sh:loop_body' "$T/o/packets/$j.md"
   grep -qF 'head/f.sh:11' "$T/o/packets/$j.md"
 }
+
+@test "JS-22 a list whose items start with a path:line citation (the A0 contract) is a list too: the citing item alone is shown under the note" {
+  # eleven ~170-char "head/g.sh:NN — SEV: …" items, then the item citing head/f.sh:11 — past 1,500 chars
+  { printf '# Review\n\n'; for i in $(seq 1 11); do printf 'head/g.sh:%d — MEDIUM: %s item %d.\n' "$((40 + i % 3))" "$(printf 'filler %.0s' $(seq 1 20))" "$i"; done
+    printf 'head/f.sh:11 — HIGH: the loop is off by one: THE CITING ITEM.\nVerdict: CHANGES_REQUIRED\n'; } > "$RES/b1/a1_full/review-x-t1/sandbox/review.md"
+  run bash "$JS" "${ARGS[@]}" --out "$T/o" --per-stratum 5 --min-total 0
+  [ "$status" -eq 0 ]
+  j="$(item_at "$T/o" b1/a1_full/review-x/1 head/f.sh 11)"
+  grep -qF '(the citing bullet(s) of a 13-line list; ' "$T/o/packets/$j.md"
+  grep -qF 'THE CITING ITEM' "$T/o/packets/$j.md"
+  grep -qF 'Verdict: CHANGES_REQUIRED' "$T/o/packets/$j.md"     # the trailing line belongs to the last item
+  run grep -c 'item 1\.' "$T/o/packets/$j.md"
+  [ "$output" = 0 ]
+}

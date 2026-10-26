@@ -38,7 +38,9 @@ import re
 
 CTX = 5                     # head lines of context around a cited region
 CUT, CAP = 1500, 6000       # a citing paragraph over CUT chars is reduced to its citing bullet(s); nothing exceeds CAP
-BULLET = re.compile(r"\s*(?:[-*+]|\d+[.)]|#{1,6}\s|\[?[A-Z]{2,}-\d+)")   # a bullet, numbered item, heading or finding id
+# a list item's first line: a bullet, a numbered item, a heading, a finding id, or a `path:line` citation (the A0
+# contract's "head/x.sh:845 — HIGH: …" lines)
+BULLET = re.compile(r"\s*(?:[-*+]|\d+[.)]|#{1,6}\s|\[?[A-Z]{2,}-\d+|\S+?:\d{1,6}(?!\d))")
 LINE = re.compile(r"^(?P<p>\S+?):(?P<a>\d{1,6})(?:-(?P<b>\d{1,6}))?$")
 TRAILER = re.compile(r"<!--\s*LOA-VERDICT.*?-->", re.S)
 FIELD = re.compile(r"^\s*(arm|trial|batch|run_id|stratum|grader[_ ]decision)\s*[:=]", re.I | re.M)
