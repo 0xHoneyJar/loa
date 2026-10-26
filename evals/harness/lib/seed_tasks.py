@@ -338,21 +338,27 @@ def task_yaml(tid, mode, source, criterion, success, test_cmd, ref_patch, protec
 
 
 # ---------------------------------------------------------------- selection
-def classify(mode, repo, sha, parents, roots):
-    """('candidate', files) | ('refused', path) | ('skipped', reason)."""
+def classify(mode, repo, sha, parents, roots, ignore=(), runner=None):
+    """('candidate', (files, ignored)) | ('refused', path) | ('skipped', reason).
+    ignore: path prefixes whose touched files are left out of the task (--ignore-paths) before any rule
+    runs; runner: with a mixed candidate (--runner), the runner whose changed tests are the hidden check."""
     if len(parents) != 1:
         return "skipped", "not a single-parent commit"
     files = changed_files(repo, parents[0], sha)
     for _, p in files:
         if not safe_path(p):
             return "refused", "unsafe path " + json.dumps(p)
+    ignored = [p for _, p in files if under_roots(p, ignore)]
+    files = [(st, p) for st, p in files if p not in ignored]
+    if not files:
+        return "skipped", "every touched path is ignored"
     for _, p in files:
         if mount_owned(p):
             return "refused", p
     for _, p in files:
         if not under_roots(p, roots):
             return "skipped", f"outside the allowed roots: {p}"
-    for a, d, p in numstat(repo, parents[0], sha):
+    for a, d, p in numstat(repo, parents[0], sha, [p for _, p in files]):
         if a == "-" or d == "-":
             return "skipped", f"binary change: {p}"
     tests = [p for _, p in files if is_test(p)]
@@ -366,14 +372,16 @@ def classify(mode, repo, sha, parents, roots):
         runners = {runner_of(p) for p in added_or_modified} - {None}
         if not runners:
             return "skipped", "no runnable test file (test_*.py, *_test.py, *.bats) added or changed"
-        if len(runners) > 1:
+        if runner and runner not in runners:
+            return "skipped", f"no {runner} test added or changed"
+        if len(runners) > 1 and not runner:
             return "skipped", "mixed test runners (pytest and bats)"
     else:
         if tests:
             return "skipped", f"touches a test file: {tests[0]}"
         if len(sources) < 2:
             return "skipped", f"touches {len(sources)} source file(s), want at least 2"
-    return "candidate", files
+    return "candidate", (files, ignored)
 
 
 def next_id(tasks_dir, prefix, taken):
@@ -414,14 +422,28 @@ def test_dirs(paths):
 
 
 # ---------------------------------------------------------------- build one task
-def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets, roots, scope="touched"):
+def origin_note(ignored, other_runner_tests):
+    """source.origin: what the task leaves out of the commit (grader-side record; TASK.md never carries it)."""
+    parts = []
+    if ignored:
+        parts.append("touched paths left out of the task (--ignore-paths): " + ", ".join(sorted(ignored)))
+    if other_runner_tests:
+        parts.append("changed tests of the other runner left at base (--runner): " + ", ".join(sorted(other_runner_tests)))
+    return "; ".join(parts)
+
+
+def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets, roots, scope="touched",
+                 runner=None, ignored=()):
     tdir = os.path.join(stage, tid)
     fx = os.path.join(tdir, "fixture")
     os.makedirs(fx)
     tests_am = [p for s, p in files if is_test(p) and s in "AM"]
     sources = [p for s, p in files if not is_test(p)]
-    runner = {runner_of(p) for p in tests_am} - {None}
-    runner = runner.pop()
+    # --runner: a changed test of the other runner is not a hidden test (it stays at its base version
+    # wherever the fixture scope carries it); its name goes to source.origin
+    other = [p for p in tests_am if runner and runner_of(p) not in (None, runner)]
+    tests_am = [p for p in tests_am if p not in other]
+    runner = runner or ({runner_of(p) for p in tests_am} - {None}).pop()
     for p in sources:
         put_from(repo, parent, p, fx)
     copy_scope(repo, parent, fx, scope, sources, roots, set(sources) | set(tests_am))
@@ -473,6 +495,9 @@ def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets
     success = (f"{hidden_list} (overlaid at {', '.join(runnable)}) passes {pass_r} of {pass_r} under {' '.join(test_cmd)}; "
                f"red at base ({fail_b} failed), green with hidden/reference.patch")
     source = {"kind": "loa-history", "fix_commit": sha, "base_commit": parent, "date": date}
+    origin = origin_note(ignored, other)
+    if origin:
+        source["origin"] = origin
     write_file(tdir, "task.yaml", task_yaml(tid, "bugfix", source, criterion, success, test_cmd,
                                            "hidden/reference.patch", protected, SUITE_VERSION).encode())
     if scope == "roots":   # the brief may not name a hidden test file: the directory and the runner only
@@ -491,9 +516,10 @@ def build_bugfix(repo, sha, parent, date, subject, files, tid, stage, no_secrets
     return tdir, proof
 
 
-def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secrets, roots, scope="touched"):
+def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secrets, roots, scope="touched",
+                   runner=None, ignored=()):
     sources = [p for s, p in files if not is_test(p)]
-    tests = covering_tests(repo, parent, sources, roots)
+    tests = [t for t in covering_tests(repo, parent, sources, roots) if runner is None or runner_of(t) == runner]
     runners = {runner_of(t) for t in tests}
     if not tests:
         return "skip", "no test at the parent names a touched file"
@@ -544,6 +570,9 @@ def build_refactor(repo, sha, parent, date, subject, files, tid, stage, no_secre
     success = (f"structural check (to be authored under hidden/structural/) red at base and green with hidden/reference.patch; "
                f"{' '.join(test_cmd)} passes {pass_b} of {pass_b} at base and {pass_r} of {pass_r} at reference")
     source = {"kind": "loa-history", "fix_commit": sha, "base_commit": parent, "date": date, "churn": churn}
+    origin = origin_note(ignored, [])
+    if origin:
+        source["origin"] = origin
     write_file(tdir, "task.yaml", task_yaml(tid, "refactor", source, criterion, success, test_cmd,
                                            "hidden/reference.patch", protected, SUITE_VERSION).encode())
     task_md = (f"# Task: {rest}\n\n"
@@ -580,6 +609,8 @@ def parse(argv):
     ap.add_argument("--suite-version", type=int, default=1)
     ap.add_argument("--id-prefix")
     ap.add_argument("--fixture-scope", choices=("touched", "roots"), default="touched")
+    ap.add_argument("--ignore-paths", default="")
+    ap.add_argument("--runner", choices=("pytest", "bats"))
     ap.add_argument("--dry-run", action="store_true")
     try:
         a = ap.parse_args(argv)
@@ -613,6 +644,9 @@ def parse(argv):
     if not roots or any(not safe_path(r) or mount_owned(r) for r in roots):
         raise Usage(f"--paths must be relative roots outside the mount-owned paths: {a.paths!r}")
     a.roots = roots
+    a.ignore = [r.strip().strip("/") for r in a.ignore_paths.split(",") if r.strip().strip("/")]
+    if any(not safe_path(r) for r in a.ignore):
+        raise Usage(f"--ignore-paths must be relative prefixes: {a.ignore_paths!r}")
     return a
 
 
@@ -629,7 +663,7 @@ def main(argv):
     for sha, parents, date, subject in commits_since(a.repo, a.since, a.rev):
         if not SUBJECT[a.mode].match(subject):
             continue
-        verdict, detail = classify(a.mode, a.repo, sha, parents, a.roots)
+        verdict, detail = classify(a.mode, a.repo, sha, parents, a.roots, a.ignore, a.runner)
         if verdict == "refused":
             refused += 1
             out(f"refused {sha[:12]}: {detail}")
@@ -648,13 +682,15 @@ def main(argv):
     written = failed = 0
     taken = set()
     try:
-        for sha, parent, date, subject, files in selected:
+        for sha, parent, date, subject, (files, ignored) in selected:
             tid = next_id(tasks_dir, a.id_prefix, taken)
             try:
                 if a.mode == "bugfix":
-                    tdir, info = build_bugfix(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots, a.fixture_scope)
+                    tdir, info = build_bugfix(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots,
+                                              a.fixture_scope, a.runner, ignored)
                 else:
-                    tdir, info = build_refactor(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots, a.fixture_scope)
+                    tdir, info = build_refactor(a.repo, sha, parent, date, subject, files, tid, stage, a.no_secrets, a.roots,
+                                                a.fixture_scope, a.runner, ignored)
             except (ValueError, RuntimeError, OSError) as e:
                 tdir, info = None, str(e)
             if tdir in ("secret", "skip", None):

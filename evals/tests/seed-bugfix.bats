@@ -13,7 +13,8 @@
 # leaves nothing staged, so the next candidate takes the freed id (SB-8); --fixture-scope
 # roots carries the whole allowed-roots slice and names the changed test files (SB-9); a
 # fixture file of git mode 100755 keeps its executable bit (SB-10); the proof runs under the
-# grader's deadline and kills the whole process group at it (SB-11).
+# grader's deadline and kills the whole process group at it (SB-11); --ignore-paths leaves the
+# fix's documentation out of the task (SB-12); --runner picks the hidden check of a mixed candidate (SB-13).
 # =============================================================================
 
 setup() {
@@ -350,4 +351,78 @@ B
   LOA_EVAL_GRADE_TIMEOUT_S=abc run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run
   [ "$status" -eq 2 ]
   grep -q 'LOA_EVAL_GRADE_TIMEOUT_S must be 1-9999' <<<"$output"
+}
+
+@test "SB-12 --ignore-paths leaves the fix's documentation out of the task: a commit touching grimoires/ is seeded without it, recorded in source.origin" {
+  mkdir -p "$G/grimoires/loa"
+  echo "notes" > "$G/grimoires/loa/NOTES.md"; gc add -A; gc commit -q -m "chore: notes"
+  cat > "$G/tools/mathx/rounding.py" <<'PY'
+import math
+
+
+def round_half(x):
+    """Round to the nearest integer, halves away from zero."""
+    return int(math.copysign(math.floor(abs(x) + 0.5), x))
+PY
+  printf '\ndef test_negative_half():\n    assert round_half(-2.5) == -3\n' >> "$G/tools/mathx/tests/test_rounding.py"
+  echo "- DEC: negative halves" >> "$G/grimoires/loa/NOTES.md"
+  gc add -A; gc commit -q -m "fix(mathx): negative halves round away from zero; decision recorded"
+  FIX="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run
+  [ "$status" -eq 0 ]
+  grep -qx "refused ${FIX:0:12}: grimoires/loa/NOTES.md" <<<"$output"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --ignore-paths grimoires --suite-version "$(yq -r .suite_version "$REPO_ROOT/evals/suites/ablation-2.0.yaml")"
+  [ "$status" -eq 0 ]
+  grep -qx "proof bugfix-01 ${FIX:0:12}: red 1 failed / green 2 passed" <<<"$output"
+  D="$S/tasks/bugfix-01"
+  [ -z "$(find "$D" -path '*grimoires*')" ]
+  ! grep -q 'NOTES' "$D/hidden/reference.patch" || false
+  [ "$(yq -r .source.origin "$D/task.yaml")" = "touched paths left out of the task (--ignore-paths): grimoires/loa/NOTES.md" ]
+  ! grep -q 'grimoires' "$D/TASK.md" || false
+  run "$VS" --root "$S" --allow-partial
+  [ "$status" -eq 0 ]
+  # a commit whose every path is ignored is skipped, not refused; a bad prefix is exit 2
+  echo "more" >> "$G/grimoires/loa/NOTES.md"; gc add -A; gc commit -q -m "fix: notes only"
+  ONLY="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --ignore-paths grimoires --dry-run
+  grep -qx "skipped ${ONLY:0:12}: every touched path is ignored" <<<"$output"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --ignore-paths ../x --dry-run
+  [ "$status" -eq 2 ]
+}
+
+@test "SB-13 --runner picks the hidden check of a mixed candidate; the other runner's changed test stays at base" {
+  export LOA_SEED_BATS="${LOA_SEED_BATS:-$BATS_ROOT/bin/bats}"
+  [ -x "$LOA_SEED_BATS" ] || skip "no bats binary for the proof"
+  printf '#!/usr/bin/env bash\npython3 -c "import sys; sys.path.insert(0, \\"%s\\"); from rounding import round_half; print(round_half(float(sys.argv[1])))" "$1"\n' "$G/tools/mathx" > "$G/tools/mathx/round.sh"
+  chmod +x "$G/tools/mathx/round.sh"
+  printf '@test "cli" { run "$(dirname "$BATS_TEST_FILENAME")/../round.sh" 2.5; [ "$output" = "3" ]; }\n' > "$G/tools/mathx/tests/cli.bats"
+  gc add -A; gc commit -q -m "chore: a cli"
+  cat > "$G/tools/mathx/rounding.py" <<'PY'
+import math
+
+
+def round_half(x):
+    """Round to the nearest integer, halves away from zero."""
+    return int(math.copysign(math.floor(abs(x) + 0.5), x))
+PY
+  printf '\ndef test_negative_half():\n    assert round_half(-2.5) == -3\n' >> "$G/tools/mathx/tests/test_rounding.py"
+  printf '@test "cli negative" { run "$(dirname "$BATS_TEST_FILENAME")/../round.sh" -2.5; [ "$output" = "-3" ]; }\n' >> "$G/tools/mathx/tests/cli.bats"
+  gc add -A; gc commit -q -m "fix(mathx): negative halves round away from zero, cli too"
+  FIX="$(git -C "$G" rev-parse HEAD)"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --dry-run
+  grep -qx "skipped ${FIX:0:12}: mixed test runners (pytest and bats)" <<<"$output"
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --runner pytest --fixture-scope roots --suite-version "$(yq -r .suite_version "$REPO_ROOT/evals/suites/ablation-2.0.yaml")"
+  [ "$status" -eq 0 ]
+  grep -qx "proof bugfix-01 ${FIX:0:12}: red 1 failed / green 2 passed" <<<"$output"
+  D="$S/tasks/bugfix-01"
+  [ "$(jq -r '.files[].dest' "$D/hidden/manifest.json")" = "tools/mathx/tests/test_rounding.py" ]
+  # the bats test is in the fixture at its base version (one case), not under hidden/
+  [ "$(grep -c '^@test' "$D/fixture/tools/mathx/tests/cli.bats")" = "1" ]
+  [ ! -e "$D/hidden/tests/tools/mathx/tests/cli.bats" ]
+  [ "$(yq -r .source.origin "$D/task.yaml")" = "changed tests of the other runner left at base (--runner): tools/mathx/tests/cli.bats" ]
+  [ "$(yq -o=json -I=0 .test_command "$D/task.yaml")" = '["python3","-m","pytest","-q","tools/mathx/tests/test_rounding.py"]' ]
+  run "$SEED" --since 2000-01-01 --out "$S" --repo "$G" --runner bats --dry-run
+  grep -q "^candidate ${FIX:0:12} " <<<"$output"
+  run "$VS" --root "$S" --allow-partial
+  [ "$status" -eq 0 ]
 }
