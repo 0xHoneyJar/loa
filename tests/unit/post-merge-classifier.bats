@@ -253,7 +253,7 @@ setup() {
 }
 
 # =========================================================================
-# PCT-T28..PCT-T38: housekeeping merges (bd-ahxmh)
+# PCT-T28..PCT-T40: housekeeping merges (bd-ahxmh)
 # =========================================================================
 # The archive branch carries the cycle id by convention (chore/cycle-NNN-archive),
 # so the cycle-NNN rule routed every archive merge to the cycle release path:
@@ -326,4 +326,19 @@ setup() {
     run "$CLASSIFIER" --title "Merge pull request #1301 from 0xHoneyJar/chore/release/v2.1.0 — x"
     [ "$status" -eq 0 ]
     [ "$output" = "other" ]
+}
+
+# PCT-T39..PCT-T40 are pins (both pass before and after bd-ahxmh): label
+# precedence over the prefix form, and the deliberate case-sensitivity.
+
+@test "PCT-T39: chore(archive): prefix with a cycle label → cycle (a label beats the prefix form too)" {
+    run "$CLASSIFIER" --title "chore(archive): cycle-1 x" --labels "cycle"
+    [ "$status" -eq 0 ]
+    [ "$output" = "cycle" ]
+}
+
+@test "PCT-T40: Chore(archive): capitalised → cycle (case-sensitive by design; falls through to the cycle-id rule)" {
+    run "$CLASSIFIER" --title "Chore(archive): cycle-1 x"
+    [ "$status" -eq 0 ]
+    [ "$output" = "cycle" ]
 }
