@@ -99,7 +99,9 @@ export function getSecurityCategory(filename: string): string | undefined {
 //     `MYPROCESS.md`); with a `/` it is anchored at the root and covers the path and its subtree (`a/b` ⇢ `a/b/c`,
 //     never `x/a/b`).
 //   wildcard — `*` and `?` within one segment, `**` as a whole segment (zero or more segments), one level of
-//     `{a,b}` alternation, `[ab]` / `[a-z]` / `[!ab]` classes; all of them match dot-led names (bd-a8l0c).
+//     `{a,b}` alternation, `[ab]` / `[a-z]` / `[!ab]` classes; all of them match dot-led names (bd-a8l0c). A
+//     wildcard without a `/` floats like gitignore (an implicit leading `**/`, inserted in compileGlob; the pattern
+//     itself is recorded as written): `*.pem` ⇢ `keys/a.pem`; a wildcard with a `/` is root-anchored.
 //   rejected at load with one WARN, and matching nothing if they reach the matcher anyway — a `!` negation line,
 //     backslash escapes, extglob `+( @( !( ?( *(`, nested or unbalanced braces, unterminated, empty or nested
 //     classes, a class whose range does not compile.
@@ -158,8 +160,11 @@ function translateGlobSegment(seg: string): string {
 
 /** Compile a wildcard pattern (segment-aware, dot-agnostic); throws on a construct outside the grammar. */
 function compileGlob(pattern: string): RegExp {
+  // sprint-279 review round 1 (MEDIUM 4): a slashless wildcard floats — `*.pem` is `**/*.pem` (gitignore semantics,
+  // matching the non-wildcard segment rule); no default pattern is a slashless wildcard.
+  const effective = pattern.includes("/") ? pattern : `**/${pattern}`;
   // Collapse consecutive globstar segments (a/**/**/b → a/**/b).
-  const segs = pattern.split("/").filter((seg, i, all) => !(seg === "**" && all[i - 1] === "**"));
+  const segs = effective.split("/").filter((seg, i, all) => !(seg === "**" && all[i - 1] === "**"));
   let src = "";
   segs.forEach((seg, i) => {
     const first = i === 0;
@@ -336,9 +341,12 @@ export const DEFAULT_PROTECTED_PATHS: readonly string[] = Object.freeze(normaliz
 
 /**
  * cycle-135 C-2 (bd-i4fyw, SDD § 5.2): split `files` by the user patterns, order-independently. Every matching user
- * pattern is resolved first: any non-wildcard match excludes (that pattern recorded — an explicit name wins over
- * protection); otherwise a file matching a protected pattern (same matcher) with only wildcard matches is kept (the
- * first matching wildcard recorded); otherwise the first match excludes. Files no pattern matches appear in neither.
+ * pattern is resolved first. An explicit match — a non-wildcard pattern that is root-anchored (a `/` after one
+ * trailing `/` is ignored) or equals the file's full path — excludes (that pattern recorded: an explicit name wins
+ * over protection). Otherwise a file matching a protected pattern (same matcher) is kept with the first matching
+ * pattern recorded: wildcards and floating segment names (`ci.yml`, `.github`, `settings.json`) do not defeat
+ * protection (sprint-279 review round 1, HIGH 2). Otherwise the file is excluded (an explicit or non-wildcard match
+ * recorded first, else the first match). Files no pattern matches appear in neither list.
  */
 export function partitionUserExclusions(
   files: readonly PullRequestFile[],
@@ -351,16 +359,23 @@ export function partitionUserExclusions(
   for (const f of files) {
     const matched = userPatterns.filter((p) => matchesExcludePattern(f.filename, [p]));
     if (matched.length === 0) continue;
-    const explicit = matched.find((p) => !isWildcardPattern(p));
+    const explicit = matched.find((p) => isExplicitFor(p, f.filename));
     if (explicit !== undefined) {
       excluded.push({ file: f.filename, pattern: explicit });
     } else if (matchesExcludePattern(f.filename, protectedPatterns)) {
       protectedKept.push({ file: f.filename, pattern: matched[0] });
     } else {
-      excluded.push({ file: f.filename, pattern: matched[0] });
+      excluded.push({ file: f.filename, pattern: matched.find((p) => !isWildcardPattern(p)) ?? matched[0] });
     }
   }
   return { excluded, protectedKept };
+}
+
+/** An explicit (protection-defeating) pattern: non-wildcard and root-anchored, or the file's full path. */
+function isExplicitFor(pattern: string, filename: string): boolean {
+  if (isWildcardPattern(pattern)) return false;
+  const p = pattern.endsWith("/") ? pattern.slice(0, -1) : pattern;
+  return p.includes("/") || p === filename;
 }
 
 /**
@@ -371,8 +386,8 @@ function patternSuffix(pattern: string): string {
   return ` [pattern: ${pattern}]`;
 }
 
-/** cycle-135 C-2 (DEC-1027): where the applied `.reviewignore` patterns came from. */
-export type ReviewignoreSource = "base" | "checkout" | "none";
+/** cycle-135 C-2 (DEC-1027): where the applied `.reviewignore` patterns came from (`base_unavailable`: round 1). */
+export type ReviewignoreSource = "base" | "checkout" | "base_unavailable" | "none";
 
 /**
  * Parse a `.reviewignore` file's user-curated patterns from disk.
@@ -391,8 +406,10 @@ export type ReviewignoreSource = "base" | "checkout" | "none";
  * the TOCTOU/ambiguous-stat class (Go's golang/go#41112 lesson applied here).
  *
  * cycle-135 C-2 (bd-i4fyw, DEC-1027): with `opts.baseSha` the base version is read (`git show <sha>:.reviewignore`,
- * the same line validation) so a PR cannot change the exclusions its own review applies; a failed base read is
- * `source: "none"` with one WARN, never an exception. Without a base sha the checkout file is read as before.
+ * the same line validation) so a PR cannot change the exclusions its own review applies. A failed base read fails
+ * CLOSED (sprint-279 review round 1, HIGH 1): the checkout copy governs and the source is `base_unavailable` (the
+ * review degrades as reviewignore_unavailable), with one WARN naming why; `none` only when the base and the checkout
+ * both lack the file. Without a base sha the checkout file is read as before.
  *
  * @throws Error when the checkout `.reviewignore` exists but cannot be read or parsed, or repoRoot is invalid.
  */
@@ -426,8 +443,25 @@ export function parseReviewignoreFile(
     throw enriched;
   }
 
-  if (opts.baseSha !== undefined) return readBaseReviewignore(repoRoot, opts.baseSha);
+  if (opts.baseSha === undefined) return readCheckoutReviewignore(repoRoot);
+  const base = readBaseReviewignore(repoRoot, opts.baseSha);
+  if (base.ok) return { patterns: base.patterns, source: "base" };
+  const warn = (): void => {
+    process.stderr.write(
+      `[bridgebuilder] WARN: .reviewignore at base ${JSON.stringify(opts.baseSha)} not read — ${base.why}; the checkout copy governs (source: base_unavailable, the review degrades as reviewignore_unavailable; bd-i4fyw)\n`,
+    );
+  };
+  if (!base.absent) warn(); // before the checkout read, so the reason survives a checkout refusal (which throws)
+  const checkout = readCheckoutReviewignore(repoRoot);
+  if (base.absent) {
+    if (checkout.source === "none") return checkout; // neither the base nor the checkout has the file
+    warn();
+  }
+  return { patterns: checkout.patterns, source: "base_unavailable" };
+}
 
+/** The checkout `.reviewignore` read (fail-closed on anything but genuine absence). */
+function readCheckoutReviewignore(repoRoot: string): { patterns: string[]; source: ReviewignoreSource } {
   const reviewignorePath = resolve(repoRoot, ".reviewignore");
 
   // BB801-002 (iter-3 MEDIUM, conf 0.82): TOCTOU-resistant validation +
@@ -524,15 +558,13 @@ const REVIEWIGNORE_MAX_BYTES = 1024 * 1024;
 /**
  * cycle-135 C-2 (bd-i4fyw, DEC-1027): `.reviewignore` as of the PR base. The sha must be 40-hex (never an option);
  * the entry must be a regular blob (a symlink is refused, as for the checkout read); bounded by a 10 s timeout and
- * 1 MiB. Any failure — absent at the base, unknown commit, git error, oversize — is `none` with one WARN.
+ * 1 MiB. Never throws: a failure (absent at the base, unknown commit, git error, oversize, a symlink) is returned
+ * with its reason and the caller falls back to the checkout copy.
  */
-function readBaseReviewignore(repoRoot: string, baseSha: string): { patterns: string[]; source: ReviewignoreSource } {
-  const none = (why: string): { patterns: string[]; source: ReviewignoreSource } => {
-    process.stderr.write(
-      `[bridgebuilder] WARN: .reviewignore at base ${JSON.stringify(baseSha)} not read — ${why}; no .reviewignore patterns apply (source: none, bd-i4fyw)\n`,
-    );
-    return { patterns: [], source: "none" };
-  };
+type BaseRead = { ok: true; patterns: string[] } | { ok: false; absent: boolean; why: string };
+
+function readBaseReviewignore(repoRoot: string, baseSha: string): BaseRead {
+  const none = (why: string, absent = false): BaseRead => ({ ok: false, absent, why });
   if (!/^[0-9a-f]{40}$/.test(baseSha)) return none("not a 40-hex commit sha");
   const opts = {
     encoding: "utf-8" as const,
@@ -542,11 +574,11 @@ function readBaseReviewignore(repoRoot: string, baseSha: string): { patterns: st
   };
   try {
     const entry = execFileSync("git", ["-C", repoRoot, "ls-tree", "-z", baseSha, "--", ".reviewignore"], opts);
-    if (entry === "") return none("absent at the base");
+    if (entry === "") return none("absent at the base", true);
     const mode = entry.split(" ", 1)[0];
     if (mode !== "100644" && mode !== "100755") return none(`not a regular file at the base (mode ${mode})`);
     const content = execFileSync("git", ["-C", repoRoot, "show", `${baseSha}:.reviewignore`], opts);
-    return { patterns: parseReviewignoreLines(content), source: "base" };
+    return { ok: true, patterns: parseReviewignoreLines(content) };
   } catch (err) {
     return none(String((err as Error).message ?? err).split("\n")[0].slice(0, 200));
   }
@@ -787,10 +819,10 @@ export function extractFirstHunk(patch: string): string {
 export interface LoaTierResult {
   /** Files that passed through (not under Loa paths, or exception). */
   passthrough: PullRequestFile[];
-  /** Tier 1 excluded files: name + stats only. */
-  tier1Excluded: Array<{ filename: string; stats: string }>;
+  /** Tier 1 excluded files: name + stats only (cycle-135: `pattern` = the matching default). */
+  tier1Excluded: Array<{ filename: string; stats: string; pattern?: string }>;
   /** Tier 2 summary files: first hunk + stats. */
-  tier2Summary: Array<{ filename: string; stats: string; summary: string }>;
+  tier2Summary: Array<{ filename: string; stats: string; summary: string; pattern?: string }>;
   /** Total bytes saved by exclusion. */
   bytesSaved: number;
 }
@@ -804,8 +836,8 @@ export function applyLoaTierExclusion(
   loaPatterns: string[],
 ): LoaTierResult {
   const passthrough: PullRequestFile[] = [];
-  const tier1Excluded: Array<{ filename: string; stats: string }> = [];
-  const tier2Summary: Array<{ filename: string; stats: string; summary: string }> = [];
+  const tier1Excluded: Array<{ filename: string; stats: string; pattern?: string }> = [];
+  const tier2Summary: Array<{ filename: string; stats: string; summary: string; pattern?: string }> = [];
   let bytesSaved = 0;
 
   for (const file of files) {
@@ -831,6 +863,7 @@ export function applyLoaTierExclusion(
       tier1Excluded.push({
         filename: file.filename,
         stats: `+${file.additions} -${file.deletions} (Loa framework, content excluded)${patternSuffix(loaPattern)}`,
+        pattern: loaPattern,
       });
     } else {
       // tier2: include first hunk summary
@@ -839,6 +872,7 @@ export function applyLoaTierExclusion(
         filename: file.filename,
         stats: `+${file.additions} -${file.deletions} (Loa framework, summary only)${patternSuffix(loaPattern)}`,
         summary,
+        pattern: loaPattern,
       });
     }
   }
@@ -1371,7 +1405,8 @@ export function truncateFiles(
   let loaBanner: string | undefined;
   let loaStats: { filesExcluded: number; bytesSaved: number } | undefined;
   let allExcluded = false;
-  const loaExcludedEntries: Array<{ filename: string; stats: string }> = [];
+  // cycle-135 (review round 1, LOW 5): `pattern` is the structured excluding pattern; the stats suffix stays one release.
+  const loaExcludedEntries: Array<{ filename: string; stats: string; pattern?: string }> = [];
 
   let afterLoa = files;
   // BB-797-001 (iter-3): typed self-review boolean — downstream prose-free.
@@ -1462,6 +1497,7 @@ export function truncateFiles(
             loaExcludedEntries.push({
               filename: f.filename,
               stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern)${patternSuffix(pattern)}`,
+              pattern,
             });
             userBytesSaved += f.patch ? new TextEncoder().encode(f.patch).byteLength : 0;
             if (matchesExcludePattern(f.filename, LOA_EXCLUDE_PATTERNS)) {
@@ -1621,6 +1657,7 @@ export function truncateFiles(
             loaExcludedEntries.push({
               filename: f.filename,
               stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern, strict deny)${patternSuffix(pattern)}`,
+              pattern,
             });
             userExcludedCount++;
             userBytesSaved += f.patch ? new TextEncoder().encode(f.patch).byteLength : 0;
@@ -1645,6 +1682,7 @@ export function truncateFiles(
         loaExcludedEntries.push({
           filename: entry.filename,
           stats: entry.stats,
+          pattern: entry.pattern,
         });
       }
 
@@ -1690,7 +1728,7 @@ export function truncateFiles(
 
   // Step 1: Separate files matching excludePatterns (sole enforcement point — IMP-005)
   const afterExclude: PullRequestFile[] = [];
-  const excludedByPattern: Array<{ filename: string; stats: string }> = [];
+  const excludedByPattern: Array<{ filename: string; stats: string; pattern?: string }> = [];
   // cycle-135 C-2 (bd-i4fyw): user-pattern site 3 of 3 (`exclude_patterns` + `--exclude`, every repository).
   const part = partitionUserExclusions(afterLoa, patterns, protectedPatterns);
   const excludedBy = new Map(part.excluded.map((e) => [e.file, e.pattern]));
@@ -1702,6 +1740,7 @@ export function truncateFiles(
       excludedByPattern.push({
         filename: f.filename,
         stats: `+${f.additions} -${f.deletions} (excluded by pattern)${patternSuffix(pattern)}`,
+        pattern,
       });
     } else {
       afterExclude.push(f);

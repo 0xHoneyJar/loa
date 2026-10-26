@@ -167,6 +167,15 @@ export interface TrustedView {
     allowlist?: unknown;
     /** A root-level `secret_env_allowlist` (compared for head drift too: it is the shape the docs once showed). */
     rootAllowlist?: unknown;
+    /** sprint-279 review round 1 (HIGH 3): the review-scope keys as the trusted source states them (null = absent). */
+    scope?: TrustedReviewScope;
+}
+/** The four keys that narrow or widen what is reviewed; on a pull request they come from the trusted source. */
+export interface TrustedReviewScope {
+    protected_paths: unknown;
+    exclude_patterns: unknown;
+    fetch_missing_patches: unknown;
+    max_content_fetches: unknown;
 }
 /** Parse Loa config text (YAML or JSON) into the trusted view with yq; throws with yq's first stderr line on failure. */
 export declare function yqTrustedView(text: string): TrustedView;
@@ -204,7 +213,20 @@ export declare function loadTrustedConfig(opts: {
     pr?: number;
     repoRoot?: string;
     repo?: string;
-}, deps?: TrustedConfigDeps): TrustedConfig;
+}, deps?: TrustedConfigDeps): TrustedConfig & {
+    reviewScope?: TrustedReviewScope;
+};
+/**
+ * sprint-279 review round 1 (HIGH 3, bd-i4fyw): on a pull request with a trusted source, `protected_paths`,
+ * `exclude_patterns`, `fetch_missing_patches` and `max_content_fetches` come from that source, so a PR cannot widen
+ * or narrow its own review (e.g. `protected_paths: []`). A head value whose effect differs is replaced with one WARN
+ * naming the key. These keys change review scope, not provider identity, so drift is warned, not refused (no exit
+ * 5). `--exclude` stays additive (the operator's argv). Local mode or no trusted source: unchanged. main.ts calls
+ * this right after `loadTrustedConfig`.
+ */
+export declare function applyTrustedReviewScope(config: BridgebuilderConfig, trusted: TrustedConfig & {
+    reviewScope?: TrustedReviewScope;
+}, cli: Pick<CLIArgs, "exclude">): void;
 /** Key-order-independent structural equality over JSON values (the yq view is JSON). */
 export declare function jsonDeepEqual(a: unknown, b: unknown): boolean;
 /**

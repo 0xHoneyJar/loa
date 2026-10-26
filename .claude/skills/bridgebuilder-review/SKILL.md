@@ -222,7 +222,9 @@ stripped.
   is no longer rewritten to `secrets/**`.
 - **A wildcard pattern** uses `*` and `?` within one segment, `**` as a whole segment for zero or more segments,
   one level of `{a,b}` alternation, and `[ab]`, `[a-z]` or `[!ab]` classes. All of them match names that start
-  with a dot: `**/*.{json,md}` excludes `.claude/x.json`.
+  with a dot: `**/*.{json,md}` excludes `.claude/x.json`. A wildcard without a `/` floats like gitignore: `*.pem`
+  means `**/*.pem` and excludes `keys/a.pem` as well as `a.pem`. A wildcard with a `/` is anchored at the root:
+  `docs/*.md` excludes `docs/a.md` but not `x/docs/a.md`.
 - **Rejected patterns** are dropped with one `WARN` naming them, so they match nothing: a `!` negation line,
   backslash escapes, extglob (`+(`, `@(`, `!(`, `?(`, `*(`), nested or unbalanced braces, and unterminated, empty
   or nested classes.
@@ -243,18 +245,29 @@ A wildcard user exclusion cannot remove a protected path from the review. The de
 | `max_content_fetches` | `20` (an integer of 0 or more, else a config error) |
 
 The rule does not depend on pattern order. All user patterns that match a file are resolved first, from
-`--exclude`, `exclude_patterns` and `.reviewignore`. If any of them is a non-wildcard pattern, the file is excluded,
-because an explicit name wins over protection. If only wildcard patterns match a protected file, the file is kept and
-the first matching wildcard is recorded in `protectedKept`. So `**/*.yml` keeps `.github/workflows/ci.yml`, while
-`.github/workflows/ci.yml` or the `.reviewignore` line `.github/workflows/` excludes it. Kept files come first in the
-selection order, so the file cap and the byte budget reach them last. The Loa framework tier is not subject to the
-list: in a Loa repository without the self-review label it still strips `.claude/settings.json`. Every omission's
-stats end with ` [pattern: <p>]`, naming the default or user pattern that excluded it.
+`--exclude`, `exclude_patterns` and `.reviewignore`. If one of them is explicit, the file is excluded, because an
+explicit name wins over protection. Explicit means a non-wildcard pattern that is anchored at the root, i.e. it
+contains a `/` once one trailing `/` is ignored, or one equal to the file's full path. Wildcards and floating segment
+names such as `ci.yml`, `workflows`, `.github`, `.github/` or `settings.json` do not defeat protection. A protected
+file they match is kept, and the first matching pattern is recorded in `protectedKept`. So `**/*.yml`, `*.yml` and
+`ci.yml` keep `.github/workflows/ci.yml`, while `.github/workflows/ci.yml` or the `.reviewignore` line
+`.github/workflows/` excludes it. Kept files come first in the selection order, so the file cap and the byte budget
+reach them last. The Loa framework tier is not subject to the list: in a Loa repository without the self-review
+label it still strips `.claude/settings.json`. Every omission names the default or user pattern that excluded it, in
+the `pattern` field and, for one release, as a ` [pattern: <p>]` suffix on its stats.
+
+On a pull request, `protected_paths`, `exclude_patterns`, `fetch_missing_patches` and `max_content_fetches` come from
+the trusted config, the same source the provider keys use: `BRIDGEBUILDER_TRUSTED_CONFIG`, else the base branch's
+`.loa.config.yaml`, else `origin/main`. A PR head value that differs is ignored with one `WARN` naming the key. These
+keys change review scope, not provider identity, so the run is not refused. `--exclude` stays additive. Locally, or
+when no trusted source can be read, the checkout's values apply.
 
 `.reviewignore` is read from the PR's base commit when the review knows it (`git show <base_sha>:.reviewignore`, the
 same line rules, 10 s and 1 MiB bounds, symlinks refused). A PR therefore cannot change the exclusions of its own
-review. Without a base it is read from the checkout. A failed base read applies no `.reviewignore` patterns
-(`none`) and prints one `WARN`. The source is recorded as `base`, `checkout` or `none`.
+review. Without a base it is read from the checkout. When the base read fails, for example because the base commit is
+not in the local clone, the checkout copy governs. The source is then `base_unavailable`, one `WARN` names why, and
+the review degrades as `reviewignore_unavailable`. The source is `none` only when neither the base nor the checkout
+has the file. It is recorded as `base`, `checkout`, `base_unavailable` or `none`.
 
 ### Invocation trust contract (#1050)
 

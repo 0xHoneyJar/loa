@@ -475,7 +475,10 @@ export function parseProviderDecls(raw, label, warnings) {
 /** The subtree Bridgebuilder reads from a Loa config, as one yq program (the same yq the agy gate uses). */
 const TRUSTED_VIEW_YQ = '{"providers": (.hounfour.providers // null), "locality": (.hounfour.locality // null), "exit": (.bridgebuilder.exit_on_degraded // null), ' +
     '"writer": (.bridgebuilder.writer_role_allowlist // null), ' +
-    '"aliases": (.hounfour.aliases // null), "allowlist": (.hounfour.secret_env_allowlist // null), "rootAllowlist": (.secret_env_allowlist // null)}';
+    '"aliases": (.hounfour.aliases // null), "allowlist": (.hounfour.secret_env_allowlist // null), "rootAllowlist": (.secret_env_allowlist // null), ' +
+    // sprint-279 review round 1 (HIGH 3): the review-scope keys (no `//` — it would turn `false` into null)
+    '"scope": {"protected_paths": .bridgebuilder.protected_paths, "exclude_patterns": .bridgebuilder.exclude_patterns, ' +
+    '"fetch_missing_patches": .bridgebuilder.fetch_missing_patches, "max_content_fetches": .bridgebuilder.max_content_fetches}}';
 /** Parse Loa config text (YAML or JSON) into the trusted view with yq; throws with yq's first stderr line on failure. */
 export function yqTrustedView(text) {
     try {
@@ -487,6 +490,7 @@ export function yqTrustedView(text) {
             providers: parsed?.providers ?? null, locality: parsed?.locality ?? null, exit: parsed?.exit ?? null,
             ...(parsed?.writer !== undefined && parsed?.writer !== null ? { writer: parsed.writer } : {}),
             aliases: parsed?.aliases ?? null, allowlist: parsed?.allowlist ?? null, rootAllowlist: parsed?.rootAllowlist ?? null,
+            ...(parsed?.scope !== undefined && parsed?.scope !== null ? { scope: parsed.scope } : {}),
         };
     }
     catch (err) {
@@ -687,7 +691,69 @@ export function loadTrustedConfig(opts, deps = defaultTrustedConfigDeps) {
         mode, source, ...(ref ? { ref } : {}), providers, headOnlyRefused, locality, exitOnDegraded, warnings,
         ...(writerRoleAllowlist ? { writerRoleAllowlist } : {}),
         aliases: stringAliases(view.aliases), headDrift,
+        // sprint-279 review round 1 (HIGH 3): on a pull request with a trusted source, the review-scope keys it states
+        ...(mode === "pull-request" && source !== "none"
+            ? { reviewScope: view.scope ?? { protected_paths: null, exclude_patterns: null, fetch_missing_patches: null, max_content_fetches: null } }
+            : {}),
     };
+}
+/**
+ * sprint-279 review round 1 (HIGH 3, bd-i4fyw): on a pull request with a trusted source, `protected_paths`,
+ * `exclude_patterns`, `fetch_missing_patches` and `max_content_fetches` come from that source, so a PR cannot widen
+ * or narrow its own review (e.g. `protected_paths: []`). A head value whose effect differs is replaced with one WARN
+ * naming the key. These keys change review scope, not provider identity, so drift is warned, not refused (no exit
+ * 5). `--exclude` stays additive (the operator's argv). Local mode or no trusted source: unchanged. main.ts calls
+ * this right after `loadTrustedConfig`.
+ */
+export function applyTrustedReviewScope(config, trusted, cli) {
+    const scope = trusted.reviewScope;
+    if (trusted.mode !== "pull-request" || scope === undefined)
+        return;
+    const where = trustedSourceDescription(trusted);
+    const show = (v) => (v === undefined ? "unset" : JSON.stringify(v).slice(0, 300));
+    const warn = (key, head, value) => process.stderr.write(`[bridgebuilder] WARN: bridgebuilder.${key}: the PR head's value (${show(head)}) differs from ${where} ` +
+        `(${show(value)}) — the trusted value governs (review scope: warned, not refused; bd-i4fyw)\n`);
+    const isNull = (v) => v === null || v === undefined;
+    const pp = isNull(scope.protected_paths) ? undefined : validateProtectedPaths(scope.protected_paths);
+    if (!jsonDeepEqual(config.protectedPaths ?? null, pp ?? null))
+        warn("protected_paths", config.protectedPaths, pp);
+    if (pp === undefined)
+        delete config.protectedPaths;
+    else
+        config.protectedPaths = pp;
+    const rawEx = isNull(scope.exclude_patterns) ? [] : scope.exclude_patterns;
+    if (!Array.isArray(rawEx) || !rawEx.every((x) => typeof x === "string")) {
+        throw new Error(`bridgebuilder.exclude_patterns (${where}): expected a list of patterns, got ${show(rawEx)}`);
+    }
+    // (the CLI entries were warned about once in resolveConfig; rejected ones are dropped silently here)
+    const cliValid = (cli.exclude ?? []).filter((p) => excludePatternGrammarError(p.trim()) === null);
+    const ex = [
+        ...DEFAULT_EXCLUDE_PATTERNS,
+        ...normalizeExcludePatterns(rawEx, `bridgebuilder.exclude_patterns (${where})`),
+        ...normalizeExcludePatterns(cliValid, "--exclude"),
+    ];
+    if (!jsonDeepEqual(config.excludePatterns, ex))
+        warn("exclude_patterns", config.excludePatterns, ex);
+    config.excludePatterns = ex;
+    let fmp;
+    if (typeof scope.fetch_missing_patches === "boolean")
+        fmp = scope.fetch_missing_patches;
+    else if (!isNull(scope.fetch_missing_patches)) {
+        process.stderr.write(`[bridgebuilder] WARN: bridgebuilder.fetch_missing_patches (${where}): invalid value ${show(scope.fetch_missing_patches)} (expected true or false) — using the default (true)\n`);
+    }
+    if ((config.fetchMissingPatches ?? true) !== (fmp ?? true))
+        warn("fetch_missing_patches", config.fetchMissingPatches, fmp);
+    if (fmp === undefined)
+        delete config.fetchMissingPatches;
+    else
+        config.fetchMissingPatches = fmp;
+    const mcf = isNull(scope.max_content_fetches) ? undefined : validateMaxContentFetches(scope.max_content_fetches);
+    if ((config.maxContentFetches ?? 20) !== (mcf ?? 20))
+        warn("max_content_fetches", config.maxContentFetches, mcf);
+    if (mcf === undefined)
+        delete config.maxContentFetches;
+    else
+        config.maxContentFetches = mcf;
 }
 /** `hounfour.aliases` as a string map (non-string targets — cheval's dict form included — read through `target`/`model`). */
 function stringAliases(raw) {
@@ -1281,7 +1347,13 @@ export async function loadYamlConfig() {
                     }
                     break;
                 case "max_content_fetches":
-                    config.max_content_fetches = Number(value);
+                    // sprint-279 review round 1 (LOW 6): an empty value is unset (Number("") would be 0 and disable every fetch)
+                    if (value === "") {
+                        process.stderr.write("[bridgebuilder] WARN: bridgebuilder.max_content_fetches: empty value — treated as unset (the default, 20)\n");
+                    }
+                    else {
+                        config.max_content_fetches = Number(value);
+                    }
                     break;
             }
         }
