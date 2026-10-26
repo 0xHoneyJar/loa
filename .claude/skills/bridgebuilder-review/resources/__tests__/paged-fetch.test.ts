@@ -258,7 +258,9 @@ describe("two-pass paged fetch (C-1)", () => {
       { filename: "evals/fixtures/review-prs/pr-9/head/src/auth/session.ts", status: "added", additions: 400, deletions: 0, patch: makePatch(2, 900) },
       { filename: "grimoires/loa/reports/ablation-2.0/c132-grades/run-1/grade.json", status: "added", additions: 50, deletions: 0, patch: makePatch(3, 300) },
     ] });
-    const res = await fetchPRFilesTwoPass(adapter(gh.exec), "o", "r", 7, { ...SEL, selfReview: true, loaAware: true });
+    // (review round 1) the fixture's base sha is not a real commit: the fail-closed base `.reviewignore` read would report
+    // base_unavailable and degrade the record by design; this test is about excluded files, so the provenance is injected
+    const res = await fetchPRFilesTwoPass(adapter(gh.exec), "o", "r", 7, { ...SEL, selfReview: true, loaAware: true }, { reviewignoreSource: () => "checkout" as const });
     assert.deepEqual(res.files.map((f) => f.filename), ["src/app.ts"]);
     const reasons = Object.fromEntries(res.coverage.omitted.map((o) => [o.file, o]));
     assert.deepEqual(reasons["evals/fixtures/review-prs/pr-9/head/src/auth/session.ts"], { file: "evals/fixtures/review-prs/pr-9/head/src/auth/session.ts", reason: "excluded_pattern", reviewable: false, pattern: "evals/fixtures/review-prs/**" });

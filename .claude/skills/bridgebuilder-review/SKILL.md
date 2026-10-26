@@ -111,9 +111,13 @@ readable):
 - `protected_kept: [{file, pattern}]` lists protected files that a wildcard user exclusion would have removed, with the
   first matching wildcard. The posted review renders them under "Protected paths kept (n)" as
   `` `file` — kept despite `<pattern>` ``, followed by `then omitted (<reason>)` when a budget still cut the file.
-- `reviewignore_source` is `base`, `checkout` or `none`, the place `.reviewignore` was read from.
+- `reviewignore_source` is `base`, `checkout`, `base_unavailable` or `none`, the place `.reviewignore` was read from.
   `reviewignore_changed_in_pr` is true when the PR's file list contains `.reviewignore`. The posted review shows one
   `.reviewignore: <source>` line, with `(changed in this PR)` when it applies.
+- `base_unavailable` means the PR base's copy could not be read, so the checkout's copy was applied. The PR head
+  controls that copy, so the record degrades with the fetch-side reason `reviewignore_unavailable` and the merge is
+  blocked as `incomplete_coverage`. The posted line reads
+  `.reviewignore: base_unavailable (checkout copy applied; review degraded)`.
 - Every name and pattern in the posted text is escaped: backticks and line breaks become `'`, and `<`/`>` are
   percent-encoded.
 
@@ -122,7 +126,11 @@ a patch. When such a file survives the exclusions and the file cap and has `addi
 with `gh api /repos/<o>/<r>/contents/<path>?ref=<head sha>`. The read is pinned to the listing's head sha and has one
 allowlisted shape with no headers. It runs before the byte planning. The synthesized patch is `@@ -0,0 +1,N @@` plus
 `+` lines, with CRLF kept and git's `\ No newline at end of file` marker when needed. Its bytes, header and prefixes
-included, count against `max_diff_bytes` in listing order. The file is then reviewed like any other and recorded with
+included, count against `max_diff_bytes` in selection order. Each read is bounded by what the budget has left at the
+file's place in that order, after the GitHub patches and the synthesized patches selected ahead of it. A file that
+cannot fit is not read at all. To place the files, the selection runs once with the candidates at size 0 and again on
+the real sizes. So whenever a candidate exists the selection runs twice, and a selection WARN (for example a rejected
+`.reviewignore` line) can print twice. The file is then reviewed like any other and recorded with
 `reviewed[].source: "contents"`; the posted review lists it under "Reviewed from file contents (n)" as
 `` `file` (source: contents) ``. Every other outcome leaves today's `no_patch` omission and records why in
 `omitted[].fetch`, shown as `· fetch: <outcome>`:
@@ -130,8 +138,10 @@ included, count against `max_diff_bytes` in listing order. The file is then revi
 | `fetch` | Meaning |
 |---|---|
 | `binary` | a NUL byte in the first 8 KiB, or bytes that are not UTF-8 |
-| `too_large` | the content or its synthesized patch exceeds what the byte budget has left (never cut), or GitHub answered `encoding: none` (> 1 MiB) |
+| `budget` | the patch cannot fit what `max_diff_bytes` has left at the file's place: no read was issued, or the read succeeded and its synthesized patch did not fit (never cut) |
+| `too_large` | the content's `size` exceeds the bound the read was given, GitHub answered `encoding: none` (> 1 MiB), or the response overflowed the read's buffer |
 | `error` | the read failed or returned a malformed envelope or base64 |
+| `aborted` | not attempted: an earlier read was refused for a rate limit or authorisation (`RATE_LIMITED`, `FORBIDDEN`, HTTP 401/403), which stops the remaining reads |
 | `skipped_cap` | beyond `bridgebuilder.max_content_fetches` (default 20; `0` reads nothing) |
 | `deadline` | beyond the 120 s budget for all content reads of the review |
 

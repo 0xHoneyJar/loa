@@ -384,7 +384,9 @@ export class GitHubCLIAdapter implements IGitProvider, IReviewPoster {
     if (!validRepoSegment(owner) || !validRepoSegment(repo)) throw new GitProviderError("NETWORK", "getFileContent: invalid owner or repo");
     if (!/^[0-9a-f]{40}$/.test(ref)) throw new GitProviderError("NETWORK", "getFileContent: ref must be a 40-hex commit sha");
     if (!Number.isInteger(maxBytes) || maxBytes < 0) throw new GitProviderError("NETWORK", "getFileContent: maxBytes must be a non-negative integer");
-    const maxBuffer = Math.ceil((maxBytes * 4) / 3) + 4096;
+    // (review round 1: base64 is 4/3 of the bytes, and GitHub wraps it every 60 characters with a newline that arrives
+    // JSON-escaped as two bytes — 62/60 — plus the envelope's link metadata; the authoritative bound is `size` below)
+    const maxBuffer = Math.ceil(((maxBytes * 4) / 3) * 62 / 60) + 8192;
     let raw: string;
     try {
       // (the envelope is ASCII JSON — base64 content — so the decoded string is the bytes; the content bytes come from

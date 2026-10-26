@@ -225,53 +225,79 @@ interface Meta {
   page: number;
 }
 
+/** cycle-135 C-3: an added file GitHub listed without a patch, with content to read (additions > 0). */
+function isContentCandidate(f: PullRequestFile): boolean {
+  return f.status === "added" && f.patch == null && f.patchBytes == null && f.additions > 0;
+}
+
 /**
- * cycle-135 C-3 (sdd.md C-3, D-1.3a/b): read the content of every eligible file — added, no patch, additions > 0, and
- * kept by the selection (it survived the Loa-tier and user exclusions and the file cap: `(diff unavailable)`) — in
- * listing order, sequentially, at most `maxContentFetches`, within the deadline from the first read, each bounded by
- * what the aggregate `maxDiffBytes` has left after the patches synthesized so far. A synthesized patch sets the entry's
- * `patchBytes` (it enters byte planning like any patch) and is returned for pass 2, pinned to `pin.head_sha` by
- * construction (an attempt that restarts discards it with the rest of its state).
+ * cycle-135 C-3 (review round 1): the smallest patch `additions` lines can synthesize — the shortest header
+ * `@@ -0,0 +1,N @@\n` (16 bytes) plus one `+` per line and the newlines between them. Below it no read can fit.
+ */
+function minSynthesizedBytes(additions: number): number {
+  return 16 + 2 * additions - 1;
+}
+
+/**
+ * cycle-135 C-3 (review round 1, bd-w5pd9): a provider refusal that will repeat for every file (rate limit, auth) stops
+ * the loop. `FORBIDDEN` is gh's exit 4 (auth); an HTTP 401/403 arrives as `NETWORK` with the parsed status on the
+ * adapter's error. A 404 or a malformed envelope is per-file and does not stop it.
+ */
+function stopsContentFetches(err: unknown): boolean {
+  if (!(err instanceof GitProviderError)) return false;
+  if (err.code === "RATE_LIMITED" || err.code === "FORBIDDEN") return true;
+  const status = (err as { httpStatus?: unknown }).httpStatus;
+  return status === 401 || status === 403;
+}
+
+/**
+ * cycle-135 C-3 (sdd.md C-3, D-1.3a/b; review round 1): read the content of every eligible file — a candidate the
+ * placement selection kept (it survived the Loa-tier and user exclusions and the file cap) — in selection order,
+ * sequentially, at most `maxContentFetches`, within the deadline from the first read. Each read is bounded by what the
+ * planner will have left at the file's position: `maxDiffBytes` minus the GitHub patch bytes selected ahead of it
+ * minus the patches synthesized ahead of it (a prefix sum over `placement.included`, the order the planner charges
+ * in). A file that cannot fit is `budget` without a call; a read whose patch does not fit is `budget`. A synthesized
+ * patch sets the entry's `patchBytes` and is returned for pass 2, pinned to `pin.head_sha` by construction (an
+ * attempt that restarts discards it with the rest of its state). A rate-limit or auth refusal stops the loop.
  */
 async function fetchMissingPatches(
-  git: PagedContentGit, owner: string, repo: string, pin: PullRequestRef, listed: PullRequestFile[],
-  sel: TruncationResult, config: SelectionConfig, now: () => number,
+  git: PagedContentGit, owner: string, repo: string, pin: PullRequestRef, placement: TruncationResult,
+  candidates: ReadonlySet<PullRequestFile>, config: SelectionConfig, now: () => number,
 ): Promise<{ synthesized: Map<string, string>; outcomes: Map<string, FetchOutcome> }> {
   const synthesized = new Map<string, string>();
   const outcomes = new Map<string, FetchOutcome>();
-  if (config.fetchMissingPatches === false || typeof git.getFileContent !== "function") return { synthesized, outcomes };
-  const kept = new Set(sel.excluded.filter((e) => /\(diff unavailable\)/.test(e.stats)).map((e) => e.filename));
   const cap = config.maxContentFetches ?? DEFAULT_MAX_CONTENT_FETCHES;
   let fetches = 0;
-  let planned = 0;
+  let charged = 0; // bytes the planner will have charged ahead of the current file
   let start: number | undefined;
   let pastDeadline = false;
-  for (const f of listed) {
-    if (!kept.has(f.filename) || f.status !== "added" || f.patchBytes != null || !(f.additions > 0)) continue;
+  let aborted = false;
+  for (const f of placement.included) {
+    if (!candidates.has(f)) { charged += f.patchBytes ?? 0; continue; }
+    if (aborted) { outcomes.set(f.filename, "aborted"); continue; }
     if (pastDeadline) { outcomes.set(f.filename, "deadline"); continue; }
     if (fetches >= cap) { outcomes.set(f.filename, "skipped_cap"); continue; }
+    const remaining = config.maxDiffBytes - charged;
+    if (remaining < minSynthesizedBytes(f.additions)) { outcomes.set(f.filename, "budget"); continue; } // no wasted read
     const t = now();
     if (start === undefined) start = t;
     else if (t - start >= CONTENT_FETCH_DEADLINE_MS) { pastDeadline = true; outcomes.set(f.filename, "deadline"); continue; }
-    // (the remaining aggregate budget; ordinary patches are charged later, in selection order, by the planning)
-    const remaining = Math.min(config.maxDiffBytes, config.maxDiffBytes - planned);
-    if (remaining <= 0) { outcomes.set(f.filename, "too_large"); continue; }
     fetches++;
     let res: FileContentResult;
     try {
-      res = await git.getFileContent(owner, repo, f.filename, pin.head_sha, remaining);
-    } catch {
-      // (network, auth, a path that moved, a malformed envelope, an allowlist refusal: today's no_patch, named)
+      res = await git.getFileContent!(owner, repo, f.filename, pin.head_sha, remaining);
+    } catch (err) {
+      // (network, a path that moved, a malformed envelope, an allowlist refusal: today's no_patch, named)
       outcomes.set(f.filename, "error");
+      if (stopsContentFetches(err)) aborted = true;
       continue;
     }
     if (res.kind !== "text") { outcomes.set(f.filename, res.kind); continue; }
     if (res.content.length === 0) { outcomes.set(f.filename, "error"); continue; } // (additions > 0 says it is not empty)
     const patch = synthesizeAddedPatch(res.content);
     const bytes = utf8Bytes(patch);
-    if (bytes > remaining) { outcomes.set(f.filename, "too_large"); continue; } // never truncated
-    planned += bytes;
-    f.patchBytes = bytes;
+    if (bytes > remaining) { outcomes.set(f.filename, "budget"); continue; } // never truncated
+    charged += bytes;
     synthesized.set(f.filename, patch);
   }
   return { synthesized, outcomes };
@@ -323,20 +349,34 @@ async function attempt(
   // (cycle-135 C-2: the selection is given the PR base sha, so `.reviewignore` is the base ref's copy — D-1.2a)
   const selConfig = { ...config, maxDiffBytes: Number.MAX_SAFE_INTEGER, reviewignoreBaseSha: pin.base_sha };
   const select = deps.truncate ?? truncateFiles;
-  let sel = select(listed, selConfig);
-
   // ── cycle-135 C-3: content for added files listed without a patch ────────
-  // (after the exclusions, before the byte planning: a synthesized patchBytes is planned like a GitHub one; the
-  // selection is re-run so the file takes its place in the order — same filters, same order, now with a patch)
-  const { synthesized, outcomes } = await fetchMissingPatches(git, owner, repo, pin, listed, sel, config, deps.now ?? Date.now);
-  if (synthesized.size > 0) sel = select(listed, selConfig);
+  // (review round 1) A candidate is given a placeholder size of 0 for a placement selection: the selection's filters
+  // and order never depend on the patch, so the file sits exactly where the planner will charge it, and the GitHub
+  // patch bytes ahead of it are known before any read. After the reads the selection is re-run on the real sizes (a
+  // synthesized patchBytes, or none again) — so with a candidate present the selection runs twice.
+  const fetchOn = config.fetchMissingPatches !== false && typeof git.getFileContent === "function";
+  const candidates = new Set(fetchOn ? listed.filter(isContentCandidate) : []);
+  for (const f of candidates) f.patchBytes = 0;
+  let sel = select(listed, selConfig);
+  let synthesized = new Map<string, string>();
+  let outcomes = new Map<string, FetchOutcome>();
+  if (candidates.size > 0) {
+    ({ synthesized, outcomes } = await fetchMissingPatches(git, owner, repo, pin, sel, candidates, config, deps.now ?? Date.now));
+    for (const f of candidates) {
+      const patch = synthesized.get(f.filename);
+      if (patch !== undefined) f.patchBytes = utf8Bytes(patch);
+      else delete f.patchBytes;
+    }
+    sel = select(listed, selConfig);
+  }
 
   const byName = new Map(listed.map((f) => [f.filename, f]));
   const omitted: CoverageRecord["omitted"] = [];
   for (const ex of sel.excluded) {
     const reason = exclusionReason(ex.stats.replace(PATTERN_SUFFIX, ""), byName.get(ex.filename));
+    // (review round 1: the structured field first; the stats suffix and the config fallback until A drops the suffix)
     const pattern = reason === "excluded_loa" || reason === "excluded_pattern"
-      ? exclusionPattern(ex.stats, ex.filename, config.excludePatterns) : undefined;
+      ? ex.pattern ?? exclusionPattern(ex.stats, ex.filename, config.excludePatterns) : undefined;
     omitted.push(omission(ex.filename, reason, reason === "no_patch" ? outcomes.get(ex.filename) : undefined, pattern));
   }
 
@@ -347,8 +387,9 @@ async function attempt(
   for (const f of sel.included) {
     const size = f.patchBytes ?? 0;
     if (synthesized.has(f.filename) && size > remaining) {
-      // cycle-135 C-3: a synthesized patch is never cut — it stays today's no_patch, named too_large
-      omitted.push(omission(f.filename, "no_patch", "too_large"));
+      // cycle-135 C-3: a synthesized patch is never cut — it stays today's no_patch, named budget (the fetch already
+      // charged the bytes ahead of it, so this is defensive)
+      omitted.push(omission(f.filename, "no_patch", "budget"));
       budgetExcluded.push({ filename: f.filename, stats: `+${f.additions} -${f.deletions} (diff unavailable)` });
       continue;
     }
@@ -419,14 +460,17 @@ async function attempt(
 
   omitted.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : a.reason < b.reason ? -1 : a.reason > b.reason ? 1 : 0));
   const unknown = Math.max(0, pin.changed_files - meta.size);
-  const verdict = evaluateCoverage({ omitted, unknown_omitted: unknown, fetchReasons });
-  const totalBytes = reviewed.reduce((n, r) => n + r.bytes, 0);
   // cycle-135 C-2 (D-1.2a; lead wiring, Task 1.7): `truncateFiles` read `.reviewignore` once — from the PR base sha when the
   // selection config carried `reviewignoreBaseSha` — and reports where it came from on its result; the record takes that
   // (one read, no second `parseReviewignoreFile`). Tests may inject `deps.reviewignoreSource` instead.
   const reviewignoreSource = deps.reviewignoreSource
     ? deps.reviewignoreSource(config.repoRoot, { baseSha: pin.base_sha })
     : (sel as TruncationResult & { reviewignoreSource?: ReviewignoreSource }).reviewignoreSource;
+  // (review round 1) the base copy could not be read, so the checkout's — PR-head-controlled — copy governed the
+  // exclusions: a fetch-side reason, so the merge is blocked as incomplete_coverage
+  if (reviewignoreSource === "base_unavailable") fetchReasons.push("reviewignore_unavailable");
+  const verdict = evaluateCoverage({ omitted, unknown_omitted: unknown, fetchReasons });
+  const totalBytes = reviewed.reduce((n, r) => n + r.bytes, 0);
   return {
     files,
     selection: { ...sel, included: files, excluded: [...sel.excluded, ...budgetExcluded, ...pageExcluded], totalBytes },
@@ -590,7 +634,9 @@ export function formatCoverageSection(coverage: CoverageRecord): string {
   }
   if (coverage.reviewignore_source !== undefined || coverage.reviewignore_changed_in_pr) {
     lines.push("");
-    lines.push(`.reviewignore: ${coverage.reviewignore_source ?? "not recorded"}` +
+    const source = coverage.reviewignore_source === "base_unavailable"
+      ? "base_unavailable (checkout copy applied; review degraded)" : coverage.reviewignore_source ?? "not recorded";
+    lines.push(`.reviewignore: ${source}` +
       (coverage.reviewignore_changed_in_pr ? " (changed in this PR)" : ""));
   }
   if (coverage.degraded) {
