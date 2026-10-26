@@ -1,0 +1,15 @@
+# pr-77 external https://github.com/denoland/deno #36178: files and hunks that did not become fix regions
+cli/tools/installer/npm_compat.rs: fix hunk at fix^ line 572-572 lies where the file changed between the PR head and fix^; no fix region
+cli/tools/installer/npm_compat.rs: fix hunk at fix^ line 645-645 lies where the file changed between the PR head and fix^; no fix region
+cli/tools/installer/npm_compat.rs: fix hunk at fix^ line 988-988 lies where the file changed between the PR head and fix^; no fix region
+cli/tools/installer/npm_compat.rs: fix hunk at fix^ line 1018-1018 lies where the file changed between the PR head and fix^; no fix region
+cli/tools/installer/npm_compat.rs: fix hunk at fix^ line 1054-1054 lies where the file changed between the PR head and fix^; no fix region
+cli/tools/installer/npm_compat.rs: fix hunk at fix^ line 1101-1101 lies where the file changed between the PR head and fix^; no fix region
+cli/tools/installer/npm_compat.rs: fix hunk at fix^ line 1107-1110 lies where the file changed between the PR head and fix^; no fix region
+cli/tools/installer/npm_compat.rs: fix hunk at fix^ line 1117-1117 lies where the file changed between the PR head and fix^; no fix region
+cli/tools/installer/npm_compat.rs: fix hunk at fix^ line 1806-1806 lies where the file changed between the PR head and fix^; no fix region
+cli/tools/installer/npm_compat.rs: fix hunk at fix^ line 1837-1837 lies where the file changed between the PR head and fix^; no fix region
+cli/tools/installer/npm_compat.rs: fix hunk at fix^ line 1861-1861 lies where the file changed between the PR head and fix^; no fix region
+cli/tools/installer/npm_compat.rs: fix hunk at fix^ line 1874-1874 lies where the file changed between the PR head and fix^; no fix region
+tests/specs/node/node_test_mock_timers/test.js: the fix touches it but the PR did not change it; no fix region
+tools/update_types_node.ts: the fix touches it but the PR did not change it; no fix region

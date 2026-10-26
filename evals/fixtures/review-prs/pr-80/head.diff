@@ -1,0 +1,279 @@
+diff --git a/docs/Reference/Hooks.md b/docs/Reference/Hooks.md
+index cabafbf3..35be49cc 100644
+--- a/docs/Reference/Hooks.md
++++ b/docs/Reference/Hooks.md
+@@ -476,6 +476,12 @@ arrive.
+ 
+ The hook function takes the Fastify instance as a first argument,
+ and a `done` callback for synchronous hook functions.
++
++Alternatively, an object implementing `Symbol.asyncDispose` or
++`Symbol.dispose` can be registered as an `onClose` hook. Fastify invokes
++the appropriate disposal method when closing the server, allowing resources
++to be cleaned up using JavaScript's Explicit Resource Management protocol.
++
+ ```js
+ // callback style
+ fastify.addHook('onClose', (instance, done) => {
+@@ -488,6 +494,13 @@ fastify.addHook('onClose', async (instance) => {
+   // Some async code
+   await closeDatabaseConnections()
+ })
++
++// or disposable object style (Explicit Resource Management)
++fastify.addHook('onClose', {
++  async [Symbol.asyncDispose] () {
++    await closeDatabaseConnections()
++  }
++})
+ ```
+ 
+ #### Execution order
+diff --git a/fastify.js b/fastify.js
+index ce4fbf99..a0593481 100644
+--- a/fastify.js
++++ b/fastify.js
+@@ -83,6 +83,23 @@ const { buildErrorHandler } = require('./lib/error-handler.js')
+ 
+ const initChannel = diagnostics.channel('fastify.initialization')
+ 
++function asyncDisposableHook (disposable) {
++  return function (instance, done) {
++    disposable[Symbol.asyncDispose]().then(() => done(), done)
++  }
++}
++
++function disposableHook (disposable) {
++  return function (instance, done) {
++    try {
++      disposable[Symbol.dispose]()
++      done()
++    } catch (err) {
++      done(err)
++    }
++  }
++}
++
+ /**
+  * @param {import('./fastify.js').FastifyServerOptions} serverOptions
+  */
+@@ -605,6 +622,16 @@ function fastify (serverOptions) {
+       }
+     }
+ 
++    if (name === 'onClose' && typeof fn !== 'function') {
++      if (typeof fn[Symbol.asyncDispose] === 'function') {
++        fn = asyncDisposableHook(fn)
++      } else if (typeof fn[Symbol.dispose] === 'function') {
++        fn = disposableHook(fn)
++      } else {
++        throw new errorCodes.FST_ERR_HOOK_INVALID_HANDLER(name, Object.prototype.toString.call(fn))
++      }
++    }
++
+     if (name === 'onClose') {
+       this.onClose(fn.bind(this))
+     } else if (name === 'onReady' || name === 'onListen' || name === 'onRoute' || name === 'preClose') {
+diff --git a/test/close-disposable.test.js b/test/close-disposable.test.js
+new file mode 100644
+index 00000000..83938aba
+--- /dev/null
++++ b/test/close-disposable.test.js
+@@ -0,0 +1,154 @@
++'use strict'
++
++const { test } = require('node:test')
++const Fastify = require('../fastify')
++
++test('addHook onClose supports AsyncDisposable objects', async t => {
++  const app = Fastify()
++  let disposed = false
++
++  const resource = {
++    async [Symbol.asyncDispose] () {
++      disposed = true
++    }
++  }
++
++  app.addHook('onClose', resource)
++  await app.ready()
++  t.assert.equal(disposed, false)
++
++  await app.close()
++  t.assert.equal(disposed, true)
++})
++
++test('addHook onClose supports synchronous Disposable objects', async t => {
++  const app = Fastify()
++  let disposed = false
++
++  const resource = {
++    [Symbol.dispose] () {
++      disposed = true
++    }
++  }
++
++  app.addHook('onClose', resource)
++  await app.ready()
++  t.assert.equal(disposed, false)
++
++  await app.close()
++  t.assert.equal(disposed, true)
++})
++
++test('addHook onClose prefers Symbol.asyncDispose over Symbol.dispose when both are present', async t => {
++  const app = Fastify()
++  let asyncDisposed = false
++  let syncDisposed = false
++
++  const resource = {
++    async [Symbol.asyncDispose] () {
++      asyncDisposed = true
++    },
++    [Symbol.dispose] () {
++      syncDisposed = true
++    }
++  }
++
++  app.addHook('onClose', resource)
++  await app.ready()
++  await app.close()
++
++  t.assert.equal(asyncDisposed, true)
++  t.assert.equal(syncDisposed, false)
++})
++
++test('addHook onClose propagates rejection from Symbol.asyncDispose', async t => {
++  const app = Fastify()
++  const customError = new Error('dispose async failed')
++
++  const resource = {
++    async [Symbol.asyncDispose] () {
++      throw customError
++    }
++  }
++
++  app.addHook('onClose', resource)
++  await app.ready()
++
++  await t.assert.rejects(app.close(), {
++    message: 'dispose async failed'
++  })
++})
++
++test('addHook onClose ignores fulfillment value from Symbol.asyncDispose', async t => {
++  const app = Fastify()
++
++  const resource = {
++    async [Symbol.asyncDispose] () {
++      return 'OK'
++    }
++  }
++
++  app.addHook('onClose', resource)
++  await app.ready()
++
++  await t.assert.doesNotReject(app.close())
++})
++
++test('addHook onClose propagates thrown error from Symbol.dispose', async t => {
++  const app = Fastify()
++  const customError = new Error('dispose sync failed')
++
++  const resource = {
++    [Symbol.dispose] () {
++      throw customError
++    }
++  }
++
++  app.addHook('onClose', resource)
++  await app.ready()
++
++  await t.assert.rejects(app.close(), {
++    message: 'dispose sync failed'
++  })
++})
++
++test('addHook onClose respects plugin execution order for disposables', async t => {
++  const app = Fastify()
++  const order = []
++
++  app.register(function childPlugin (instance, opts, done) {
++    instance.addHook('onClose', {
++      async [Symbol.asyncDispose] () {
++        order.push('child')
++      }
++    })
++    done()
++  })
++
++  app.addHook('onClose', {
++    async [Symbol.asyncDispose] () {
++      order.push('parent')
++    }
++  })
++
++  await app.ready()
++  await app.close()
++
++  t.assert.deepStrictEqual(order, ['child', 'parent'])
++})
++
++test('addHook onClose throws FST_ERR_HOOK_INVALID_HANDLER when non-function non-disposable is passed', t => {
++  const app = Fastify()
++
++  t.assert.throws(() => {
++    app.addHook('onClose', 'not-a-function-or-disposable')
++  }, {
++    code: 'FST_ERR_HOOK_INVALID_HANDLER'
++  })
++
++  t.assert.throws(() => {
++    app.addHook('onClose', { someProp: 123 })
++  }, {
++    code: 'FST_ERR_HOOK_INVALID_HANDLER'
++  })
++})
+diff --git a/test/types/using.tst.ts b/test/types/using.tst.ts
+index 5c5869d3..e9eaf9d0 100644
+--- a/test/types/using.tst.ts
++++ b/test/types/using.tst.ts
+@@ -12,3 +12,23 @@ test("has 'Symbol.dispose'", async () => {
+   expect(app).type.toBeAssignableTo<FastifyInstance>()
+   expect(app[Symbol.asyncDispose]).type.toBe<() => Promise<undefined>>()
+ })
++
++test("addHook('onClose') accepts AsyncDisposable", () => {
++  const app = fastify()
++
++  const asyncDisposable: AsyncDisposable = {
++    async [Symbol.asyncDispose] () {}
++  }
++
++  expect(app.addHook('onClose', asyncDisposable)).type.toBeAssignableTo<FastifyInstance>()
++})
++
++test("addHook('onClose') accepts Disposable", () => {
++  const app = fastify()
++
++  const syncDisposable: Disposable = {
++    [Symbol.dispose] () {}
++  }
++
++  expect(app.addHook('onClose', syncDisposable)).type.toBeAssignableTo<FastifyInstance>()
++})
+diff --git a/types/instance.d.ts b/types/instance.d.ts
+index b0b31f7f..4820dff2 100644
+--- a/types/instance.d.ts
++++ b/types/instance.d.ts
+@@ -485,6 +485,10 @@ export interface FastifyInstance<
+   /**
+   * Triggered when fastify.close() is invoked to stop the server. It is useful when plugins need a "shutdown" event, for example to close an open connection to a database.
+   */
++  addHook(
++    name: 'onClose',
++    hook: AsyncDisposable | Disposable,
++  ): FastifyInstance<RawServer, RawRequest, RawReply, Logger, TypeProvider>;
+   addHook<
+     Fn extends onCloseHookHandler | onCloseAsyncHookHandler = onCloseHookHandler
+   >(

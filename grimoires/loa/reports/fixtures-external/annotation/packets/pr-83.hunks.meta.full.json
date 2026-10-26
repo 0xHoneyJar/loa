@@ -1,0 +1,108 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-83",
+  "hunk_count": 12,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "packages/runtime-core/src/renderer.ts",
+      "head_end": 94,
+      "head_start": 94,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "packages/runtime-core/src/renderer.ts",
+      "head_end": 1005,
+      "head_start": 1002,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H03": {
+      "cited_by": [],
+      "file": "packages/runtime-core/src/renderer.ts",
+      "head_end": 1015,
+      "head_start": 1015,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H04": {
+      "cited_by": [],
+      "file": "packages/runtime-core/src/renderer.ts",
+      "head_end": 1269,
+      "head_start": 1269,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H05": {
+      "cited_by": [],
+      "file": "packages/runtime-core/src/renderer.ts",
+      "head_end": 1311,
+      "head_start": 1311,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H06": {
+      "cited_by": [],
+      "file": "packages/runtime-core/src/renderer.ts",
+      "head_end": 1325,
+      "head_start": 1325,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H07": {
+      "cited_by": [],
+      "file": "packages/runtime-core/src/renderer.ts",
+      "head_end": 2309,
+      "head_start": 2292,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H08": {
+      "cited_by": [],
+      "file": "packages/runtime-core/src/renderer.ts",
+      "head_end": 2324,
+      "head_start": 2323,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H09": {
+      "cited_by": [],
+      "file": "packages/runtime-core/src/renderer.ts",
+      "head_end": 2331,
+      "head_start": 2331,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H10": {
+      "cited_by": [],
+      "file": "packages/runtime-core/src/renderer.ts",
+      "head_end": 2338,
+      "head_start": 2336,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H11": {
+      "cited_by": [],
+      "file": "packages/vue-compat/__tests__/instance.spec.ts",
+      "head_end": 5,
+      "head_start": 5,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H12": {
+      "cited_by": [],
+      "file": "packages/vue-compat/__tests__/instance.spec.ts",
+      "head_end": 444,
+      "head_start": 444,
+      "insertion": true,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [],
+  "incidents": "incidents/pr-83.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

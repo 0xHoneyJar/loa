@@ -1,0 +1,20 @@
+{
+  "hunks": {
+    "H01": {"verdict": "not-defect", "not_defect_class": "docs", "group": null,
+            "file": "packages/vite/src/node/server/middlewares/indexHtml.ts", "anchor_lines": [],
+            "description": "Adds a comment explaining why the fallback page declares a charset; the behaviour change is in H02.",
+            "severity": null, "category": null},
+    "H02": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "packages/vite/src/node/server/middlewares/indexHtml.ts", "anchor_lines": [571, 572, 573, 574],
+            "description": "The fallback HTML page has no <meta charset> declaration, so browsers may decode the inlined non-ASCII HMR runtime with a legacy encoding and corrupt the inline module script.",
+            "severity": "medium", "category": "logic"}
+  },
+  "incidents": {
+    "I01": {"verdict": "not-at-head", "group": null, "file": "packages/vite/src/node/plugins/resolve.ts",
+            "anchor_lines": [], "description": "Adds a new feature (imports keys containing multiple `#`) in resolve.ts; nothing shown ties this to head code of the change.", "severity": null},
+    "I02": {"verdict": "not-at-head", "group": null, "file": "packages/vite/src/node/plugins/resolve.ts",
+            "anchor_lines": [], "description": "Adds a convertExternalRequire option for ssr webworker builds; nothing shown ties this to head code of the change.", "severity": null},
+    "I03": {"verdict": "not-at-head", "group": null, "file": "packages/vite/src/node/plugins/resolve.ts",
+            "anchor_lines": [], "description": "Passes isBundled to resolve options for bundled dev; nothing shown ties this to head code of the change.", "severity": null}
+  }
+}

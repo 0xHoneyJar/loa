@@ -1,0 +1,18 @@
+{
+  "hunks": {
+    "H01": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "packages/runtime-dom/__tests__/patchAttrs.spec.ts", "anchor_lines": [],
+            "description": "Adds client-side tests for disablepictureinpicture/disableremoteplayback boolean attributes.", "severity": null, "category": null},
+    "H02": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "packages/server-renderer/__tests__/ssrRenderAttrs.spec.ts", "anchor_lines": [],
+            "description": "Adds SSR tests for media boolean attributes.", "severity": null, "category": null},
+    "H03": {"verdict": "not-defect", "not_defect_class": "docs", "group": null,
+            "file": "packages/shared/src/domAttrConfig.ts", "anchor_lines": [],
+            "description": "Documents the two new special boolean attributes in the comment list.", "severity": null, "category": null},
+    "H04": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "packages/shared/src/domAttrConfig.ts", "anchor_lines": [15, 22, 23],
+            "description": "specialBooleanAttrs omits disablepictureinpicture and disableremoteplayback, so setting them to false still renders the attribute (client patch and SSR) instead of removing/omitting it.",
+            "severity": "medium", "category": "logic"}
+  },
+  "incidents": {}
+}

@@ -1,0 +1,3 @@
+{
+ "H07": {"base": "A", "verdict": "defect", "group": "D1", "anchors": "union", "severity": "high", "category": "logic", "reason": "agreed defect, group, severity, category and description (removing a Fragment that carries a transition bypasses the leave transition and afterLeave); anchors: union — A anchors the whole remove branch 2292-2310, B skips the lines inside the DEV-only root-fragment path; both sets end at the same hunk"}
+}

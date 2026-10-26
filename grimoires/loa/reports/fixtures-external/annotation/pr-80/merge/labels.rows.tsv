@@ -1,0 +1,4 @@
+# approved-by: pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	low	contract	types/instance.d.ts	addresses(): AddressInfo[]	fix-commit	hunk:H01	A,B	agreed	-	false
+F001	-	fix	types/instance.d.ts	addresses(): AddressInfo[]	fix	fix/ce41dc0fbb4e:133-133	-	-	-	-

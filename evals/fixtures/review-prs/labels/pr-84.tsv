@@ -1,0 +1,6 @@
+# approved-by: pending
+# fixture pr-84 | external https://github.com/biomejs/biome pull request #12540 | base 0be8d10cd226 | head 5df6c5088cf5 | fix 5699601ea942..5699601ea942
+# seeded by evals/harness/seed-corpus-from-external.sh; defects V01 … from the blind annotation (two Opus 5.5 annotators, annotation_merge.py; label_source fix-commit, review_driven false), fix rows carried; approval pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	medium	logic	crates/biome_js_syntax/src/parentheses/expression.rs	object_chain.any(|object| matches!(object, AnyJsExpression::JsCallExpression(_)))	fix-commit	hunk:H01	A,B	agreed	-	false
+F001	-	fix	crates/biome_js_syntax/src/parentheses/expression.rs	object_chain.any(|object| matches!(object, AnyJsExpression::JsCallExpression(_)))	fix	fix/5699601ea942:960-960	-	-	-	-

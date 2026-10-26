@@ -1,0 +1,20 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-80",
+  "hunk_count": 1,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "types/instance.d.ts",
+      "head_end": 133,
+      "head_start": 133,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [],
+  "incidents": "incidents/pr-80.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

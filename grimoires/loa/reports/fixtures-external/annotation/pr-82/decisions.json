@@ -1,0 +1,3 @@
+{
+ "H04": {"base": "A", "verdict": "defect", "group": "D1", "anchors": "union", "severity": "medium", "category": "logic", "reason": "agreed defect, group, severity, category and description (disablepictureinpicture / disableremoteplayback missing from the boolean-attribute lists, so false renders the attribute); anchors: union — A adds 24-26, the rest of the list where the two names belong"}
+}

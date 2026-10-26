@@ -1,0 +1,17 @@
+commit 4260c756944a430e897f689efcfa4f8648953488
+Date: 2026-10-22T14:25:17+08:00
+
+fix(bundled-dev): allow named imports from Node built-ins (#23858)
+
+diff --git a/packages/vite/src/node/plugins/resolve.ts b/packages/vite/src/node/plugins/resolve.ts
+index c4048dbedb..0058af15b0 100644
+--- a/packages/vite/src/node/plugins/resolve.ts
++++ b/packages/vite/src/node/plugins/resolve.ts
+@@ -260,6 +260,7 @@ export function oxcResolvePlugin(
+           tsconfig: partialEnv.config.tsconfig,
+           resolveOptions: {
+             isBuild: options.isBuild,
++            isBundled: partialEnv.config.isBundled,
+             isProduction: options.isProduction,
+             asSrc: options.asSrc ?? false,
+             preferRelative: options.preferRelative ?? false,

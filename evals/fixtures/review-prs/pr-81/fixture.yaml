@@ -1,0 +1,34 @@
+name: pr-81
+version: "1.0.0"
+language: "shell"
+runtime: none
+dependency_strategy: none
+description: "external fixture: bats-core/bats-core pull request #1240 reviewed at its head (pre-fix); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: external
+deprecated: false
+kind: external
+source_url: "https://github.com/bats-core/bats-core"
+pr: 1240
+pr_url: "https://github.com/bats-core/bats-core/pull/1240"
+pr_created: "2026-08-17"
+pr_merged: "2026-09-05"
+base_commit: "ae4b94d7cc35f62468297791aa4ab8c3af7377ba"
+pr_base_sha: "ae4b94d7cc35f62468297791aa4ab8c3af7377ba"
+head_commit: "2dd6ab7335d0602c666c94b3e92053b20881cb63"
+merge_commit: "ddfefa0f62be102c63bbbdb942759782dd35305c"
+fix_commit: "62edb3cbdcf07edb4b84ffc15e1baeac4d43d015"
+fix_first: "62edb3cbdcf07edb4b84ffc15e1baeac4d43d015"
+fix_parent: "ddfefa0f62be102c63bbbdb942759782dd35305c"
+fix_committed: "2026-09-05"
+fix_after_cutoff:
+  fable_5_1: true      # knowledge cutoff 2026-06
+incident: null
+licence: "MIT"
+visibility: public
+trees: committed
+exposure:
+  fable_5_1: post-cutoff      # knowledge cutoff 2026-06; head committed 2026-08-17 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-08-17; sandbox has network; egress scanned (grader class 9)"

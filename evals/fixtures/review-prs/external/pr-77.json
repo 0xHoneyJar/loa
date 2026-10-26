@@ -1,0 +1,93 @@
+{
+  "base_commit": "13ce29b6056e9254eca33f4bead11b5ddcba5c86",
+  "files": {
+    "base": [
+      {
+        "blob": "8c1dfd38b4b721ddf73882d16c67bbb03e97d7a7",
+        "path": "cli/tools/installer/local.rs",
+        "sha256": "e62862e9e4dbee91e2d3ee5b615098aff5615512186952952ded55d23942f2e7",
+        "size": 16314
+      },
+      {
+        "blob": "65f2ae855228422d22473406fc0a5cc8fa93581c",
+        "path": "cli/tools/installer/npm_compat.rs",
+        "sha256": "eee1c3d91f1c95fd37c04d6fb1239902a45274a0350c3f8c181d443cc50672c7",
+        "size": 55133
+      },
+      {
+        "blob": "2759c06b8c25782248eca9d3f96d9f96436b42b7",
+        "path": "cli/tsc/tsconfig_gen.rs",
+        "sha256": "5c8fe65d593abcb9e554977c2b8fa98692a7a6521361a419da4636b7882c3bc6",
+        "size": 97039
+      },
+      {
+        "blob": "da765812a73c4765c7d8e1a3b7e8b96043b9f256",
+        "path": "tests/specs/check/wasm_multi_value/__test__.jsonc",
+        "sha256": "dab06fa3e279a11e649abddd902133a98de2ef4fbe6e85727007914efb610122",
+        "size": 325
+      },
+      {
+        "blob": "c1c0b21d0b6999dc961d934ea9e790dc2928cddc",
+        "path": "tests/specs/check/wasm_multi_value/check.out",
+        "sha256": "8c8eeb03844f8cd5082b4276f41bc2de350fefaea405a82251dffb878bcb2cae",
+        "size": 288
+      }
+    ],
+    "head": [
+      {
+        "blob": "5fb10db6d63ad886f6fd444bc2eadc66cc5d76f7",
+        "path": "cli/tools/installer/local.rs",
+        "sha256": "6a8182670a16cdab5f8ef6755356e6457f8ad388747e571a868e41ccc33f8c25",
+        "size": 17503
+      },
+      {
+        "blob": "474937c8e72e0970e4eee87a19425304e013bb86",
+        "path": "cli/tools/installer/npm_compat.rs",
+        "sha256": "cce2ecf53c37e7efd270badd9917dcd0ecab1b56ff835fb7b5e0aa372b35b0de",
+        "size": 58236
+      },
+      {
+        "blob": "0a38a4ae426101dd965735df25935dc16ef54894",
+        "path": "cli/tsc/tsconfig_gen.rs",
+        "sha256": "1a87fd48aee30ed60ec6e827a4228d02e8fd5f85851a12a82c00e17f108e2bf2",
+        "size": 98383
+      },
+      {
+        "blob": "25b1a7c32495066952f32963eda96a76c04b3c19",
+        "path": "tests/specs/check/wasm_multi_value/__test__.jsonc",
+        "sha256": "ec3a86f472870b588941043e1b7884e1b2085a34044c10814313f6ef4b9d35ea",
+        "size": 72
+      },
+      {
+        "blob": "8b484e038d0c81d5629664aeb3cf92f9ad54de01",
+        "path": "tests/specs/check/wasm_multi_value/check.out",
+        "sha256": "ecac52dbb3cb0708784a62526c9b68ab9cdfd6ad29707057b8b56359f3827702",
+        "size": 223
+      }
+    ]
+  },
+  "fix_commit": "461f32ec6174d88b7e43654a054d46d67ae2fdab",
+  "fix_first": "461f32ec6174d88b7e43654a054d46d67ae2fdab",
+  "fix_parent": "abd22074e47c6a5cd14e9e4e84743f084aa5a575",
+  "fixture": "pr-77",
+  "head_commit": "00201bf6009716226d5cde0ae8fc1b65baac6e83",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "b641c75c0b04ccfddcb1145d2554ab49b6ca9411",
+      "path": "LICENSE.md",
+      "sha256": "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588",
+      "size": 1074
+    }
+  ],
+  "merge_commit": "8fd04bc412a4d86efde93336110941fd48178aee",
+  "pr": 36178,
+  "pr_base_sha": "5419c0218de9b73941f5db3f26f4da10b20f736a",
+  "pr_url": "https://github.com/denoland/deno/pull/36178",
+  "schema_version": 1,
+  "scope_paths": null,
+  "skipped": [],
+  "source_url": "https://github.com/denoland/deno",
+  "trees": "committed",
+  "visibility": "public"
+}

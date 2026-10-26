@@ -1,0 +1,158 @@
+diff --git a/ext/napi/function.rs b/ext/napi/function.rs
+index 1182988de..35231f783 100644
+--- a/ext/napi/function.rs
++++ b/ext/napi/function.rs
+@@ -57,6 +57,9 @@ extern "C" fn call_fn(info: *const v8::FunctionCallbackInfo) {
+     v8::callback_scope!(unsafe scope, v8_callback_info);
+     let exc = v8::Local::new(scope, exc);
+     scope.throw_exception(exc);
++    // Like Node, ignore the return value while an exception is pending.
++    // Addons can return an invalid napi_value after throwing.
++    return;
+   }
+   if let Some(value) = *value {
+     rv.set(value);
+diff --git a/ext/napi/js_native_api.rs b/ext/napi/js_native_api.rs
+index dc8193df9..09f7284db 100644
+--- a/ext/napi/js_native_api.rs
++++ b/ext/napi/js_native_api.rs
+@@ -3975,12 +3975,13 @@ fn napi_create_dataview<'s>(
+ 
+   if byte_length + byte_offset > buffer.byte_length() {
+     unsafe {
+-      return napi_throw_range_error(
++      napi_throw_range_error(
+           env,
+           c"ERR_NAPI_INVALID_DATAVIEW_ARGS".as_ptr(),
+           c"byte_offset + byte_length should be less than or equal to the size in bytes of the array passed in".as_ptr(),
+         );
+     }
++    return napi_pending_exception;
+   }
+ 
+   v8::callback_scope!(unsafe scope, env.context());
+diff --git a/tests/napi/dataview_test.js b/tests/napi/dataview_test.js
+index a6506ddff..0564942f2 100644
+--- a/tests/napi/dataview_test.js
++++ b/tests/napi/dataview_test.js
+@@ -13,3 +13,8 @@ Deno.test("napi is_dataview", function () {
+   const result = lib.test_is_dataview();
+   assertEquals(result, true);
+ });
++
++Deno.test("napi create_dataview out of range returns napi_pending_exception", function () {
++  // [status, exception pending, result set]; 10 is napi_pending_exception
++  assertEquals(lib.test_dataview_out_of_range(), [10, true, false]);
++});
+diff --git a/tests/napi/exception_test.js b/tests/napi/exception_test.js
+index 0d6450e79..ac870a5ff 100644
+--- a/tests/napi/exception_test.js
++++ b/tests/napi/exception_test.js
+@@ -1,6 +1,6 @@
+ // Copyright 2018-2026 the Deno authors. MIT license.
+ 
+-import { assertEquals, loadTestLibrary } from "./common.js";
++import { assertEquals, assertThrows, loadTestLibrary } from "./common.js";
+ 
+ const lib = loadTestLibrary();
+ 
+@@ -20,3 +20,11 @@ Deno.test("napi exception propagation through call_function", function () {
+   });
+   assertEquals(result, "thrown from js");
+ });
++
++Deno.test("napi return value is ignored while an exception is pending", function () {
++  assertThrows(
++    () => lib.test_throw_return_invalid(),
++    Error,
++    "thrown before return",
++  );
++});
+diff --git a/tests/napi/src/dataview.rs b/tests/napi/src/dataview.rs
+index d9b78a311..fdd81fae4 100644
+--- a/tests/napi/src/dataview.rs
++++ b/tests/napi/src/dataview.rs
+@@ -82,10 +82,48 @@ extern "C" fn test_is_dataview(
+   result
+ }
+ 
++/// Test napi_create_dataview past the end of the buffer: it throws a
++/// RangeError, returns napi_pending_exception and leaves the result unset.
++/// Returns [status, exception pending, result set] after clearing the error.
++extern "C" fn test_dataview_out_of_range(
++  env: napi_env,
++  _info: napi_callback_info,
++) -> napi_value {
++  let mut ab: napi_value = ptr::null_mut();
++  let mut ab_data: *mut std::ffi::c_void = ptr::null_mut();
++  assert_napi_ok!(napi_create_arraybuffer(env, 16, &mut ab_data, &mut ab));
++
++  let mut dv: napi_value = ptr::null_mut();
++  let status = unsafe { napi_create_dataview(env, 8, ab, 12, &mut dv) };
++
++  let mut is_pending = false;
++  let mut exception: napi_value = ptr::null_mut();
++  unsafe {
++    napi_is_exception_pending(env, &mut is_pending);
++    napi_get_and_clear_last_exception(env, &mut exception);
++  }
++
++  let mut result: napi_value = ptr::null_mut();
++  assert_napi_ok!(napi_create_array_with_length(env, 3, &mut result));
++  let mut value: napi_value = ptr::null_mut();
++  assert_napi_ok!(napi_create_int32(env, status, &mut value));
++  assert_napi_ok!(napi_set_element(env, result, 0, value));
++  assert_napi_ok!(napi_get_boolean(env, is_pending, &mut value));
++  assert_napi_ok!(napi_set_element(env, result, 1, value));
++  assert_napi_ok!(napi_get_boolean(env, !dv.is_null(), &mut value));
++  assert_napi_ok!(napi_set_element(env, result, 2, value));
++  result
++}
++
+ pub fn init(env: napi_env, exports: napi_value) {
+   let properties = &[
+     napi_new_property!(env, "test_dataview", test_dataview),
+     napi_new_property!(env, "test_is_dataview", test_is_dataview),
++    napi_new_property!(
++      env,
++      "test_dataview_out_of_range",
++      test_dataview_out_of_range
++    ),
+   ];
+ 
+   assert_napi_ok!(napi_define_properties(
+diff --git a/tests/napi/src/exception.rs b/tests/napi/src/exception.rs
+index 38f154a00..fae34f9f9 100644
+--- a/tests/napi/src/exception.rs
++++ b/tests/napi/src/exception.rs
+@@ -119,6 +119,18 @@ extern "C" fn test_exception_from_call(
+   msg_val
+ }
+ 
++/// Throw, then return an invalid napi_value. Node ignores the return value
++/// while an exception is pending, so the call must throw, not crash.
++extern "C" fn test_throw_return_invalid(
++  env: napi_env,
++  _info: napi_callback_info,
++) -> napi_value {
++  unsafe {
++    napi_throw_error(env, ptr::null(), c"thrown before return".as_ptr());
++  }
++  0xFFFFFFFFF as napi_value
++}
++
+ pub fn init(env: napi_env, exports: napi_value) {
+   let properties = &[
+     napi_new_property!(env, "test_exception_pending", test_exception_pending),
+@@ -132,6 +144,11 @@ pub fn init(env: napi_env, exports: napi_value) {
+       "test_exception_from_call",
+       test_exception_from_call
+     ),
++    napi_new_property!(
++      env,
++      "test_throw_return_invalid",
++      test_throw_return_invalid
++    ),
+   ];
+ 
+   assert_napi_ok!(napi_define_properties(

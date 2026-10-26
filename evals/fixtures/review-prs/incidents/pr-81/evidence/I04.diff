@@ -1,0 +1,25 @@
+commit 7f8f54775357e7707b0fc52893a7b3a76e669d8f
+Date: 2026-09-23T02:06:08+05:00
+
+fix: color summary red when tests did not run
+
+Review feedback: not run counts as a failure, so it gets the same red
+summary as failures and timeouts instead of a separate yellow.
+
+Also reference this PR in the changelog entry so the changelog check
+passes.
+
+
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+index dab4505..8fbaa45 100644
+--- a/docs/CHANGELOG.md
++++ b/docs/CHANGELOG.md
+@@ -26,7 +26,7 @@ The format is based on [Keep a Changelog][kac] and this project adheres to
+ * `bats_encode_test_name()` used the locale-dependent `[[:alnum:]]` character class, causing test names with non-ASCII characters to be silently skipped under some locales (#1236)
+ * normalize BATS_ROOT from PowerShell on Windows (#1257)
+ * normalize BATS_LIB_PATH from PowerShell on Windows (#1258)
+-* pretty formatter colored the summary green when tests timed out or did not run (#538)
++* pretty formatter colored the summary green when tests timed out or did not run (#538, #1263)
+ 
+ ### Changed
+ 

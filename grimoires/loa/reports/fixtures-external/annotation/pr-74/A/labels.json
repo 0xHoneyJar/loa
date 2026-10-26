@@ -1,0 +1,17 @@
+{
+  "hunks": {
+    "H01": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "packages/vite/src/node/plugins/css.ts", "anchor_lines": [],
+            "description": "Imports decodeURIIfPossible needed by the H02 fix.", "severity": null, "category": null},
+    "H02": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "packages/vite/src/node/plugins/css.ts", "anchor_lines": [397],
+            "description": "decodeURI throws a URIError on CSS urls containing a bare `%` not starting an escape sequence (e.g. url(100%.png)), crashing the CSS transform instead of keeping the url as is.",
+            "severity": "medium", "category": "error-handling"}
+  },
+  "incidents": {
+    "I01": {"verdict": "not-at-head", "group": null, "file": "packages/vite/src/node/plugins/css.ts",
+            "anchor_lines": [], "description": "Concerns chunk import map handling in cssPostPlugin, code not shown in the head packet; cannot attribute it to the head change.", "severity": null},
+    "I02": {"verdict": "not-at-head", "group": null, "file": "packages/vite/src/node/plugins/css.ts",
+            "anchor_lines": [], "description": "Concerns environment-specific build.sourcemap in cssPostPlugin, unrelated to the url-decoding code of this change and not shown at head.", "severity": null}
+  }
+}

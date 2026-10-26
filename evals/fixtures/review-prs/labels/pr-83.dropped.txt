@@ -1,0 +1,5 @@
+# pr-83 external https://github.com/vuejs/core #15757: files and hunks that did not become fix regions
+packages/runtime-core/__tests__/components/BaseTransition.spec.ts: the fix touches it but the PR did not change it; no fix region
+packages/runtime-core/src/components/BaseTransition.ts: the fix touches it but the PR did not change it; no fix region
+packages/vue/__tests__/e2e/Transition.spec.ts: the fix touches it but the PR did not change it; no fix region
+packages/vue/__tests__/index.spec.ts: the fix touches it but the PR did not change it; no fix region

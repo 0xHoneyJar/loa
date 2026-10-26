@@ -1,0 +1,2 @@
+# pr-80 external https://github.com/fastify/fastify #7121: files and hunks that did not become fix regions
+test/types/instance.tst.ts: the fix touches it but the PR did not change it; no fix region

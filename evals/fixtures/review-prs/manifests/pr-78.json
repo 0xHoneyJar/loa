@@ -1,0 +1,57 @@
+{
+  "fixture": "pr-78",
+  "label_set": "v2",
+  "approved": false,
+  "approved_by": "pending",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "7f16cfe3e3c4027206cd94b0c1d0e1ca90537680",
+    "fix_commit": "5c081d4b7237f0eb2db9f1204dc6400e3aa1325e",
+    "incidents_meta": {
+      "main_sha": "5df959f3af698823dd582f1c3661f3e80df0b5da"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "lib/reply.js",
+      "anchor_line": 283,
+      "anchors": [
+        283,
+        285,
+        288
+      ],
+      "must_match": "Array.prototype.push.apply(this[kReplyHeaders][key], value)",
+      "severity": "high",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
+      "source_commit": "7f16cfe3",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "lib/reply.js",
+      "start": 286,
+      "end": 286,
+      "source": "fix/5c081d4b7237:286-286"
+    },
+    {
+      "id": "F002",
+      "file": "test/internals/reply.test.js",
+      "start": 1005,
+      "end": 1005,
+      "source": "fix/5c081d4b7237:1005-1005"
+    }
+  ]
+}

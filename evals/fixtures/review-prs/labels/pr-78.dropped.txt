@@ -1,0 +1,1 @@
+# pr-78 external https://github.com/fastify/fastify #7054: files and hunks that did not become fix regions

@@ -1,0 +1,105 @@
+{
+  "base_commit": "1b48a20f85a8164aebe4fb29ae53909136a3d777",
+  "files": {
+    "base": [
+      {
+        "blob": "1182988ded468274bc3efbc3e39281d6a9396ad8",
+        "path": "ext/napi/function.rs",
+        "sha256": "aee73b958fb90a8617629190f534aa55034c557eae9ffc107e18981b668894e0",
+        "size": 2711
+      },
+      {
+        "blob": "dc8193df977f329b04c2050d18760834fbeaefbc",
+        "path": "ext/napi/js_native_api.rs",
+        "sha256": "f88ead2354a23e5e0cceeec20d727f97bcc709da5fd58c15fc9f15a9a37eb27b",
+        "size": 104001
+      },
+      {
+        "blob": "a6506ddff222ddf6b87b66c81b806ca47fe9b3f0",
+        "path": "tests/napi/dataview_test.js",
+        "sha256": "c0fb530a9726f6e6289bc7c4a995595301051baac4a98fe7fd2717727ba8f7d7",
+        "size": 416
+      },
+      {
+        "blob": "0d6450e79735d506a33a3963607fcb1e0b4c3d1d",
+        "path": "tests/napi/exception_test.js",
+        "sha256": "9ba04acaddcf11b51e5c3758cc112617305fac6b47a998590e9c7304567e8d0a",
+        "size": 703
+      },
+      {
+        "blob": "d9b78a3110a548846c8de9dafaf5138cd1aaa0ab",
+        "path": "tests/napi/src/dataview.rs",
+        "sha256": "45863a8805fa1f90da7c010665f1508fade05e67076cb04f900b22c628262864",
+        "size": 2656
+      },
+      {
+        "blob": "38f154a0029a09d4899611ee07eb856c047a618e",
+        "path": "tests/napi/src/exception.rs",
+        "sha256": "fbf845a6754a48c00537d5565aeaa2de98cd84415b91f0ee5e6200786bd9e43d",
+        "size": 3664
+      }
+    ],
+    "head": [
+      {
+        "blob": "35231f78304c60d48469e08492eafcf0a1df7aa7",
+        "path": "ext/napi/function.rs",
+        "sha256": "fe88878e1e32ac82eb8ebd4f95b8fcfc481311f67a2e00acdd83acfde6dbdc97",
+        "size": 2859
+      },
+      {
+        "blob": "09f7284db0ec23be1389b0efc910644ccca68fd1",
+        "path": "ext/napi/js_native_api.rs",
+        "sha256": "6e03d7b475bd8c6131aa9c2c0a9a2bcbc9d669e31c70d441e1ad2340c83ff42c",
+        "size": 104029
+      },
+      {
+        "blob": "0564942f268f5ccc8068aa74b7e7800da29dd358",
+        "path": "tests/napi/dataview_test.js",
+        "sha256": "163cb73c938ded1f3ce05cf38a70125440162533448b60ff82d22382cd608f2e",
+        "size": 657
+      },
+      {
+        "blob": "ac870a5ff71834675bb7990958464614ec948233",
+        "path": "tests/napi/exception_test.js",
+        "sha256": "9b48e11e9e09a19057127e3d7bab532b8f0d28f6220510f07488fb1c6c2506a1",
+        "size": 911
+      },
+      {
+        "blob": "fdd81fae426f8ed1e7344ecbed20531c2201a238",
+        "path": "tests/napi/src/dataview.rs",
+        "sha256": "373644e0799cba770c93807601540c0e0efd1954e770b68688d1fab35190db46",
+        "size": 4162
+      },
+      {
+        "blob": "fae34f9f9470dee1e551ccedbf640078e4bbf21c",
+        "path": "tests/napi/src/exception.rs",
+        "sha256": "04da8b91584aee73a16f098b484fb38804a268abe79b20d651c6515cdf5648ef",
+        "size": 4144
+      }
+    ]
+  },
+  "fix_commit": "ead2af980a19edb0d0ffc8d24ecc51c0281a3dfa",
+  "fix_first": "ead2af980a19edb0d0ffc8d24ecc51c0281a3dfa",
+  "fix_parent": "94e7a1601e5333f545aa86f94a65b42cb428093a",
+  "fixture": "pr-76",
+  "head_commit": "452b3af97cad11e68c2fdb94bf82e6326cbb3a2b",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "b641c75c0b04ccfddcb1145d2554ab49b6ca9411",
+      "path": "LICENSE.md",
+      "sha256": "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588",
+      "size": 1074
+    }
+  ],
+  "merge_commit": "17410fd868dd3e7c0a6766e0dd9bc9a37d4da44f",
+  "pr": 36942,
+  "pr_base_sha": "b4f08f127652d8442b4d3dbabc277aca3840bc1d",
+  "pr_url": "https://github.com/denoland/deno/pull/36942",
+  "schema_version": 1,
+  "scope_paths": null,
+  "skipped": [],
+  "source_url": "https://github.com/denoland/deno",
+  "trees": "committed",
+  "visibility": "public"
+}

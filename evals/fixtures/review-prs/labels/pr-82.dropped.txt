@@ -1,0 +1,1 @@
+# pr-82 external https://github.com/vuejs/core #15627: files and hunks that did not become fix regions

@@ -1,0 +1,98 @@
+{
+  "fixture": "pr-76",
+  "label_set": "v2",
+  "approved": false,
+  "approved_by": "pending",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "452b3af97cad11e68c2fdb94bf82e6326cbb3a2b",
+    "fix_commit": "ead2af980a19edb0d0ffc8d24ecc51c0281a3dfa",
+    "incidents_meta": {
+      "main_sha": "6e9f66f5dca58c594a7c23c5f1107103045be8d2"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "ext/napi/js_native_api.rs",
+      "anchor_line": 3976,
+      "anchors": [
+        3976,
+        3988
+      ],
+      "must_match": "if byte_length + byte_offset > buffer.byte_length() {",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
+      "source_commit": "452b3af9",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "agreed defect, group, anchors, severity and description (byte_length + byte_offset can overflow usize, so the bounds check passes and an out-of-bounds DataView is created over the ArrayBuffer); category: the codebook's one word names the kind of defect \u2014 a bypassable bounds check in native-API code whose consequence is an out-of-bounds view (memory unsafety) is a security defect (A); input-validation (B) describes the mechanism, not the harm",
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "ext/napi/js_native_api.rs",
+      "start": 3976,
+      "end": 3976,
+      "source": "fix/ead2af980a19:3976-3976"
+    },
+    {
+      "id": "F002",
+      "file": "tests/napi/dataview_test.js",
+      "start": 20,
+      "end": 20,
+      "source": "fix/ead2af980a19:20-20"
+    },
+    {
+      "id": "F003",
+      "file": "tests/napi/src/dataview.rs",
+      "start": 85,
+      "end": 86,
+      "source": "fix/ead2af980a19:85-86"
+    },
+    {
+      "id": "F004",
+      "file": "tests/napi/src/dataview.rs",
+      "start": 88,
+      "end": 88,
+      "source": "fix/ead2af980a19:88-88"
+    },
+    {
+      "id": "F005",
+      "file": "tests/napi/src/dataview.rs",
+      "start": 90,
+      "end": 90,
+      "source": "fix/ead2af980a19:90-90"
+    },
+    {
+      "id": "F006",
+      "file": "tests/napi/src/dataview.rs",
+      "start": 97,
+      "end": 97,
+      "source": "fix/ead2af980a19:97-97"
+    },
+    {
+      "id": "F007",
+      "file": "tests/napi/src/dataview.rs",
+      "start": 117,
+      "end": 117,
+      "source": "fix/ead2af980a19:117-117"
+    },
+    {
+      "id": "F008",
+      "file": "tests/napi/src/dataview.rs",
+      "start": 126,
+      "end": 126,
+      "source": "fix/ead2af980a19:126-126"
+    }
+  ]
+}

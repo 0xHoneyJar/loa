@@ -1,0 +1,4 @@
+# pr-73 external https://github.com/vitejs/vite #23662: files and hunks that did not become fix regions
+packages/vite/src/node/__tests__/build.spec.ts: the fix touches it but the PR did not change it; no fix region
+packages/vite/src/node/plugins/css.ts: the fix touches it but the PR did not change it; no fix region
+packages/vite/src/node/plugins/html.ts: the fix touches it but the PR did not change it; no fix region

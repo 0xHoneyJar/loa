@@ -1,0 +1,245 @@
+import {
+  ssrRenderAttr,
+  ssrRenderAttrs,
+  ssrRenderClass,
+  ssrRenderStyle,
+} from '../src/helpers/ssrRenderAttrs'
+import { escapeHtml } from '@vue/shared'
+
+describe('ssr: renderAttrs', () => {
+  test('ignore reserved props', () => {
+    expect(
+      ssrRenderAttrs({
+        key: 1,
+        ref_key: 'foo',
+        ref_for: 'bar',
+        ref: () => {},
+        onClick: () => {},
+      }),
+    ).toBe('')
+  })
+
+  test('normal attrs', () => {
+    expect(
+      ssrRenderAttrs({
+        id: 'foo',
+        title: 'bar',
+      }),
+    ).toBe(` id="foo" title="bar"`)
+  })
+
+  test('empty value attrs', () => {
+    expect(
+      ssrRenderAttrs({
+        'data-v-abc': '',
+      }),
+    ).toBe(` data-v-abc`)
+  })
+
+  test('escape attrs', () => {
+    expect(
+      ssrRenderAttrs({
+        id: '"><script',
+      }),
+    ).toBe(` id="&quot;&gt;&lt;script"`)
+  })
+
+  test('boolean attrs', () => {
+    expect(
+      ssrRenderAttrs({
+        checked: true,
+        multiple: false,
+        readonly: 0,
+        disabled: '',
+      }),
+    ).toBe(` checked disabled`) // boolean attr w/ false should be ignored
+  })
+
+  test('hidden enumerated attribute', () => {
+    expect(ssrRenderAttrs({ hidden: true })).toBe(` hidden`)
+    expect(ssrRenderAttrs({ disabled: true, hidden: false })).toBe(` disabled`)
+    expect(ssrRenderAttrs({ hidden: 'until-found' })).toBe(
+      ` hidden="until-found"`,
+    )
+    expect(ssrRenderAttrs({ hidden: '' })).toBe(` hidden`)
+    expect(ssrRenderAttrs({ hidden: 0 })).toBe(``)
+    expect(ssrRenderAttrs({ hidden: NaN })).toBe(``)
+    expect(ssrRenderAttrs({ hidden: 1 })).toBe(` hidden`)
+    expect(ssrRenderAttrs({ hidden: '0' })).toBe(` hidden="0"`)
+  })
+
+  test('ignore falsy values', () => {
+    expect(
+      ssrRenderAttrs({
+        foo: false,
+        title: null,
+        baz: undefined,
+      }),
+    ).toBe(` foo="false"`) // non boolean should render `false` as is
+  })
+
+  test('ignore non-renderable values', () => {
+    expect(
+      ssrRenderAttrs({
+        foo: {},
+        bar: [],
+        baz: () => {},
+      }),
+    ).toBe(``)
+  })
+
+  test('props to attrs', () => {
+    expect(
+      ssrRenderAttrs({
+        readOnly: true, // simple lower case conversion
+        htmlFor: 'foobar', // special cases
+      }),
+    ).toBe(` readonly for="foobar"`)
+  })
+
+  test('preserve name on custom element', () => {
+    expect(
+      ssrRenderAttrs(
+        {
+          fooBar: 'ok',
+        },
+        'my-el',
+      ),
+    ).toBe(` fooBar="ok"`)
+  })
+
+  test('preserve name on svg elements', () => {
+    expect(
+      ssrRenderAttrs(
+        {
+          viewBox: 'foo',
+        },
+        'svg',
+      ),
+    ).toBe(` viewBox="foo"`)
+  })
+
+  test('ignore attr names containing carriage returns', () => {
+    expect(
+      ssrRenderAttrs({
+        id: 'safe',
+        ['x\rautofocus\ronfocus']: 'alert(1)',
+      }),
+    ).toBe(` id="safe"`)
+    expect(`unsafe attribute name`).toHaveBeenWarned()
+    expect(`Skipped rendering unsafe attribute name`).toHaveBeenWarned()
+  })
+})
+
+describe('ssr: renderAttr', () => {
+  test('basic', () => {
+    expect(ssrRenderAttr('foo', 'bar')).toBe(` foo="bar"`)
+  })
+
+  test('null and undefined', () => {
+    expect(ssrRenderAttr('foo', null)).toBe(``)
+    expect(ssrRenderAttr('foo', undefined)).toBe(``)
+  })
+
+  test('escape', () => {
+    expect(ssrRenderAttr('foo', '<script>')).toBe(
+      ` foo="${escapeHtml(`<script>`)}"`,
+    )
+  })
+})
+
+describe('ssr: renderClass', () => {
+  test('via renderProps', () => {
+    expect(
+      ssrRenderAttrs({
+        class: ['foo', 'bar'],
+      }),
+    ).toBe(` class="foo bar"`)
+  })
+
+  test('standalone', () => {
+    expect(ssrRenderClass(`foo`)).toBe(`foo`)
+    expect(ssrRenderClass([`foo`, `bar`])).toBe(`foo bar`)
+    expect(ssrRenderClass({ foo: true, bar: false })).toBe(`foo`)
+    expect(ssrRenderClass([{ foo: true, bar: false }, `baz`])).toBe(`foo baz`)
+  })
+
+  test('escape class values', () => {
+    expect(ssrRenderClass(`"><script`)).toBe(`&quot;&gt;&lt;script`)
+  })
+
+  test('className', () => {
+    expect(
+      ssrRenderAttrs({
+        className: 'foo',
+      }),
+    ).toBe(` class="foo"`)
+    expect(
+      ssrRenderAttrs({
+        className: ['foo', 'bar'],
+      }),
+    ).toBe(` class="foo,bar"`)
+  })
+})
+
+describe('ssr: renderStyle', () => {
+  test('via renderProps', () => {
+    expect(
+      ssrRenderAttrs({
+        style: {
+          color: 'red',
+          '--a': 2,
+          '-webkit-line-clamp': 1,
+        },
+      }),
+    ).toBe(` style="color:red;--a:2;-webkit-line-clamp:1;"`)
+  })
+
+  test('standalone', () => {
+    expect(ssrRenderStyle(`color:red`)).toBe(`color:red`)
+    expect(
+      ssrRenderStyle({
+        color: `red`,
+      }),
+    ).toBe(`color:red;`)
+    expect(
+      ssrRenderStyle([
+        { color: `red` },
+        { fontSize: `15px` }, // case conversion
+      ]),
+    ).toBe(`color:red;font-size:15px;`)
+  })
+
+  test('number handling', () => {
+    expect(
+      ssrRenderStyle({
+        fontSize: null, // invalid value should be ignored
+        opacity: 0.5,
+      }),
+    ).toBe(`opacity:0.5;`)
+  })
+
+  test('escape inline CSS', () => {
+    expect(ssrRenderStyle(`"><script`)).toBe(`&quot;&gt;&lt;script`)
+    expect(
+      ssrRenderStyle({
+        color: `"><script`,
+      }),
+    ).toBe(`color:&quot;&gt;&lt;script;`)
+  })
+
+  test('useCssVars handling', () => {
+    expect(
+      ssrRenderStyle({
+        fontSize: null,
+        ':--v1': undefined,
+        ':--v2': null,
+        ':--v3': '',
+        ':--v4': '  ',
+        ':--v5': 'foo',
+        ':--v6': 0,
+        '--foo': 1,
+      }),
+    ).toBe(`--v1:initial;--v2:initial;--v3: ;--v4:  ;--v5:foo;--v6:0;--foo:1;`)
+  })
+})

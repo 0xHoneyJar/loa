@@ -1,0 +1,45 @@
+{
+  "fixture": "pr-84",
+  "label_set": "v2",
+  "approved": false,
+  "approved_by": "pending",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "5df6c5088cf5996710fc6ee0f809aeefc2e4d03e",
+    "fix_commit": "5699601ea942b35b8fe9b17ee61faaef2346a34d",
+    "incidents_meta": {
+      "main_sha": "f36b09883c6272e4d6b98a33bd2a5c4de8974f2e"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "crates/biome_js_syntax/src/parentheses/expression.rs",
+      "anchor_line": 960,
+      "must_match": "object_chain.any(|object| matches!(object, AnyJsExpression::JsCallExpression(_)))",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
+      "source_commit": "5df6c508",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "crates/biome_js_syntax/src/parentheses/expression.rs",
+      "start": 960,
+      "end": 960,
+      "source": "fix/5699601ea942:960-960"
+    }
+  ]
+}

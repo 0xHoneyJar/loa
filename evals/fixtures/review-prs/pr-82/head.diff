@@ -1,0 +1,53 @@
+diff --git a/packages/runtime-dom/__tests__/patchAttrs.spec.ts b/packages/runtime-dom/__tests__/patchAttrs.spec.ts
+index d181a1b03..07913828f 100644
+--- a/packages/runtime-dom/__tests__/patchAttrs.spec.ts
++++ b/packages/runtime-dom/__tests__/patchAttrs.spec.ts
+@@ -37,6 +37,16 @@ describe('runtime-dom: attrs patching', () => {
+     expect(el.getAttribute('readonly')).toBe(null)
+   })
+ 
++  test('playsinline boolean attribute', () => {
++    const el = document.createElement('video')
++    patchProp(el, 'playsinline', null, true)
++    expect(el.getAttribute('playsinline')).toBe('')
++    patchProp(el, 'playsinline', true, false)
++    expect(el.getAttribute('playsinline')).toBe(null)
++    patchProp(el, 'playsinline', false, '')
++    expect(el.getAttribute('playsinline')).toBe('')
++  })
++
+   test('attributes', () => {
+     const el = document.createElement('div')
+     patchProp(el, 'foo', null, 'a')
+diff --git a/packages/server-renderer/__tests__/ssrRenderAttrs.spec.ts b/packages/server-renderer/__tests__/ssrRenderAttrs.spec.ts
+index 09bf42301..b7c3b94e4 100644
+--- a/packages/server-renderer/__tests__/ssrRenderAttrs.spec.ts
++++ b/packages/server-renderer/__tests__/ssrRenderAttrs.spec.ts
+@@ -55,6 +55,11 @@ describe('ssr: renderAttrs', () => {
+     ).toBe(` checked disabled`) // boolean attr w/ false should be ignored
+   })
+ 
++  test('playsinline boolean attr', () => {
++    expect(ssrRenderAttrs({ playsinline: true })).toBe(` playsinline`)
++    expect(ssrRenderAttrs({ playsinline: false })).toBe(``)
++  })
++
+   test('hidden enumerated attribute', () => {
+     expect(ssrRenderAttrs({ hidden: true })).toBe(` hidden`)
+     expect(ssrRenderAttrs({ disabled: true, hidden: false })).toBe(` disabled`)
+diff --git a/packages/shared/src/domAttrConfig.ts b/packages/shared/src/domAttrConfig.ts
+index bac07abe5..207d9a591 100644
+--- a/packages/shared/src/domAttrConfig.ts
++++ b/packages/shared/src/domAttrConfig.ts
+@@ -9,9 +9,10 @@ import { makeMap } from './makeMap'
+  * - ismap -> isMap
+  * - nomodule -> noModule
+  * - novalidate -> noValidate
++ * - playsinline -> playsInline
+  * - readonly -> readOnly
+  */
+-const specialBooleanAttrs = `itemscope,allowfullscreen,formnovalidate,ismap,nomodule,novalidate,readonly`
++const specialBooleanAttrs = `itemscope,allowfullscreen,formnovalidate,ismap,nomodule,novalidate,playsinline,readonly`
+ export const isSpecialBooleanAttr: (key: string) => boolean =
+   /*@__PURE__*/ makeMap(specialBooleanAttrs)
+ 

@@ -1,0 +1,42 @@
+{
+  "fixture": "pr-79",
+  "label_set": "v2",
+  "approved": false,
+  "approved_by": "pending",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "33ac0616a8567634b8742eb3dcf1ac1955ff1d9e",
+    "fix_commit": "09b4a17a12a67407a4131d48c26a0dc309c55ecf",
+    "incidents_meta": {
+      "main_sha": "5df959f3af698823dd582f1c3661f3e80df0b5da"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "types/route.d.ts",
+      "anchor_line": 49,
+      "anchors": [
+        49,
+        51,
+        60
+      ],
+      "must_match": "type RouteShorthandHook<T extends (...args: any) => any> = (...args: Parameters<T>) => void | Promise<unknown>",
+      "severity": "medium",
+      "category": "contract",
+      "label_source": "fix-commit+incident",
+      "source": "hunk:H01;incident:I02",
+      "source_commit": "33ac0616",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "the head RouteShorthandOptions type has no logSerializers option although the runtime accepts and documents it, so the wrong behaviour (a type that rejects a valid option) is present at head in a fixture file \u2014 defect-at-head (B); A's not-at-head rests on the gap being pre-existing and untouched by the PR, which the codebook does not require (pr-55 I02 precedent); category contract (the types/runtime contract), the one field B left null",
+      "review_driven": false
+    }
+  ],
+  "fix_regions": []
+}

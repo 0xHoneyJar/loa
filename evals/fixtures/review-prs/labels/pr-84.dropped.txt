@@ -1,0 +1,6 @@
+# pr-84 external https://github.com/biomejs/biome #12540: files and hunks that did not become fix regions
+.changeset/fix-new-expression-import-call.md: the fix touches it but the PR did not change it; no fix region
+crates/biome_js_formatter/tests/specs/js/module/expression/new_expression_import_call.js: the fix touches it but the PR did not change it; no fix region
+crates/biome_js_formatter/tests/specs/js/module/expression/new_expression_import_call.js.snap: the fix touches it but the PR did not change it; no fix region
+crates/biome_js_formatter/tests/specs/ts/expression/new_expression_import_call_non_null.ts: the fix touches it but the PR did not change it; no fix region
+crates/biome_js_formatter/tests/specs/ts/expression/new_expression_import_call_non_null.ts.snap: the fix touches it but the PR did not change it; no fix region

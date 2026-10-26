@@ -1,0 +1,64 @@
+{
+ "context": 12,
+ "feedback_files": [],
+ "fix_regions_only": {
+  "removed": [
+   "H02",
+   "H03",
+   "H04",
+   "H05",
+   "H06",
+   "H11",
+   "H12"
+  ],
+  "rule": "hunks not overlapping a seeder fix region (\u00b13 head lines) removed before annotation; full packet in annotation/packets-full/"
+ },
+ "fixture": "pr-83",
+ "hunk_count": 5,
+ "hunks": {
+  "H01": {
+   "cited_by": [],
+   "file": "packages/runtime-core/src/renderer.ts",
+   "head_end": 94,
+   "head_start": 94,
+   "insertion": false,
+   "review_driven": false
+  },
+  "H07": {
+   "cited_by": [],
+   "file": "packages/runtime-core/src/renderer.ts",
+   "head_end": 2309,
+   "head_start": 2292,
+   "insertion": false,
+   "review_driven": false
+  },
+  "H08": {
+   "cited_by": [],
+   "file": "packages/runtime-core/src/renderer.ts",
+   "head_end": 2324,
+   "head_start": 2323,
+   "insertion": false,
+   "review_driven": false
+  },
+  "H09": {
+   "cited_by": [],
+   "file": "packages/runtime-core/src/renderer.ts",
+   "head_end": 2331,
+   "head_start": 2331,
+   "insertion": false,
+   "review_driven": false
+  },
+  "H10": {
+   "cited_by": [],
+   "file": "packages/runtime-core/src/renderer.ts",
+   "head_end": 2338,
+   "head_start": 2336,
+   "insertion": false,
+   "review_driven": false
+  }
+ },
+ "incident_ids": [],
+ "incidents": "incidents/pr-83.tsv",
+ "record_ref": null,
+ "review_driven_count": 0
+}

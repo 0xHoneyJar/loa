@@ -1,0 +1,143 @@
+{
+  "fixture": "pr-77",
+  "label_set": "v2",
+  "approved": false,
+  "approved_by": "pending",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "00201bf6009716226d5cde0ae8fc1b65baac6e83",
+    "fix_commit": "461f32ec6174d88b7e43654a054d46d67ae2fdab",
+    "incidents_meta": {
+      "main_sha": "6e9f66f5dca58c594a7c23c5f1107103045be8d2"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "cli/tools/installer/npm_compat.rs",
+      "anchor_line": 569,
+      "anchors": [
+        569,
+        570,
+        571,
+        572,
+        575,
+        576,
+        621,
+        622,
+        623
+      ],
+      "must_match": "if node_dir.exists() {",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H08",
+      "source_commit": "00201bf6",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "agreed defect, group, severity, category and description (@types/node fetched at the registry's floating latest and any materialized copy reused whatever its version); anchors: union \u2014 A adds 570-571 and the reuse check at 621-623, B keeps the four decisive lines; both sites carry the behaviour",
+      "review_driven": false
+    },
+    {
+      "id": "V02",
+      "file": "cli/tools/installer/npm_compat.rs",
+      "anchor_line": 609,
+      "anchors": [
+        609,
+        610,
+        611
+      ],
+      "must_match": "let meta_url =",
+      "severity": "medium",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H11",
+      "source_commit": "00201bf6",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "cli/tools/installer/local.rs",
+      "start": 468,
+      "end": 468,
+      "source": "fix/461f32ec6174:468-468"
+    },
+    {
+      "id": "F002",
+      "file": "cli/tools/installer/npm_compat.rs",
+      "start": 25,
+      "end": 25,
+      "source": "fix/461f32ec6174:25-25"
+    },
+    {
+      "id": "F003",
+      "file": "cli/tools/installer/npm_compat.rs",
+      "start": 34,
+      "end": 34,
+      "source": "fix/461f32ec6174:34-34"
+    },
+    {
+      "id": "F004",
+      "file": "cli/tools/installer/npm_compat.rs",
+      "start": 287,
+      "end": 287,
+      "source": "fix/461f32ec6174:287-287"
+    },
+    {
+      "id": "F005",
+      "file": "cli/tools/installer/npm_compat.rs",
+      "start": 447,
+      "end": 448,
+      "source": "fix/461f32ec6174:447-448"
+    },
+    {
+      "id": "F006",
+      "file": "cli/tools/installer/npm_compat.rs",
+      "start": 550,
+      "end": 550,
+      "source": "fix/461f32ec6174:550-550"
+    },
+    {
+      "id": "F007",
+      "file": "cli/tools/installer/npm_compat.rs",
+      "start": 575,
+      "end": 576,
+      "source": "fix/461f32ec6174:575-576"
+    },
+    {
+      "id": "F008",
+      "file": "cli/tools/installer/npm_compat.rs",
+      "start": 584,
+      "end": 584,
+      "source": "fix/461f32ec6174:584-584"
+    },
+    {
+      "id": "F009",
+      "file": "cli/tools/installer/npm_compat.rs",
+      "start": 607,
+      "end": 607,
+      "source": "fix/461f32ec6174:607-607"
+    },
+    {
+      "id": "F010",
+      "file": "cli/tools/installer/npm_compat.rs",
+      "start": 609,
+      "end": 611,
+      "source": "fix/461f32ec6174:609-611"
+    }
+  ]
+}

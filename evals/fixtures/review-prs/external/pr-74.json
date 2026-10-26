@@ -1,0 +1,87 @@
+{
+  "base_commit": "8a4c19cfc035f2dd203f2fa6d00ab9256a5e77c9",
+  "files": {
+    "base": [
+      {
+        "blob": "f4a6b464343d7b369f5b9d21a3c341287344f09a",
+        "path": "packages/vite/src/node/plugins/css.ts",
+        "sha256": "e2b022ab21db31fca7de3bc3ce5666d94d1827fe9a574a23f3c36849fadccced",
+        "size": 117050
+      },
+      {
+        "blob": "69c87e9480b725aa47d2837ce59b8ee8975b77e6",
+        "path": "playground/css/__tests__/tests.ts",
+        "sha256": "266248e21fa67b402571f9319fcaae11e49442cb6fcfa7ae8305324b8b913603",
+        "size": 18529
+      },
+      {
+        "blob": "f278820595ca1b75048410d262529371760dcc9a",
+        "path": "playground/css/main.js",
+        "sha256": "23c0a5d9312d87fd2134d16485a56b1866e1176e8dc9617be9e0fab95f76c8d7",
+        "size": 4099
+      }
+    ],
+    "head": [
+      {
+        "blob": "1d154731cac25d2e0bd007a67b2e4f2bc406b3be",
+        "path": "packages/vite/src/node/plugins/css.ts",
+        "sha256": "08f5807652fca68622a203c0a87d7617b1daeb8cf3a9ecb16f919f4983d15b2a",
+        "size": 117135
+      },
+      {
+        "blob": "4b97617ea88bbfdad8631231d730628cab5412c1",
+        "path": "playground/css/__tests__/tests.ts",
+        "sha256": "5a4d3539d2d012b2563238bb521723102f6f5a8e99556974ac4aeeffc8d3db13",
+        "size": 18814
+      },
+      {
+        "blob": "41eea3e0d8287fbb8457c9c3c40aef7290e459fe",
+        "path": "playground/css/main.js",
+        "sha256": "cffd7444de2ade23d3c0a193fa992b92d9a79596523978fd47d47f68549d7283",
+        "size": 4139
+      },
+      {
+        "blob": "107a336fe96b4c66a1d0283ecf6e630427192861",
+        "path": "playground/css/preprocessor-import/components/_vars.scss",
+        "sha256": "c20f9ce5a51dca3360442ebb90a9980c80772a796f1ef62a712cd86d4b24c60a",
+        "size": 24
+      },
+      {
+        "blob": "a282fccbfe8b9bd3d199049e8fe518815b47346f",
+        "path": "playground/css/preprocessor-import/components/box.scss",
+        "sha256": "d9b3ddfccdabca899296b8c06f9219dca7d0307e629cf254670924b60a783896",
+        "size": 81
+      },
+      {
+        "blob": "f8b0b51ac367aef657208ad4a97bd49b5436e662",
+        "path": "playground/css/preprocessor-import/main.css",
+        "sha256": "de381d981b8089c3dbe342c7e3d57b2c71fa8f089db47748d665b64aee09d067",
+        "size": 33
+      }
+    ]
+  },
+  "fix_commit": "50b382d31835b8b4bc8b6964738ac03146e44261",
+  "fix_first": "50b382d31835b8b4bc8b6964738ac03146e44261",
+  "fix_parent": "d112dad9392efdb38eafc2c36fd27b54e614efca",
+  "fixture": "pr-74",
+  "head_commit": "6f443140ca26ca8e85ed473c8664947d2012832b",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "b7e97ecb6aa4dd70b3e3a637afa2ae16feb7cd12",
+      "path": "LICENSE",
+      "sha256": "692057af3d664cbb79ac38293eb50aa3c4987f8182e2a440136e59e08f1b4a54",
+      "size": 1101
+    }
+  ],
+  "merge_commit": "cf52011c46409a4a45f3d74bba631b8f005c4bc9",
+  "pr": 23688,
+  "pr_base_sha": "8a4c19cfc035f2dd203f2fa6d00ab9256a5e77c9",
+  "pr_url": "https://github.com/vitejs/vite/pull/23688",
+  "schema_version": 1,
+  "scope_paths": null,
+  "skipped": [],
+  "source_url": "https://github.com/vitejs/vite",
+  "trees": "committed",
+  "visibility": "public"
+}

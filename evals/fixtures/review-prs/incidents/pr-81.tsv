@@ -1,0 +1,6 @@
+id	kind	ref	date	files	excerpt
+I01	fix-commit	b59fcf59b41f	2026-09-20T20:59:59Z	docs/CHANGELOG.md,test/bats.bats	Fix prefix matches in dynamic test duplicate checks
+I02	fix-commit	fb9e86e78765	2026-09-20T20:59:59Z	test/bats.bats	Fix dynamic test log resets under noclobber
+I03	fix-commit	7d98f6d8b668	2026-09-20T21:26:32Z	docs/CHANGELOG.md,test/suite.bats	fix: preserve stack traces for failed helper loads The loader helpers exit without running ERR, and internal calls do not replace the current DEBUG trace. Keep that trace instead of attributing a missing helper to the preceding successful load. Also retain the helper source frame when sourcing returns a nonzero status. Cover both loader APIs with missing-helper and nonzero-return cases. Fixes #11…
+I04	fix-commit	7f8f54775357	2026-09-22T21:06:08Z	docs/CHANGELOG.md	fix: color summary red when tests did not run Review feedback: not run counts as a failure, so it gets the same red summary as failures and timeouts instead of a separate yellow. Also reference this PR in the changelog entry so the changelog check passes.
+I05	fix-commit	89d9a1149cad	2026-10-08T22:03:00Z	docs/CHANGELOG.md	fix: make license machine-parsable

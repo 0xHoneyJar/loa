@@ -1,0 +1,34 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-81",
+  "hunk_count": 2,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "docs/CHANGELOG.md",
+      "head_end": 20,
+      "head_start": 20,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "libexec/bats-core/bats-exec-suite",
+      "head_end": 114,
+      "head_start": 114,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [
+    "I01",
+    "I02",
+    "I03",
+    "I04",
+    "I05"
+  ],
+  "incidents": "incidents/pr-81.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

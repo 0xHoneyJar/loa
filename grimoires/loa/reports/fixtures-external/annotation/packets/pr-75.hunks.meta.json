@@ -1,0 +1,32 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-75",
+  "hunk_count": 2,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/server/middlewares/indexHtml.ts",
+      "head_end": 567,
+      "head_start": 567,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/server/middlewares/indexHtml.ts",
+      "head_end": 571,
+      "head_start": 571,
+      "insertion": true,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [
+    "I01",
+    "I02",
+    "I03"
+  ],
+  "incidents": "incidents/pr-75.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

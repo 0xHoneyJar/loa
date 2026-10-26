@@ -1,0 +1,14 @@
+# approved-by: pending
+# fixture pr-76 | external https://github.com/denoland/deno pull request #36942 | base 1b48a20f85a8 | head 452b3af97cad | fix ead2af980a19..ead2af980a19
+# seeded by evals/harness/seed-corpus-from-external.sh; defects V01 … from the blind annotation (two Opus 5.5 annotators, annotation_merge.py; label_source fix-commit, review_driven false), fix rows carried; approval pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	high	security	ext/napi/js_native_api.rs	if byte_length + byte_offset > buffer.byte_length() {	fix-commit	hunk:H01	A,B	adjudicated	agreed defect, group, anchors, severity and description (byte_length + byte_offset can overflow usize, so the bounds check passes and an out-of-bounds DataView is created over the ArrayBuffer); category: the codebook's one word names the kind of defect — a bypassable bounds check in native-API code whose consequence is an out-of-bounds view (memory unsafety) is a security defect (A); input-validation (B) describes the mechanism, not the harm	false
+V01	high	security	ext/napi/js_native_api.rs	let dataview = v8::DataView::new(scope, buffer, byte_offset, byte_length);	fix-commit	hunk:H01	A,B	adjudicated	agreed defect, group, anchors, severity and description (byte_length + byte_offset can overflow usize, so the bounds check passes and an out-of-bounds DataView is created over the ArrayBuffer); category: the codebook's one word names the kind of defect — a bypassable bounds check in native-API code whose consequence is an out-of-bounds view (memory unsafety) is a security defect (A); input-validation (B) describes the mechanism, not the harm	false
+F001	-	fix	ext/napi/js_native_api.rs	if byte_length + byte_offset > buffer.byte_length() {	fix	fix/ead2af980a19:3976-3976	-	-	-	-
+F002	-	fix	tests/napi/dataview_test.js	-	fix	fix/ead2af980a19:20-20	-	-	-	-
+F003	-	fix	tests/napi/src/dataview.rs	/// Test napi_create_dataview past the end of the buffer: it throws a	fix	fix/ead2af980a19:85-86	-	-	-	-
+F004	-	fix	tests/napi/src/dataview.rs	extern "C" fn test_dataview_out_of_range(	fix	fix/ead2af980a19:88-88	-	-	-	-
+F005	-	fix	tests/napi/src/dataview.rs	-	fix	fix/ead2af980a19:90-90	-	-	-	-
+F006	-	fix	tests/napi/src/dataview.rs	let status = unsafe { napi_create_dataview(env, 8, ab, 12, &mut dv) };	fix	fix/ead2af980a19:97-97	-	-	-	-
+F007	-	fix	tests/napi/src/dataview.rs	-	fix	fix/ead2af980a19:117-117	-	-	-	-
+F008	-	fix	tests/napi/src/dataview.rs	-	fix	fix/ead2af980a19:126-126	-	-	-	-

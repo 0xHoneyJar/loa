@@ -1,0 +1,80 @@
+commit 7d98f6d8b668a59aa4494e897521a6d42e19429d
+Date: 2026-09-20T23:26:32+02:00
+
+fix: preserve stack traces for failed helper loads
+
+The loader helpers exit without running ERR, and internal calls do not
+replace the current DEBUG trace. Keep that trace instead of attributing a
+missing helper to the preceding successful load. Also retain the helper
+source frame when sourcing returns a nonzero status.
+
+Cover both loader APIs with missing-helper and nonzero-return cases.
+
+Fixes #1186.
+
+Assisted-by: OpenAI Codex
+Signed-off-by: Mingyang Wu <129849514+aprylewu@users.noreply.github.com>
+
+
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+index 2795226..2758cf8 100644
+--- a/docs/CHANGELOG.md
++++ b/docs/CHANGELOG.md
+@@ -20,6 +20,7 @@ The format is based on [Keep a Changelog][kac] and this project adheres to
+ 
+ * avoid false duplicate errors for dynamic tests with argument prefixes, and
+   detect duplicates with non-space `IFS` separators (#1249)
++* fix incorrect stack traces when `load` or `bats_load_library` fails (#1186)
+ * pretty formatter was not the default on interactive shells anymore (#1220)
+ * `--jobs` now aborts when GNU parallel is unavailable instead of failing later (#1237, #1238)
+ * `bats_encode_test_name()` used the locale-dependent `[[:alnum:]]` character class, causing test names with non-ASCII characters to be silently skipped under some locales (#1236)
+diff --git a/test/suite.bats b/test/suite.bats
+index 4959052..1f368e9 100755
+--- a/test/suite.bats
++++ b/test/suite.bats
+@@ -59,31 +59,21 @@ setup() {
+   [ "${lines[0]}" = "1..1" ]
+   [ "${lines[1]}" = "not ok 1 bats-gather-tests" ]
+ 
+-  # bash > 4.0 returns error codes from source
+-  # bash < 4.0 does not handle the status on source, it fails through the ERREXIT instead, which creates another trace
+-  # bash == 4.0 seems to be sonwhere in between
+-  if (( BASH_VERSINFO[0] > 4 )) || (( BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] > 0 )); then
+-    [ "${lines[2]}" = "# (in test file $RELATIVE_FIXTURE_ROOT/errors_in_multiple_load/a.bats, line 1)" ]
+-    [ "${lines[3]}" = "#   \`load test_helper' failed" ]
+-    [ "${lines[4]}" = "# $FIXTURE_ROOT/errors_in_multiple_load/test_helper.bash: line 1: call-to-undefined-command: command not found" ]
+-    [ "${lines[5]}" = "# Error while sourcing library loader at '$FIXTURE_ROOT/errors_in_multiple_load/test_helper.bash'" ]
+-    [ "${#lines[@]}" -eq 6 ]
++  [ "${lines[2]}" = "# (in file $RELATIVE_FIXTURE_ROOT/errors_in_multiple_load/test_helper.bash, line 1," ]
++  [ "${lines[3]}" = "#  from function \`bats_internal_load' in file ${RELATIVE_BATS_ROOT}lib/bats-core/test_functions.bash, line 67," ]
++  [ "${lines[4]}" = "#  from function \`bats_load_safe' in file ${RELATIVE_BATS_ROOT}lib/bats-core/test_functions.bash, line 98," ]
++  [ "${lines[5]}" = "#  from function \`load' in file ${RELATIVE_BATS_ROOT}lib/bats-core/test_functions.bash, line 150," ]
++  [ "${lines[6]}" = "#  in test file $RELATIVE_FIXTURE_ROOT/errors_in_multiple_load/a.bats, line 1)" ]
++  # Bash 3 exits through errexit instead of returning the source command's status.
++  if ((BASH_VERSINFO[0] >= 4)); then
++    [ "${lines[7]}" = "#   \`load test_helper' failed" ]
++    [ "${lines[8]}" = "# $FIXTURE_ROOT/errors_in_multiple_load/test_helper.bash: line 1: call-to-undefined-command: command not found" ]
++    [ "${lines[9]}" = "# Error while sourcing library loader at '$FIXTURE_ROOT/errors_in_multiple_load/test_helper.bash'" ]
++    [ "${#lines[@]}" -eq 10 ]
+   else
+-    [ "${lines[2]}" = "# (in file $RELATIVE_FIXTURE_ROOT/errors_in_multiple_load/test_helper.bash, line 1," ]
+-    [ "${lines[3]}" = "#  from function \`bats_internal_load' in file ${RELATIVE_BATS_ROOT}lib/bats-core/test_functions.bash, line 67," ]
+-    [ "${lines[4]}" = "#  from function \`bats_load_safe' in file ${RELATIVE_BATS_ROOT}lib/bats-core/test_functions.bash, line 98," ]
+-    [ "${lines[5]}" = "#  from function \`load' in file ${RELATIVE_BATS_ROOT}lib/bats-core/test_functions.bash, line 148," ]
+-    [ "${lines[6]}" = "#  in test file $RELATIVE_FIXTURE_ROOT/errors_in_multiple_load/a.bats, line 1)" ]
+-    if (( BASH_VERSINFO[0] == 4)); then
+-      [ "${lines[7]}" = "#   \`load test_helper' failed" ]
+-      [ "${lines[8]}" = "# $FIXTURE_ROOT/errors_in_multiple_load/test_helper.bash: line 1: call-to-undefined-command: command not found" ]
+-      [ "${lines[9]}" = "# Error while sourcing library loader at '$FIXTURE_ROOT/errors_in_multiple_load/test_helper.bash'" ]
+-      [ "${#lines[@]}" -eq 10 ]
+-    else
+-      [ "${lines[7]}" = "#   \`load test_helper' failed with status 127" ]
+-      [ "${lines[8]}" = "# $FIXTURE_ROOT/errors_in_multiple_load/test_helper.bash: line 1: call-to-undefined-command: command not found" ]
+-      [ "${#lines[@]}" -eq 9 ]
+-    fi
++    [ "${lines[7]}" = "#   \`load test_helper' failed with status 127" ]
++    [ "${lines[8]}" = "# $FIXTURE_ROOT/errors_in_multiple_load/test_helper.bash: line 1: call-to-undefined-command: command not found" ]
++    [ "${#lines[@]}" -eq 9 ]
+   fi
+ 
+ }

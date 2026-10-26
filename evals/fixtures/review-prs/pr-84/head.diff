@@ -1,0 +1,118 @@
+diff --git a/.changeset/fix-instantiation-expression-non-null.md b/.changeset/fix-instantiation-expression-non-null.md
+new file mode 100644
+index 0000000000..3c1256c736
+--- /dev/null
++++ b/.changeset/fix-instantiation-expression-non-null.md
+@@ -0,0 +1,12 @@
++---
++"@biomejs/biome": patch
++---
++
++Fixed the formatter removing the parentheses around an instantiation expression before a non-null assertion or type arguments of a class heritage, which produced code that doesn't parse.
++
++```diff
++- const a = make<T>!;
+++ const a = (make<T>)!;
++- class D extends B<T><T> {}
+++ class D extends (B<T>)<T> {}
++```
+diff --git a/crates/biome_js_formatter/tests/specs/ts/expression/instantiation_expression_non_null.ts b/crates/biome_js_formatter/tests/specs/ts/expression/instantiation_expression_non_null.ts
+new file mode 100644
+index 0000000000..b1422d5f37
+--- /dev/null
++++ b/crates/biome_js_formatter/tests/specs/ts/expression/instantiation_expression_non_null.ts
+@@ -0,0 +1,11 @@
++// Without the parentheses, `make<T>!` and `extends B<T><T>` don't parse.
++const a = (make<T>)!;
++(make<T>)!.b;
++(make<T>)!();
++y = (make<T>)!.c<U>;
++class D extends (B<T>)<T> {}
++(class E extends (B<T>)<T> {});
++
++// These don't need them.
++class C extends (B<T>) {}
++x = make<T>;
+diff --git a/crates/biome_js_formatter/tests/specs/ts/expression/instantiation_expression_non_null.ts.snap b/crates/biome_js_formatter/tests/specs/ts/expression/instantiation_expression_non_null.ts.snap
+new file mode 100644
+index 0000000000..2711f4e760
+--- /dev/null
++++ b/crates/biome_js_formatter/tests/specs/ts/expression/instantiation_expression_non_null.ts.snap
+@@ -0,0 +1,39 @@
++---
++source: crates/biome_formatter_test/src/snapshot_builder.rs
++info: ts/expression/instantiation_expression_non_null.ts
++---
++
++# Input
++
++```ts
++// Without the parentheses, `make<T>!` and `extends B<T><T>` don't parse.
++const a = (make<T>)!;
++(make<T>)!.b;
++(make<T>)!();
++y = (make<T>)!.c<U>;
++class D extends (B<T>)<T> {}
++(class E extends (B<T>)<T> {});
++
++// These don't need them.
++class C extends (B<T>) {}
++x = make<T>;
++
++```
++
++
++# Formatted
++
++```ts
++// Without the parentheses, `make<T>!` and `extends B<T><T>` don't parse.
++const a = (make<T>)!;
++(make<T>)!.b;
++(make<T>)!();
++y = (make<T>)!.c<U>;
++class D extends (B<T>)<T> {}
++(class E extends (B<T>)<T> {});
++
++// These don't need them.
++class C extends B<T> {}
++x = make<T>;
++
++```
+diff --git a/crates/biome_js_syntax/src/parentheses/expression.rs b/crates/biome_js_syntax/src/parentheses/expression.rs
+index 2b1f39e23f..e3650f34d6 100644
+--- a/crates/biome_js_syntax/src/parentheses/expression.rs
++++ b/crates/biome_js_syntax/src/parentheses/expression.rs
+@@ -9,9 +9,9 @@ use crate::{
+     JsBigintLiteralExpression, JsBinaryExpression, JsBinaryOperator, JsBooleanLiteralExpression,
+     JsCallExpression, JsClassExpression, JsComputedMemberAssignment, JsComputedMemberExpression,
+     JsComputedMemberName, JsConditionalExpression, JsExpressionStatement, JsExpressionTemplateRoot,
+-    JsForStatement, JsFunctionExpression, JsIdentifierExpression, JsImportCallExpression,
+-    JsImportMetaExpression, JsInExpression, JsInstanceofExpression, JsLogicalExpression,
+-    JsLogicalOperator, JsMetavariable, JsNewExpression, JsNewTargetExpression,
++    JsExtendsClause, JsForStatement, JsFunctionExpression, JsIdentifierExpression,
++    JsImportCallExpression, JsImportMetaExpression, JsInExpression, JsInstanceofExpression,
++    JsLogicalExpression, JsLogicalOperator, JsMetavariable, JsNewExpression, JsNewTargetExpression,
+     JsNullLiteralExpression, JsNumberLiteralExpression, JsObjectExpression,
+     JsParenthesizedExpression, JsPostUpdateExpression, JsPreUpdateExpression, JsPreUpdateOperator,
+     JsRegexLiteralExpression, JsSequenceExpression, JsStaticMemberExpression,
+@@ -715,8 +715,18 @@ impl NeedsParentheses for TsAsExpression {
+ impl NeedsParentheses for TsInstantiationExpression {
+     #[inline]
+     fn needs_parentheses(&self) -> bool {
+-        // `(a<T>)<U>`: `a<T><U>` does not parse
+-        if self.parent::<Self>().is_some() {
++        // `(a<T>)<U>` and `(a<T>)!`: `a<T><U>` and `a<T>!` do not parse
++        if self.parent::<Self>().is_some()
++            || self.parent::<TsNonNullAssertionExpression>().is_some()
++        {
++            return true;
++        }
++
++        // `class A extends (B<T>)<U> {}`: `extends B<T><U>` does not parse
++        if self
++            .parent::<JsExtendsClause>()
++            .is_some_and(|clause| clause.type_arguments().is_some())
++        {
+             return true;
+         }
+ 

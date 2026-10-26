@@ -1,0 +1,9 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "types/instance.d.ts", "anchor_lines": [133],
+            "description": "The addresses() type declares only AddressInfo[] even though addresses can be strings (e.g. unix socket or pipe paths), so the declared type contract is wrong for those callers.",
+            "severity": "low", "category": "contract"}
+  },
+  "incidents": {}
+}
