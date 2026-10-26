@@ -154,21 +154,23 @@ describe("content fetch for patch-less added files (C-3)", () => {
     const files = [added("src/a.ts"), added("src/b.ts"), added("src/c.ts")];
     const p = provider({ files, serve: (_p, _r, max) => text(content)(max) });
     const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, { ...SEL, maxDiffBytes: 100 });
-    assert.deepEqual(p.contentCalls.map((c) => c.maxBytes), [100, 100 - synthBytes, 100 - 2 * synthBytes]);
+    // review round 1: the third has 4 bytes left, below the smallest patch its 3 additions can make → budget, no read
+    assert.deepEqual(p.contentCalls.map((c) => c.maxBytes), [100, 100 - synthBytes]);
     assert.deepEqual(res.coverage.reviewed.map((r) => [r.file, r.bytes]), [["src/a.ts", synthBytes], ["src/b.ts", synthBytes]]);
-    assert.deepEqual(res.coverage.omitted, [{ file: "src/c.ts", reason: "no_patch", reviewable: true, fetch: "too_large" }]);
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/c.ts", reason: "no_patch", reviewable: true, fetch: "budget" }]);
     assert.ok(res.coverage.reviewed.reduce((n, r) => n + r.bytes, 0) <= 100);
   });
 
-  it("content that fits the bound but whose synthesized patch does not is too_large, never truncated", async () => {
+  it("content that fits the bound but whose synthesized patch does not is budget, never truncated", async () => {
     // 40 content bytes in 4 lines → 16 + 4 + 39 = 59 patch bytes > 50
     const p = provider({ files: [added("src/a.ts")], serve: (_p, _r, max) => text("aaaaaaaaa\n".repeat(4))(max) });
     const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, { ...SEL, maxDiffBytes: 50 });
-    assert.deepEqual(res.coverage.omitted, [{ file: "src/a.ts", reason: "no_patch", reviewable: true, fetch: "too_large" }]);
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/a.ts", reason: "no_patch", reviewable: true, fetch: "budget" }]);
+    assert.equal(p.contentCalls.length, 1, "the read succeeded; its patch did not fit what was left");
     assert.deepEqual(res.files, []);
   });
 
-  it("a synthesized patch that does not fit after the GitHub patches stays no_patch (too_large), never cut", async () => {
+  it("GitHub patches selected ahead consume the budget first: no read is issued and the outcome is budget", async () => {
     // the ordinary patch (larger change, selected first) leaves 10 bytes; the 48-byte synthesized patch is not cut
     const big = "@@ -1 +1 @@\n" + "+x".repeat(44);
     const p = provider({
@@ -177,7 +179,43 @@ describe("content fetch for patch-less added files (C-3)", () => {
     });
     const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, { ...SEL, maxDiffBytes: Buffer.byteLength(big) + 10 });
     assert.deepEqual(res.files.map((f) => f.filename), ["src/big.ts"]);
-    assert.deepEqual(res.coverage.omitted, [{ file: "src/new.ts", reason: "no_patch", reviewable: true, fetch: "too_large" }]);
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/new.ts", reason: "no_patch", reviewable: true, fetch: "budget" }]);
+    assert.equal(p.contentCalls.length, 0, "no wasted read for a patch that could never be kept");
+  });
+
+  it("only GitHub patches AHEAD in selection order are charged: a larger added file ahead of a patch is read in full", async () => {
+    const big = "@@ -1 +1 @@\n" + "+x".repeat(44); // 100 bytes, the smaller change → selected after the added file
+    const p = provider({
+      files: [patched("src/big.ts", big, 1), added("src/new.ts", 3)],
+      serve: (_p, _r, max) => text("aaaaaaaaa\n".repeat(3))(max),
+    });
+    const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, { ...SEL, maxDiffBytes: 110 });
+    assert.deepEqual(p.contentCalls.map((c) => c.maxBytes), [110]);
+    assert.deepEqual(res.coverage.reviewed.map((r) => [r.file, r.source]), [["src/new.ts", "contents"], ["src/big.ts", undefined]]);
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/big.ts", reason: "patch_truncated", reviewable: true }]);
+  });
+
+  it("RATE_LIMITED / FORBIDDEN / HTTP 401·403 stop the loop: error for the file, aborted for the rest, one call", async () => {
+    const stoppers: Array<[string, Error]> = [
+      ["RATE_LIMITED", new GitProviderError("RATE_LIMITED", "rate limit")],
+      ["FORBIDDEN", new GitProviderError("FORBIDDEN", "gh exit 4")],
+      ["HTTP 403", Object.assign(new GitProviderError("NETWORK", "gh command failed (code=1)"), { httpStatus: 403 })],
+      ["HTTP 401", Object.assign(new GitProviderError("NETWORK", "gh command failed (code=1)"), { httpStatus: 401 })],
+    ];
+    for (const [label, err] of stoppers) {
+      const p = provider({ files: [added("src/a.ts"), added("src/b.ts"), added("src/c.ts")], serve: () => err });
+      const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, SEL);
+      assert.equal(p.contentCalls.length, 1, label);
+      assert.deepEqual(res.coverage.omitted.map((o) => [o.file, o.fetch]),
+        [["src/a.ts", "error"], ["src/b.ts", "aborted"], ["src/c.ts", "aborted"]], label);
+    }
+    // a per-file failure (a path that moved: 404; a malformed envelope) does not stop the loop
+    for (const err of [Object.assign(new GitProviderError("NETWORK", "x"), { httpStatus: 404 }), new GitProviderError("NETWORK", "malformed")]) {
+      const p = provider({ files: [added("src/a.ts"), added("src/b.ts")], serve: () => err });
+      const res = await fetchPRFilesTwoPass(p.git, "o", "r", 7, SEL);
+      assert.equal(p.contentCalls.length, 2);
+      assert.deepEqual(res.coverage.omitted.map((o) => o.fetch), ["error", "error"]);
+    }
   });
 
   it("the restart path (head moved at the post-pass-1 re-check) discards the synthesized patches and refetches at the new head", async () => {

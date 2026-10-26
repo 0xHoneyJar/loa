@@ -31,15 +31,18 @@ const run = (git: unknown, config: unknown, deps: Deps) =>
   (fetchPRFilesTwoPass as unknown as (...a: unknown[]) => ReturnType<typeof fetchPRFilesTwoPass>)(git, "o", "r", 7, config, deps);
 
 /** A selection double: keeps `keep` (in that order), excludes the rest with the given stats, reports protectedKept. */
-function selectionDouble(keep: string[], excluded: Record<string, string>, protectedKept: TruncationResult["protectedKept"]) {
+function selectionDouble(
+  keep: string[], excluded: Record<string, string | { stats: string; pattern?: string }>,
+  protectedKept: TruncationResult["protectedKept"], extra: Record<string, unknown> = {},
+) {
   const configs: Array<Record<string, unknown>> = [];
   const fn = (files: PullRequestFile[], config: Record<string, unknown>): TruncationResult => {
     configs.push(config);
     const byName = new Map(files.map((f) => [f.filename, f]));
     return {
       included: keep.map((n) => byName.get(n)!).filter(Boolean),
-      excluded: Object.entries(excluded).map(([filename, stats]) => ({ filename, stats })),
-      totalBytes: 0, allExcluded: false, selfReviewActive: false, selfReviewState: "inactive", protectedKept,
+      excluded: Object.entries(excluded).map(([filename, e]) => (typeof e === "string" ? { filename, stats: e } : { filename, ...e })),
+      totalBytes: 0, allExcluded: false, selfReviewActive: false, selfReviewState: "inactive", protectedKept, ...extra,
     };
   };
   return { fn, configs };
@@ -80,6 +83,45 @@ describe("coverage record: protected paths, patterns, provenance (C-2 consumer s
     assert.deepEqual(by[".claude/old.md"], { file: ".claude/old.md", reason: "excluded_loa", reviewable: false });
     assert.equal(by["odd/name.ts"].pattern, "odd/[ab]] x", "the suffix runs to the final ]");
     assert.equal(by["odd/name.ts"].reason, "excluded_pattern");
+  });
+
+  it("omitted[].pattern prefers the structured excluded[].pattern over the stats suffix (review round 1, item 7)", async () => {
+    const files = [patched("src/a.ts", "@@ -1 +1 @@\n+a"), patched("odd/x.ts", "@@ -1 +1 @@\n+x"), patched(".claude/y.sh", "@@ -1 +1 @@\n+y")];
+    const sel = selectionDouble(["src/a.ts"], {
+      "odd/x.ts": { stats: "+1 -0 (excluded by pattern) [pattern: odd/]", pattern: "odd/{x,y}.ts]\n" },
+      ".claude/y.sh": { stats: "+1 -0 (Loa framework, content excluded)", pattern: ".claude/**" },
+    }, []);
+    const res = await run(provider(files), SEL, { truncate: sel.fn });
+    const by = Object.fromEntries(res.coverage.omitted.map((o) => [o.file, o]));
+    assert.equal(by["odd/x.ts"].pattern, "odd/{x,y}.ts]\n");
+    assert.equal(by["odd/x.ts"].reason, "excluded_pattern");
+    assert.equal(by[".claude/y.sh"].pattern, ".claude/**");
+  });
+
+  it("base_unavailable: the record degrades as reviewignore_unavailable and the merge is blocked (review round 1, item 6)", async () => {
+    const sel = selectionDouble(["src/a.ts"], {}, [], { reviewignoreSource: "base_unavailable" });
+    const res = await run(provider([patched("src/a.ts", "@@ -1 +1 @@\n+a")]), SEL, { truncate: sel.fn });
+    assert.equal(res.coverage.reviewignore_source, "base_unavailable");
+    assert.equal(res.coverage.degraded, true);
+    assert.ok(res.coverage.degraded_reasons.includes("reviewignore_unavailable"), String(res.coverage.degraded_reasons));
+    assert.equal(res.coverage.mergeBlockedReason, "incomplete_coverage");
+    const clean = await run(provider([patched("src/a.ts", "@@ -1 +1 @@\n+a")]), SEL,
+      { truncate: selectionDouble(["src/a.ts"], {}, [], { reviewignoreSource: "base" }).fn });
+    assert.equal(clean.coverage.degraded, false);
+  });
+
+  it("integration with the real truncateFiles: protected_paths [] lets **/*.yml exclude the workflow; a custom list protects only its entries", async () => {
+    const files = [patched("src/a.ts", "@@ -1 +1 @@\n+a"), patched(".github/workflows/ci.yml", "@@ -1 +1 @@\n+on: push"),
+      patched(".husky/pre-commit", "@@ -1 +1 @@\n+npm test")];
+    const off = await run(provider(files), { ...SEL, excludePatterns: ["**/*.yml"], protectedPaths: [] }, {});
+    assert.deepEqual(off.coverage.protected_kept, []);
+    assert.equal(off.coverage.omitted.find((o) => o.file === ".github/workflows/ci.yml")?.reason, "excluded_pattern");
+    assert.ok(!off.files.some((f) => f.filename === ".github/workflows/ci.yml"));
+
+    const custom = await run(provider(files), { ...SEL, excludePatterns: ["**/*.yml", "**/pre-commit"], protectedPaths: [".husky/**"] }, {});
+    assert.deepEqual(custom.coverage.protected_kept, [{ file: ".husky/pre-commit", pattern: "**/pre-commit" }]);
+    assert.ok(custom.files.some((f) => f.filename === ".husky/pre-commit"));
+    assert.equal(custom.coverage.omitted.find((o) => o.file === ".github/workflows/ci.yml")?.reason, "excluded_pattern");
   });
 
   it("omitted[].pattern for config exclude_patterns without a suffix: the matching pattern, a non-wildcard one first", async () => {
@@ -159,6 +201,20 @@ describe("rendered coverage summary (§ 4)", () => {
     assert.ok(lines.includes("- `vendor/lib.js` — excluded_pattern · pattern `vendor/`"), text);
     assert.ok(lines.includes("- `src/blob.ts` — no_patch (reviewable) · fetch: too_large"), text);
     assert.ok(lines.includes(".reviewignore: base (changed in this PR)"), text);
+  });
+
+  it("renders base_unavailable as the checkout copy applied and the review degraded; budget and aborted outcomes", () => {
+    const text = formatCoverageSection(record({
+      reviewignore_source: "base_unavailable", reviewignore_changed_in_pr: false,
+      omitted: [
+        { file: "src/late.ts", reason: "no_patch", reviewable: true, fetch: "budget" },
+        { file: "src/rest.ts", reason: "no_patch", reviewable: true, fetch: "aborted" },
+      ],
+    }));
+    const lines = text.split("\n");
+    assert.ok(lines.includes(".reviewignore: base_unavailable (checkout copy applied; review degraded)"), text);
+    assert.ok(lines.includes("- `src/late.ts` — no_patch (reviewable) · fetch: budget"), text);
+    assert.ok(lines.includes("- `src/rest.ts` — no_patch (reviewable) · fetch: aborted"), text);
   });
 
   it("omits the new sections when the record has nothing for them (older records stay renderable)", () => {

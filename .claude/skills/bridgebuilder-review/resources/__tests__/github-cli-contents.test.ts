@@ -57,7 +57,9 @@ describe("GitHubCLIAdapter.getFileContent (C-3, § 5.3)", () => {
     assert.deepEqual(res, { kind: "text", content: "export const x = 1;\n", bytes: text.length });
     assert.equal(s.calls.length, 1);
     assert.deepEqual(s.calls[0].args, ["api", `/repos/o/r/contents/src/a%20b/%C3%A9.ts?ref=${HEAD}`]);
-    assert.equal(s.calls[0].options.maxBuffer, Math.ceil((1000 * 4) / 3) + 4096);
+    // review round 1: the envelope's JSON-escaped newline every 60 base64 characters (62/60) plus link metadata
+    assert.equal(s.calls[0].options.maxBuffer, Math.ceil(((1000 * 4) / 3) * 62 / 60) + 8192);
+    assert.equal(s.calls[0].options.timeout, 30_000, "the adapter's gh timeout bounds a stalled read");
   });
 
   it("decodes base64 with the 60-character line breaks GitHub embeds (Q-1) and checks size against the bytes", async () => {
@@ -123,6 +125,19 @@ describe("GitHubCLIAdapter.getFileContent (C-3, § 5.3)", () => {
       await assert.rejects(getFileContent(s.adapter, owner, repo, "a.ts", ref, 1000), undefined, `${owner}/${repo}@${ref}`);
       assert.equal(s.calls.length, 0, `no gh call for ${owner}/${repo}@${ref}`);
     }
+  });
+});
+
+describe("review submission carries no inline anchors (review round 1, item 5)", () => {
+  it("postReview posts the review body only: no `comments` field, no path/line anchor", async () => {
+    const s = stub(() => "{}");
+    await s.adapter.postReview({ owner: "o", repo: "r", prNumber: 7, headSha: HEAD, body: "## Summary\nok", event: "COMMENT" });
+    assert.equal(s.calls.length, 1);
+    const args = s.calls[0].args;
+    assert.equal(args[1], "/repos/o/r/pulls/7/reviews");
+    const fields = args.filter((a) => /^[a-z_]+=/.test(a)).map((a) => a.slice(0, a.indexOf("=")));
+    assert.deepEqual(fields.sort(), ["body", "commit_id", "event"]);
+    assert.ok(!args.some((a) => /^(comments|path|line|position)(\[|=)/.test(a)));
   });
 });
 
