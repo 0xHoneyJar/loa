@@ -34856,7 +34856,7 @@ decisions:
     prior_requests: []
   - id: "DEC-1001"
     created_at: "2026-10-26T00:15:37Z"
-    updated_at: "2026-10-26T00:15:37Z"
+    updated_at: "2026-10-26T04:17:28Z"
     phase: "implementation"
     category: "implementation"
     summary: "classify-pr-type housekeeping rule narrowed to chore(archive|ledger|decisions):; bare chore: or chore(release): naming a cycle stays cycle (PR #747)."
@@ -34876,8 +34876,8 @@ decisions:
       negative:
         - "chore(cycle-NNN): squash merges keep classifying cycle (status quo); a new housekeeping scope needs a one-word addition"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "8f3b7e66"
@@ -34885,19 +34885,24 @@ decisions:
     cycle: "cycle-bug-20261025-c47e71"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:15:37Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "cfdd94f9d"
+      - at: "2026-10-26T04:17:28Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1002"
     created_at: "2026-10-26T00:15:43Z"
-    updated_at: "2026-10-26T00:15:43Z"
+    updated_at: "2026-10-26T04:17:28Z"
     phase: "implementation"
     category: "implementation"
     summary: "classify-pr-type: a merge from any chore/ branch is other even when it names a cycle; PR #1295 (chore/cycle-133-post-ship) reclassifies other."
@@ -34914,8 +34919,8 @@ decisions:
       negative:
         - "a cycle ship from a chore/ branch would need the cycle label"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "8f3b7e66"
@@ -34923,19 +34928,24 @@ decisions:
     cycle: "cycle-bug-20261025-c47e71"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:15:43Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "cfdd94f9d"
+      - at: "2026-10-26T04:17:28Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1003"
     created_at: "2026-10-26T00:15:50Z"
-    updated_at: "2026-10-26T00:15:50Z"
+    updated_at: "2026-10-26T04:17:28Z"
     phase: "implementation"
     category: "implementation"
     summary: "classify-pr-type: the chore match is case-sensitive (lowercase is the convention); Chore(archive): and chores: fall through to the cycle-id rule."
@@ -34950,8 +34960,8 @@ decisions:
       negative:
         - "a hand-typed Chore(archive): subject naming a cycle still classifies cycle"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "8f3b7e66"
@@ -34959,19 +34969,24 @@ decisions:
     cycle: "cycle-bug-20261025-c47e71"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:15:50Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "cfdd94f9d"
+      - at: "2026-10-26T04:17:28Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1004"
     created_at: "2026-10-26T00:15:59Z"
-    updated_at: "2026-10-26T00:15:59Z"
+    updated_at: "2026-10-26T04:17:28Z"
     phase: "implementation"
     category: "process"
     summary: "Both /bug micro-sprints (sprint-bug-277/278) ship in one PR, as PR #1288 did for three; DEC-0960 per-sprint PRs govern cycle sprints only."
@@ -34986,8 +35001,8 @@ decisions:
       negative:
         - "a red gate on one micro-sprint holds the other"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "8f3b7e66"
@@ -34995,19 +35010,24 @@ decisions:
     cycle: "cycle-bug-20261025-c47e71"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:15:59Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "8f3b7e664"
+      - at: "2026-10-26T04:17:28Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1005"
     created_at: "2026-10-26T00:16:09Z"
-    updated_at: "2026-10-26T00:16:09Z"
+    updated_at: "2026-10-26T04:17:34Z"
     phase: "implementation"
     category: "implementation"
     summary: "Bridgebuilder exclude globs: the dot-agnostic retry is a new private helper, not simplifiedGlobMatch (its single-* branch crosses '/')."
@@ -35028,8 +35048,8 @@ decisions:
         - "~10 duplicated lines of regex translation"
         - "brace/class patterns still miss dot-led segments (documented)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "8f3b7e66"
@@ -35037,19 +35057,24 @@ decisions:
     cycle: "cycle-bug-20261025-826c6b"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:16:09Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "01a5868eb"
+      - at: "2026-10-26T04:17:34Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1006"
     created_at: "2026-10-26T00:16:15Z"
-    updated_at: "2026-10-26T00:16:15Z"
+    updated_at: "2026-10-26T04:17:34Z"
     phase: "implementation"
     category: "implementation"
     summary: "Bridgebuilder exclude globs are a denylist: * and ? match a leading dot (fixtures/*.json excludes fixtures/.hidden.json); shell dot-file semantics rejected."
@@ -35064,8 +35089,8 @@ decisions:
       negative:
         - "a pattern meant to spare dot-files cannot express that (no observed need)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "8f3b7e66"
@@ -35073,19 +35098,24 @@ decisions:
     cycle: "cycle-bug-20261025-826c6b"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:16:15Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "01a5868eb"
+      - at: "2026-10-26T04:17:34Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1007"
     created_at: "2026-10-26T00:16:22Z"
-    updated_at: "2026-10-26T00:16:22Z"
+    updated_at: "2026-10-26T04:17:34Z"
     phase: "implementation"
     category: "process"
     summary: "sprint-bug-278 red-then-green verified by a manual equivalent of red-test-check (detached worktrees, nested node_modules linked by hand)."
@@ -35102,8 +35132,8 @@ decisions:
       negative:
         - "one less mechanical check for this sprint"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "8f3b7e66"
@@ -35111,19 +35141,24 @@ decisions:
     cycle: "cycle-bug-20261025-826c6b"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:16:22Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "01a5868eb"
+      - at: "2026-10-26T04:17:34Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1008"
     created_at: "2026-10-26T00:41:09Z"
-    updated_at: "2026-10-26T00:41:09Z"
+    updated_at: "2026-10-26T04:17:28Z"
     phase: "implementation"
     category: "security"
     summary: "classify-pr-type: the chore/ branch clause is anchored to the first segment after the owner (from [^ /]+/chore/); release/chore/… keeps the cycle route."
@@ -35140,8 +35175,8 @@ decisions:
       negative:
         - "a chore/ branch is housekeeping even when deeper segments say release (pinned, documented)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "auditing-security/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "63a3a9d1"
@@ -35149,19 +35184,24 @@ decisions:
     cycle: "cycle-bug-20261025-c47e71"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:41:09Z"
         from: null
         to: "proposed"
         by: "agent:auditing-security"
         evidence: "sprint-bug-277 audit round commit"
+      - at: "2026-10-26T04:17:28Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1009"
     created_at: "2026-10-26T00:41:54Z"
-    updated_at: "2026-10-26T00:41:54Z"
+    updated_at: "2026-10-26T04:17:34Z"
     phase: "implementation"
     category: "security"
     summary: "Bridgebuilder: dot-led widening of broad wildcard exclusions (**/*.yml now excludes .github/workflows/*.yml on Node ≥ 22) accepted with mitigation; bd-i4fyw."
@@ -35178,8 +35218,8 @@ decisions:
       negative:
         - "operators on Node ≥ 22 with broad patterns lose coverage of dot-led paths until they check them"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "auditing-security/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "63a3a9d1"
@@ -35187,19 +35227,24 @@ decisions:
     cycle: "cycle-bug-20261025-826c6b"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:41:54Z"
         from: null
         to: "proposed"
         by: "agent:auditing-security"
         evidence: "sprint-bug-278 audit round commit"
+      - at: "2026-10-26T04:17:34Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1010"
     created_at: "2026-10-26T00:42:02Z"
-    updated_at: "2026-10-26T00:42:02Z"
+    updated_at: "2026-10-26T04:17:34Z"
     phase: "implementation"
     category: "security"
     summary: "Bridgebuilder: the test pinning the pre-existing unanchored substring match (x/.loa-version.json.bak ⇢ .loa-version.json) is dropped; anchoring → bd-ow72o."
@@ -35216,8 +35261,8 @@ decisions:
       negative:
         - "the hiding path stays open until bd-ow72o ships"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-26T04:17:28Z"
     evidence_sha256: null
     recorded_by: "auditing-security/04024019-85f8-4865-8f13-7dea678336e6"
     commit: "63a3a9d1"
@@ -35225,13 +35270,18 @@ decisions:
     cycle: "cycle-bug-20261025-826c6b"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T00:42:02Z"
         from: null
         to: "proposed"
         by: "agent:auditing-security"
         evidence: "sprint-bug-278 audit round commit"
+      - at: "2026-10-26T04:17:34Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-26T04:17:28Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
