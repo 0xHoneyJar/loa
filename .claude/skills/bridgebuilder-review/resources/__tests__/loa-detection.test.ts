@@ -418,9 +418,9 @@ describe("matchesExcludePattern — dot-led segments (bd-a8l0c)", () => {
     assert.ok(!matchesExcludePattern("evals/tests/fixtures/a/b.md", ["evals/tests/fixtures/*.md"]));
   });
 
-  it("exact pattern behaviour is unchanged (equality or substring)", () => {
+  // The unanchored substring match of non-wildcard patterns is pre-existing and tracked separately (not fixed here).
+  it("exact pattern still matches itself", () => {
     assert.ok(matchesExcludePattern(".loa-version.json", [".loa-version.json"]));
-    assert.ok(matchesExcludePattern("x/.loa-version.json.bak", [".loa-version.json"]));
   });
 
   it("substring pattern behaviour is unchanged", () => {

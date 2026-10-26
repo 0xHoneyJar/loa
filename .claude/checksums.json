@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-26T00:42:35Z",
+  "generated": "2026-10-26T00:43:19Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1491,7 +1491,7 @@
     ".claude/skills/autonomous-agent/resources/templates/escalation-report.md": "942df18bcc8ffa96dfe6a64c5fbf499f94480739f03fa32ed8661e20f5f6cb86",
     ".claude/skills/bridgebuilder-review/.gitignore": "4d56952b0fb13bf8f9b6c13a6d4c34a075bac3af447636a1df4335d7576e2f97",
     ".claude/skills/bridgebuilder-review/SKILL.md": "82777543ab8c1062b00d0ca45e94e267af8bc8514d266ccb579a2e417d2457d5",
-    ".claude/skills/bridgebuilder-review/dist/.build-manifest.json": "597303cc88ac1be5189987ef933880c88cfa8620a9fd215d76be78613e7ddb0b",
+    ".claude/skills/bridgebuilder-review/dist/.build-manifest.json": "ac84ac6c027896721b2ec7d5ee5047b07e4653bcc8dab030bbd44c0082f44a73",
     ".claude/skills/bridgebuilder-review/dist/BEAUVOIR.md": "42ef896b1a9fe74c3a823eb0b8e2422327eb2ee714ee2f4eeb38f2f8a6a25279",
     ".claude/skills/bridgebuilder-review/dist/__tests__/config.test.d.ts": "178de024d47b767d141a4b52d1bfb26c426125fa46f7913e494933a2383b41dd",
     ".claude/skills/bridgebuilder-review/dist/__tests__/config.test.d.ts.map": "a86ed24b37ce040c92d09a424e020a8db9ee1b07509c63f6a2deee7bf8a92378",
@@ -1754,7 +1754,7 @@
     ".claude/skills/bridgebuilder-review/resources/__tests__/fixtures/pr1289-r2-comments.md": "4d411ccfed8ce1fe3de51aff1b73e31d34efe08afd6b30c4106f15dc6a598522",
     ".claude/skills/bridgebuilder-review/resources/__tests__/github-cli.test.ts": "49ea7969684749a5e4605143f8d7917466c10fe97dcce5c1920e071d4e6e6ed6",
     ".claude/skills/bridgebuilder-review/resources/__tests__/integration.test.ts": "353e1f064046065bf1117ce4d93f983f839b68fdf05129515f6304e4f40b824f",
-    ".claude/skills/bridgebuilder-review/resources/__tests__/loa-detection.test.ts": "a3cdcfaf229e42ac4a32dedcc173b2df0407af5b4ca2aa7776e1308c0b8ede0d",
+    ".claude/skills/bridgebuilder-review/resources/__tests__/loa-detection.test.ts": "9c839c849a835f3103300a5421233bfb3ea79f7be782b251d34c5525b7a17384",
     ".claude/skills/bridgebuilder-review/resources/__tests__/lore-loader.test.ts": "2c406a6a369650795a35b794ce26756487fe4f34b2a5b421c810ae6d63fbf747",
     ".claude/skills/bridgebuilder-review/resources/__tests__/main-entrypoint.test.ts": "5bf6b80a782d7582dec9ced3c32082da5e96357b5e61ea9ecdda5a882941f6fb",
     ".claude/skills/bridgebuilder-review/resources/__tests__/multi-model-agy-opt-in.test.ts": "fd3c2f9240b60a45df933ef0f363a60ae6387bfb6278abf6926fa8849f017d42",
