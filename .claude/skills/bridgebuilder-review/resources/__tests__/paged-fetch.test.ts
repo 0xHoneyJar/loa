@@ -259,8 +259,10 @@ describe("two-pass paged fetch (C-1)", () => {
     const res = await fetchPRFilesTwoPass(adapter(gh.exec), "o", "r", 7, { ...SEL, selfReview: true, loaAware: true });
     assert.deepEqual(res.files.map((f) => f.filename), ["src/app.ts"]);
     const reasons = Object.fromEntries(res.coverage.omitted.map((o) => [o.file, o]));
-    assert.deepEqual(reasons["evals/fixtures/review-prs/pr-9/head/src/auth/session.ts"], { file: "evals/fixtures/review-prs/pr-9/head/src/auth/session.ts", reason: "excluded_pattern", reviewable: false });
+    assert.deepEqual(reasons["evals/fixtures/review-prs/pr-9/head/src/auth/session.ts"], { file: "evals/fixtures/review-prs/pr-9/head/src/auth/session.ts", reason: "excluded_pattern", reviewable: false, pattern: "evals/fixtures/review-prs/**" });
     assert.equal(reasons["grimoires/loa/reports/ablation-2.0/c132-grades/run-1/grade.json"].reason, "excluded_pattern");
+    // cycle-135 C-2 (consumer side): the omission names the default pattern that excluded it
+    assert.equal(reasons["grimoires/loa/reports/ablation-2.0/c132-grades/run-1/grade.json"].pattern, "grimoires/loa/reports/ablation-2.0/*-grades/**");
     assert.equal(res.coverage.degraded, false);
     assert.equal(res.coverage.mergeBlockedReason, undefined);
   });
