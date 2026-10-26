@@ -9,7 +9,8 @@
 # validation accepts cycle|bugfix|other only, so a future caller cannot
 # prepare a housekeeping candidate by accident. These cases are PINS — they
 # pass before and after bd-nr5i6; they fail if someone widens the accepted
-# set without deciding what a housekeeping candidate prepares.
+# set without deciding what a housekeeping candidate prepares. PMOT-T1 also
+# pins the HINT line the refusal prints for housekeeping only (review round 1).
 #
 # Hermetic: the orchestrator runs from a throwaway repository (as in
 # post-merge-orchestrator.bats), and the refusal happens before any write.
@@ -40,6 +41,9 @@ setup() {
     run --separate-stderr bash "$ORCH" --generate --pr 1 --type housekeeping --sha "$SHA"
     [ "$status" -eq 1 ]
     [[ "$stderr" == *"Invalid --type: housekeeping"* ]]
+    # The repair hint for a downstream workflow that still carries the legacy
+    # negative-list guard (post-merge-orchestrator.sh, cycle-135 C-4).
+    [[ "$stderr" == *"HINT: housekeeping merges prepare nothing; refresh .github/workflows/post-merge.yml"* ]]
     [ ! -e "$TEST_REPO/.run/post-merge-candidate.json" ]
 }
 
@@ -48,5 +52,7 @@ setup() {
     run --separate-stderr bash "$ORCH" --generate --pr 1 --type bogus --sha "$SHA"
     [ "$status" -eq 1 ]
     [[ "$stderr" == *"Invalid --type: bogus"* ]]
+    # The housekeeping hint is specific to housekeeping.
+    [[ "$stderr" != *"HINT: housekeeping"* ]]
     [ ! -e "$TEST_REPO/.run/post-merge-candidate.json" ]
 }

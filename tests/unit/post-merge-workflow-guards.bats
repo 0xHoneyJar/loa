@@ -136,8 +136,11 @@ _guard_runs() {
     grep -B8 "if: (needs.classify.outputs.pr_type == 'bugfix'" "$WORKFLOW" | grep -qi 'unknown'
 }
 
-@test "PMWG-T8: actionlint accepts the workflow (skipped when actionlint is not installed)" {
+@test "PMWG-T8: actionlint accepts the workflow and expression syntax (skipped when actionlint is not installed)" {
     command -v actionlint >/dev/null 2>&1 || skip "actionlint not installed"
-    run actionlint "$WORKFLOW"
+    # Workflow and expression syntax only: `-shellcheck= -pyflakes=` turn off
+    # the run-script linters, whose findings depend on the host's shellcheck
+    # and pyflakes versions rather than on the guards (review round 1).
+    run actionlint -shellcheck= -pyflakes= "$WORKFLOW"
     [ "$status" -eq 0 ]
 }
