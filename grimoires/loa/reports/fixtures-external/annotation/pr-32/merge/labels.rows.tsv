@@ -1,0 +1,9 @@
+# approved-by: pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	medium	resource	pydantic-core/src/serializers/fields.rs	@L114	fix-commit	hunk:H01	A,B	agreed	-	false
+V01	medium	resource	pydantic-core/src/serializers/fields.rs	impl_py_gc_traverse!(GeneralFieldsSerializer {	fix-commit	hunk:H01	A,B	agreed	-	false
+V01	medium	resource	pydantic-core/src/serializers/fields.rs	@L342	fix-commit	hunk:H01	A,B	agreed	-	false
+V01	medium	resource	pydantic-core/src/serializers/fields.rs	@L343	fix-commit	hunk:H01	A,B	agreed	-	false
+V01	medium	resource	pydantic-core/src/serializers/fields.rs	@L344	fix-commit	hunk:H01	A,B	agreed	-	false
+F001	-	fix	pydantic-core/src/serializers/fields.rs	-	fix	fix/52fbbfa1dc14:119-119	-	-	-	-
+F002	-	fix	pydantic-core/src/serializers/fields.rs	impl_py_gc_traverse!(GeneralFieldsSerializer {	fix	fix/52fbbfa1dc14:341-345	-	-	-	-

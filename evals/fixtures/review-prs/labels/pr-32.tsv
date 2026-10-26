@@ -1,0 +1,11 @@
+# approved-by: pending
+# fixture pr-32 | external https://github.com/pydantic/pydantic pull request #13624 | base c67a1397327c | head 4c5595f7f0f9 | fix 52fbbfa1dc14..52fbbfa1dc14
+# seeded by evals/harness/seed-corpus-from-external.sh; defects V01 … from the blind annotation (two Opus 5.5 annotators, annotation_merge.py; label_source fix-commit, review_driven false), fix rows carried; approval pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	medium	resource	pydantic-core/src/serializers/fields.rs	@L114	fix-commit	hunk:H01	A,B	agreed	-	false
+V01	medium	resource	pydantic-core/src/serializers/fields.rs	impl_py_gc_traverse!(GeneralFieldsSerializer {	fix-commit	hunk:H01	A,B	agreed	-	false
+V01	medium	resource	pydantic-core/src/serializers/fields.rs	@L342	fix-commit	hunk:H01	A,B	agreed	-	false
+V01	medium	resource	pydantic-core/src/serializers/fields.rs	@L343	fix-commit	hunk:H01	A,B	agreed	-	false
+V01	medium	resource	pydantic-core/src/serializers/fields.rs	@L344	fix-commit	hunk:H01	A,B	agreed	-	false
+F001	-	fix	pydantic-core/src/serializers/fields.rs	-	fix	fix/52fbbfa1dc14:119-119	-	-	-	-
+F002	-	fix	pydantic-core/src/serializers/fields.rs	impl_py_gc_traverse!(GeneralFieldsSerializer {	fix	fix/52fbbfa1dc14:341-345	-	-	-	-

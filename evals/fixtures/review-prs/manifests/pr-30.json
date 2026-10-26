@@ -1,0 +1,110 @@
+{
+  "fixture": "pr-30",
+  "label_set": "v2",
+  "approved": false,
+  "approved_by": "pending",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "e0cc2455febb8db83de59e705429294e6ee2b44b",
+    "fix_commit": "5f894339d27882fedc86bf6b1076fa6d92e404f3",
+    "incidents_meta": {
+      "main_sha": "82e7aa0374a15e1c67594557ab5893c91578f897"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "packages/vite/src/node/optimizer/optimizer.ts",
+      "anchor_line": 149,
+      "anchors": [
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156
+      ],
+      "must_match": "async function close() {",
+      "severity": "medium",
+      "category": "concurrency",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
+      "source_commit": "e0cc2455",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group: B's split kept \u2014 a debounced rerun firing after close() (H01) and waiters never settled by close() (H02) are two wrong behaviours of close(), one group each (DEC-0717 one wrong behaviour per group); category: a rerun after close is an ordering fault, the un-cleared timer is its mechanism (A); anchors, severity agreed",
+      "review_driven": false
+    },
+    {
+      "id": "V02",
+      "file": "packages/vite/src/node/optimizer/optimizer.ts",
+      "anchor_line": 149,
+      "anchors": [
+        149,
+        150,
+        155,
+        156,
+        340,
+        341
+      ],
+      "must_match": "async function close() {",
+      "severity": "medium",
+      "category": "concurrency",
+      "label_source": "fix-commit",
+      "source": "hunk:H02",
+      "source_commit": "e0cc2455",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "group D2 (B's split, see H01: the hanging waiters are a separate wrong behaviour from the stray rerun); anchors: union of in-hunk sites (150 is the start of close() that B added); verdict, severity, category agreed",
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "packages/vite/src/node/optimizer/optimizer.ts",
+      "start": 150,
+      "end": 150,
+      "source": "fix/5f894339d278:150-150"
+    },
+    {
+      "id": "F002",
+      "file": "packages/vite/src/node/optimizer/optimizer.ts",
+      "start": 155,
+      "end": 155,
+      "source": "fix/5f894339d278:155-155"
+    },
+    {
+      "id": "F003",
+      "file": "packages/vite/src/node/optimizer/optimizer.ts",
+      "start": 340,
+      "end": 341,
+      "source": "fix/5f894339d278:340-341"
+    },
+    {
+      "id": "F004",
+      "file": "packages/vite/src/node/optimizer/optimizer.ts",
+      "start": 344,
+      "end": 344,
+      "source": "fix/5f894339d278:344-344"
+    },
+    {
+      "id": "F005",
+      "file": "packages/vite/src/node/optimizer/optimizer.ts",
+      "start": 363,
+      "end": 363,
+      "source": "fix/5f894339d278:363-363"
+    }
+  ]
+}

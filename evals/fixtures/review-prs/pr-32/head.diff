@@ -1,0 +1,259 @@
+diff --git a/pydantic-core/src/serializers/fields.rs b/pydantic-core/src/serializers/fields.rs
+index ba18ee4f3..8631d0b09 100644
+--- a/pydantic-core/src/serializers/fields.rs
++++ b/pydantic-core/src/serializers/fields.rs
+@@ -35,7 +35,10 @@ pub(super) struct SerField {
+     pub serialization_exclude_if: Option<Py<PyAny>>,
+ }
+ 
+-impl_py_gc_traverse!(SerField { serializer });
++impl_py_gc_traverse!(SerField {
++    serializer,
++    serialization_exclude_if
++});
+ 
+ impl SerField {
+     pub fn new(
+diff --git a/pydantic-core/src/serializers/type_serializers/enum_.rs b/pydantic-core/src/serializers/type_serializers/enum_.rs
+index 0d2819ac2..b4e76133c 100644
+--- a/pydantic-core/src/serializers/type_serializers/enum_.rs
++++ b/pydantic-core/src/serializers/type_serializers/enum_.rs
+@@ -23,6 +23,8 @@ pub struct EnumSerializer {
+     serializer: Option<Arc<CombinedSerializer>>,
+ }
+ 
++impl_py_gc_traverse!(EnumSerializer { class, serializer });
++
+ impl BuildSerializer for EnumSerializer {
+     const EXPECTED_TYPE: &'static str = "enum";
+ 
+@@ -48,8 +50,6 @@ impl BuildSerializer for EnumSerializer {
+     }
+ }
+ 
+-impl_py_gc_traverse!(EnumSerializer { serializer });
+-
+ impl TypeSerializer for EnumSerializer {
+     fn to_python<'py>(&self, value: &Bound<'py, PyAny>, state: &mut SerializationState<'py>) -> PyResult<Py<PyAny>> {
+         let py = value.py();
+diff --git a/pydantic-core/src/validators/enum_.rs b/pydantic-core/src/validators/enum_.rs
+index 6ef685daf..28a32a874 100644
+--- a/pydantic-core/src/validators/enum_.rs
++++ b/pydantic-core/src/validators/enum_.rs
+@@ -168,7 +168,7 @@ impl<T: EnumValidateValue> Validator for EnumValidator<T> {
+ #[derive(Debug, Clone)]
+ pub struct PlainEnumValidator;
+ 
+-impl_py_gc_traverse!(EnumValidator<PlainEnumValidator> { class, missing });
++impl_py_gc_traverse!(EnumValidator<PlainEnumValidator> { class, lookup, missing });
+ 
+ impl EnumValidateValue for PlainEnumValidator {
+     fn validate_value<'py, I: Input<'py> + ?Sized>(
+@@ -200,7 +200,7 @@ impl EnumValidateValue for PlainEnumValidator {
+ #[derive(Debug, Clone)]
+ pub struct IntEnumValidator;
+ 
+-impl_py_gc_traverse!(EnumValidator<IntEnumValidator> { class, missing });
++impl_py_gc_traverse!(EnumValidator<IntEnumValidator> { class, lookup, missing });
+ 
+ impl EnumValidateValue for IntEnumValidator {
+     fn validate_value<'py, I: Input<'py> + ?Sized>(
+@@ -216,7 +216,7 @@ impl EnumValidateValue for IntEnumValidator {
+ #[derive(Debug, Clone)]
+ pub struct StrEnumValidator;
+ 
+-impl_py_gc_traverse!(EnumValidator<StrEnumValidator> { class, missing });
++impl_py_gc_traverse!(EnumValidator<StrEnumValidator> { class, lookup, missing });
+ 
+ impl EnumValidateValue for StrEnumValidator {
+     fn validate_value<'py, I: Input<'py> + ?Sized>(
+@@ -232,7 +232,7 @@ impl EnumValidateValue for StrEnumValidator {
+ #[derive(Debug, Clone)]
+ pub struct FloatEnumValidator;
+ 
+-impl_py_gc_traverse!(EnumValidator<FloatEnumValidator> { class, missing });
++impl_py_gc_traverse!(EnumValidator<FloatEnumValidator> { class, lookup, missing });
+ 
+ impl EnumValidateValue for FloatEnumValidator {
+     fn validate_value<'py, I: Input<'py> + ?Sized>(
+diff --git a/pydantic-core/tests/test_garbage_collection.py b/pydantic-core/tests/test_garbage_collection.py
+index e53cdc564..7ac338f77 100644
+--- a/pydantic-core/tests/test_garbage_collection.py
++++ b/pydantic-core/tests/test_garbage_collection.py
+@@ -1,6 +1,6 @@
+ import platform
+-import sys
+ from collections.abc import Iterable
++from enum import Enum
+ from typing import Any
+ from weakref import WeakValueDictionary
+ 
+@@ -8,7 +8,7 @@ import pytest
+ 
+ from pydantic_core import SchemaSerializer, SchemaValidator, core_schema
+ 
+-from .conftest import assert_gc, is_free_threaded
++from .conftest import assert_gc
+ 
+ GC_TEST_SCHEMA_INNER = core_schema.definitions_schema(
+     core_schema.definition_reference_schema(schema_ref='model'),
+@@ -21,18 +21,18 @@ GC_TEST_SCHEMA_INNER = core_schema.definitions_schema(
+ )
+ 
+ 
+-@pytest.mark.xfail(is_free_threaded and sys.version_info < (3, 14), reason='GC leaks on free-threaded (<3.14)')
+ @pytest.mark.xfail(
+-    condition=platform.python_implementation() == 'PyPy', reason='https://foss.heptapod.net/pypy/pypy/-/issues/3899'
++    condition=platform.python_implementation() == 'PyPy', reason='https://github.com/pypy/pypy/issues/3898'
+ )
+ @pytest.mark.skipif(platform.python_implementation() == 'GraalVM', reason='Cannot reliably trigger GC on GraalPy')
+ def test_gc_schema_serializer() -> None:
+-    # test for https://github.com/pydantic/pydantic/issues/5136
++    """https://github.com/pydantic/pydantic/issues/5136"""
++
+     class BaseModel:
+-        __schema__: SchemaSerializer
++        __pydantic_core_schema__: SchemaSerializer
+ 
+         def __init_subclass__(cls) -> None:
+-            cls.__schema__ = SchemaSerializer(
++            cls.__pydantic_core_schema__ = SchemaSerializer(
+                 core_schema.model_schema(cls, GC_TEST_SCHEMA_INNER), config={'ser_json_timedelta': 'float'}
+             )
+ 
+@@ -50,18 +50,18 @@ def test_gc_schema_serializer() -> None:
+     assert_gc(lambda: len(cache) == 0)
+ 
+ 
+-@pytest.mark.xfail(is_free_threaded and sys.version_info < (3, 14), reason='GC leaks on free-threaded (<3.14)')
+ @pytest.mark.xfail(
+-    condition=platform.python_implementation() == 'PyPy', reason='https://foss.heptapod.net/pypy/pypy/-/issues/3899'
++    condition=platform.python_implementation() == 'PyPy', reason='https://github.com/pypy/pypy/issues/3898'
+ )
+ @pytest.mark.skipif(platform.python_implementation() == 'GraalVM', reason='Cannot reliably trigger GC on GraalPy')
+ def test_gc_schema_validator() -> None:
+-    # test for https://github.com/pydantic/pydantic/issues/5136
++    """https://github.com/pydantic/pydantic/issues/5136"""
++
+     class BaseModel:
+-        __validator__: SchemaValidator
++        __pydantic_validator__: SchemaValidator
+ 
+         def __init_subclass__(cls) -> None:
+-            cls.__validator__ = SchemaValidator(
++            cls.__pydantic_validator__ = SchemaValidator(
+                 schema=core_schema.model_schema(cls, GC_TEST_SCHEMA_INNER),
+                 config=core_schema.CoreConfig(extra_fields_behavior='allow'),
+             )
+@@ -81,11 +81,12 @@ def test_gc_schema_validator() -> None:
+ 
+ 
+ @pytest.mark.xfail(
+-    condition=platform.python_implementation() == 'PyPy', reason='https://foss.heptapod.net/pypy/pypy/-/issues/3899'
++    condition=platform.python_implementation() == 'PyPy', reason='https://github.com/pypy/pypy/issues/3898'
+ )
+ @pytest.mark.skipif(platform.python_implementation() == 'GraalVM', reason='Cannot reliably trigger GC on GraalPy')
+ def test_gc_validator_iterator() -> None:
+-    # test for https://github.com/pydantic/pydantic/issues/9243
++    """https://github.com/pydantic/pydantic/issues/9243"""
++
+     class MyModel:
+         iter: Iterable[int]
+ 
+@@ -114,3 +115,96 @@ def test_gc_validator_iterator() -> None:
+         del iterable
+ 
+     assert_gc(lambda: len(cache) == 0)
++
++
++@pytest.mark.xfail(
++    condition=platform.python_implementation() == 'PyPy', reason='https://github.com/pypy/pypy/issues/3898'
++)
++@pytest.mark.skipif(platform.python_implementation() == 'GraalVM', reason='Cannot reliably trigger GC on GraalPy')
++def test_gc_enum_serializer_class() -> None:
++    """https://github.com/pydantic/pydantic/issues/13621"""
++
++    class EnumBase:
++        __pydantic_serializer__: SchemaSerializer
++
++    cache: WeakValueDictionary[int, Any] = WeakValueDictionary()
++
++    for _ in range(10_000):
++
++        class MyEnum(EnumBase, str, Enum):
++            FULL = 'full'
++
++        MyEnum.__pydantic_serializer__ = SchemaSerializer(core_schema.enum_schema(MyEnum, list(MyEnum), sub_type='str'))
++
++        cache[id(MyEnum)] = MyEnum
++
++        del MyEnum
++
++    assert_gc(lambda: len(cache) == 0)
++
++
++@pytest.mark.xfail(
++    condition=platform.python_implementation() == 'PyPy', reason='https://github.com/pypy/pypy/issues/3898'
++)
++@pytest.mark.skipif(platform.python_implementation() == 'GraalVM', reason='Cannot reliably trigger GC on GraalPy')
++def test_gc_enum_validator_lookup() -> None:
++    """https://github.com/pydantic/pydantic/issues/13621"""
++
++    class EnumBase:
++        __pydantic_validator__: SchemaValidator
++
++    cache: WeakValueDictionary[int, Any] = WeakValueDictionary()
++
++    for _ in range(10_000):
++
++        class MyEnum(EnumBase, str, Enum):
++            FULL = 'full'
++
++        MyEnum.__pydantic_validator__ = SchemaValidator(core_schema.enum_schema(MyEnum, list(MyEnum), sub_type='str'))
++
++        cache[id(MyEnum)] = MyEnum
++
++        del MyEnum
++
++    assert_gc(lambda: len(cache) == 0)
++
++
++@pytest.mark.xfail(
++    condition=platform.python_implementation() == 'PyPy', reason='https://github.com/pypy/pypy/issues/3898'
++)
++@pytest.mark.skipif(platform.python_implementation() == 'GraalVM', reason='Cannot reliably trigger GC on GraalPy')
++def test_gc_field_exclude_if() -> None:
++    """https://github.com/pydantic/pydantic/issues/13621"""
++
++    class Dummy:
++        pass
++
++    class BaseModel:
++        __pydantic_serializer__: SchemaSerializer
++
++        def __init_subclass__(cls) -> None:
++            cls.__pydantic_serializer__ = SchemaSerializer(
++                core_schema.model_schema(
++                    Dummy,
++                    core_schema.model_fields_schema(
++                        {
++                            'value': core_schema.model_field(
++                                core_schema.int_schema(), serialization_exclude_if=lambda value, _cls=cls: False
++                            )
++                        }
++                    ),
++                )
++            )
++
++    cache: WeakValueDictionary[int, Any] = WeakValueDictionary()
++
++    for _ in range(10_000):
++
++        class MyModel(BaseModel):
++            pass
++
++        cache[id(MyModel)] = MyModel
++
++        del MyModel
++
++    assert_gc(lambda: len(cache) == 0)

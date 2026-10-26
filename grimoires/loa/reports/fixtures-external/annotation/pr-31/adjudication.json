@@ -1,0 +1,16 @@
+{
+ "I01": {
+  "verdict": "defect-at-head",
+  "group": "D3",
+  "file": "pydantic/json_schema.py",
+  "description": "Class config (including json_schema_mode_override) is pushed inside the dataclass/typed-dict schema methods, i.e. after generate_inner's definitions cache lookup, so nested schemas can be cached under the wrong mode.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "anchors: union (A adds 1983, the dataclass-schema config push that H02 changes and the incident cites together with the typed-dict lines 1985-1986); verdict, group D3, severity agreed; category logic (both annotators left the incident-only group D3 without a hunk to inherit from; the wrong behaviour is the config push ordered after the definitions cache lookup, as in H02's logic defect)",
+  "anchor_lines": [
+   1983,
+   1985,
+   1986
+  ]
+ }
+}

@@ -1,0 +1,28 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-32",
+  "hunk_count": 2,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "pydantic-core/src/serializers/fields.rs",
+      "head_end": 119,
+      "head_start": 119,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "pydantic-core/src/serializers/fields.rs",
+      "head_end": 345,
+      "head_start": 341,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [],
+  "incidents": "incidents/pr-32.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

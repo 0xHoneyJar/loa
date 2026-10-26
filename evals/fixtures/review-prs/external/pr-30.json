@@ -1,0 +1,68 @@
+{
+  "base_commit": "f155b62ceabbaaf71abbf59933968787e3961c56",
+  "files": {
+    "base": [
+      {
+        "blob": "9b3897f94824f7eb83455e3bb99d1b23c0a0b1fd",
+        "path": "packages/vite/src/node/optimizer/index.ts",
+        "sha256": "b4735fd4504678e6c71df56657791b0684d0fd584e014561e24c5aa597aa67cf",
+        "size": 45828
+      },
+      {
+        "blob": "b6a63c038d361411f3ab052a7f071b296b90d63f",
+        "path": "packages/vite/src/node/optimizer/optimizer.ts",
+        "sha256": "0c039cc55dc0d44c4df587ba28161fc88d9254ec09b2d2f1d804afd86ceb1025",
+        "size": 27215
+      },
+      {
+        "blob": "cde478bf2c6839c82816472f2c4326129210c5bf",
+        "path": "packages/vite/src/node/plugins/optimizedDeps.ts",
+        "sha256": "a38e50294ad90a9e5ad818a755faae5d5e7686a71d1d14b9e1a64199ddb46fa7",
+        "size": 5062
+      }
+    ],
+    "head": [
+      {
+        "blob": "1ab4291bd67eddb616fa52139f744a8234010a16",
+        "path": "packages/vite/src/node/optimizer/index.ts",
+        "sha256": "7c28decefe726fe2b565afdb1eed4e2bf31e5b2d127f47e3653c27387404965f",
+        "size": 45881
+      },
+      {
+        "blob": "561e1846fc0fa848f5a7aea8738fd993b3becb1c",
+        "path": "packages/vite/src/node/optimizer/optimizer.ts",
+        "sha256": "8396eb139d00224efff2530e20342a0ecaff1337c8a5ab80a627372eaef19786",
+        "size": 27344
+      },
+      {
+        "blob": "2514f8bef8e197824e8c68998104b6d4e70d1a2d",
+        "path": "packages/vite/src/node/plugins/optimizedDeps.ts",
+        "sha256": "aa4046d5d75fd817bef3910c75ad6f124f07b24271311d432851bf97199d1b3d",
+        "size": 5295
+      }
+    ]
+  },
+  "fix_commit": "5f894339d27882fedc86bf6b1076fa6d92e404f3",
+  "fix_first": "5f894339d27882fedc86bf6b1076fa6d92e404f3",
+  "fix_parent": "6e09961181a1047ef78d37b1a23fb0e7488c8980",
+  "fixture": "pr-30",
+  "head_commit": "e0cc2455febb8db83de59e705429294e6ee2b44b",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "b7e97ecb6aa4dd70b3e3a637afa2ae16feb7cd12",
+      "path": "LICENSE",
+      "sha256": "692057af3d664cbb79ac38293eb50aa3c4987f8182e2a440136e59e08f1b4a54",
+      "size": 1101
+    }
+  ],
+  "merge_commit": "63567c73ac132e6384fef384e6b9f7e8d5a37fff",
+  "pr": 23566,
+  "pr_base_sha": "f155b62ceabbaaf71abbf59933968787e3961c56",
+  "pr_url": "https://github.com/vitejs/vite/pull/23566",
+  "schema_version": 1,
+  "skipped": [],
+  "source_url": "https://github.com/vitejs/vite",
+  "trees": "committed",
+  "visibility": "public"
+}

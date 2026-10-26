@@ -1,0 +1,25 @@
+id: audit-pr-32
+schema_version: 1
+skill: auditing-security
+category: skill-quality
+fixture: review-prs/pr-32
+description: "audit planted-defect detection on external fixture pr-32 (pydantic/pydantic #13624; hidden manifest)"
+prompt: "Read AUDIT-INSTRUCTIONS.md in this directory and carry it out."
+agent:
+  skill: auditing-security
+  artifacts: [audit.md]
+trials: 3
+timeout:
+  per_trial: 3600
+  per_grader: 60
+graders:
+  - type: code
+    script: recall-vs-defects.sh
+    args: ["pr-32", "audit.md"]
+    weight: 1.0
+  - type: code
+    script: verdict-consistency.sh
+    args: ["audit.md", "audit"]
+    weight: 0.5
+difficulty: advanced
+tags: ["cycle-133", "fr-12", "audit-recall", "external"]

@@ -1,0 +1,2 @@
+# pr-31 external https://github.com/pydantic/pydantic #13890: files and hunks that did not become fix regions
+tests/test_json_schema.py: the fix touches it but the PR did not change it; no fix region
