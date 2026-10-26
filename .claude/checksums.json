@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-26T06:54:39Z",
+  "generated": "2026-10-26T07:20:27Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1490,8 +1490,8 @@
     ".claude/skills/autonomous-agent/resources/structured-notes.md": "f67acaad610e475ca2786eeb00bf785622b2efc33ea0d088f50dd6cf8898688f",
     ".claude/skills/autonomous-agent/resources/templates/escalation-report.md": "942df18bcc8ffa96dfe6a64c5fbf499f94480739f03fa32ed8661e20f5f6cb86",
     ".claude/skills/bridgebuilder-review/.gitignore": "4d56952b0fb13bf8f9b6c13a6d4c34a075bac3af447636a1df4335d7576e2f97",
-    ".claude/skills/bridgebuilder-review/SKILL.md": "4e4323de1f6a7b8f12c0f1a3d3ce8d1a2dea11b5bdb897f1257fbdb9e480334b",
-    ".claude/skills/bridgebuilder-review/dist/.build-manifest.json": "d7861a26bdb7755a66ae5653c5c2244165ec3e43a904872fbba257bd2a2c491a",
+    ".claude/skills/bridgebuilder-review/SKILL.md": "ee31733f8b8cd1321873823874a61d754c29bd6a23732e8411276a21bedbbdf4",
+    ".claude/skills/bridgebuilder-review/dist/.build-manifest.json": "51f2daa67388bf9f0fd2d2b5ac4b9bf0bbd2f3171cd335f7ad7af9863e4b6c6e",
     ".claude/skills/bridgebuilder-review/dist/BEAUVOIR.md": "42ef896b1a9fe74c3a823eb0b8e2422327eb2ee714ee2f4eeb38f2f8a6a25279",
     ".claude/skills/bridgebuilder-review/dist/__tests__/config.test.d.ts": "178de024d47b767d141a4b52d1bfb26c426125fa46f7913e494933a2383b41dd",
     ".claude/skills/bridgebuilder-review/dist/__tests__/config.test.d.ts.map": "a86ed24b37ce040c92d09a424e020a8db9ee1b07509c63f6a2deee7bf8a92378",
@@ -1825,6 +1825,7 @@
     ".claude/skills/bridgebuilder-review/resources/core/types.ts": "9548c892acf951353dca1ae155c0314f5d94e69db04d372b53e2e334aca51a7a",
     ".claude/skills/bridgebuilder-review/resources/core/writer-role.ts": "dbe9f6bb2416ee2fdaecede5863fb44f10b90cc6860ba96d68c25f593d87e48f",
     ".claude/skills/bridgebuilder-review/resources/entry.sh": "0dd6dd050b68984c780ee2c325a72a9a8b2b38b59f7f31683ae09fc6995226c7",
+    ".claude/skills/bridgebuilder-review/resources/exclusions-and-coverage.md": "776e59458d09eee5e0ca09dd933f72b51983d3ee327658b2186379aab667d12a",
     ".claude/skills/bridgebuilder-review/resources/grimoires/loa/a2a/sprint-1/reviewer.md": "deef0f00ef438124cf1928ca0e7bd16ac292f836cdc6d8e0600d39b2d69c6090",
     ".claude/skills/bridgebuilder-review/resources/lib/endpoint-validator.generated.ts": "d530416cd95770fb04b28a828932757dae6bcb31dd492914c6061aff3f6b372a",
     ".claude/skills/bridgebuilder-review/resources/lib/model-resolver.generated.ts": "5f32f6e734a27195962bb69de704d6d0b7eb9c24415f4a008800346f4711bb45",
