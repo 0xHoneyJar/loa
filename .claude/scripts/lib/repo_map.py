@@ -153,30 +153,38 @@ def build_map(scan_root, project_root):
                 ea[b] = ea.get(b, 0) + w
 
     # PageRank -- sorted-list iteration, dangling-mass redistribution, fixed count.
+    # Nodes are addressed by their index in the sorted node list (list indexing,
+    # not str-keyed dict lookups, in the 50x edge-relaxation hot loop). The
+    # arithmetic and its order are unchanged: per iteration, sources are visited
+    # in sorted order and each source's edges in sorted-target order, with the
+    # same ((DAMPING * rank) * w) / out_weight expression, so every float sum is
+    # accumulated in the same order and the rounded scores are bit-identical.
     nodes = sorted(known_names)
     n = len(nodes)
     scores = {}
     if n > 0:
-        out_weight = {a: sum(out_edges[a].values()) for a in nodes}
-        dangling = [a for a in nodes if out_weight[a] == 0]
+        index = {node: i for i, node in enumerate(nodes)}
+        out_weight = [sum(out_edges[a].values()) for a in nodes]
+        dangling = [i for i in range(n) if out_weight[i] == 0]
         base = (1.0 - DAMPING) / n
-        rank = {node: 1.0 / n for node in nodes}
+        rank = [1.0 / n] * n
         # Edge order is loop-invariant: sort each non-dangling node's edges once,
         # not on every iteration (same order => same float summation order).
-        sorted_edges = [(a, out_weight[a], sorted(out_edges[a].items()))
-                        for a in nodes if out_weight[a] != 0]
+        sorted_edges = [(i, out_weight[i],
+                         [(index[b], w) for b, w in sorted(out_edges[nodes[i]].items())])
+                        for i in range(n) if out_weight[i] != 0]
         for _ in range(ITERATIONS):
             dangling_mass = 0.0
             for d in dangling:
                 dangling_mass += rank[d]
             redistributed = DAMPING * dangling_mass / n
-            new = {node: base + redistributed for node in nodes}
-            for a, ow, edges in sorted_edges:
-                ra = rank[a]
+            new = [base + redistributed] * n
+            for i, ow, edges in sorted_edges:
+                dr = DAMPING * rank[i]
                 for b, w in edges:
-                    new[b] += DAMPING * ra * w / ow
+                    new[b] += dr * w / ow
             rank = new
-        scores = {node: round(rank[node], 6) for node in nodes}
+        scores = {node: round(rank[i], 6) for i, node in enumerate(nodes)}
 
     ranked = sorted(known_names, key=lambda s: (-scores[s], s))
 

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-27T15:21:56Z",
+  "generated": "2026-10-27T15:31:47Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1187,7 +1187,7 @@
     ".claude/scripts/lib/profile-lib.sh": "ec1b1016db616b1ea120ff4c7e139c130c084ba4c4995bde03183550e44bb93e",
     ".claude/scripts/lib/protected-class-router.sh": "df56642ad9daf054b8b2e927401fa755c340c9778168df818a0ee2e6fd237b1e",
     ".claude/scripts/lib/push-notify-lib.sh": "4d22fca7f6c99553f5ab032d232d44e629fcdefb61b5aaa78cc0eee9c6592424",
-    ".claude/scripts/lib/repo_map.py": "39cd6b147fd7c37351721e2fd4e41509e8784e8d9cafb7e4ac3f42c6ab34a789",
+    ".claude/scripts/lib/repo_map.py": "e59af99ca2e1ea15287e4c54b7e7311cbc95ed54d3a37c89a30b2349ed8b67c6",
     ".claude/scripts/lib/scaffold-post-merge-workflow.sh": "312eab75643d47c568757bc6b575dfe78092c4dfe89d1073977ca38f9cbfa5a4",
     ".claude/scripts/lib/scheduled-cycle-lib.sh": "1170e72b882754b7792543d423766ab018393f6a24b03f72167d0ac876f68338",
     ".claude/scripts/lib/schema-validator.sh": "5c6745ee93a4a9d5f1698708d4bd0bd4c7fb8255966b5bd91a4ecf6fc7a1d9f6",
