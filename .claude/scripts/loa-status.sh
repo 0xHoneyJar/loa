@@ -818,7 +818,12 @@ if ! { [[ -f "$SCRIPT_DIR/lib/agy-gate-lib.sh" ]] && source "$SCRIPT_DIR/lib/agy
   routes_to_agy() { case "${1:-}" in gemini-headless|*:gemini-headless|gemini-headless:*) return 0 ;; esac; return 1; }
   agy_gate_warn_once() { return 0; }
 fi
+_LOA_STATUS_AGY_OPT=""   # memo of the opt-in read ("" = not read yet, 0 = opted in, 1 = not); primed by get_providers_json
 _agy_opted_in() {  # true only for a YAML boolean true at hounfour.headless.agy_opt_in (no env override)
+  # (the config cannot change mid-run, and each uncached read spawns a yq: the hop and the note of every provider read it
+  # from inside command substitutions, where a first read could not be remembered — so get_providers_json reads it once
+  # before its loop and the subshells inherit the answer)
+  case "$_LOA_STATUS_AGY_OPT" in 0) return 0 ;; 1) return 1 ;; esac
   agy_opted_in "$(_providers_config_file)"
 }
 _AGY_OPT_IN_NOTE="$AGY_OPT_IN_NOTE"
@@ -890,6 +895,7 @@ _anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound th
 }
 get_providers_json() {
   local snap provs p
+  if agy_opted_in "$(_providers_config_file)"; then _LOA_STATUS_AGY_OPT=0; else _LOA_STATUS_AGY_OPT=1; fi
   snap=$(_providers_snapshot)
   provs=$(printf '%s' "$snap" | jq -r '.buckets | keys[]' 2>/dev/null; printf 'anthropic\nopenai\ngoogle\n')
   local out='{}'
