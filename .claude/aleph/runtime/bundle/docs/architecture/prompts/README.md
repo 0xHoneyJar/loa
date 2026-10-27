@@ -71,6 +71,12 @@ output is one possible host mechanism, not a Core requirement. Conventions:
   record;
 - every object carries `flags: string[]` for anomalies (empty when none) —
   this is where rule-1 injection notes land.
+- typed-relation producer objects carry every canonical pre-review field in
+  T3.3b, except `relation_id` and `reviewed_by`, plus a rationale kept outside
+  the canonical row. `basis_packet_ids` is an ordered array. The producer and
+  orchestrator independently serialize the fixed-order compact JSON
+  `aleph-relation-review-subject/v1` subject and compare the full lowercase
+  `sha256:` digest before review; changing any field starts a new subject.
 
 ## Adapter profile mapping
 
@@ -86,6 +92,57 @@ audit. The Fable mapping in doc 05 §5 is reference material only.
 |------|-------|
 | [`orchestrator.md`](orchestrator.md) | the run orchestrator |
 | [`workers-intake-extraction.md`](workers-intake-extraction.md) | intake clerk · extractor · normalizer · merge judge |
+| [`workers-internal-ambiguity.md`](workers-internal-ambiguity.md) | ambiguity producer · fresh ambiguity reviewer · material-impact producer · fresh material-impact reviewer |
 | [`workers-judgment.md`](workers-judgment.md) | disposition judge · evidence-role judge · cartographer · router |
 | [`workers-arms-synthesis.md`](workers-arms-synthesis.md) | adversarial panel operation · convergent reconciler · synthesist · assembler |
 | [`verifier-lenses.md`](verifier-lenses.md) | all verification lens charters + verdict contract |
+
+## Material constraints (run format 1.6)
+
+For a pinned 1.6 run, include this block verbatim in every role consuming
+representation material. Older retained bundles keep their own contracts.
+
+```text
+Interpret only the source bytes and source/layout/formal objects declared in
+this bundle. Exact frozen-capture bytes, supplied rendering, and semantic
+interpretation are different evidence roles. Never turn one into another.
+Do not invent a page, region, table, header, caption, cell association, equation
+structure, chart value, or reading order that ingestion did not supply.
+Declare the material features your proposed use requires. Preserve every
+relevant degraded, unsupported, or indeterminate limitation.
+If a required feature is unavailable or this worker cannot consume its
+modality, return CANNOT_DETERMINE and identify what is missing. Do not infer
+chart values from images, reconstruct flattened equations, or use undeclared
+alignment as evidence. A readable rendering is not an exact source claim.
+```
+
+Verifier `cannot-determine` maps to canonical `CANNOT_DETERMINE`. Unchanged
+downstream return shapes use the exact flag
+`CANNOT_DETERMINE:source-representation:<existing-material-id>:<feature>`
+with a missing-material reason in the existing rationale/note. Core treats
+that flag as refusal of the affected interpretation; affirmative text cannot
+accompany it. Material IDs are REP/OBJ/ASC/USE and features are the T3.6 enum.
+
+## Semantic constraints (run format 1.7)
+
+The participating extractor, normalizer and L2S calls include this exact
+block through T3.7, alongside the unchanged material constraint block.
+
+```text
+Treat exact source evidence, proposed semantic fields, and review judgments
+as different records. Propose or challenge one bounded semantic subject.
+Preserve source-supported scope, conditions, qualifiers, modality, attribution,
+comparators, metrics, and content roles explicitly. Do not add facts, strengthen
+or weaken source language, or hide a result and its interpretation in one
+unexamined paraphrase. A packet or sentence is not automatically atomic.
+Context must be named and source-bound; proximity does not create evidence.
+Use only the declared material and legal context. When the frozen evidence
+cannot settle the decision, preserve CANNOT_DETERMINE and name what is missing.
+Relations are not support edges. You do not write ledgers, grant acceptance,
+choose a human authority action, or certify your own semantic adequacy.
+```
+
+L2S uses the existing refuter mechanism and L2 model slot/context class, with
+effort at least the producer floor. Native schema and portable Core fallback
+validation select the pinned descriptor; schema success is not run binding
+or semantic correctness. Standalone validation reports binding not-checked.

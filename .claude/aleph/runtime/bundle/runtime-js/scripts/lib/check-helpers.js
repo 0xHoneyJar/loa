@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { isAbsolute, join, normalize, relative, resolve } from 'node:path';
 import { idsIn, normalizeHeader } from './markdown.js';
+import { usesLineage } from './run-model.js';
+import { lineageCurrentClaims } from './lineage.js';
 export function location(row) {
     const located = row;
     return `${located.file}:${located.line}`;
@@ -62,7 +64,12 @@ export function mdLineSpan(path, start, end) {
     if (bytes.length === 0)
         lineCount = 0;
     if (start < 1 || end < start || end > lineCount) {
-        return { bytes: null, lineCount };
+        return {
+            bytes: null,
+            lineCount,
+            startByte: null,
+            endByte: null,
+        };
     }
     const startOffset = starts[start - 1];
     let endOffset;
@@ -74,7 +81,12 @@ export function mdLineSpan(path, start, end) {
             ? bytes.length - 1
             : bytes.length;
     }
-    return { bytes: bytes.subarray(startOffset, endOffset), lineCount };
+    return {
+        bytes: bytes.subarray(startOffset, endOffset),
+        lineCount,
+        startByte: startOffset,
+        endByte: endOffset,
+    };
 }
 export function makeIndexes(model) {
     const maps = {
@@ -211,6 +223,9 @@ export function duplicateDefinitions(model) {
     return duplicates;
 }
 export function activeClaims(model) {
+    if (usesLineage(model.manifest?.runFormatVersion || '')) {
+        return lineageCurrentClaims(model);
+    }
     return model.claims.filter((claim) => claim.values.status === 'active');
 }
 export function activeRows(rows) {
@@ -249,16 +264,38 @@ export function allStatusRows(model) {
     }
     return rows;
 }
-export function firstRunLogEntry(document, stage) {
+export function runLogEvents(document) {
+    const events = [];
     if (!document)
-        return null;
+        return events;
     for (let i = 0; i < document.lines.length; i++) {
-        const match = document.lines[i].match(/^##\s+(\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?)?(?:Z| UTC|[+-]\d{2}:\d{2})?)\s+[—-]\s+(S\d+[ab]?)\s+[—-]\s+(.+)$/);
-        if (match && match[2].toUpperCase() === stage.toUpperCase()) {
-            return { timestamp: match[1], event: match[3], line: i + 1 };
-        }
+        const rawLine = document.lines[i];
+        // LF splitting leaves the CR of a CRLF ending in the retained line.
+        const logicalLine = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+        const match = logicalLine.match(/^##\s+(\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?)?(?:Z| UTC|[+-]\d{2}:\d{2})?)\s+[—-]\s+(S\d+[ab]?)\s+[—-]\s+(.+)$/);
+        if (!match)
+            continue;
+        events.push({
+            timestamp: match[1],
+            stage: match[2],
+            event: match[3],
+            line: i + 1,
+        });
     }
-    return null;
+    return events;
+}
+export function firstRunLogEntry(document, stage) {
+    const found = runLogEvents(document)
+        .find((entry) => entry.stage.toUpperCase() === stage.toUpperCase());
+    if (!found)
+        return null;
+    return { timestamp: found.timestamp, event: found.event, line: found.line };
+}
+export function hasRunLogEvent(document, stage, event) {
+    const normalizedStage = stage.toUpperCase();
+    const normalizedEvent = event.trim();
+    return runLogEvents(document).some((entry) => (entry.stage.toUpperCase() === normalizedStage
+        && entry.event.trim() === normalizedEvent));
 }
 export function reachedState(model, state) {
     return Boolean(model.manifest?.states.some((row) => row.values.state.trim() === state));

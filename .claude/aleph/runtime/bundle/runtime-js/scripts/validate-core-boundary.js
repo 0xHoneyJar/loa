@@ -90,6 +90,15 @@ function rank(value) {
 function parseJson(path) {
     return JSON.parse(readFileSync(path, 'utf8'));
 }
+function nestedValue(value, path) {
+    let current = value;
+    for (const property of path) {
+        if (!isRecord(current))
+            return undefined;
+        current = current[property];
+    }
+    return current;
+}
 function gitInventory(root) {
     const result = spawnSync('git', ['-C', root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'], { encoding: 'buffer', maxBuffer: 32 * 1024 * 1024 });
     if (result.status !== 0) {
@@ -761,6 +770,16 @@ export function validateCoreBoundary(options = {}) {
             if (!isRecord(schema) || schema.$schema !== 'https://json-schema.org/draft/2020-12/schema') {
                 fail('adapter.schema.json is not a Draft 2020-12 schema');
             }
+            const schemaRunFormatVersion = nestedValue(schema, [
+                'properties',
+                'adapter',
+                'properties',
+                'run_format_version',
+                'const',
+            ]);
+            if (schemaRunFormatVersion !== manifest.core.run_format_version) {
+                fail('adapter.schema.json run-format version disagrees with Core and adapter manifests');
+            }
         }
         catch (error) {
             fail(`adapter.schema.json is malformed: ${error instanceof Error ? error.message : String(error)}`);
@@ -858,6 +877,34 @@ export function validateCoreBoundary(options = {}) {
             }
         }
         return 'selected-adapter payloads, typed dependencies, and bundle inventories exclude foreign adapters';
+    });
+    results.run('CB10', 'Core-owned procedural authority semantics', (fail) => {
+        if (!adapters.has('loa')) {
+            return 'Loa procedural authority semantics are not present in this selected-adapter bundle';
+        }
+        for (const path of [
+            'adapters/loa/src/ledger-writer.ts',
+            'runtime-js/adapters/loa/src/ledger-writer.js',
+        ]) {
+            if (!existsSync(join(root, path))) {
+                fail(`Loa procedural writer is absent: ${path}`);
+                continue;
+            }
+            const text = readFileSync(join(root, path), 'utf8');
+            if (!text.includes('validateMaterialImpactAuthorityBasis')) {
+                fail(`${path} does not delegate material-impact authority eligibility to Core`);
+            }
+            for (const pattern of [
+                /materiality_class\s*(?:===|!==|==|!=)\s*['"`][BC]['"`]/u,
+                /verdict\s*(?:===|!==|==|!=)\s*['"`](?:upheld|refuted|cannot-determine)['"`]/u,
+                /\|\s*verdict\s*\|\s*upheld\s*\|/u,
+            ]) {
+                if (pattern.test(text)) {
+                    fail(`${path} reimplements Core-owned materiality or verifier semantics`);
+                }
+            }
+        }
+        return 'Loa delegates structured material-impact authority eligibility to the Core helper';
     });
     results.run('CB9', 'bundle digests and Core equality', (fail) => {
         const coreDigest = treeDigest(root, manifest.files.core);

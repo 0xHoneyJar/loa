@@ -109,7 +109,7 @@ export function extractMarkdownHeading(bytes, heading, label = 'document') {
     let start = -1;
     let level = 0;
     let offset = 0;
-    let end = text.length;
+    let end = bytes.byteLength;
     let fence = null;
     for (const line of lines) {
         const withoutEnding = line.replace(/\r?\n$/u, '');

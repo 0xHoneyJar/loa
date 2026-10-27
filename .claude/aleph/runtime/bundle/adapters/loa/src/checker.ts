@@ -20,11 +20,8 @@ import {
   verifyAndLoadLoaBundle,
 } from './core-loader.ts';
 import {
-  runtimeSnapshotPath,
-  verifyRuntimeSnapshot,
-} from './runtime-snapshot.ts';
-import {
   acquireDurableProcessLock,
+  verifyRetainedRuntimeIdentity,
   verifyRunControl,
 } from './run-control.ts';
 import {
@@ -414,14 +411,7 @@ export function invokePinnedChecker(
 ): PinnedCheckerResult {
   const runDir = resolve(options.runDir);
   const state = verifyRunControl(runDir);
-  const runtime = verifyRuntimeSnapshot(runtimeSnapshotPath(runDir), {
-    allowSimulation: options.allowSimulation,
-  });
-  if (runtime.run_id !== state.run_id
-    || runtime.tree_digest !== state.identity.runtime.digest
-    || runtime.bundle.digest !== state.identity.bundle.digest) {
-    throw new Error('runtime snapshot disagrees with pinned run identity');
-  }
+  const runtime = verifyRetainedRuntimeIdentity(runDir, state);
   const bundle = verifyAndLoadLoaBundle(runtime.bundle.root);
   if (bundle.lock.checker_digest !== state.identity.checker_digest) {
     throw new Error('pinned checker digest disagrees with the verified runtime bundle');

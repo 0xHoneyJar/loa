@@ -20,11 +20,17 @@ import {
   writeFileAtomic,
   writeJsonAtomic,
 } from './fs.ts';
-import { verifyWorkerBundle } from './worker-bundle.ts';
+import {
+  assertWorkerRoleIsolation,
+  verifyWorkerBundle,
+} from './worker-bundle.ts';
 import {
   contractExemplarToJsonSchema,
   validateWorkerReturnContract,
 } from '../../../scripts/lib/worker-return-contract.ts';
+import { validateMaterialProducerReturn } from '../../../scripts/lib/source-representation.ts';
+import { isSemanticOutputContract, validateSemanticReturn, parseSemanticJson, semanticJson, validateSemanticProducerDelivery, type SemanticSubject } from '../../../scripts/lib/semantic-review.ts';
+import { loadRun } from '../../../scripts/lib/run-model.ts';
 
 export { contractExemplarToJsonSchema };
 
@@ -85,8 +91,11 @@ export class ValidatedWorkerReturn<T extends JsonValue = JsonValue> {
   readonly contractDigest: string;
   readonly validationDigest: string;
   readonly simulation: WorkerDispatchReceipt['simulation'];
+  readonly contextId: string | null;
+  readonly producerContextId: string | null;
   readonly #canonicalBytes: Buffer;
   readonly #token: symbol;
+  readonly #semantic: boolean;
 
   constructor(
     token: symbol,
@@ -96,11 +105,15 @@ export class ValidatedWorkerReturn<T extends JsonValue = JsonValue> {
     contractDigest: string,
     validationDigest: string,
     simulation: WorkerDispatchReceipt['simulation'],
+    contextId: string | null = null,
+    producerContextId: string | null = null,
+    semantic = false,
   ) {
     if (token !== VALIDATED_TOKEN) throw new Error('validated returns are created only by validation');
-    const canonicalBytes = stableJsonBytes(data);
+    const canonicalBytes = semantic ? Buffer.from(semanticJson(data)) : stableJsonBytes(data);
     const canonicalClone = JSON.parse(canonicalBytes.toString('utf8')) as T;
     this.#token = token;
+    this.#semantic = semantic;
     this.#canonicalBytes = Buffer.from(canonicalBytes);
     this.callId = callId;
     this.data = deepFreezeJson(canonicalClone);
@@ -108,6 +121,8 @@ export class ValidatedWorkerReturn<T extends JsonValue = JsonValue> {
     this.rawDigest = rawDigest;
     this.contractDigest = contractDigest;
     this.validationDigest = validationDigest;
+    this.contextId = contextId;
+    this.producerContextId = producerContextId;
     this.simulation = simulation === null
       ? null
       : Object.freeze({ kind: simulation.kind });
@@ -132,7 +147,7 @@ export class ValidatedWorkerReturn<T extends JsonValue = JsonValue> {
     if (this.#token !== VALIDATED_TOKEN) {
       throw new Error('worker return does not carry the validation brand');
     }
-    const currentBytes = stableJsonBytes(this.data);
+    const currentBytes = this.#semantic ? Buffer.from(semanticJson(this.data)) : stableJsonBytes(this.data);
     if (!currentBytes.equals(this.#canonicalBytes)
       || sha256Digest(currentBytes) !== this.dataDigest) {
       throw new Error('validated worker return data failed its integrity check');
@@ -153,7 +168,7 @@ export interface WorkerReturnResult {
   validated: ValidatedWorkerReturn | null;
 }
 
-function parseRaw(raw: ValidateWorkerReturnOptions['raw']): {
+function parseRaw(raw: ValidateWorkerReturnOptions['raw'], semantic = false): {
   value: unknown;
   bytes: Buffer;
   error?: string;
@@ -171,7 +186,7 @@ function parseRaw(raw: ValidateWorkerReturnOptions['raw']): {
     }
   }
   try {
-    const bytes = stableJsonBytes(raw);
+    const bytes = semantic ? Buffer.from(semanticJson(raw)) : stableJsonBytes(raw);
     return {
       value: JSON.parse(bytes.toString('utf8')) as unknown,
       bytes,
@@ -189,6 +204,11 @@ export function validateWorkerDispatch(
   request: WorkerRequest,
   receipt: WorkerDispatchReceipt,
 ): void {
+  assertWorkerRoleIsolation(
+    request.role,
+    request.kind,
+    request.isolation?.producer_context_id,
+  );
   if (receipt.format !== 'aleph-loa-worker-dispatch/v1'
     || receipt.call_id !== request.call_id
     || !receipt.context_id
@@ -204,7 +224,6 @@ export function validateWorkerDispatch(
     throw new Error('worker dispatch receipt has an invalid simulation marker');
   }
   if (request.kind === 'refuter'
-    && request.isolation.producer_context_id
     && receipt.context_id === request.isolation.producer_context_id) {
     throw new Error('fresh-context refuter reused the producer context');
   }
@@ -228,9 +247,6 @@ export function validateWorkerReturn(
   );
   validateWorkerDispatch(request, options.dispatchReceipt);
   mkdirSync(returnRoot, { recursive: true });
-  const parsed = parseRaw(options.raw);
-  const rawDigest = sha256Digest(parsed.bytes);
-  writeFileAtomic(join(returnRoot, 'raw.json'), parsed.bytes);
   const contractPath = join(workerRoot, 'contracts', 'output.json');
   if (!existsSync(contractPath)) throw new Error('worker bundle omits its Core output contract');
   const contractBytes = readFileSync(contractPath);
@@ -242,8 +258,12 @@ export function validateWorkerReturn(
     || request.output_contract.selector.length === 'output-contract:'.length) {
     throw new Error('worker output contract selector is invalid');
   }
+  const parsed = parseRaw(options.raw, isSemanticOutputContract(JSON.parse(contractBytes.toString('utf8'))));
+  const rawDigest = sha256Digest(parsed.bytes);
+  writeFileAtomic(join(returnRoot, 'raw.json'), parsed.bytes);
   const errors: string[] = [];
   let canonicalValue: JsonValue | null = null;
+  let semantic = false;
   if (parsed.error) {
     errors.push(parsed.error);
   } else {
@@ -256,8 +276,34 @@ export function validateWorkerReturn(
       );
     }
     const validation = validateWorkerReturnContract(parsed.bytes, example);
+    semantic = isSemanticOutputContract(example);
     errors.push(...validation.errors);
     canonicalValue = validation.canonicalValue as JsonValue | null;
+    if (canonicalValue !== null && errors.length === 0) {
+      if (isSemanticOutputContract(example)) {
+        const runDir = dirname(dirname(dirname(workerRoot)));
+        const model = loadRun(runDir);
+        const subjectPath = request.role === 'verifier-l2s'
+          ? request.allowlist.find((a) => a.run_path.startsWith('verification/harness/semantic-subjects/'))?.run_path : undefined;
+        const subject = subjectPath ? parseSemanticJson(readFileSync(join(runDir, subjectPath))) as SemanticSubject : undefined;
+        const context = request.role === 'verifier-l2s' ? {
+          model, subject, owner_stage: request.stage as 'S2' | 'S3' | 'S4', legal_source_ids: subject!.anchors.map((a) => a.source_id),
+        } : validateSemanticProducerDelivery(model, request.role as 'extractor' | 'normalizer', request.stage as 'S2' | 'S3' | 'S4',
+          request.call_id, request.task_line, request.allowlist.map((a) => ({ path: a.run_path, bytes: readFileSync(join(workerRoot, a.attachment_path)) })));
+        const validation = validateSemanticReturn(request.role as 'extractor' | 'normalizer' | 'verifier-l2s',
+          model.manifest!.runFormatVersion, canonicalValue, context);
+        errors.push(...validation.errors);
+      }
+      try { validateMaterialProducerReturn(canonicalValue); } catch (error) {
+        errors.push(error instanceof Error ? error.message : String(error));
+      }
+      if (request.role === 'verifier-l2f') {
+        const returned = canonicalValue as Record<string, JsonValue>;
+        if (!Array.isArray(returned.candidate_evidence) || returned.candidate_evidence.length !== 0) {
+          errors.push('L2F requires empty candidate_evidence');
+        }
+      }
+    }
   }
   const report: WorkerValidationReport = {
     format: LOA_WORKER_VALIDATION_FORMAT,
@@ -279,6 +325,9 @@ export function validateWorkerReturn(
     contractDigest,
     validationDigest,
     options.dispatchReceipt.simulation,
+    options.dispatchReceipt.context_id,
+    options.dispatchReceipt.producer_context_id,
+    semantic,
   );
   writeFileAtomic(join(returnRoot, 'validated.json'), validated.canonicalBytes());
   return {
