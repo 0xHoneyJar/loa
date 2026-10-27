@@ -82,6 +82,11 @@ export declare function partitionUserExclusions(files: readonly PullRequestFile[
         pattern: string;
     }>;
 };
+/**
+ * cycle-136 C-3 (FR-3 (c), sdd.md § 4, D-2.6, bd-gyrgq): a filename or error detail as rendered in a WARN/INFO line —
+ * JSON-quoted with control characters escaped (one line, whatever the input) and at most 200 characters.
+ */
+export declare function boundedForLog(value: string): string;
 /** cycle-135 C-2 (DEC-1027): where the applied `.reviewignore` patterns came from (`base_unavailable`: round 1). */
 export type { ReviewignoreSource } from "./types.js";
 /**

@@ -20,8 +20,8 @@ import { GitProviderError } from "../ports/git-provider.js";
 import type { FileContentResult, IGitProvider, PullRequestFile, PullRequestRef } from "../ports/git-provider.js";
 import { createHash } from "node:crypto";
 import {
-  deriveCallConfig, detectLoa, isWildcardPattern, matchesExcludePattern, parseReviewignoreLines, readBaseReviewignore,
-  REVIEWIGNORE_MAX_BYTES, truncateFiles, type BaseRead,
+  boundedForLog, deriveCallConfig, detectLoa, parseReviewignoreLines, readBaseReviewignore, REVIEWIGNORE_MAX_BYTES,
+  truncateFiles, type BaseRead,
 } from "./truncation.js";
 import { FETCH_DEGRADED_REASONS, orderDegradedReasons, type DegradedReason } from "./degraded-reason.js";
 import type { BridgebuilderConfig, CoverageRecord, OmissionReason, ReviewignoreSource, ReviewItem, SelectionConfig, TruncationResult } from "./types.js";
@@ -122,21 +122,6 @@ async function baseIsReadable(
  * `reviewignoreSource` beside `protectedKept` — so the file is read once and the record cannot disagree with the
  * selection. `deps.reviewignoreSource` remains a test seam (lead wiring, Task 1.7).
  */
-
-/** cycle-135 C-2: the ` [pattern: <p>]` suffix A's selection appends to an exclusion's stats (to the final `]`). */
-const PATTERN_SUFFIX = / \[pattern: (.+)\]$/;
-
-/**
- * The pattern that excluded a file: the stats suffix when the selection wrote one; else, for a config
- * `exclude_patterns` exclusion, the matching pattern with a non-wildcard one first (sdd.md § 5.2's precedence).
- */
-function exclusionPattern(stats: string, filename: string, excludePatterns: readonly string[] | undefined): string | undefined {
-  const m = PATTERN_SUFFIX.exec(stats);
-  if (m) return m[1];
-  if (!/\(excluded by pattern\)/.test(stats)) return undefined;
-  const matching = (excludePatterns ?? []).filter((p) => matchesExcludePattern(filename, [p]));
-  return matching.find((p) => !isWildcardPattern(p)) ?? matching[0];
-}
 
 type FetchOutcome = NonNullable<CoverageRecord["omitted"][number]["fetch"]>;
 
@@ -240,7 +225,7 @@ function pageFailureReason(err: unknown): DegradedReason | undefined {
   return undefined;
 }
 
-/** Map one `truncateFiles` exclusion (its stats suffix) to the coverage reason. */
+/** Map one `truncateFiles` exclusion (its stats text) to the coverage reason. */
 function exclusionReason(stats: string, file: PullRequestFile | undefined): OmissionReason {
   if (/fail-closed/.test(stats)) return "excluded_fail_closed";
   if (/\(Loa framework/.test(stats)) return "excluded_loa";
@@ -334,6 +319,12 @@ async function fetchMissingPatches(
   let start: number | undefined;
   let pastDeadline = false;
   let aborted = false;
+  // cycle-136 C-3 (FR-3 (c), sdd.md § 4, bd-gyrgq): a failed read is named on stderr once per file per attempt — never
+  // the error text or a response body (budget, skipped_cap, deadline and aborted are not failed reads)
+  const failed = (f: PullRequestFile, outcome: "error" | "too_large" | "binary"): void => {
+    outcomes.set(f.filename, outcome);
+    process.stderr.write(`[bridgebuilder] WARN: content read of ${boundedForLog(f.filename)} failed: ${outcome} (no_patch)\n`);
+  };
   for (const f of placement.included) {
     if (!candidates.has(f)) { charged += f.patchBytes ?? 0; continue; }
     if (aborted) { outcomes.set(f.filename, "aborted"); continue; }
@@ -350,12 +341,12 @@ async function fetchMissingPatches(
       res = await git.getFileContent!(owner, repo, f.filename, pin.head_sha, remaining);
     } catch (err) {
       // (network, a path that moved, a malformed envelope, an allowlist refusal: today's no_patch, named)
-      outcomes.set(f.filename, "error");
+      failed(f, "error");
       if (stopsContentFetches(err)) aborted = true;
       continue;
     }
-    if (res.kind !== "text") { outcomes.set(f.filename, res.kind); continue; }
-    if (res.content.length === 0) { outcomes.set(f.filename, "error"); continue; } // (additions > 0 says it is not empty)
+    if (res.kind !== "text") { failed(f, res.kind); continue; }
+    if (res.content.length === 0) { failed(f, "error"); continue; } // (additions > 0 says it is not empty)
     const patch = synthesizeAddedPatch(res.content);
     const bytes = utf8Bytes(patch);
     if (bytes > remaining) { outcomes.set(f.filename, "budget"); continue; } // never truncated
@@ -443,10 +434,9 @@ async function attempt(
   const byName = new Map(listed.map((f) => [f.filename, f]));
   const omitted: CoverageRecord["omitted"] = [];
   for (const ex of sel.excluded) {
-    const reason = exclusionReason(ex.stats.replace(PATTERN_SUFFIX, ""), byName.get(ex.filename));
-    // (review round 1: the structured field first; the stats suffix and the config fallback until A drops the suffix)
-    const pattern = reason === "excluded_loa" || reason === "excluded_pattern"
-      ? ex.pattern ?? exclusionPattern(ex.stats, ex.filename, config.excludePatterns) : undefined;
+    const reason = exclusionReason(ex.stats, byName.get(ex.filename));
+    // (cycle-136 FR-3 (d), bd-gyrgq: every producer sets the structured field; the stats suffix grammar is gone)
+    const pattern = reason === "excluded_loa" || reason === "excluded_pattern" ? ex.pattern : undefined;
     omitted.push(omission(ex.filename, reason, reason === "no_patch" ? outcomes.get(ex.filename) : undefined, pattern));
   }
 

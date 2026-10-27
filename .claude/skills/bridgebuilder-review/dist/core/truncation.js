@@ -367,11 +367,17 @@ function isExplicitFor(pattern, filename) {
     return p.startsWith("/") || p.includes("/") || p === filename; // (a leading `/` is the root anchor: explicit)
 }
 /**
- * cycle-135 C-2: the suffix an omission's stats carry to name the pattern that excluded it (Loa-tier and
- * user-pattern omissions). Grammar: the stats end with ` [pattern: <p>]`; parse with `/ \[pattern: (.*)\]$/`.
+ * cycle-136 C-3 (FR-3 (c), sdd.md § 4, D-2.6, bd-gyrgq): a filename or error detail as rendered in a WARN/INFO line —
+ * JSON-quoted with control characters escaped (one line, whatever the input) and at most 200 characters.
  */
-function patternSuffix(pattern) {
-    return ` [pattern: ${pattern}]`;
+export function boundedForLog(value) {
+    const MAX = 200;
+    let shown = JSON.stringify(value);
+    for (let n = value.length; shown.length > MAX && n > 0;) {
+        n = Math.max(0, n - Math.max(1, shown.length - MAX)); // (escapes widen the rendering; shrink by the overshoot)
+        shown = JSON.stringify(value.slice(0, n) + "…");
+    }
+    return shown;
 }
 /**
  * Parse a `.reviewignore` file's user-curated patterns from disk.
@@ -430,7 +436,7 @@ export function parseReviewignoreFile(repoRoot, opts = {}) {
     if (base.why === "absent")
         return absentAtBase(repoRoot, opts.baseSha);
     // before the checkout read, so the reason survives a checkout refusal (which throws)
-    process.stderr.write(`[bridgebuilder] WARN: .reviewignore at base ${JSON.stringify(opts.baseSha)} not read — ${base.detail}; the checkout copy governs (source: base_unavailable, the review degrades as reviewignore_unavailable; bd-i4fyw)\n`);
+    process.stderr.write(`[bridgebuilder] WARN: .reviewignore at base ${JSON.stringify(opts.baseSha)} not read — ${boundedForLog(base.detail)}; the checkout copy governs (source: base_unavailable, the review degrades as reviewignore_unavailable; bd-i4fyw)\n`);
     const checkout = readCheckoutReviewignore(repoRoot);
     return { patterns: checkout.patterns, source: "base_unavailable" };
 }
@@ -796,7 +802,7 @@ export function applyLoaTierExclusion(files, loaPatterns) {
         if (tier === "tier1") {
             tier1Excluded.push({
                 filename: file.filename,
-                stats: `+${file.additions} -${file.deletions} (Loa framework, content excluded)${patternSuffix(loaPattern)}`,
+                stats: `+${file.additions} -${file.deletions} (Loa framework, content excluded)`,
                 pattern: loaPattern,
             });
         }
@@ -805,7 +811,7 @@ export function applyLoaTierExclusion(files, loaPatterns) {
             const summary = file.patch ? extractFirstHunk(file.patch) : "";
             tier2Summary.push({
                 filename: file.filename,
-                stats: `+${file.additions} -${file.deletions} (Loa framework, summary only)${patternSuffix(loaPattern)}`,
+                stats: `+${file.additions} -${file.deletions} (Loa framework, summary only)`,
                 summary,
                 pattern: loaPattern,
             });
@@ -1242,7 +1248,7 @@ export function truncateFiles(files, config) {
     let loaBanner;
     let loaStats;
     let allExcluded = false;
-    // cycle-135 (review round 1, LOW 5): `pattern` is the structured excluding pattern; the stats suffix stays one release.
+    // cycle-135 (review round 1, LOW 5): `pattern` is the structured excluding pattern (cycle-136 FR-3 (d): the only one).
     const loaExcludedEntries = [];
     let afterLoa = files;
     // BB-797-001 (iter-3): typed self-review boolean — downstream prose-free.
@@ -1328,7 +1334,7 @@ export function truncateFiles(files, config) {
                     if (pattern !== undefined) {
                         loaExcludedEntries.push({
                             filename: f.filename,
-                            stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern)${patternSuffix(pattern)}`,
+                            stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern)`,
                             pattern,
                         });
                         userBytesSaved += f.patch ? new TextEncoder().encode(f.patch).byteLength : 0;
@@ -1484,7 +1490,7 @@ export function truncateFiles(files, config) {
                     if (pattern !== undefined) {
                         loaExcludedEntries.push({
                             filename: f.filename,
-                            stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern, strict deny)${patternSuffix(pattern)}`,
+                            stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern, strict deny)`,
                             pattern,
                         });
                         userExcludedCount++;
@@ -1563,7 +1569,7 @@ export function truncateFiles(files, config) {
             protectedKept.delete(f.filename); // an explicit name here wins over a wildcard `.reviewignore` kept it from
             excludedByPattern.push({
                 filename: f.filename,
-                stats: `+${f.additions} -${f.deletions} (excluded by pattern)${patternSuffix(pattern)}`,
+                stats: `+${f.additions} -${f.deletions} (excluded by pattern)`,
                 pattern,
             });
         }

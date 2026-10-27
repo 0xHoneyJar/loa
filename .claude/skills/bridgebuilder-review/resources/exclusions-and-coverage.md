@@ -62,6 +62,10 @@ the real sizes. So whenever a candidate exists the selection runs twice, and a s
 | `skipped_cap` | beyond `bridgebuilder.max_content_fetches` (default 20; `0` reads nothing) |
 | `deadline` | beyond the 120 s budget for all content reads of the review |
 
+A failed read (`binary`, `too_large` or `error`) also writes one line on stderr per file and fetch attempt, with the
+file name quoted, control characters escaped and the name bounded to 200 characters; the error text and any response
+body are never printed: `[bridgebuilder] WARN: content read of "<file>" failed: <outcome> (no_patch)`.
+
 `bridgebuilder.fetch_missing_patches: false` turns the read off: such files stay `no_patch` with no `fetch` field. A
 head move that restarts the fetch discards every synthesized patch. Modified, renamed and removed files without a
 patch are unchanged.
@@ -113,8 +117,8 @@ file they match is kept, and the first matching pattern is recorded in `protecte
 `ci.yml` keep `.github/workflows/ci.yml`, while `.github/workflows/ci.yml` or the `.reviewignore` line
 `.github/workflows/` excludes it. Kept files come first in the selection order, so the file cap and the byte budget
 reach them last. The Loa framework tier is not subject to the list: in a Loa repository without the self-review
-label it still strips `.claude/settings.json`. Every omission names the default or user pattern that excluded it, in
-the `pattern` field and, for one release, as a ` [pattern: <p>]` suffix on its stats.
+label it still strips `.claude/settings.json`. Every omission names the default or user pattern that excluded it in
+the `pattern` field. The stats text no longer carries a pattern suffix (removed in cycle-136, bd-gyrgq).
 
 On a pull request, `protected_paths`, `exclude_patterns`, `fetch_missing_patches` and `max_content_fetches` come from
 the trusted config, the same source the provider keys use: `BRIDGEBUILDER_TRUSTED_CONFIG`, else the base branch's

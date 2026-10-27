@@ -1,7 +1,7 @@
 {
   "version": "1.0",
-  "generated_at": "2026-10-27T01:51:25Z",
-  "source_hash": "994f717125d140f4b2feb10a928353d500172912177b0d0a8f4d3f510957a1f6",
+  "generated_at": "2026-10-27T01:52:18Z",
+  "source_hash": "31dd181f6c78d99aaae59d8915234947d4b194428da1028582c7fbfe2658bfd5",
   "file_count": 51,
   "files": [
     {
@@ -114,7 +114,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/paged-fetch.ts",
-      "sha256": "91a3b05ba500b4a71fd6abcc2a7e3f824273a173c1973a33e5ceeba1a4798c26"
+      "sha256": "189c371b92b6c30fd801d9b048996a08a506149b4dd6622b5a44fdf43de09764"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/progress.ts",
@@ -154,7 +154,7 @@
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/truncation.ts",
-      "sha256": "0d84e9f093af5b7d19e56ffc4b40085e6685b0fd2de57fe3f3382182b46828b3"
+      "sha256": "b98921017b7135ac28cc896c7e7fa2e3c098b47dfb24222231e94ebd609616ac"
     },
     {
       "path": ".claude/skills/bridgebuilder-review/resources/core/types.ts",
