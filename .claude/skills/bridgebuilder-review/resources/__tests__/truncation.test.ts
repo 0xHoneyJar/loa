@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -2070,6 +2070,168 @@ describe("trusted-config precedence for the review-scope keys (review round 1, H
     const trusted = configModule.loadTrustedConfig({ pr: 1 }, prDeps(TRUSTED_YAML, TRUSTED_YAML));
     const { err } = captureStderr(() => configModule.applyTrustedReviewScope(config, trusted, {}));
     assert.equal(err, "");
+  });
+});
+
+// cycle-136 FR-5 (sdd.md § 5.6, DEC-1084, Task 1.3b): on a pull request an invalid HEAD value of a review-scope key no
+// longer fails the head's own review — resolveConfig WARNs, leaves the key unset and records it in
+// provenance.deferredScopeKeys; applyTrustedReviewScope installs the trusted value (or the default) and clears the list.
+describe("head-side scope validation deferral on a pull request (cycle-136 FR-5)", () => {
+  const TRUSTED =
+    "bridgebuilder:\n  protected_paths:\n    - /.github/**\n  exclude_patterns:\n    - vendor/**\n  max_content_fetches: 3\n";
+  const HEAD_TEXT = "bridgebuilder:\n  max_prs: 1\n";
+  const INVALID: Record<string, unknown> = { protected_paths: ["../escape/**"], max_content_fetches: -1, exclude_patterns: "vendor/**" };
+  const ROUTES: Array<[string, { pr?: number }, Record<string, string>]> = [
+    ["--pr 1", { pr: 1 }, {}],
+    ["GITHUB_EVENT_NAME=pull_request", {}, { GITHUB_EVENT_NAME: "pull_request" }],
+    ["GITHUB_BASE_REF=main", {}, { GITHUB_BASE_REF: "main" }],
+  ];
+
+  function prDeps(trustedText: string | undefined): configModule.TrustedConfigDeps {
+    return {
+      env: { GITHUB_EVENT_NAME: "pull_request", GITHUB_BASE_REF: "main" },
+      readWorkingTree: () => HEAD_TEXT,
+      refExists: (_root, ref) => trustedText !== undefined && ref === "refs/remotes/origin/main",
+      gitShow: () => trustedText,
+      prBaseRef: () => undefined,
+      parse: configModule.yqTrustedView,
+    };
+  }
+
+  async function capturedAsync<T>(fn: () => Promise<T>): Promise<{ value: T; err: string }> {
+    const original = process.stderr.write;
+    let err = "";
+    (process.stderr as unknown as { write: (c: unknown) => boolean }).write = (c: unknown) => {
+      err += String(c);
+      return true;
+    };
+    try {
+      return { value: await fn(), err };
+    } finally {
+      process.stderr.write = original;
+    }
+  }
+
+  const deferWarns = (err: string, key: string) =>
+    err.split("\n").filter((l) => l.startsWith(`[bridgebuilder] WARN: bridgebuilder.${key}: the PR head's value is invalid (`));
+  const head = (extra: Record<string, unknown>) => ({ enabled: true, repos: ["test/repo"], ...extra }) as never;
+  type Prov = configModule.ConfigProvenance & { deferredScopeKeys?: string[] };
+  const applyWith = (config: unknown, trusted: unknown, provenance: Prov) =>
+    (configModule.applyTrustedReviewScope as unknown as (...a: unknown[]) => void)(config, trusted, {}, provenance);
+  const assertNone = (p: unknown) =>
+    (configModule as unknown as { assertNoDeferredScopeKeys: (p: unknown) => void }).assertNoDeferredScopeKeys(p);
+
+  function governed(config: { protectedPaths?: string[]; maxContentFetches?: number; excludePatterns: string[] }, key: string): unknown {
+    if (key === "protected_paths") return config.protectedPaths;
+    if (key === "max_content_fetches") return config.maxContentFetches;
+    return config.excludePatterns;
+  }
+  const TRUSTED_VALUE: Record<string, unknown> = {
+    protected_paths: ["/.github/**"],
+    max_content_fetches: 3,
+    exclude_patterns: [...configModule.DEFAULT_EXCLUDE_PATTERNS, "vendor/**"],
+  };
+  const DEFAULT_VALUE: Record<string, unknown> = {
+    protected_paths: undefined, max_content_fetches: undefined, exclude_patterns: [...configModule.DEFAULT_EXCLUDE_PATTERNS],
+  };
+
+  for (const key of Object.keys(INVALID)) {
+    for (const [route, cli, env] of ROUTES) {
+      it(`${key}, PR via ${route}: one WARN, the key unset and deferred, then the trusted value governs and the list clears`, async () => {
+        const { value: { config, provenance }, err } = await capturedAsync(() =>
+          configModule.resolveConfig(cli, env as never, head({ [key]: INVALID[key] })));
+        assert.equal(deferWarns(err, key).length, 1, err);
+        assert.ok(deferWarns(err, key)[0].includes("ignored on a pull request; the trusted configuration (or its default) governs"), err);
+        assert.deepEqual(governed(config, key), DEFAULT_VALUE[key], "never the head's invalid value");
+        assert.deepEqual((provenance as Prov).deferredScopeKeys, [key]);
+        assert.throws(() => assertNone(provenance), new RegExp(key));
+        const trusted = configModule.loadTrustedConfig({ pr: 1 }, prDeps(TRUSTED));
+        const applied = captureStderr(() => applyWith(config, trusted, provenance as Prov));
+        assert.deepEqual(governed(config, key), TRUSTED_VALUE[key]);
+        assert.ok(!applied.err.split("\n").some((l) => l.includes(`bridgebuilder.${key}:`) && l.includes("differs from")),
+          `the deferred key is not warned twice: ${applied.err}`);
+        assert.deepEqual((provenance as Prov).deferredScopeKeys ?? [], []);
+        assertNone(provenance);
+      });
+    }
+
+    it(`${key}, PR with no trusted source: WARN, the default governs (DEC-1055), the list clears`, async () => {
+      const { value: { config, provenance } } = await capturedAsync(() =>
+        configModule.resolveConfig({ pr: 1 }, {}, head({ [key]: INVALID[key] })));
+      const trusted = captureStderr(() => configModule.loadTrustedConfig({ pr: 1 }, prDeps(undefined))).value;
+      assert.equal(trusted.source, "none");
+      captureStderr(() => applyWith(config, trusted, provenance as Prov));
+      assert.deepEqual(governed(config, key), DEFAULT_VALUE[key]);
+      assert.deepEqual((provenance as Prov).deferredScopeKeys ?? [], []);
+    });
+
+    it(`${key}, PR with an invalid TRUSTED value: a config error (unchanged)`, async () => {
+      const { value: { config, provenance } } = await capturedAsync(() =>
+        configModule.resolveConfig({ pr: 1 }, {}, head({ [key]: INVALID[key] })));
+      const badTrusted = key === "protected_paths"
+        ? "bridgebuilder:\n  protected_paths:\n    - ../x/**\n"
+        : key === "max_content_fetches" ? "bridgebuilder:\n  max_content_fetches: -1\n" : "bridgebuilder:\n  exclude_patterns: vendor/**\n";
+      const trusted = configModule.loadTrustedConfig({ pr: 1 }, prDeps(badTrusted));
+      assert.throws(() => captureStderr(() => applyWith(config, trusted, provenance as Prov)), new RegExp(key));
+    });
+
+    it(`${key}, local mode (no --pr, no PR env): throws as today`, async () => {
+      await assert.rejects(configModule.resolveConfig({}, {}, head({ [key]: INVALID[key] })), new RegExp(key));
+    });
+  }
+
+  it("local mode: a non-list exclude_patterns of any shape is a config error naming the key", async () => {
+    for (const bad of [42, "vendor/**", ["ok/**", 7]]) {
+      await assert.rejects(configModule.resolveConfig({}, {}, head({ exclude_patterns: bad })), /exclude_patterns/, JSON.stringify(bad));
+    }
+  });
+
+  it("a deferral is not cleared when the trusted load ran in local mode: the assertion refuses the configuration", async () => {
+    const { value: { config, provenance } } = await capturedAsync(() =>
+      configModule.resolveConfig({ pr: 1 }, {}, head({ max_content_fetches: -1 })));
+    const trusted = configModule.loadTrustedConfig({}, { ...prDeps(TRUSTED), env: {} });
+    assert.equal(trusted.mode, "local");
+    captureStderr(() => applyWith(config, trusted, provenance as Prov));
+    assert.throws(() => assertNone(provenance), /max_content_fetches/);
+  });
+
+  it("composition: a permissive valid head value loses to a restrictive trusted value (replaced, not merged)", async () => {
+    const { value: { config, provenance } } = await capturedAsync(() => configModule.resolveConfig({ pr: 1 }, {}, head({
+      protected_paths: [], max_content_fetches: 100, exclude_patterns: [],
+    })));
+    assert.equal((provenance as Prov).deferredScopeKeys, undefined, "valid head values are not deferred");
+    const trusted = configModule.loadTrustedConfig({ pr: 1 }, prDeps(TRUSTED));
+    captureStderr(() => applyWith(config, trusted, provenance as Prov));
+    assert.deepEqual(config.protectedPaths, ["/.github/**"]);
+    assert.equal(config.maxContentFetches, 3);
+    assert.deepEqual(config.excludePatterns, [...configModule.DEFAULT_EXCLUDE_PATTERNS, "vendor/**"]);
+  });
+
+  it("mixed valid and invalid head keys: only the invalid one is deferred and warned", async () => {
+    const { value: { config, provenance }, err } = await capturedAsync(() => configModule.resolveConfig({ pr: 1 }, {}, head({
+      protected_paths: ["../x/**"], max_content_fetches: 5, exclude_patterns: ["docs/**"],
+    })));
+    assert.deepEqual((provenance as Prov).deferredScopeKeys, ["protected_paths"]);
+    assert.equal(deferWarns(err, "protected_paths").length, 1, err);
+    assert.equal(deferWarns(err, "max_content_fetches").length + deferWarns(err, "exclude_patterns").length, 0, err);
+    assert.equal(config.protectedPaths, undefined);
+    assert.equal(config.maxContentFetches, 5);
+    assert.ok(config.excludePatterns.includes("docs/**"));
+  });
+
+  it("assertNoDeferredScopeKeys: throws a config error naming the keys; silent when none are deferred", () => {
+    assert.throws(() => assertNone({ deferredScopeKeys: ["protected_paths", "max_content_fetches"] }),
+      (e: Error) => /bridgebuilder\.protected_paths/.test(e.message) && /bridgebuilder\.max_content_fetches/.test(e.message));
+    assertNone({});
+    assertNone({ deferredScopeKeys: [] });
+  });
+
+  it("main.ts calls resolveConfig before applyTrustedReviewScope (every production caller applies the trusted scope)", () => {
+    const main = readFileSync(join(import.meta.dirname, "..", "main.ts"), "utf8");
+    const resolveAt = main.indexOf("resolveConfig(");
+    const applyAt = main.indexOf("applyTrustedReviewScope(");
+    assert.ok(resolveAt >= 0 && applyAt >= 0, "both calls are present");
+    assert.ok(resolveAt < applyAt, "the trusted replacement runs after the head YAML is validated");
   });
 });
 
