@@ -37624,3 +37624,227 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1067"
+    created_at: "2026-10-27T00:49:26Z"
+    updated_at: "2026-10-27T00:49:26Z"
+    phase: "architecture"
+    category: "design"
+    summary: "Scaffold detection reads only single-line simple-release if: forms (yq, awk fallback); multi-line or unknown text is customised and silent."
+    decision: "Compare the whitespace-normalised expression with the legacy and allowlist texts; anything else is the operator's own guard."
+    rationale: "The two texts Loa ever shipped are single-line; a YAML block parser in bash would be the riskiest part of the change for no known case."
+    alternatives_considered:
+      - option: "parse if: | blocks too"
+        rejected_because: "no shipped workflow uses them; false positives would overwrite custom logic"
+    consequences:
+      positive:
+        - "small, exact"
+      negative:
+        - "a reformatted legacy guard is not detected"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "fda884fb"
+    source: "grimoires/loa/sdd.md § 5.1"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:49:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.1"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1068"
+    created_at: "2026-10-27T00:49:30Z"
+    updated_at: "2026-10-27T00:49:30Z"
+    phase: "architecture"
+    category: "design"
+    summary: "The opt-in guard fix is the environment variable LOA_SCAFFOLD_FIX_RELEASE_GUARD=1 — both mount callers surface it without a signature change."
+    decision: "scaffold_post_merge_workflow keeps its one positional argument; the flag is read from the environment inside the existing-file branch."
+    rationale: "mount-loa.sh and mount-submodule.sh call the function with different arguments; an env flag reaches both and the mount CLI's own flag surface stays untouched."
+    alternatives_considered:
+      - option: "a second positional argument"
+        rejected_because: "two callers to change plus the mount CLI parsing"
+      - option: "always rewrite"
+        rejected_because: "overwrites customisations (DEC-1063)"
+    consequences:
+      positive:
+        - "zero caller churn"
+      negative:
+        - "an env flag is less discoverable; the WARN names it"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "fda884fb"
+    source: "grimoires/loa/sdd.md § 5.1, § 5.7"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:49:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.1"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1069"
+    created_at: "2026-10-27T00:49:34Z"
+    updated_at: "2026-10-27T00:49:34Z"
+    phase: "architecture"
+    category: "design"
+    summary: "Base .reviewignore resolved async in paged-fetch, passed to the sync selection via reviewignoreBasePatterns; truncateFiles' read stays the fallback."
+    decision: "resolveBaseReviewignore: git read → absent = none → contents API (text = base, 404 = none, else undefined); undefined leaves today's base_unavailable path inside truncateFiles."
+    rationale: "truncateFiles is synchronous and shared with tests and the Loa tier; the provider call belongs with the other provider calls in paged-fetch; the fallback keeps every fail-closed path exactly as DEC-1043/1056 state them."
+    alternatives_considered:
+      - option: "make truncateFiles async"
+        rejected_because: "ripples through every caller and 1,200 tests"
+      - option: "pre-read in main.ts"
+        rejected_because: "the base sha is known only after the pin inside attempt"
+    consequences:
+      positive:
+        - "one new seam, no behaviour change on the local path"
+      negative:
+        - "two places know the provenance values"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "fda884fb"
+    source: "grimoires/loa/sdd.md § 5.2, § 5.3"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:49:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1070"
+    created_at: "2026-10-27T00:49:37Z"
+    updated_at: "2026-10-27T00:49:37Z"
+    phase: "architecture"
+    category: "design"
+    summary: "SelectionConfig moves to core/types.ts with the provenance fields; TruncationResult.reviewignoreSource is declared; no new reviewignore_source value."
+    decision: "No base_api value; the intersection casts in paged-fetch.ts and truncation.ts are deleted."
+    rationale: "The API read returns the same file the git read would; a new enum value would ripple through rendering, docs and tests for no operator decision (DEC-1064)."
+    alternatives_considered:
+      - option: "base_api provenance"
+        rejected_because: "same trust level; churn"
+    consequences:
+      positive:
+        - "typed plumbing, no schema change"
+      negative:
+        - "the record cannot say which read answered (the WARN line does)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "fda884fb"
+    source: "grimoires/loa/sdd.md § 5.3"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:49:37Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1071"
+    created_at: "2026-10-27T00:49:41Z"
+    updated_at: "2026-10-27T00:49:41Z"
+    phase: "architecture"
+    category: "design"
+    summary: "The stats suffix grammar is removed this cycle; a failed content read writes one [bridgebuilder] WARN line on stderr; no logger is threaded into paged-fetch."
+    decision: "patternSuffix, PATTERN_SUFFIX and exclusionPattern are deleted; readers use excluded[].pattern; the WARN names the file and the outcome."
+    rationale: "The structured field shipped in cycle-135 (DEC-1050); the module already writes WARNs through process.stderr, so a logger would be churn for one line."
+    alternatives_considered:
+      - option: "keep the suffix one more release"
+        rejected_because: "two grammars for one fact"
+      - option: "thread ILogger"
+        rejected_because: "signature churn across the two-pass fetch"
+    consequences:
+      positive:
+        - "no dual grammar"
+      negative:
+        - "a stats-suffix reader elsewhere (none known) breaks"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "fda884fb"
+    source: "grimoires/loa/sdd.md § 5.5, § 4"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:49:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.5"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1072"
+    created_at: "2026-10-27T00:49:45Z"
+    updated_at: "2026-10-27T00:49:45Z"
+    phase: "architecture"
+    category: "security"
+    summary: "Head-side scope validation downgrades to a WARN only in pull-request mode, inside resolveConfig via isPullRequestContext; local mode still throws."
+    decision: "In PR mode an invalid protected_paths / max_content_fetches / exclude_patterns shape on the head is WARNed and left unset so the trusted value governs."
+    rationale: "resolveConfig already receives env; the trusted value is what applies on a PR anyway, so failing the run on the head's invalid value only lets a PR break its own review loudly (Bridgebuilder round-1 #12, DEC-1057)."
+    alternatives_considered:
+      - option: "leave it as a config error"
+        rejected_because: "a PR author can make their own review fail, which hides nothing but wastes a run"
+      - option: "defer to a later cycle"
+        rejected_because: "the mode is one call away"
+    consequences:
+      positive:
+        - "consistent with applyTrustedReviewScope"
+      negative:
+        - "a genuinely broken head config is only WARNed on PRs"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "fda884fb"
+    source: "grimoires/loa/sdd.md § 5.6"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:49:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.6"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
