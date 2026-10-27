@@ -46,8 +46,10 @@ _kf_test_mode_active() {
   return 1
 }
 
-# Sanitize: drop control bytes (keep UTF-8 multibyte), flatten whitespace, cap.
-_san() { printf '%s' "${1-}" | tr -d '\000-\010\013\014\016-\037\177' | tr '\t\n\r' '   ' | sed -E 's/  +/ /g; s/^ //; s/ $//' | cut -c1-100; }
+# Sanitisation reference spec (the awk san() below is its byte-for-byte twin; it used to be
+# a bash pipeline run per field, now dead and removed):
+#   printf '%s' "$1" | tr -d '\000-\010\013\014\016-\037\177' | tr '\t\n\r' '   ' \
+#     | sed -E 's/  +/ /g; s/^ //; s/ $//' | cut -c1-100
 
 # --- resolve enabled flag -----------------------------------------------------
 enabled="false"
@@ -81,8 +83,22 @@ fi
 
 # Parse id + symptom from each ## KF-NNN: entry (source of truth), deduped by
 # id. Mirrors grimoire-index.sh emit_kf field-parsing (both field variants).
-# Output is TAB-delimited: id<TAB>recurrence<TAB>symptom.
-rows="$(awk '
+# The SAME awk pass sanitizes and formats the final "  - ID (rec N): symptom"
+# rows (one process, not ~3 sanitiser pipelines per row). san() below is the
+# byte-for-byte awk twin of the reference spec above; the symptom's leading/trailing tabs are
+# trimmed first, emulating the former tab-IFS `read -r id num symptom` (last field
+# keeps the remainder). Keep san() and the reference spec in lock-step.
+# LC_ALL=C pins substr/length to BYTES, matching `cut -c` (GNU cut -c is
+# byte-based in every locale), so old and new agree under UTF-8 and C alike.
+rows="$(LC_ALL=C awk '
+  function san(s) {
+    gsub(/\000/, "", s)
+    gsub(/[\001-\010\013\014\016-\037\177]/, "", s)
+    gsub(/[\t\n\r]/, " ", s)
+    gsub(/  +/, " ", s)
+    sub(/^ /, "", s); sub(/ $/, "", s)
+    return substr(s, 1, 100)
+  }
   function fieldval(line, label,   reA, reB, v) {
     reA = "^(- )?\\*\\*" label "\\*\\*: ?"
     reB = "^(- )?\\*\\*" label "[^*]*:\\*\\* ?"
@@ -104,7 +120,8 @@ rows="$(awk '
       id = order[i]; r = rc[id]; num = "?"; v = r
       gsub(/^([>=~ ]|\342\211\245)+/, "", v)
       if (match(v, /^[0-9]+/)) num = substr(v, RSTART, RLENGTH)
-      printf "%s\t%s\t%s\n", id, num, sy[id]
+      sym = sy[id]; gsub(/\000/, "", sym); sub(/^\t+/, "", sym); sub(/\t+$/, "", sym)
+      printf "  - %s (rec %s): %s\n", san(id), san(num), san(sym)
     }
   }
 ' "$KF_FILE" 2>/dev/null || true)"
@@ -115,14 +132,12 @@ if [[ -z "$rows" ]]; then
 fi
 
 # --- healthy: emit a compact, sanitized symptom -> KF table to stdout --------
+# ($rows already holds the sanitized "  - ID (rec N): symptom" lines, one per entry.)
 # stdout so the SessionStart contract injects it as context (see STREAM ROUTING).
 kf_count="$(printf '%s\n' "$rows" | grep -c . || true)"
 {
   echo "[KF-SURFACE] ${kf_count} known-failure entries (symptom -> KF · recurrence). Read grimoires/loa/known-failures.md before triaging; recurrence >= 3 = structural."
-  while IFS=$'\t' read -r id num symptom; do
-    [[ -n "$id" ]] || continue
-    printf '  - %s (rec %s): %s\n' "$(_san "$id")" "$(_san "${num:-?}")" "$(_san "${symptom:-}")"
-  done <<< "$rows"
+  printf '%s\n' "$rows"
 }
 
 exit 0
