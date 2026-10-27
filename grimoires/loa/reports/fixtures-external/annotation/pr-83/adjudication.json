@@ -1,0 +1,32 @@
+{
+ "H07": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": "packages/runtime-core/src/renderer.ts",
+  "description": "Removing a Fragment vnode that carries a transition bypasses the leave transition and afterLeave (removed immediately via removeFragment, or via a dev-only DEV_ROOT_FRAGMENT path), so production and dev behave differently and out-in transitions are not run/released.",
+  "severity": "high",
+  "category": "logic",
+  "reason": "agreed defect, group, severity, category and description (removing a Fragment that carries a transition bypasses the leave transition and afterLeave); anchors: union — A anchors the whole remove branch 2292-2310, B skips the lines inside the DEV-only root-fragment path; both sets end at the same hunk",
+  "anchor_lines": [
+   2292,
+   2293,
+   2294,
+   2295,
+   2296,
+   2297,
+   2298,
+   2299,
+   2300,
+   2301,
+   2302,
+   2303,
+   2304,
+   2305,
+   2306,
+   2307,
+   2308,
+   2309,
+   2310
+  ]
+ }
+}

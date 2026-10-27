@@ -1,0 +1,91 @@
+diff --git a/lib/reply.js b/lib/reply.js
+index c87c1b88..65a2e955 100644
+--- a/lib/reply.js
++++ b/lib/reply.js
+@@ -95,7 +95,7 @@ Object.defineProperties(Reply.prototype, {
+   },
+   mediaType: {
+     get () {
+-      const contentTypeHeader = this[kReplyHeaders]['content-type']
++      const contentTypeHeader = this.getHeader('content-type')
+       return ContentType.from(contentTypeHeader).mediaType
+     }
+   },
+diff --git a/test/internals/reply.test.js b/test/internals/reply.test.js
+index 0cda7627..1e5b04ef 100644
+--- a/test/internals/reply.test.js
++++ b/test/internals/reply.test.js
+@@ -35,7 +35,7 @@ const doGet = async function (url) {
+ 
+ test('Once called, Reply should return an object with methods', t => {
+   t.plan(16)
+-  const response = { res: 'res' }
++  const response = { res: 'res', getHeader: () => undefined }
+   const context = {
+     config: { onSend: [] },
+     schema: {},
+diff --git a/test/reply-media-type.test.js b/test/reply-media-type.test.js
+index 5f63b8a5..da582457 100644
+--- a/test/reply-media-type.test.js
++++ b/test/reply-media-type.test.js
+@@ -129,3 +129,60 @@ test('reply.mediaType should reflect the last type set', async (t) => {
+   const body = response.body
+   t.assert.strictEqual(body, 'mediaType = text/plain')
+ })
++
++test('reply.mediaType should match the content-type set via raw.setHeader', async (t) => {
++  t.plan(2)
++
++  const fastify = Fastify()
++
++  fastify.get('/', (request, reply) => {
++    reply.raw.setHeader('content-type', 'application/json; charset=utf-8')
++    t.assert.strictEqual(reply.mediaType, 'application/json')
++    reply.send({ mediaType: reply.mediaType })
++  })
++
++  const response = await fastify.inject({
++    method: 'GET',
++    url: '/'
++  })
++  const body = await response.json()
++  t.assert.strictEqual(body.mediaType, 'application/json')
++})
++
++test('reply.mediaType should match case-insensitive content-type set via raw.setHeader', async (t) => {
++  t.plan(2)
++
++  const fastify = Fastify()
++
++  fastify.get('/', (request, reply) => {
++    reply.raw.setHeader('Content-Type', 'text/html; charset=utf-8')
++    t.assert.strictEqual(reply.mediaType, 'text/html')
++    reply.send(reply.mediaType)
++  })
++
++  const response = await fastify.inject({
++    method: 'GET',
++    url: '/'
++  })
++  t.assert.strictEqual(response.body, 'text/html')
++})
++
++test('reply.mediaType should prioritize reply.type over raw.setHeader', async (t) => {
++  t.plan(2)
++
++  const fastify = Fastify()
++
++  fastify.get('/', (request, reply) => {
++    reply.raw.setHeader('content-type', 'application/xml')
++    reply.type('application/json')
++    t.assert.strictEqual(reply.mediaType, 'application/json')
++    reply.send({ mediaType: reply.mediaType })
++  })
++
++  const response = await fastify.inject({
++    method: 'GET',
++    url: '/'
++  })
++  const body = await response.json()
++  t.assert.strictEqual(body.mediaType, 'application/json')
++})

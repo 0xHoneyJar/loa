@@ -19,9 +19,12 @@
 import { GitProviderError } from "../ports/git-provider.js";
 import type { FileContentResult, IGitProvider, PullRequestFile, PullRequestRef } from "../ports/git-provider.js";
 import { createHash } from "node:crypto";
-import { deriveCallConfig, isWildcardPattern, matchesExcludePattern, truncateFiles } from "./truncation.js";
+import {
+  boundedForLog, deriveCallConfig, detectLoa, parseReviewignoreLines, readBaseReviewignore, REVIEWIGNORE_MAX_BYTES,
+  truncateFiles, type BaseRead,
+} from "./truncation.js";
 import { FETCH_DEGRADED_REASONS, orderDegradedReasons, type DegradedReason } from "./degraded-reason.js";
-import type { BridgebuilderConfig, CoverageRecord, OmissionReason, ReviewItem, TruncationResult } from "./types.js";
+import type { BridgebuilderConfig, CoverageRecord, OmissionReason, ReviewignoreSource, ReviewItem, SelectionConfig, TruncationResult } from "./types.js";
 
 /** GitHub's `pulls/N/files` lists at most this many files (30 pages of 100). */
 export const FILES_ENDPOINT_CAP = 3000;
@@ -31,26 +34,86 @@ export type PagedGit = Required<Pick<IGitProvider, "getPR" | "getPRFilesPage">>;
 /** cycle-135 C-3: the paged contract plus the optional content read (absent → no content fetch). */
 export type PagedContentGit = PagedGit & Pick<IGitProvider, "getFileContent">;
 
-export type SelectionConfig = Pick<
-  BridgebuilderConfig,
-  | "excludePatterns" | "maxDiffBytes" | "maxFilesPerPr" | "loaAware" | "repoRoot" | "selfReview"
-  | "protectedPaths" | "fetchMissingPatches" | "maxContentFetches"
->;
+export type { SelectionConfig } from "./types.js"; // (cycle-136 Task 1.0: owned by types.ts)
 
 /** cycle-135 C-3: default `max_content_fetches` and the total deadline for the content reads of one attempt. */
 export const DEFAULT_MAX_CONTENT_FETCHES = 20;
 export const CONTENT_FETCH_DEADLINE_MS = 120_000;
 
-type ReviewignoreSource = NonNullable<CoverageRecord["reviewignore_source"]>;
 
 /** Test seams of the two-pass fetch (production passes none). */
 export interface TwoPassDeps {
   /** cycle-135 C-3: the clock for the content-fetch deadline (default `Date.now`). */
   now?: () => number;
   /** cycle-135 C-2: the selection (default `truncateFiles`); tests substitute the producer of `protectedKept`. */
-  truncate?: (files: PullRequestFile[], config: SelectionConfig & { reviewignoreBaseSha?: string }) => TruncationResult;
+  truncate?: (files: PullRequestFile[], config: SelectionConfig) => TruncationResult;
   /** cycle-135 C-2: where `.reviewignore` is read from for this PR (default `defaultReviewignoreSource`). */
   reviewignoreSource?: (repoRoot: string | undefined, opts: { baseSha?: string }) => ReviewignoreSource | undefined;
+  /** cycle-136 C-2: the local base `.reviewignore` read of `resolveBaseReviewignore` (default `readBaseReviewignore`). */
+  readBaseReviewignore?: (repoRoot: string, baseSha: string) => BaseRead;
+}
+
+/** cycle-136 C-2 (D-2.5): the base `.reviewignore` resolved for the selection (`none` always carries no patterns). */
+export type BaseReviewignore = NonNullable<SelectionConfig["reviewignoreBase"]>;
+
+/**
+ * cycle-136 C-2 (sdd.md § 5.2, FR-2, bd-9tt4b, DEC-1082/DEC-1083): the base branch's `.reviewignore` for one base sha.
+ * The local read answers when the clone holds the base commit (`ok` → base, `absent` → none); only `unknown_commit` (a
+ * shallow checkout) reads it through the contents API against the run's target `owner/repo` at the base sha, bounded
+ * at 1 MiB — a `text` answer is complete by construction (the adapter answers `too_large` above the bound and rejects
+ * a `size` that disagrees with the decoded bytes). A 404 is not proof of absence (an authorization gap answers 404
+ * too): one probe of a listed file that exists at the base (modified or removed; the listing keeps no
+ * `previous_filename`, so a rename is no probe target) with `maxBytes` 1 must answer before it counts as `none`. Any
+ * other outcome is `undefined` — the selection's own read then reports `base_unavailable` and the review degrades
+ * (DEC-1043). The outcome, failures included, is cached per base sha for the run; the read is outside
+ * `max_content_fetches` and `fetch_missing_patches` (they govern listed files). Never throws.
+ */
+export async function resolveBaseReviewignore(
+  git: PagedContentGit, owner: string, repo: string, baseSha: string, repoRoot: string | undefined,
+  files: readonly PullRequestFile[], cache: Map<string, BaseReviewignore | undefined>,
+  readLocal: (repoRoot: string, baseSha: string) => BaseRead = readBaseReviewignore,
+): Promise<BaseReviewignore | undefined> {
+  if (cache.has(baseSha)) return cache.get(baseSha);
+  const out = await resolveUncached(git, owner, repo, baseSha, repoRoot, files, readLocal);
+  cache.set(baseSha, out);
+  return out;
+}
+
+async function resolveUncached(
+  git: PagedContentGit, owner: string, repo: string, baseSha: string, repoRoot: string | undefined,
+  files: readonly PullRequestFile[], readLocal: (repoRoot: string, baseSha: string) => BaseRead,
+): Promise<BaseReviewignore | undefined> {
+  if (!/^[0-9a-f]{40}$/.test(baseSha)) return undefined; // (never a ref the contents shape would refuse)
+  const local = readLocal(repoRoot ?? process.cwd(), baseSha);
+  if (local.ok) return { patterns: local.patterns, source: "base" };
+  if (local.why === "absent") return { patterns: [], source: "none" };
+  if (local.why !== "unknown_commit" || typeof git.getFileContent !== "function") return undefined;
+  let res: FileContentResult;
+  try {
+    res = await git.getFileContent(owner, repo, ".reviewignore", baseSha, REVIEWIGNORE_MAX_BYTES);
+  } catch (err) {
+    if (!(err instanceof GitProviderError) || (err as { httpStatus?: unknown }).httpStatus !== 404) return undefined;
+    return (await baseIsReadable(git, owner, repo, baseSha, files)) ? { patterns: [], source: "none" } : undefined;
+  }
+  if (res.kind !== "text") return undefined; // (too_large, binary)
+  process.stderr.write(
+    `[bridgebuilder] INFO: .reviewignore at base ${baseSha} read through the contents API (the base commit is not in the clone)\n`,
+  );
+  return { patterns: parseReviewignoreLines(res.content), source: "base" };
+}
+
+/** cycle-136 C-2 (D-2.6, SKP-002): the access probe — a file that exists at the base answers at that ref. */
+async function baseIsReadable(
+  git: PagedContentGit, owner: string, repo: string, baseSha: string, files: readonly PullRequestFile[],
+): Promise<boolean> {
+  const target = files.find((f) => f.status === "modified" || f.status === "removed");
+  if (!target) return false; // (a PR that only adds files has nothing to probe: fail closed)
+  try {
+    const r = await git.getFileContent!(owner, repo, target.filename, baseSha, 1);
+    return r.kind === "text" || r.kind === "too_large" || r.kind === "binary";
+  } catch {
+    return false;
+  }
 }
 
 /*
@@ -59,21 +122,6 @@ export interface TwoPassDeps {
  * `reviewignoreSource` beside `protectedKept` — so the file is read once and the record cannot disagree with the
  * selection. `deps.reviewignoreSource` remains a test seam (lead wiring, Task 1.7).
  */
-
-/** cycle-135 C-2: the ` [pattern: <p>]` suffix A's selection appends to an exclusion's stats (to the final `]`). */
-const PATTERN_SUFFIX = / \[pattern: (.+)\]$/;
-
-/**
- * The pattern that excluded a file: the stats suffix when the selection wrote one; else, for a config
- * `exclude_patterns` exclusion, the matching pattern with a non-wildcard one first (sdd.md § 5.2's precedence).
- */
-function exclusionPattern(stats: string, filename: string, excludePatterns: readonly string[] | undefined): string | undefined {
-  const m = PATTERN_SUFFIX.exec(stats);
-  if (m) return m[1];
-  if (!/\(excluded by pattern\)/.test(stats)) return undefined;
-  const matching = (excludePatterns ?? []).filter((p) => matchesExcludePattern(filename, [p]));
-  return matching.find((p) => !isWildcardPattern(p)) ?? matching[0];
-}
 
 type FetchOutcome = NonNullable<CoverageRecord["omitted"][number]["fetch"]>;
 
@@ -177,7 +225,7 @@ function pageFailureReason(err: unknown): DegradedReason | undefined {
   return undefined;
 }
 
-/** Map one `truncateFiles` exclusion (its stats suffix) to the coverage reason. */
+/** Map one `truncateFiles` exclusion (its stats text) to the coverage reason. */
 function exclusionReason(stats: string, file: PullRequestFile | undefined): OmissionReason {
   if (/fail-closed/.test(stats)) return "excluded_fail_closed";
   if (/\(Loa framework/.test(stats)) return "excluded_loa";
@@ -271,6 +319,12 @@ async function fetchMissingPatches(
   let start: number | undefined;
   let pastDeadline = false;
   let aborted = false;
+  // cycle-136 C-3 (FR-3 (c), sdd.md § 4, bd-gyrgq): a failed read is named on stderr once per file per attempt — never
+  // the error text or a response body (budget, skipped_cap, deadline and aborted are not failed reads)
+  const failed = (f: PullRequestFile, outcome: "error" | "too_large" | "binary"): void => {
+    outcomes.set(f.filename, outcome);
+    process.stderr.write(`[bridgebuilder] WARN: content read of ${boundedForLog(f.filename)} failed: ${outcome} (no_patch)\n`);
+  };
   for (const f of placement.included) {
     if (!candidates.has(f)) { charged += f.patchBytes ?? 0; continue; }
     if (aborted) { outcomes.set(f.filename, "aborted"); continue; }
@@ -287,12 +341,12 @@ async function fetchMissingPatches(
       res = await git.getFileContent!(owner, repo, f.filename, pin.head_sha, remaining);
     } catch (err) {
       // (network, a path that moved, a malformed envelope, an allowlist refusal: today's no_patch, named)
-      outcomes.set(f.filename, "error");
+      failed(f, "error");
       if (stopsContentFetches(err)) aborted = true;
       continue;
     }
-    if (res.kind !== "text") { outcomes.set(f.filename, res.kind); continue; }
-    if (res.content.length === 0) { outcomes.set(f.filename, "error"); continue; } // (additions > 0 says it is not empty)
+    if (res.kind !== "text") { failed(f, res.kind); continue; }
+    if (res.content.length === 0) { failed(f, "error"); continue; } // (additions > 0 says it is not empty)
     const patch = synthesizeAddedPatch(res.content);
     const bytes = utf8Bytes(patch);
     if (bytes > remaining) { outcomes.set(f.filename, "budget"); continue; } // never truncated
@@ -304,7 +358,7 @@ async function fetchMissingPatches(
 
 async function attempt(
   git: PagedContentGit, owner: string, repo: string, prNumber: number, config: SelectionConfig, restarts: number,
-  deps: TwoPassDeps,
+  deps: TwoPassDeps, baseReviewignore: Map<string, BaseReviewignore | undefined>,
 ): Promise<TwoPassResult> {
   const pin = await git.getPR(owner, repo, prNumber);
   const listedTotal = Math.min(pin.changed_files, FILES_ENDPOINT_CAP);
@@ -346,7 +400,15 @@ async function attempt(
   // ── Global selection over the complete metadata list ─────────────────────
   // (the byte budget is applied below with cut semantics, so truncateFiles selects on filters, tiers and the file cap)
   // (cycle-135 C-2: the selection is given the PR base sha, so `.reviewignore` is the base ref's copy — D-1.2a)
-  const selConfig = { ...config, maxDiffBytes: Number.MAX_SAFE_INTEGER, reviewignoreBaseSha: pin.base_sha };
+  // (cycle-136 C-2: on a shallow checkout the base copy is resolved through the contents API and handed over as
+  // `reviewignoreBase`; only for a repository whose selection consults `.reviewignore` at all — the Loa-aware one)
+  const resolved = detectLoa({ loaAware: config.loaAware, repoRoot: config.repoRoot ?? process.cwd() }).isLoa
+    ? await resolveBaseReviewignore(git, owner, repo, pin.base_sha, config.repoRoot, listed, baseReviewignore, deps.readBaseReviewignore)
+    : undefined;
+  const selConfig: SelectionConfig = {
+    ...config, maxDiffBytes: Number.MAX_SAFE_INTEGER, reviewignoreBaseSha: pin.base_sha,
+    ...(resolved !== undefined ? { reviewignoreBase: resolved } : {}),
+  };
   const select = deps.truncate ?? truncateFiles;
   // ── cycle-135 C-3: content for added files listed without a patch ────────
   // (review round 1) A candidate is given a placeholder size of 0 for a placement selection: the selection's filters
@@ -372,10 +434,9 @@ async function attempt(
   const byName = new Map(listed.map((f) => [f.filename, f]));
   const omitted: CoverageRecord["omitted"] = [];
   for (const ex of sel.excluded) {
-    const reason = exclusionReason(ex.stats.replace(PATTERN_SUFFIX, ""), byName.get(ex.filename));
-    // (review round 1: the structured field first; the stats suffix and the config fallback until A drops the suffix)
-    const pattern = reason === "excluded_loa" || reason === "excluded_pattern"
-      ? ex.pattern ?? exclusionPattern(ex.stats, ex.filename, config.excludePatterns) : undefined;
+    const reason = exclusionReason(ex.stats, byName.get(ex.filename));
+    // (cycle-136 FR-3 (d), bd-gyrgq: every producer sets the structured field; the stats suffix grammar is gone)
+    const pattern = reason === "excluded_loa" || reason === "excluded_pattern" ? ex.pattern : undefined;
     omitted.push(omission(ex.filename, reason, reason === "no_patch" ? outcomes.get(ex.filename) : undefined, pattern));
   }
 
@@ -464,7 +525,7 @@ async function attempt(
   // (one read, no second `parseReviewignoreFile`). Tests may inject `deps.reviewignoreSource` instead.
   const reviewignoreSource = deps.reviewignoreSource
     ? deps.reviewignoreSource(config.repoRoot, { baseSha: pin.base_sha })
-    : (sel as TruncationResult & { reviewignoreSource?: ReviewignoreSource }).reviewignoreSource;
+    : sel.reviewignoreSource;
   // (review round 1) the base copy could not be read, so the checkout's — PR-head-controlled — copy governed the
   // exclusions: a fetch-side reason, so the merge is blocked as incomplete_coverage
   if (reviewignoreSource === "base_unavailable") fetchReasons.push("reviewignore_unavailable");
@@ -496,9 +557,11 @@ export async function fetchPRFilesTwoPass(
   git: PagedContentGit, owner: string, repo: string, prNumber: number, config: SelectionConfig, deps: TwoPassDeps = {},
 ): Promise<TwoPassResult> {
   let restarts = 0;
+  // cycle-136 C-2 (D-2.5): the base `.reviewignore` per base sha for this run — a restart with the same base reuses it
+  const baseReviewignore = new Map<string, BaseReviewignore | undefined>();
   for (;;) {
     try {
-      return await attempt(git, owner, repo, prNumber, config, restarts, deps);
+      return await attempt(git, owner, repo, prNumber, config, restarts, deps, baseReviewignore);
     } catch (err) {
       if (!(err instanceof PrHeadMoved)) throw err;
       if (restarts === 0) {

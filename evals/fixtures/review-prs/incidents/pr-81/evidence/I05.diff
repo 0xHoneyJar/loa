@@ -1,0 +1,18 @@
+commit 89d9a1149cad93c0684d78241d8596ab53748aa7
+Date: 2026-10-09T00:03:00+02:00
+
+fix: make license machine-parsable
+
+
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+index 8fbaa45..9a1d73d 100644
+--- a/docs/CHANGELOG.md
++++ b/docs/CHANGELOG.md
+@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog][kac] and this project adheres to
+ * normalize BATS_ROOT from PowerShell on Windows (#1257)
+ * normalize BATS_LIB_PATH from PowerShell on Windows (#1258)
+ * pretty formatter colored the summary green when tests timed out or did not run (#538, #1263)
++* make LICENSE.md machine-parsable (#1262)
+ 
+ ### Changed
+ 

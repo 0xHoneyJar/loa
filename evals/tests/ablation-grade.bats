@@ -672,6 +672,20 @@ EOF
   [ "$status" -eq 2 ]
 }
 
+@test "AG-SF --suite-file reaches the freeze check: a suite frozen against a suite file with another suite_version grades with it and is refused without it" {
+  F="$T/frozen-v3"; mkdir -p "$F"; cp -a "$SMOKE" "$F/smoke"
+  sed -i 's/^suite_version: .*/suite_version: 3/' "$F/smoke/smoke-build-01/task.yaml" "$F/smoke/smoke-review-01/task.yaml" "$F"/smoke/*/task.yaml
+  SF="$T/suite-v3.yaml"; sed 's/^suite_version: .*/suite_version: 3/' "$REPO_ROOT/evals/suites/ablation-2.0.yaml" > "$SF"
+  run bash "$REPO_ROOT/evals/harness/freeze.sh" --root "$F" --smoke --allow-partial --suite-file "$SF"
+  [ "$status" -eq 0 ]
+  run "$GRADER" --self-check reference --task-yaml "$F/smoke/smoke-build-01/task.yaml" --allow-partial --suite-file "$SF" --docker-bin "$T/docker"
+  [ "$status" -eq 0 ]
+  [[ "$output" == "self-check reference smoke-build-01: PASS hidden "* ]]
+  run "$GRADER" --self-check reference --task-yaml "$F/smoke/smoke-build-01/task.yaml" --allow-partial --docker-bin "$T/docker"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"freeze.sh --check failed"* && "$output" == *"suite_version 3 differs from the suite file's 2"* ]]
+}
+
 @test "AG-15 --self-check FAIL is exit 1: a reference patch that does not fix the bug, a refactor whose structural check is green at base" {
   printf -- '--- a/src/textkit/slug.py\n+++ b/src/textkit/slug.py\n@@ -1 +1 @@\n-import re\n+import re  # noop\n' > "$S/tasks/bf-py/hidden/reference.patch"
   run "$GRADER" --self-check reference --task-yaml "$S/tasks/bf-py/task.yaml" --allow-unfrozen --docker-bin "$T/docker"
@@ -2593,4 +2607,97 @@ PY
   grade "$RD" bf-py --judge-verdicts "$T/empty.jsonl"
   [ "$status" -eq 2 ]
   [[ "$output" == *"review-catch"* ]]
+}
+
+# --- runtime mounts: the grader-side node_modules (2026-10-26; ablation-grade.sh § Runtime mounts) -------------------
+# make_ts: a node task whose hidden test imports `dep`, a package that exists only in the installed checkout's pnpm
+# store ($T/installed/node_modules/.pnpm, linked from $T/installed/pkg/node_modules/dep) — the fixture carries no
+# dependency. The docker stub emulates the read-only mounts the grader asks for by symlinks at the mountpoints.
+make_ts() {
+  local d="$S/tasks/ts-01" i="$T/installed" w="$T/w-ts"
+  mkdir -p "$d/fixture/pkg/src" "$d/fixture/pkg/tests" "$d/hidden/tests/pkg/tests" "$i/node_modules/.pnpm/dep@1.0.0/node_modules/dep" "$i/pkg/node_modules"
+  echo '{"name": "ws", "private": true, "workspaces": ["pkg"]}' > "$d/fixture/package.json"
+  echo '{"name": "pkg", "type": "module", "dependencies": {"dep": "1.0.0"}}' > "$d/fixture/pkg/package.json"
+  echo 'export const one = 1;' > "$d/fixture/pkg/src/one.mjs"
+  printf 'import { test } from "node:test";\nimport assert from "node:assert/strict";\nimport { one } from "../src/one.mjs";\ntest("one exists", () => { assert.ok(one); });\n' > "$d/fixture/pkg/tests/base.test.mjs"
+  echo 'export default 41;' > "$i/node_modules/.pnpm/dep@1.0.0/node_modules/dep/index.mjs"
+  echo '{"name": "dep", "version": "1.0.0", "type": "module", "main": "index.mjs"}' > "$i/node_modules/.pnpm/dep@1.0.0/node_modules/dep/package.json"
+  ln -s ../../node_modules/.pnpm/dep@1.0.0/node_modules/dep "$i/pkg/node_modules/dep"
+  cat > "$d/hidden/tests/pkg/tests/one.test.mjs" <<'JS'
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import dep from "dep";
+import { one } from "../src/one.mjs";
+test("dep resolves through node_modules", () => { assert.equal(dep, 41); });
+test("one plus dep is 43", () => { assert.equal(one + dep, 43); });
+JS
+  echo '{"files": [{"src": "tests/pkg/tests/one.test.mjs", "dest": "pkg/tests/one.test.mjs"}]}' > "$d/hidden/manifest.json"
+  mkdir -p "$w/a" "$w/b"; cp -a "$d/fixture/." "$w/a/"; cp -a "$d/fixture/." "$w/b/"
+  echo 'export const one = 2;' > "$w/b/pkg/src/one.mjs"
+  (cd "$w" && diff -ruN a b > "$d/hidden/reference.patch" || true)
+  printf 'Make one two.\n' > "$d/TASK.md"
+  cat > "$d/task.yaml" <<YAML
+id: ts-01
+schema_version: 1
+type: bug-fix
+fixture: tasks/ts-01/fixture
+criterion: "one is two"
+test_command: ["node", "--test", "--test-reporter=tap", "pkg/tests/*.test.mjs"]
+regression_command: null
+reference_patch: hidden/reference.patch
+grader_protected: [package.json, pkg/package.json, pkg/tests/base.test.mjs]
+structural_check: null
+review_catch: null
+suite_version: 1
+runtime: {node_modules: "$i/node_modules", image: "loa-ablation:node-test"}
+YAML
+  TS_TASK="$d/task.yaml" INSTALLED="$i"
+  ln -s "$(command -v node)" "$T/bin/node"
+}
+
+@test "AG-TS-1 runtime mounts: the grading containers mount the task's node_modules read-only (root and package) in the task's image, a dependency the fixture lacks resolves, no node_modules of the sandbox reaches the grading tree or churn, grade.json records runtime, the self-checks pass, host grading refuses" {
+  command -v node >/dev/null 2>&1 || skip "node not on PATH"
+  make_ts
+  local RD="$T/run-ts"
+  mkdir -p "$RD/sandbox"; cp -a "$S/tasks/ts-01/fixture/." "$RD/sandbox/"
+  echo 'export const one = 2;' > "$RD/sandbox/pkg/src/one.mjs"
+  # what an agent could never have written under the read-only mount, planted to show the grader leaves it out
+  mkdir -p "$RD/sandbox/node_modules/.pnpm" "$RD/sandbox/pkg/node_modules"
+  echo 'junk' > "$RD/sandbox/node_modules/junk.mjs"; echo 'junk' > "$RD/sandbox/pkg/node_modules/junk.mjs"
+  ( cd "$RD/sandbox" && git init -q && git -c user.email=t@t -c user.name=t add -A && git -c user.email=t@t -c user.name=t commit -qm base )
+  run "$GRADER" "$RD" ts-01 --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker" --image loa-ablation:259
+  [ "$status" -eq 0 ] || { echo "$output"; cat "$RD/grade.json" 2>/dev/null; false; }
+  G() { jq -r "$1" "$RD/grade.json"; }
+  # three top-level TAP points: the fixture's base test and the two hidden ones, the dependency resolved through the mount
+  [ "$(jq -c '[.hidden_tests.passed, .hidden_tests.total, .hidden_tests.parse_error, .hidden_tests.rc]' "$RD/grade.json")" = '[3,3,false,0]' ]
+  [ "$(G '.image')" = "loa-ablation:node-test" ]
+  [ "$(jq -c '.runtime' "$RD/grade.json")" = "{\"node_modules\":\"$INSTALLED/node_modules\",\"image\":\"loa-ablation:node-test\",\"mounts\":[\"/workspace/node_modules\",\"/workspace/pkg/node_modules\"]}" ]
+  [ "$(jq -c '[.files_changed, .diff_lines]' "$RD/grade.json")" = '[1,2]' ]   # the fix only: the planted node_modules files are not churn
+  [[ ! -e "$RD/grading/final/node_modules/junk.mjs" && ! -e "$RD/grading/final/node_modules/.pnpm" && ! -e "$RD/grading/final/pkg/node_modules/junk.mjs" ]]
+  # the argv: the tree, then the two runtime mounts read-only, the task's image, the command unchanged
+  local argv; argv="$(tr '\0' ' ' < "$T/dlog/run-1.argv")"
+  [[ "$argv" == *" -v $RD/grading/final:/workspace:rw -v $INSTALLED/node_modules:/workspace/node_modules:ro -v $INSTALLED/pkg/node_modules:/workspace/pkg/node_modules:ro -w /workspace -e HOME=/tmp -e LC_ALL=C -e TMPDIR=/tmp loa-ablation:node-test timeout --signal=TERM --kill-after=10 120 node --test --test-reporter=tap pkg/tests/*.test.mjs "* ]]
+  ! grep -q 'loa-ablation:259' <<<"$argv"
+  # the mount source was listed by the stub (the store), the mountpoint is an empty directory again after the command
+  grep -q '\.pnpm/dep@1.0.0/node_modules/dep/index.mjs' "$T/dlog/run-1.mounts"
+  [[ -d "$RD/grading/final/node_modules" && -z "$(ls -A "$RD/grading/final/node_modules")" ]]
+  # the same key drives the self-checks: base red (the dependency resolves, the fix is missing), reference green
+  run "$GRADER" --self-check base --task-yaml "$TS_TASK" --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }; [[ "$output" == *"self-check base ts-01: PASS hidden 2/3" ]] || { echo "$output"; false; }
+  run "$GRADER" --self-check reference --task-yaml "$TS_TASK" --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }; [[ "$output" == *"self-check reference ts-01: PASS hidden 3/3" ]] || { echo "$output"; false; }
+  # without the mount the dependency is missing: the reference self-check fails by name
+  sed -i '/^runtime:/d' "$TS_TASK"
+  run "$GRADER" --self-check reference --task-yaml "$TS_TASK" --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
+  [ "$status" -eq 1 ]; [[ "$output" == *"self-check reference ts-01: FAIL hidden 1/2" ]] || { echo "$output"; false; }   # the hidden file fails to load: one not ok for the file
+  # host grading cannot mount: exit 2 by name; a path that is not a node_modules directory, exit 2
+  printf 'runtime: {node_modules: "%s/node_modules"}\n' "$INSTALLED" >> "$TS_TASK"
+  run "$GRADER" "$RD" ts-01 --suite-root "$S" --allow-unfrozen --executor host
+  [ "$status" -eq 2 ]; [[ "$output" == *"needs --executor container"* ]]
+  sed -i '/^runtime:/d' "$TS_TASK"; printf 'runtime: {node_modules: "%s/gone/node_modules"}\n' "$INSTALLED" >> "$TS_TASK"
+  run "$GRADER" "$RD" ts-01 --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
+  [ "$status" -eq 2 ]; [[ "$output" == *"not a directory on this host"* ]]
+  sed -i '/^runtime:/d' "$TS_TASK"; printf 'runtime: {node_modules: "%s"}\n' "$INSTALLED" >> "$TS_TASK"
+  run "$GRADER" "$RD" ts-01 --suite-root "$S" --allow-unfrozen --docker-bin "$T/docker"
+  [ "$status" -eq 2 ]; [[ "$output" == *"named node_modules"* ]]
 }

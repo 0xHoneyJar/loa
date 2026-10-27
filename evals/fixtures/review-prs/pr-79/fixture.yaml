@@ -1,0 +1,34 @@
+name: pr-79
+version: "1.0.0"
+language: "javascript"
+runtime: none
+dependency_strategy: none
+description: "external fixture: fastify/fastify pull request #6901 reviewed at its head (pre-fix); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: external
+deprecated: false
+kind: external
+source_url: "https://github.com/fastify/fastify"
+pr: 6901
+pr_url: "https://github.com/fastify/fastify/pull/6901"
+pr_created: "2026-08-03"
+pr_merged: "2026-09-24"
+base_commit: "dfd9dc0b9becb0cd2090da2a4d9f978fa5482857"
+pr_base_sha: "dfd9dc0b9becb0cd2090da2a4d9f978fa5482857"
+head_commit: "33ac0616a8567634b8742eb3dcf1ac1955ff1d9e"
+merge_commit: "6ed472b6fe023cd0e6283badda231b84e45582d0"
+fix_commit: "09b4a17a12a67407a4131d48c26a0dc309c55ecf"
+fix_first: "09b4a17a12a67407a4131d48c26a0dc309c55ecf"
+fix_parent: "6ed472b6fe023cd0e6283badda231b84e45582d0"
+fix_committed: "2026-09-25"
+fix_after_cutoff:
+  fable_5_1: true      # knowledge cutoff 2026-06
+incident: null
+licence: "MIT"
+visibility: public
+trees: committed
+exposure:
+  fable_5_1: post-cutoff      # knowledge cutoff 2026-06; head committed 2026-09-23 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-09-23; sandbox has network; egress scanned (grader class 9)"

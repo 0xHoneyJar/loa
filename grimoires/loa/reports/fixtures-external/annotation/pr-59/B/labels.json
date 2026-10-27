@@ -1,0 +1,21 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "pydantic-core/src/validators/model_fields.rs", "anchor_lines": [631, 632, 633],
+            "description": "The JSON-input field loop validates each field without scoping the validation state to the current field name, so field validators see a wrong/missing field_name in ValidationInfo when validating from JSON.",
+            "severity": "medium", "category": "logic"},
+    "H02": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "tests/types/test_model.py", "anchor_lines": [],
+            "description": "Removes an import from a test file.", "severity": null, "category": null},
+    "H03": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "tests/types/test_model.py", "anchor_lines": [],
+            "description": "Removes test-only imports.", "severity": null, "category": null},
+    "H04": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "tests/types/test_model.py", "anchor_lines": [],
+            "description": "Changes type annotation syntax in a test signature.", "severity": null, "category": null},
+    "H05": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "tests/types/test_model.py", "anchor_lines": [],
+            "description": "Removes a regression test from the test file.", "severity": null, "category": null}
+  },
+  "incidents": {}
+}

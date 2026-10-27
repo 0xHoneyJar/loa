@@ -1,0 +1,8 @@
+# approved-by: deep-name 2026-10-26
+# fixture pr-81 | external https://github.com/bats-core/bats-core pull request #1240 | base ae4b94d7cc35 | head 2dd6ab7335d0 | fix 62edb3cbdcf0..62edb3cbdcf0
+# seeded by evals/harness/seed-corpus-from-external.sh; defects V01 … from the blind annotation (two Opus 5.5 annotators, annotation_merge.py; label_source fix-commit, review_driven false), fix rows carried; approval pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	medium	logic	libexec/bats-core/bats-exec-suite	if ! type -p "${parallel_binary_name}" >/dev/null && "${parallel_binary_name}" --version &>/dev/null && [[ -z "$bats_no_parallelize_across_files" ]]; then	fix-commit	hunk:H02	A,B	agreed	-	false
+V01	medium	logic	libexec/bats-core/bats-exec-suite	abort "Cannot execute \"${num_jobs}\" jobs without GNU parallel"	fix-commit	hunk:H02	A,B	agreed	-	false
+F001	-	fix	docs/CHANGELOG.md	* pretty formatter was not the default on interactive shells anymore (#1220)	fix	fix/62edb3cbdcf0:20-20	-	-	-	-
+F002	-	fix	libexec/bats-core/bats-exec-suite	if ! type -p "${parallel_binary_name}" >/dev/null && "${parallel_binary_name}" --version &>/dev/null && [[ -z "$bats_no_parallelize_across_files" ]]; then	fix	fix/62edb3cbdcf0:114-114	-	-	-	-

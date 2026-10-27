@@ -1,0 +1,34 @@
+name: pr-30
+version: "1.0.0"
+language: "typescript"
+runtime: none
+dependency_strategy: none
+description: "external fixture: vitejs/vite pull request #23566 reviewed at its head (pre-fix); labels live in the hidden labels/ and manifests/ dirs"
+difficulty: advanced
+domain: external
+deprecated: false
+kind: external
+source_url: "https://github.com/vitejs/vite"
+pr: 23566
+pr_url: "https://github.com/vitejs/vite/pull/23566"
+pr_created: "2026-09-24"
+pr_merged: "2026-09-24"
+base_commit: "f155b62ceabbaaf71abbf59933968787e3961c56"
+pr_base_sha: "f155b62ceabbaaf71abbf59933968787e3961c56"
+head_commit: "e0cc2455febb8db83de59e705429294e6ee2b44b"
+merge_commit: "63567c73ac132e6384fef384e6b9f7e8d5a37fff"
+fix_commit: "5f894339d27882fedc86bf6b1076fa6d92e404f3"
+fix_first: "5f894339d27882fedc86bf6b1076fa6d92e404f3"
+fix_parent: "6e09961181a1047ef78d37b1a23fb0e7488c8980"
+fix_committed: "2026-09-24"
+fix_after_cutoff:
+  fable_5_1: true      # knowledge cutoff 2026-06
+incident: null
+licence: "MIT"
+visibility: public
+trees: committed
+exposure:
+  fable_5_1: post-cutoff      # knowledge cutoff 2026-06; head committed 2026-09-24 (UTC)
+  opus_5_5: unverified        # vendor cutoff not published; the catalog date 2026-10-05 is an upper bound only
+  retrieval: public-repository
+contamination_note: "fix commits on main since 2026-09-24; sandbox has network; egress scanned (grader class 9)"

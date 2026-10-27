@@ -42,7 +42,7 @@ build_upstream() {
   git -C "$U" config uploadpack.allowFilter true
   git -C "$U" config uploadpack.allowAnySHA1InWant true
   mkdir -p "$U/src"
-  printf 'MIT License\n\nCopyright (c) 2026 Upstream\n' > "$U/LICENSE"
+  [[ -n "${NO_LICENSE_FILE:-}" ]] || printf 'MIT License\n\nCopyright (c) 2026 Upstream\n' > "$U/LICENSE"
   printf 'def check(value):\n    """accept a value"""\n    if value is None:\n        return False\n    return True\n' > "$U/src/app.py"
   printf 'unrelated\n' > "$U/README.md"
   ug add -A; ug commit -q -m base
@@ -459,4 +459,109 @@ SH
   [[ "$output" == *"the bounded fetch of 7 blob(s) from https://github.com/upstream/proj failed (LICENSE, src/app.py, src/extra.py, src/util.py): "*"; nothing written"* ]]
   [[ "$output" != *"dry run: temporary corpus"* ]]
   corpus_unchanged; no_temp_trees
+}
+
+# --- cycle-135 instrument repair, Task B: --private-source (the operator's own private repository, no identified licence)
+stub_private() {   # the API says private; no licence endpoint (404)
+  jq '.private = true' "$STUB_DIR/repo.json" > "$T/r" && mv "$T/r" "$STUB_DIR/repo.json"
+  rm -f "$STUB_DIR/license.json"
+}
+
+@test "SX-25 a private repository refuses without --private-source; --private-source refuses a public one (exit 2, nothing written)" {
+  build_upstream
+  stub_private
+  run seed --dry-run
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"is private; only public repositories are seeded (--private-source"* ]]
+  [[ "$output" != *"blobless clone"* ]]
+  stub_meta
+  run seed --dry-run --private-source
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"is public; --private-source is only for a private repository"* ]]
+  corpus_unchanged; no_temp_trees
+}
+
+@test "SX-26 --private-source without an identified licence needs --licence LicenseRef-<id>; a plain id or none refuses" {
+  build_upstream
+  stub_private
+  run seed --dry-run --private-source
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"a private source needs --licence LicenseRef-<id>"* ]]
+  run seed --dry-run --private-source --licence MIT
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"a private source needs --licence LicenseRef-<id>"* ]]
+  run seed --dry-run --private-source --licence LicenseRef-
+  [ "$status" -eq 2 ]
+  corpus_unchanged; no_temp_trees
+}
+
+plant_unlicensed_pkg() { printf '{"name": "fleet", "private": true, "license": "UNLICENSED"}\n' > "$U/package.json"; }
+@test "SX-27 --private-source with a LicenseRef: no root licence file needed, visibility private, retrieval private-repository, the attribution row carries the assertion; --check names the fixture" {
+  NO_LICENSE_FILE=1 build_upstream plant_unlicensed_pkg
+  stub_private
+  run seed --commit-trees --out "$C/pr-44" --private-source --licence LicenseRef-fleet-private
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [[ "$output" == *"private source: the operator's repository"* ]]
+  [[ "$output" == *"licence: none identified; recording the operator's assertion LicenseRef-fleet-private"* ]]
+  [[ "$output" == *"licence LicenseRef-fleet-private (private source)"* ]]
+  [ -f "$C/pr-44/head/src/app.py" ] && [ ! -e "$C/pr-44/upstream" ]
+  grep -q '^licence: "LicenseRef-fleet-private"$' "$C/pr-44/fixture.yaml"
+  grep -q '^visibility: private$' "$C/pr-44/fixture.yaml"
+  grep -q '^  retrieval: private-repository$' "$C/pr-44/fixture.yaml"
+  grep -q $'^pr-44\thttps://github.com/upstream/proj\t7\t'"$HEAD_SHA"$'\tLicenseRef-fleet-private\t-$' "$C/THIRD-PARTY.tsv"
+  jq -e '.visibility == "private" and .licence == "LicenseRef-fleet-private" and .licence_files == []' "$C/external/pr-44.json" >/dev/null
+  grep -q $'^F001\t-\tfix\tsrc/app.py\t' "$C/labels/pr-44.tsv"
+  run "$SEED" --check --corpus "$C"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [[ "$output" == *"external OK: 1 external fixture(s)"*"; 1 private-source (pr-44): their trees are the owner's private code"* ]]
+  run "$RECORD_SEED" --corpus "$C" --check
+  [ "$status" -eq 0 ]
+  ! grep -q 'gh auth git-credential' "$STUB_DIR/gh.log"    # the seam clones from a path: the helper is configured, never called
+}
+
+@test "SX-28 --private-source with an identified licence follows the public rules (the API id stands, visibility private); a public fixture records visibility public and retrieval public-repository" {
+  build_upstream
+  jq '.private = true' "$STUB_DIR/repo.json" > "$T/r" && mv "$T/r" "$STUB_DIR/repo.json"
+  run seed --dry-run --private-source
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  D="$(dry_corpus "$output")"
+  grep -q '^licence: "MIT"$' "$D/pr-99/fixture.yaml"
+  grep -q '^visibility: private$' "$D/pr-99/fixture.yaml"
+  grep -q '^  retrieval: private-repository$' "$D/pr-99/fixture.yaml"
+  run seed --dry-run --private-source --licence LicenseRef-x
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"cannot override"* ]]
+  stub_meta
+  run seed --dry-run
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  D="$(dry_corpus "$output")"
+  grep -q '^visibility: public$' "$D/pr-99/fixture.yaml"
+  grep -q '^  retrieval: public-repository$' "$D/pr-99/fixture.yaml"
+  jq -e '.visibility == "public"' "$D/external/pr-99.json" >/dev/null
+}
+
+plant_notes() { mkdir -p "$U/grimoires/loa"; printf 'operator notes\n' > "$U/grimoires/loa/NOTES.md"; }
+@test "SX-29 --paths scopes the PR's files: an excluded file is in neither head/, base/, head.diff nor the fix regions and is listed as dropped; an empty scope and a malformed list refuse" {
+  build_upstream plant_notes
+  run seed --dry-run
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  [ -f "$(dry_corpus "$output")/pr-99/head/grimoires/loa/NOTES.md" ]          # without a scope the state file is in
+  run seed --dry-run --paths '!grimoires/*,!.beads/*'
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  D="$(dry_corpus "$output")"
+  [ ! -e "$D/pr-99/head/grimoires" ] && [ -f "$D/pr-99/head/src/app.py" ] && [ -f "$D/pr-99/head/src/util.py" ]
+  ! grep -q 'NOTES.md' "$D/pr-99/head.diff"
+  grep -q "^scope_paths: \"!grimoires/\*,!.beads/\*\"$" "$D/pr-99/fixture.yaml"
+  grep -q '^grimoires/loa/NOTES.md: outside the --paths scope$' "$D/labels/pr-99.dropped.txt"
+  jq -e '.scope_paths == "!grimoires/*,!.beads/*" and (.files.head | map(.path) | index("grimoires/loa/NOTES.md")) == null' "$D/external/pr-99.json" >/dev/null
+  [[ "$output" == *" 1 skipped;"* ]]
+  run seed --dry-run --paths 'nothing/*'
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"no file of its 3 changed file(s) is inside --paths 'nothing/*'"* ]]
+  run seed --dry-run --paths 'src/util.py'                 # in scope, but the fix touches src/app.py only
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"touches no file the PR changed inside --paths 'src/util.py'"* ]]
+  run seed --dry-run --paths 'a"b'
+  [ "$status" -eq 2 ]
+  corpus_unchanged
 }

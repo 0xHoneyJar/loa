@@ -1,0 +1,86 @@
+commit ce41dc0fbb4ed75e9a42f3972ac896333f6a7396
+Date: 2026-10-21T17:30:47-07:00
+
+fix(types): allow socket path strings in addresses (#6842)
+
+<!--
+Thank you for your pull request. Please provide a description above and
+review
+the requirements below.
+
+Bug fixes and new features should include tests and possibly benchmarks.
+
+Contributors guide:
+https://github.com/fastify/fastify/blob/main/CONTRIBUTING.md
+
+By making a contribution to this project, I certify that:
+
+* (a) The contribution was created in whole or in part by me and I
+  have the right to submit it under the open source license
+  indicated in the file; or
+
+* (b) The contribution is based upon previous work that, to the best
+  of my knowledge, is covered under an appropriate open source
+  license and I have the right under that license to submit that
+  work with modifications, whether created in whole or in part
+  by me, under the same open source license (unless I am
+  permitted to submit under a different license), as indicated
+  in the file; or
+
+* (c) The contribution was provided directly to me by some other
+  person who certified (a), (b) or (c) and I have not modified
+  it.
+
+* (d) I understand and agree that this project and the contribution
+  are public and that a record of the contribution (including all
+  personal information I submit with it, including my sign-off) is
+  maintained indefinitely and may be redistributed consistent with
+  this project or the open source license(s) involved.
+-->
+
+### Description
+
+`fastify.addresses()` can return socket path strings when Fastify is
+listening on an IPC socket path, but the TypeScript declaration
+currently only allows `AddressInfo[]`.
+
+This updates the `addresses()` return type to match the existing runtime
+behavior, which is already covered by runtime tests for Unix socket
+paths and Windows named pipes.
+
+### Changes proposed:
+
+- Updated `FastifyInstance#addresses()` to return `Array<AddressInfo |
+string>`
+- Updated the existing type assertion for `addresses()`
+
+### Verification
+
+1. Confirmed the type test fails before the declaration change
+2. Ran `npm test`
+
+#### Checklist
+
+- [x] run `npm run test && npm run benchmark --if-present`
+- [x] tests and/or benchmarks are included
+- [ ] documentation is changed or added
+- [x] commit message and code follows the [Developer's Certification of
+Origin](https://github.com/fastify/.github/blob/main/CONTRIBUTING.md#developers-certificate-of-origin-11)
+and the [Code of
+conduct](https://github.com/fastify/.github/blob/main/CODE_OF_CONDUCT.md)
+
+Co-authored-by: Antonio Tripodi <Tony133@users.noreply.github.com>
+
+diff --git a/types/instance.d.ts b/types/instance.d.ts
+index 4820dff2..3e8c2591 100644
+--- a/types/instance.d.ts
++++ b/types/instance.d.ts
+@@ -130,7 +130,7 @@ export interface FastifyInstance<
+   version: string;
+   log: Logger;
+   listeningOrigin: string;
+-  addresses(): AddressInfo[]
++  addresses(): Array<AddressInfo | string>
+   withTypeProvider<Provider extends FastifyTypeProvider>(): FastifyInstance<RawServer, RawRequest, RawReply, Logger,
+     Provider>;
+ 

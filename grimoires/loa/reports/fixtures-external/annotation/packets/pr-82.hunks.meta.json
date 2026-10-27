@@ -1,0 +1,44 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-82",
+  "hunk_count": 4,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "packages/runtime-dom/__tests__/patchAttrs.spec.ts",
+      "head_end": 49,
+      "head_start": 49,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "packages/server-renderer/__tests__/ssrRenderAttrs.spec.ts",
+      "head_end": 62,
+      "head_start": 62,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H03": {
+      "cited_by": [],
+      "file": "packages/shared/src/domAttrConfig.ts",
+      "head_end": 7,
+      "head_start": 7,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H04": {
+      "cited_by": [],
+      "file": "packages/shared/src/domAttrConfig.ts",
+      "head_end": 15,
+      "head_start": 15,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [],
+  "incidents": "incidents/pr-82.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

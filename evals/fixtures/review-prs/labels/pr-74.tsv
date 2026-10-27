@@ -1,0 +1,7 @@
+# approved-by: deep-name 2026-10-26
+# fixture pr-74 | external https://github.com/vitejs/vite pull request #23688 | base 8a4c19cfc035 | head 6f443140ca26 | fix 50b382d31835..50b382d31835
+# seeded by evals/harness/seed-corpus-from-external.sh; defects V01 … from the blind annotation (two Opus 5.5 annotators, annotation_merge.py; label_source fix-commit, review_driven false), fix rows carried; approval pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	medium	error-handling	packages/vite/src/node/plugins/css.ts	const decodedUrl = decodeURI(url)	fix-commit	hunk:H02	A,B	agreed	-	false
+F001	-	fix	packages/vite/src/node/plugins/css.ts	createSerialPromiseQueue,	fix	fix/50b382d31835:75-75	-	-	-	-
+F002	-	fix	packages/vite/src/node/plugins/css.ts	const decodedUrl = decodeURI(url)	fix	fix/50b382d31835:397-397	-	-	-	-

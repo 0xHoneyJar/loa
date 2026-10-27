@@ -1,0 +1,5 @@
+# approved-by: pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	low	logic	packages/vite/src/node/optimizer/index.ts	@L1270	fix-commit	hunk:H01	A,B	agreed	-	false
+V02	low	logic	packages/vite/src/node/optimizer/index.ts	@L1310	incident	incident:I01	A,B	adjudicated	agreed defect-at-head (both annotators, severity low, group D2); both inferred the line from the fix diff's numbering (A 1299, B 1297) — at head the yarn.lock fallback entry's checkPatchesDir is optimizer/index.ts:1310; category logic (an incident-only defect needs one)	false
+F001	-	fix	packages/vite/src/node/optimizer/index.ts	-	fix	fix/a7d56967ef00:1270-1270	-	-	-	-

@@ -15,7 +15,7 @@ import type {
 } from "./core/types.js";
 import { GENERATED_MODEL_REGISTRY } from "./config.generated.js";
 // cycle-135 C-1 (bd-ow72o): every exclusion-pattern source goes through the one loader.
-import { excludePatternGrammarError, normalizeExcludePatterns } from "./core/truncation.js";
+import { boundedForLog, excludePatternGrammarError, normalizeExcludePatterns } from "./core/truncation.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -797,9 +797,13 @@ export function applyTrustedReviewScope(
   config: BridgebuilderConfig,
   trusted: TrustedConfig & { reviewScope?: TrustedReviewScope },
   cli: Pick<CLIArgs, "exclude">,
+  provenance?: Pick<ConfigProvenance, "deferredScopeKeys">,
 ): void {
   const scope = trusted.reviewScope;
+  // (cycle-136 FR-5: a local-mode trusted load installs nothing, so a deferral stays and assertNoDeferredScopeKeys refuses)
   if (trusted.mode !== "pull-request" || scope === undefined) return;
+  // cycle-136 FR-5 (DEC-1084): a key resolveConfig deferred was already reported as invalid — no second drift WARN
+  const deferred = new Set(provenance?.deferredScopeKeys ?? []);
   const where = trustedSourceDescription(trusted);
   if (trusted.source === "none") {
     process.stderr.write(
@@ -809,7 +813,7 @@ export function applyTrustedReviewScope(
   }
   const show = (v: unknown) => (v === undefined ? "unset" : JSON.stringify(v).slice(0, 300));
   const warn = (key: string, head: unknown, value: unknown) =>
-    process.stderr.write(
+    deferred.has(key) || process.stderr.write(
       `[bridgebuilder] WARN: bridgebuilder.${key}: the PR head's value (${show(head)}) differs from ${where} ` +
       `(${show(value)}) — the trusted value governs (review scope: warned, not refused; bd-i4fyw)\n`,
     );
@@ -849,6 +853,27 @@ export function applyTrustedReviewScope(
   if ((config.maxContentFetches ?? 20) !== (mcf ?? 20)) warn("max_content_fetches", config.maxContentFetches, mcf);
   if (mcf === undefined) delete config.maxContentFetches;
   else config.maxContentFetches = mcf;
+  // cycle-136 FR-5: every deferred key now carries the trusted value or the default — the hand-off is complete
+  if (provenance) delete provenance.deferredScopeKeys;
+}
+
+/**
+ * cycle-136 FR-5 (sdd.md § 5.6, DEC-1084): the review must not run on a configuration whose head-side scope keys were
+ * deferred by `resolveConfig` and never replaced by `applyTrustedReviewScope` — a config error naming the keys.
+ */
+export function assertNoDeferredScopeKeys(provenance: Pick<ConfigProvenance, "deferredScopeKeys">): void {
+  const keys = provenance.deferredScopeKeys ?? [];
+  if (keys.length === 0) return;
+  throw new Error(
+    `${keys.map((k) => `bridgebuilder.${k}`).join(", ")}: the PR head's invalid value was deferred but no trusted ` +
+    `replacement was applied — applyTrustedReviewScope must run before the review (cycle-136 FR-5)`,
+  );
+}
+
+/** cycle-136 FR-5: `bridgebuilder.exclude_patterns` must be a list of strings (the trusted side checks the same shape). */
+function validateExcludePatternList(raw: unknown): string[] {
+  if (Array.isArray(raw) && raw.every((x) => typeof x === "string")) return raw as string[];
+  throw new Error(`bridgebuilder.exclude_patterns: expected a list of patterns, got ${String(JSON.stringify(raw)).slice(0, 300)}`);
 }
 
 /** `hounfour.aliases` as a string map (non-string targets — cheval's dict form included — read through `target`/`model`). */
@@ -1252,6 +1277,9 @@ export interface EnvVars {
   BRIDGEBUILDER_REPO_ROOT?: string;
   LOA_BRIDGE_REVIEW_MODE?: string;
   BRIDGEBUILDER_PASS1_CACHE?: string;
+  /** cycle-136 FR-5: the pull-request signals `isPullRequestContext` reads (as `loadTrustedConfig` does). */
+  GITHUB_EVENT_NAME?: string;
+  GITHUB_BASE_REF?: string;
 }
 
 /**
@@ -1635,6 +1663,34 @@ export async function resolveConfig(
   // Resolve repoRoot: CLI > env > git auto-detect (Bug 3 fix — issue #309)
   const repoRoot = resolveRepoRoot(cliArgs, env);
 
+  // cycle-136 FR-5 (sdd.md § 5.6, DEC-1084): on a pull request this YAML is the PR head's, so an invalid review-scope key
+  // there must not fail the head's own review. The head YAML is validated first, before any trusted value is seen: an
+  // invalid key is reported in one WARN, left UNSET (never the invalid value) and named in provenance.deferredScopeKeys.
+  // applyTrustedReviewScope then REPLACES the head's scope keys with the trusted source's (or the defaults) — flat
+  // lists, booleans and integers, exclude_patterns recomposed as defaults + trusted + CLI; nothing is deep-merged — and
+  // clears the list. Locally every validation error stays a config error.
+  const prMode = isPullRequestContext(cliArgs.pr, { GITHUB_EVENT_NAME: env.GITHUB_EVENT_NAME, GITHUB_BASE_REF: env.GITHUB_BASE_REF });
+  const deferredScopeKeys: string[] = [];
+  const headScope = <T>(key: string, validate: () => T): T | undefined => {
+    try {
+      return validate();
+    } catch (err) {
+      if (!prMode) throw err;
+      process.stderr.write(
+        `[bridgebuilder] WARN: bridgebuilder.${key}: the PR head's value is invalid (${boundedForLog(String((err as Error).message ?? err))}) ` +
+        `— ignored on a pull request; the trusted configuration (or its default) governs\n`,
+      );
+      deferredScopeKeys.push(key);
+      return undefined;
+    }
+  };
+  const protectedPaths = yaml.protected_paths !== undefined
+    ? headScope("protected_paths", () => validateProtectedPaths(yaml.protected_paths)) : undefined;
+  const maxContentFetches = yaml.max_content_fetches !== undefined
+    ? headScope("max_content_fetches", () => validateMaxContentFetches(yaml.max_content_fetches!)) : undefined;
+  const headExcludes = yaml.exclude_patterns !== undefined
+    ? headScope("exclude_patterns", () => validateExcludePatternList(yaml.exclude_patterns)) : undefined;
+
   // Resolve remaining fields: CLI > env > yaml > defaults
   const config: BridgebuilderConfig = {
     repos,
@@ -1655,16 +1711,14 @@ export async function resolveConfig(
       DEFAULTS.dryRun,
     excludePatterns: [
       ...DEFAULT_EXCLUDE_PATTERNS,
-      ...normalizeExcludePatterns(yaml.exclude_patterns ?? [], "bridgebuilder.exclude_patterns"),
+      ...normalizeExcludePatterns(headExcludes ?? [], "bridgebuilder.exclude_patterns"),
       ...normalizeExcludePatterns(cliArgs.exclude ?? [], "--exclude"),
     ],
     ghMaxBufferBytes: resolveGhMaxBufferBytes(yaml.gh_max_buffer_bytes),
     // cycle-135 C-2/C-3: set only when configured; readers default them (DEFAULT_PROTECTED_PATHS, true, 20).
-    ...(yaml.protected_paths !== undefined ? { protectedPaths: validateProtectedPaths(yaml.protected_paths) } : {}),
+    ...(protectedPaths !== undefined ? { protectedPaths } : {}),
     ...(yaml.fetch_missing_patches !== undefined ? { fetchMissingPatches: yaml.fetch_missing_patches } : {}),
-    ...(yaml.max_content_fetches !== undefined
-      ? { maxContentFetches: validateMaxContentFetches(yaml.max_content_fetches) }
-      : {}),
+    ...(maxContentFetches !== undefined ? { maxContentFetches } : {}),
     sanitizerMode: yaml.sanitizer_mode ?? DEFAULTS.sanitizerMode,
     maxRuntimeMinutes: yaml.max_runtime_minutes ?? DEFAULTS.maxRuntimeMinutes,
     ...(cliArgs.pr != null ? { targetPr: cliArgs.pr } : {}),
@@ -1708,6 +1762,7 @@ export async function resolveConfig(
     maxOutputTokens: maxOutputTokensSource,
     maxDiffBytes: maxDiffBytesSource,
     reviewMode: reviewModeSource,
+    ...(deferredScopeKeys.length > 0 ? { deferredScopeKeys } : {}),
   };
 
   return { config, provenance };
@@ -1783,6 +1838,11 @@ export interface ConfigProvenance {
   maxOutputTokens: ConfigSource;
   maxDiffBytes: ConfigSource;
   reviewMode: ConfigSource;
+  /**
+   * cycle-136 FR-5 (DEC-1084): review-scope keys whose PR-head value was invalid on a pull request — left unset by
+   * resolveConfig until applyTrustedReviewScope installs the trusted value or the default (and deletes this list).
+   */
+  deferredScopeKeys?: string[];
 }
 
 /**

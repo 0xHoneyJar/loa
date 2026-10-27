@@ -1,0 +1,10 @@
+# approved-by: deep-name 2026-10-26
+# fixture pr-59 | external https://github.com/pydantic/pydantic pull request #13079 | base 895d8554ffdf | head 67ac6fd4ee9d | fix a6bf50b721c2..a6bf50b721c2
+# seeded by evals/harness/seed-corpus-from-external.sh; defects V01 … from the blind annotation (two Opus 5.5 annotators, annotation_merge.py; label_source fix-commit, review_driven false), fix rows carried; approval pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	medium	logic	pydantic-core/src/validators/model_fields.rs	for (field, field_result) in std::iter::zip(&self.fields, field_results) {	fix-commit	hunk:H01	A,B	agreed	-	false
+V01	medium	logic	pydantic-core/src/validators/model_fields.rs	let field_value = if let Some((field_info, field_json_value)) = field_result {	fix-commit	hunk:H01	A,B	agreed	-	false
+V01	medium	logic	pydantic-core/src/validators/model_fields.rs	match field.validator.validate(py, field_json_value, state) {	fix-commit	hunk:H01	A,B	agreed	-	false
+F001	-	fix	pydantic-core/src/validators/model_fields.rs	for (field, field_result) in std::iter::zip(&self.fields, field_results) {	fix	fix/a6bf50b721c2:631-631	-	-	-	-
+F002	-	fix	tests/types/test_model.py	ValidationInfo,	fix	fix/a6bf50b721c2:10-11	-	-	-	-
+F003	-	fix	tests/types/test_model.py	def test_model_validate_by_json_with_validation_info_data():	fix	fix/a6bf50b721c2:88-106	-	-	-	-

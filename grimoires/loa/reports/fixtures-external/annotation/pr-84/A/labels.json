@@ -1,0 +1,9 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "crates/biome_js_syntax/src/parentheses/expression.rs", "anchor_lines": [960],
+            "description": "member_chain_callee_needs_parens only treats JsCallExpression as a call in the object chain, so a member chain rooted at a dynamic import() call (JsImportCallExpression) used as a callee (e.g. `new (import('x').y)()`) is judged not to need parens, and the printed output changes meaning.",
+            "severity": "medium", "category": "logic"}
+  },
+  "incidents": {}
+}

@@ -1,0 +1,64 @@
+{
+  "fixture": "pr-59",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "deep-name 2026-10-26",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "67ac6fd4ee9d0317e78efdace2228ca83abe4371",
+    "fix_commit": "a6bf50b721c2dd1ed609c8bb402076e8ec0c43f3",
+    "incidents_meta": {
+      "main_sha": "37dc34b4f001191b4f3db707cc52bac95baf17f0"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "pydantic-core/src/validators/model_fields.rs",
+      "anchor_line": 631,
+      "anchors": [
+        631,
+        632,
+        633
+      ],
+      "must_match": "for (field, field_result) in std::iter::zip(&self.fields, field_results) {",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
+      "source_commit": "67ac6fd4",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "pydantic-core/src/validators/model_fields.rs",
+      "start": 631,
+      "end": 631,
+      "source": "fix/a6bf50b721c2:631-631"
+    },
+    {
+      "id": "F002",
+      "file": "tests/types/test_model.py",
+      "start": 10,
+      "end": 11,
+      "source": "fix/a6bf50b721c2:10-11"
+    },
+    {
+      "id": "F003",
+      "file": "tests/types/test_model.py",
+      "start": 88,
+      "end": 106,
+      "source": "fix/a6bf50b721c2:88-106"
+    }
+  ]
+}

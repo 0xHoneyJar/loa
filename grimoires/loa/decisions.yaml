@@ -35287,7 +35287,7 @@ decisions:
     prior_requests: []
   - id: "DEC-1011"
     created_at: "2026-10-26T04:27:01Z"
-    updated_at: "2026-10-26T04:27:01Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "scope"
     summary: "cycle-135 scope: the five follow-ups of the 2026-10-26 micro-sprints (bd-ow72o, bd-i4fyw, bd-w5pd9, bd-nr5i6, bd-oglcu); glob braces, fix/ routing, releases out"
@@ -35304,7 +35304,7 @@ decisions:
       negative:
         - "a red gate on one item holds the other four"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35313,19 +35313,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:01Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "grimoires/loa/context/cycle-135-brief.md § Scope"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1012"
     created_at: "2026-10-26T04:27:05Z"
-    updated_at: "2026-10-26T04:27:05Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "process"
     summary: "Grounding by direct file:line reads of the five areas (brief § Grounding facts); no /ride — the May reality snapshot is stale and the areas are small."
@@ -35340,7 +35345,7 @@ decisions:
       negative:
         - "no fresh repo-wide reality for other readers"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35349,19 +35354,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:05Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "grimoires/loa/context/cycle-135-brief.md § Grounding facts"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1013"
     created_at: "2026-10-26T04:27:09Z"
-    updated_at: "2026-10-26T04:27:09Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "security"
     summary: "Exclusion semantics: non-wildcard patterns match whole path segments (gitignore-like; no '/' any depth, with '/' root-anchored), never substrings; one matcher"
@@ -35380,7 +35390,7 @@ decisions:
       negative:
         - "a default or operator pattern that relied on substring matching (none known) stops matching"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35389,19 +35399,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:09Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "truncation.ts:182-200, 261-278, 395 (2026-10-26 read)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1014"
     created_at: "2026-10-26T04:27:13Z"
-    updated_at: "2026-10-26T04:27:13Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "security"
     summary: "Protected paths (CI workflows/actions, agent settings/hooks, git hooks) survive wildcard user exclusions; configurable list; kept files named in the coverage re"
@@ -35420,7 +35435,7 @@ decisions:
       negative:
         - "a repository whose CI lives elsewhere gains nothing; an operator who wants to exclude workflows must name them or set the list"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35429,19 +35444,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:13Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "truncation.ts:1292-1318, 1442, 1515 (user-pattern call sites); paged-fetch.ts coverage record"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1015"
     created_at: "2026-10-26T04:27:17Z"
-    updated_at: "2026-10-26T04:27:17Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "implementation"
     summary: "Patch-less added files: content fetched (bounded) via gh api contents at the head sha, reviewed as an all-additions patch; other patch-less statuses stay no_pat"
@@ -35460,7 +35480,7 @@ decisions:
       negative:
         - "one more gh api shape in the allowlist; a bounded network read per patch-less added file"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35469,19 +35489,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:17Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "paged-fetch.ts:39-150, 240-280; github-cli.ts:150-307 (2026-10-26 read); PR #1296 round 1"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1016"
     created_at: "2026-10-26T04:27:21Z"
-    updated_at: "2026-10-26T04:27:21Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "implementation"
     summary: "A fourth classifier value housekeeping (rule 1a) that both post-merge prepare jobs skip; the KF-063 no-PR guard keeps other; the orchestrator is unchanged."
@@ -35498,7 +35523,7 @@ decisions:
       negative:
         - "every consumer of pr_type must accept a fourth value (checked: the workflow jobs, notify, the orchestrator branch)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35507,19 +35532,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:21Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "classify-pr-type.sh:42-90; post-merge.yml:109, 187, 258-270; post-merge-orchestrator.sh:377-387 (2026-10-26 read)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1017"
     created_at: "2026-10-26T04:27:25Z"
-    updated_at: "2026-10-26T04:27:25Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "testing"
     summary: "The Bridgebuilder performance guardrails measure CPU time (process.cpuUsage) with their existing thresholds, so host load cannot fail the suite."
@@ -35536,7 +35566,7 @@ decisions:
       negative:
         - "CPU time of the whole process includes concurrent GC work (small, bounded)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35545,19 +35575,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:25Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "progressive-truncation.test.ts:548-590; bd-oglcu observations 2026-10-26"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1018"
     created_at: "2026-10-26T04:27:29Z"
-    updated_at: "2026-10-26T04:27:29Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "process"
     summary: "Cycle shape: one sprint (global 279), three Opus implementers (matcher+protected; fetch+guardrails; classifier+workflow), one PR, BB round, record, archive, no"
@@ -35574,7 +35609,7 @@ decisions:
       negative:
         - "three worktrees and briefs to maintain"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35583,19 +35618,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:29Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "grimoires/loa/context/cycle-135-brief.md § Operator instruction, § Standing rules"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1019"
     created_at: "2026-10-26T04:35:01Z"
-    updated_at: "2026-10-26T04:35:01Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "Matcher: isWildcardPattern (* ? { [) picks the branch — non-wildcard → segmentMatch; wildcard → native glob then dotSegmentGlobMatch; opts.native test seam"
@@ -35612,7 +35652,7 @@ decisions:
       negative:
         - "one optional parameter on a hot function"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35621,19 +35661,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:35:01Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "truncation.ts:94-200 (2026-10-26 read)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1020"
     created_at: "2026-10-26T04:35:04Z"
-    updated_at: "2026-10-26T04:35:04Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "Protected paths: DEFAULT_PROTECTED_PATHS + one helper at the three user-pattern call sites; kept files ride TruncationResult.protectedKept to the coverage recor"
@@ -35650,7 +35695,7 @@ decisions:
       negative:
         - "a new field in two records and one rendering section"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35659,19 +35704,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:35:04Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "truncation.ts:1292-1318, 1442, 1515; paged-fetch.ts:400-410; config.ts:1100-1142, 1524-1537"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1021"
     created_at: "2026-10-26T04:35:07Z"
-    updated_at: "2026-10-26T04:35:07Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "Content fetch in pass 1 for added files without a patch: getFileContent via gh api contents (raw), ≤ max_diff_bytes; text → synthesized patch; else untouched"
@@ -35688,7 +35738,7 @@ decisions:
       negative:
         - "pass 1 is no longer metadata-only for this one class of file (documented)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35697,19 +35747,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:35:07Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "paged-fetch.ts:14-66, 240-280; github-cli.ts:150-200, 290-307"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1022"
     created_at: "2026-10-26T04:35:11Z"
-    updated_at: "2026-10-26T04:35:11Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "housekeeping wiring: rule 1a echoes it; the wrapper passes it; simple-release adds pr_type != 'housekeeping'; the orchestrator's --type check refuses it (pinned"
@@ -35726,7 +35781,7 @@ decisions:
       negative:
         - "four files, four test files"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35735,19 +35790,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:35:11Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "classify-pr-type.sh:42-90; classify-merge-pr.sh:118-170; post-merge.yml:106-109, 179-187; post-merge-orchestrator.sh:2491-2492"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1023"
     created_at: "2026-10-26T04:35:15Z"
-    updated_at: "2026-10-26T04:35:15Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "testing"
     summary: "Guardrails: CPU time (process.cpuUsage user+system) around the measured call, thresholds unchanged (500 ms, 100 ms); quadratic stand-in as a report-only red dem"
@@ -35764,7 +35824,7 @@ decisions:
       negative:
         - "includes the process's own GC time (bounded)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35773,19 +35833,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:35:15Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "progressive-truncation.test.ts:548-590"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1024"
     created_at: "2026-10-26T04:35:18Z"
-    updated_at: "2026-10-26T04:35:18Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "process"
     summary: "Lead contract commit before dispatch: types.ts gains TruncationResult.protectedKept and CoverageRecord.protected_kept / reviewed[].source; implementers never ed"
@@ -35800,7 +35865,7 @@ decisions:
       negative:
         - "one extra lead commit"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35809,19 +35874,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:35:18Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "types.ts (TruncationResult, CoverageRecord)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1025"
     created_at: "2026-10-26T04:35:22Z"
-    updated_at: "2026-10-26T04:35:22Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "process"
     summary: "Allowlists: A truncation/config/loa-detection tests/SKILL.md; B paged-fetch/github-cli/git-provider + tests + guardrail test; C classifier/wrapper/workflow/pin"
@@ -35836,7 +35906,7 @@ decisions:
       negative:
         - "three briefs"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35845,19 +35915,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:35:22Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "grimoires/loa/sdd.md § 8"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1026"
     created_at: "2026-10-26T04:51:39Z"
-    updated_at: "2026-10-26T04:51:39Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "One glob grammar, one matcher: the segment matcher is the only wildcard matcher (no path.matchesGlob); * ** ? {a,b} [..]; other constructs rejected with a WARN"
@@ -35874,7 +35949,7 @@ decisions:
       negative:
         - "extglob and escaped patterns stop working (none in use; rejected loudly)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35883,19 +35958,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:51:39Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "flatline cycle-135-sdd-review.json SKP-003; truncation.ts:94-200"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1027"
     created_at: "2026-10-26T04:51:42Z"
-    updated_at: "2026-10-26T04:51:42Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "security"
     summary: ".reviewignore read from the PR base sha (git show <base>:.reviewignore) when a base is known, else the checkout; source and PR-modified flag recorded"
@@ -35912,7 +35992,7 @@ decisions:
       negative:
         - "a legitimate .reviewignore change takes effect after it merges, not in its own PR (documented)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35921,19 +36001,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:51:42Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "truncation.ts:277-350; paged-fetch.ts coverage record"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1028"
     created_at: "2026-10-26T04:51:46Z"
-    updated_at: "2026-10-26T04:51:46Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "Content fetch via the JSON contents endpoint (default media type), base64 decoded; size checked before decoding; encoding none / over budget → too_large"
@@ -35948,7 +36033,7 @@ decisions:
       negative:
         - "~33 % larger transfer (base64) within the bounded buffer"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35957,19 +36042,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:51:46Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "github-cli.ts:150-200; GitHub REST contents API"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1029"
     created_at: "2026-10-26T04:51:50Z"
-    updated_at: "2026-10-26T04:51:50Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "simple-release guard is an allowlist: (pr_type == 'bugfix' || 'other') && pr_number != ''; unknown, empty or malformed values run neither job (pinned)"
@@ -35984,7 +36074,7 @@ decisions:
       negative:
         - "a new legitimate type needs a guard edit (intended)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35993,19 +36083,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:51:50Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "post-merge.yml:106-109"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1030"
     created_at: "2026-10-26T04:51:53Z"
-    updated_at: "2026-10-26T04:51:53Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "Content fetch bounds: only files surviving exclusion are fetched; max_content_fetches (default 20), 120 s deadline, 30 s per call; fetch_missing_patches knob"
@@ -36022,7 +36117,7 @@ decisions:
       negative:
         - "two new config keys to document"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36031,19 +36126,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:51:53Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "paged-fetch.ts:14-66; config.ts:1100-1142"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1031"
     created_at: "2026-10-26T04:51:57Z"
-    updated_at: "2026-10-26T04:51:57Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "testing"
     summary: "Guardrails take the minimum CPU time of three runs of the measured synchronous call; the quadratic negative control is defined (O(n²) over 100 files)"
@@ -36060,7 +36160,7 @@ decisions:
       negative:
         - "the measured work runs three times (milliseconds)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36069,19 +36169,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:51:57Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "progressive-truncation.test.ts:548-590"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1032"
     created_at: "2026-10-26T05:51:21Z"
-    updated_at: "2026-10-26T05:51:21Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "implementation"
     summary: "Matcher internals: translateGlobSegment + compileGlob + one memoized per-pattern predicate (patternMatcher) replace dotSegmentGlobMatch; grammar violations…"
@@ -36096,7 +36201,7 @@ decisions:
       negative:
         - "one extra memoized check per pattern"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36105,19 +36210,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:21Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "4f926bcfd"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1033"
     created_at: "2026-10-26T05:51:25Z"
-    updated_at: "2026-10-26T05:51:25Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "implementation"
     summary: "Normalisation runs once at each loader (trim; one leading ./ or / stripped), never re-applied inside truncateFiles; [!..] is the only class negation ([^..]…"
@@ -36132,7 +36242,7 @@ decisions:
       negative:
         - "operators with [^..] patterns must rewrite them to [!..] (WARN names them)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36141,19 +36251,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:25Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "4f926bcfd"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1034"
     created_at: "2026-10-26T05:51:29Z"
-    updated_at: "2026-10-26T05:51:29Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "implementation"
     summary: "Omission stats carry ' [pattern: <p>]' as a suffix for Loa-tier AND user-pattern exclusions (parsed by the coverage with / \\[pattern: (.+)\\]$/); types.ts…"
@@ -36168,7 +36283,7 @@ decisions:
       negative:
         - "a string grammar between two files (pinned by both sides' tests)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36177,19 +36292,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:29Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e6ba40f96, 625c5a901"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1035"
     created_at: "2026-10-26T05:51:33Z"
-    updated_at: "2026-10-26T05:51:33Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "implementation"
     summary: "A protected file kept from a user wildcard and later stripped by the Loa tier stays in protectedKept and renders 'then omitted (excluded_loa)'…"
@@ -36204,7 +36324,7 @@ decisions:
       negative:
         - "a kept entry may also appear among omissions (annotated)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36213,19 +36333,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:33Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e6ba40f96"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1036"
     created_at: "2026-10-26T05:51:38Z"
-    updated_at: "2026-10-26T05:51:38Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "security"
     summary: "reviewignoreBaseSha goes to truncateFiles through its config object and reviewignoreSource comes back on its result (intersection types, types.ts…"
@@ -36240,7 +36365,7 @@ decisions:
       negative:
         - "two optional fields outside types.ts (candidate for the next contract tidy-up)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36249,19 +36374,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:38Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e6ba40f96, 9300f9b3d"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1037"
     created_at: "2026-10-26T05:51:44Z"
-    updated_at: "2026-10-26T05:51:44Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "implementation"
     summary: "Config validation: protected_paths grammar violations and a non-integer max_content_fetches are errors naming the entry (in resolveConfig, since the YAML…"
@@ -36276,7 +36406,7 @@ decisions:
       negative:
         - "a typo in protected_paths stops the review until fixed (intended)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36285,19 +36415,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:44Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e6ba40f96"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1038"
     created_at: "2026-10-26T05:51:49Z"
-    updated_at: "2026-10-26T05:51:49Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "implementation"
     summary: "Content fetch placement: selection first (truncateFiles), fetch for its '(diff unavailable)' survivors, re-run the selection only when a patch was…"
@@ -36314,7 +36449,7 @@ decisions:
       negative:
         - "truncateFiles runs twice when a patch is synthesized (its WARNs may repeat)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36323,19 +36458,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:49Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "46237970c"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1039"
     created_at: "2026-10-26T05:51:55Z"
-    updated_at: "2026-10-26T05:51:55Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "security"
     summary: "No Accept header on the contents request (DEC-1028 over the stale PRD 1.1 wording); stdout taken as a string and bytes come only from base64 (no buffer…"
@@ -36352,7 +36492,7 @@ decisions:
       negative:
         - "PRD 1.1's AC wording had to be corrected (1.3)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36361,19 +36501,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:55Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "46237970c"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1040"
     created_at: "2026-10-26T05:52:00Z"
-    updated_at: "2026-10-26T05:52:00Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "implementation"
     summary: "maxBuffer = ceil(maxBytes × 4/3) + 4096 as specified: the real envelope's JSON-escaped newlines (+3.3 %) and link metadata (~1 KB) make files within ~3 % of…"
@@ -36388,7 +36533,7 @@ decisions:
       negative:
         - "a small band of near-limit files stays no_patch"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36397,19 +36542,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:52:00Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "46237970c"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1041"
     created_at: "2026-10-26T05:52:05Z"
-    updated_at: "2026-10-26T05:52:05Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "testing"
     summary: "The workflow-guard matrix test evaluates a hand-transcribed shell mirror of both if: expressions read from the YAML with yq (unknown guard text fails the…"
@@ -36426,7 +36576,7 @@ decisions:
       negative:
         - "a new guard shape needs a new mirror branch (intended)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36435,19 +36585,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:52:05Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "ba454a74f"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1042"
     created_at: "2026-10-26T05:52:12Z"
-    updated_at: "2026-10-26T05:52:12Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "process"
     summary: "SDD imprecision corrected by C: post-merge-orchestrator.sh:377 assigns classify_pr_type's output directly (would yield housekeeping), but that branch is…"
@@ -36462,7 +36617,7 @@ decisions:
       negative:
         - "none"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36471,19 +36626,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:52:12Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "ba454a74f; grimoires/loa/a2a/sprint-279/reviewer.md"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1043"
     created_at: "2026-10-26T06:58:11Z"
-    updated_at: "2026-10-26T06:58:11Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "security"
     summary: "Base .reviewignore read fails closed: on any base failure the checkout copy governs as base_unavailable and the review degrades; none only if both lack it."
@@ -36500,7 +36660,7 @@ decisions:
       negative:
         - "a clone without the base commit always degrades (operators fetch the base ref)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36509,19 +36669,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:11Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "8d22e449a"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1044"
     created_at: "2026-10-26T06:58:17Z"
-    updated_at: "2026-10-26T06:58:17Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "security"
     summary: "Explicit (protection-defeating) pattern = non-wildcard that is root-anchored (a / after one trailing / ignored) or the full path; floating names keep the file."
@@ -36538,7 +36703,7 @@ decisions:
       negative:
         - "an operator must write the anchored path to exclude a protected file (documented)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36547,19 +36712,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:17Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "8d22e449a"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1045"
     created_at: "2026-10-26T06:58:23Z"
-    updated_at: "2026-10-26T06:58:23Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "security"
     summary: "On a PR the review-scope keys (protected_paths, exclude_patterns, fetch_missing_patches, max_content_fetches) follow the trusted config; drift is one WARN/key."
@@ -36576,7 +36746,7 @@ decisions:
       negative:
         - "a scope change takes effect after it merges"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36585,19 +36755,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:23Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "8d22e449a + the lead's main.ts wiring commit"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1046"
     created_at: "2026-10-26T06:58:30Z"
-    updated_at: "2026-10-26T06:58:30Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "implementation"
     summary: "Slashless wildcards float (gitignore semantics): compileGlob adds an implicit **/ at compile time; patterns are recorded as written; no default is slashless."
@@ -36614,7 +36789,7 @@ decisions:
       negative:
         - "a slashless wildcard excludes more than before (protection still applies)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36623,19 +36798,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:30Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "8d22e449a"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1047"
     created_at: "2026-10-26T06:58:36Z"
-    updated_at: "2026-10-26T06:58:36Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "implementation"
     summary: "Content-fetch budget: candidates join a 0-byte placement selection; reads follow selection order and charge the bytes ahead; a file that cannot fit is budget."
@@ -36652,7 +36832,7 @@ decisions:
       negative:
         - "two selections per attempt with candidates"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36661,19 +36841,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:36Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "04b552529"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1048"
     created_at: "2026-10-26T06:58:41Z"
-    updated_at: "2026-10-26T06:58:41Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "implementation"
     summary: "RATE_LIMITED, FORBIDDEN or HTTP 401/403 on a contents read stops the loop: error for that file, aborted for the rest; 404 or a bad envelope stays per-file."
@@ -36688,7 +36873,7 @@ decisions:
       negative:
         - "one more structural read of the error"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36697,19 +36882,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:41Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "04b552529"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1049"
     created_at: "2026-10-26T06:58:47Z"
-    updated_at: "2026-10-26T06:58:47Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "process"
     summary: "Inline anchors on contents-sourced files: no change needed — postReview sends body, event and commit_id only (pinned); findings are body text, not comments."
@@ -36724,7 +36914,7 @@ decisions:
       negative:
         - "if inline comments are ever added, the pin and this row name the constraint"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36733,19 +36923,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:47Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "04b552529"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1050"
     created_at: "2026-10-26T06:58:54Z"
-    updated_at: "2026-10-26T06:58:54Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "testing"
     summary: "Lead landing: the Loa-aware excluded-files fixture test injects checkout provenance via the test seam; its fake base sha now degrades the record by design."
@@ -36762,7 +36957,7 @@ decisions:
       negative:
         - "one more seam use in tests"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36771,19 +36966,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:54Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "04b552529"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1051"
     created_at: "2026-10-26T06:59:02Z"
-    updated_at: "2026-10-26T06:59:02Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "testing"
     summary: "The orchestrator HINT pin matches the line's stable prefix, not the whole line; the bogus-type case checks only the absence of the housekeeping hint."
@@ -36798,7 +36998,7 @@ decisions:
       negative:
         - "a change to the prefix wording still needs the test updated (intended)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36807,19 +37007,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:59:02Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "74ff045cf"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1052"
     created_at: "2026-10-26T07:06:31Z"
-    updated_at: "2026-10-26T07:06:31Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "process"
     summary: "Sprint 279 audit: no audit-type dissent run; the three permitted runs were spent at review round 0 on the three code diffs (sprint-276 precedent)."
@@ -36836,7 +37041,7 @@ decisions:
       negative:
         - "no independent voice over the round-1 patches themselves"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "audit-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36845,19 +37050,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T07:06:31Z"
         from: null
         to: "proposed"
         by: "agent:audit-sprint"
         evidence: "b02459e5a"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1053"
     created_at: "2026-10-26T07:22:55Z"
-    updated_at: "2026-10-26T07:22:55Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "process"
     summary: "PB-9 breach after landing (SKILL.md 24,710 B): the cycle-135 rules, paged-fetch detail and trusted-provider contract move to a resources reference."
@@ -36874,7 +37084,7 @@ decisions:
       negative:
         - "an operator must open the reference for the full grammar"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36883,19 +37093,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T07:22:55Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "b6d0a07b4"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1054"
     created_at: "2026-10-26T07:56:18Z"
-    updated_at: "2026-10-26T07:56:18Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "implementation"
     summary: "A wildcard pattern with a trailing slash is a directory line and covers the subtree (**/fixtures/ = **/fixtures/**); before, it matched nothing."
@@ -36912,7 +37127,7 @@ decisions:
       negative:
         - "docs/*/ also matches docs/b.md because ** spans zero segments (files only, no directory entries)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36921,19 +37136,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T07:56:18Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "23f7d9319 (red 9c4f742a6)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1055"
     created_at: "2026-10-26T07:56:22Z"
-    updated_at: "2026-10-26T07:56:22Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "security"
     summary: "No readable trusted source on a pull request: the four review-scope keys fall to their defaults with one WARN (fail closed); the PR head's values are ignored."
@@ -36950,7 +37170,7 @@ decisions:
       negative:
         - "a mount without a fetchable base loses its repository exclude_patterns on PR runs until it fetches the base or sets the variable"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36959,19 +37179,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T07:56:22Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "23f7d9319 (red 9c4f742a6); closes bd-ous65"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1056"
     created_at: "2026-10-26T07:56:27Z"
-    updated_at: "2026-10-26T07:56:27Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "security"
     summary: "A readable base that lacks .reviewignore is none: no patterns apply even if the PR adds the file (WARN, applied after merge); not degraded. Amends DEC-1043."
@@ -36986,7 +37211,7 @@ decisions:
       negative:
         - "a PR adding a large vendor tree with a .reviewignore still needs the budget to cope until merge"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36995,19 +37220,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T07:56:27Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "23f7d9319 (red 9c4f742a6)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1057"
     created_at: "2026-10-26T07:56:31Z"
-    updated_at: "2026-10-26T07:56:31Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "process"
     summary: "Bridgebuilder round 1 on PR #1302: 3 fixed (+1 dedup), 4 documented, 6 refuted with evidence (diff-rendered regex, httpStatus on the error), 5 praise."
@@ -37022,7 +37252,7 @@ decisions:
       negative:
         - "round 2 spend"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -37031,19 +37261,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T07:56:31Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "PR #1302 triage comment"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1058"
     created_at: "2026-10-26T08:27:09Z"
-    updated_at: "2026-10-26T08:27:09Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "implementation"
     summary: "A leading / is the root anchor (gitignore): kept by normalisation; /README.md and /*.yml stop floating; /.reviewignore is explicit. Amends DEC-1026."
@@ -37060,7 +37295,7 @@ decisions:
       negative:
         - "three pinned normalisation expectations flipped (/ kept)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -37069,19 +37304,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T08:27:09Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "70444f0d2 (red 486b356f5)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1059"
     created_at: "2026-10-26T08:27:13Z"
-    updated_at: "2026-10-26T08:27:13Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "implementation"
     summary: "A negated character class never matches the path separator: [!a] compiles to [^/a]; x[!a]y no longer matches x/y."
@@ -37095,7 +37335,7 @@ decisions:
         - "grammar promise holds for every construct"
       negative: []
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -37104,19 +37344,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T08:27:13Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "70444f0d2 (red 486b356f5)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1060"
     created_at: "2026-10-26T08:27:17Z"
-    updated_at: "2026-10-26T08:27:17Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "process"
     summary: "Bridgebuilder round 2 on PR #1302: 2 fixed (+ \\p{Cc} robustness), 4 repeats of round-1 dispositions, 1 reframe accepted as documented, 4 praise; no round 3."
@@ -37131,7 +37376,7 @@ decisions:
       negative:
         - "the final head carries lead-verified fixes without a third voice"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -37140,13 +37385,1736 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T08:27:17Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "PR #1302 round-2 triage comment"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1061"
+    created_at: "2026-10-27T00:44:18Z"
+    updated_at: "2026-10-27T00:44:18Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "cycle-136 scope: exactly the three beads left by cycle-135 (bd-akkgq, bd-9tt4b, bd-gyrgq); guard changes, releases and the cheval retry bead out."
+    decision: "Three FRs plus the ship FR; FR-3 (e) head-side validation softening is deferrable; bd-uqdl8 (carrefour) is a candidate for the next rc-soak batch."
+    rationale: "The operator's instruction names the remaining beads; adding the mailbox item would widen a hygiene cycle into a cheval change with its own review surface."
+    alternatives_considered:
+      - option: "fold bd-uqdl8 in"
+        rejected_because: "different component (cheval), different risk; the instruction was the remaining beads"
+    consequences:
+      positive:
+        - "small, well-grounded cycle"
+      negative:
+        - "the safeguard-retry gap waits one cycle"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e1256ccc"
+    source: "grimoires/loa/prd.md § Scope & Prioritization"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:44:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "grimoires/loa/context/cycle-136-brief.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1062"
+    created_at: "2026-10-27T00:44:22Z"
+    updated_at: "2026-10-27T00:44:22Z"
+    phase: "discovery"
+    category: "process"
+    summary: "Grounding by direct file:line reads of the scaffold, workflow, Bridgebuilder source and the cycle-135 records; no /ride."
+    decision: "Every FR cites the lines it changes; the archived cycle-135 planning docs are the structural template."
+    rationale: "Brownfield reality is three files deep; a /ride over the repository would cost more than the cycle."
+    alternatives_considered:
+      - option: "/ride"
+        rejected_because: "disproportionate"
+    consequences:
+      positive:
+        - "fast, precise"
+      negative:
+        - "no whole-repo drift check this cycle"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e1256ccc"
+    source: "grimoires/loa/prd.md § Appendix B"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:44:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md Appendix B"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1063"
+    created_at: "2026-10-27T00:44:26Z"
+    updated_at: "2026-10-27T00:44:26Z"
+    phase: "discovery"
+    category: "design"
+    summary: "Scaffold on re-mount: warn once when simple-release carries the legacy guard, never overwrite; an opt-in flag rewrites only the if: line."
+    decision: "Detection via yq .jobs.\"simple-release\".if with a line-anchored grep fallback; whitespace-normalised comparison against the legacy text; WARN names the file, the legacy guard, the allowlist text and bd-nr5i6; the flag changes one line and prints a notice; unknown if: text is left alone silently."
+    rationale: "The idempotency branch exists to preserve customizations; a warning respects it, the opt-in flag gives the operator a one-line fix, and refusing unknown text avoids clobbering."
+    alternatives_considered:
+      - option: "auto-rewrite the guard on re-mount"
+        rejected_because: "overwrites a customised workflow without consent"
+      - option: "warn on every re-mount regardless of content"
+        rejected_because: "noise; the check is cheap and specific"
+    consequences:
+      positive:
+        - "signal at mount time; safe"
+      negative:
+        - "multi-line if: blocks are not detected (treated as customised)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e1256ccc"
+    source: "grimoires/loa/prd.md § FR-1"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:44:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-1"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1064"
+    created_at: "2026-10-27T00:44:30Z"
+    updated_at: "2026-10-27T00:44:30Z"
+    phase: "discovery"
+    category: "design"
+    summary: "Base .reviewignore on a shallow checkout: local sha read, then contents API at the base sha, then checkout copy; 404 = none; other failure degrades."
+    decision: "paged-fetch resolves the base copy through getFileContent(owner, repo, \".reviewignore\", pin.base_sha, 1 MiB) only when the local read reports a non-absent failure, parses it with parseReviewignoreLines, and passes the patterns to truncateFiles via a new optional selection-config input that wins over the sha read; the record keeps reviewignore_source: base."
+    rationale: "The envelope, bounds and allowlist exist since cycle-135; a shallow checkout is the default actions/checkout, so the degrade hit every downstream PR review; the API answer is the base branch's own file, so provenance base is truthful."
+    alternatives_considered:
+      - option: "a distinct base_api source value"
+        rejected_because: "same trust level as the git read; a new enum value would ripple through the record, the rendering and the docs for no operator decision"
+      - option: "keep telling operators to fetch the base ref"
+        rejected_because: "a workflow change in every downstream repository for a one-call fix"
+    consequences:
+      positive:
+        - "no degrade on the default checkout; fail-closed paths unchanged"
+      negative:
+        - "one more provider call on shallow checkouts"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e1256ccc"
+    source: "grimoires/loa/prd.md § FR-2"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:44:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-2; DEC-1043, DEC-1056"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1065"
+    created_at: "2026-10-27T00:44:35Z"
+    updated_at: "2026-10-27T00:44:35Z"
+    phase: "discovery"
+    category: "design"
+    summary: "Contract tidy-up: drop the stats suffix now, WARN on a failed content read, plumbing fields into types.ts, FileContentResult re-exported."
+    decision: "(a)–(d) are must; (e) is in scope only if resolveConfig can learn the mode from cliArgs.pr / the GitHub env the way loadTrustedConfig does, else deferred and documented."
+    rationale: "The suffix was kept one release for readers of stats; the structured field has shipped; the WARN uses the module's existing style rather than threading a logger; (e) is a loud failure, not a hiding path, so it must not grow the cycle."
+    alternatives_considered:
+      - option: "keep the suffix another release"
+        rejected_because: "two grammars for one fact"
+      - option: "thread ILogger into paged-fetch"
+        rejected_because: "signature churn across the two-pass fetch for one line"
+    consequences:
+      positive:
+        - "no 'next release' debt left"
+      negative:
+        - "a downstream reader of the stats suffix (none known) must switch to pattern"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e1256ccc"
+    source: "grimoires/loa/prd.md § FR-3"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:44:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1066"
+    created_at: "2026-10-27T00:44:41Z"
+    updated_at: "2026-10-27T00:44:41Z"
+    phase: "discovery"
+    category: "process"
+    summary: "Cycle shape: one sprint (global 280), two implementers (A shell, B TypeScript), one PR, up to 2 Bridgebuilder rounds, record, archive, no release."
+    decision: "A owns the scaffold lib + bats; B owns both Bridgebuilder beads sequentially in one worktree (same files); the lead lands red → fix pairs, runs the gates and ships with the cycle-135 ship scripts."
+    rationale: "Three small beads do not justify three implementers; B's two beads touch the same files and would conflict in parallel."
+    alternatives_considered:
+      - option: "three implementers"
+        rejected_because: "FR-2 and FR-3 overlap in paged-fetch.ts and truncation.ts"
+      - option: "lead implements directly"
+        rejected_because: "the golden path keeps implementation and review in different hands"
+    consequences:
+      positive:
+        - "no merge conflicts; cheap"
+      negative:
+        - "B is on the critical path for two beads"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e1256ccc"
+    source: "grimoires/loa/prd.md § Timeline & Milestones"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:44:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md § Timeline"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1067"
+    created_at: "2026-10-27T00:49:26Z"
+    updated_at: "2026-10-27T00:49:26Z"
+    phase: "architecture"
+    category: "design"
+    summary: "Scaffold detection reads only single-line simple-release if: forms (yq, awk fallback); multi-line or unknown text is customised and silent."
+    decision: "Compare the whitespace-normalised expression with the legacy and allowlist texts; anything else is the operator's own guard."
+    rationale: "The two texts Loa ever shipped are single-line; a YAML block parser in bash would be the riskiest part of the change for no known case."
+    alternatives_considered:
+      - option: "parse if: | blocks too"
+        rejected_because: "no shipped workflow uses them; false positives would overwrite custom logic"
+    consequences:
+      positive:
+        - "small, exact"
+      negative:
+        - "a reformatted legacy guard is not detected"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "fda884fb"
+    source: "grimoires/loa/sdd.md § 5.1"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:49:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.1"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1068"
+    created_at: "2026-10-27T00:49:30Z"
+    updated_at: "2026-10-27T00:49:30Z"
+    phase: "architecture"
+    category: "design"
+    summary: "The opt-in guard fix is the environment variable LOA_SCAFFOLD_FIX_RELEASE_GUARD=1 — both mount callers surface it without a signature change."
+    decision: "scaffold_post_merge_workflow keeps its one positional argument; the flag is read from the environment inside the existing-file branch."
+    rationale: "mount-loa.sh and mount-submodule.sh call the function with different arguments; an env flag reaches both and the mount CLI's own flag surface stays untouched."
+    alternatives_considered:
+      - option: "a second positional argument"
+        rejected_because: "two callers to change plus the mount CLI parsing"
+      - option: "always rewrite"
+        rejected_because: "overwrites customisations (DEC-1063)"
+    consequences:
+      positive:
+        - "zero caller churn"
+      negative:
+        - "an env flag is less discoverable; the WARN names it"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "fda884fb"
+    source: "grimoires/loa/sdd.md § 5.1, § 5.7"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:49:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.1"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1069"
+    created_at: "2026-10-27T00:49:34Z"
+    updated_at: "2026-10-27T00:49:34Z"
+    phase: "architecture"
+    category: "design"
+    summary: "Base .reviewignore resolved async in paged-fetch, passed to the sync selection via reviewignoreBasePatterns; truncateFiles' read stays the fallback."
+    decision: "resolveBaseReviewignore: git read → absent = none → contents API (text = base, 404 = none, else undefined); undefined leaves today's base_unavailable path inside truncateFiles."
+    rationale: "truncateFiles is synchronous and shared with tests and the Loa tier; the provider call belongs with the other provider calls in paged-fetch; the fallback keeps every fail-closed path exactly as DEC-1043/1056 state them."
+    alternatives_considered:
+      - option: "make truncateFiles async"
+        rejected_because: "ripples through every caller and 1,200 tests"
+      - option: "pre-read in main.ts"
+        rejected_because: "the base sha is known only after the pin inside attempt"
+    consequences:
+      positive:
+        - "one new seam, no behaviour change on the local path"
+      negative:
+        - "two places know the provenance values"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "fda884fb"
+    source: "grimoires/loa/sdd.md § 5.2, § 5.3"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:49:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1070"
+    created_at: "2026-10-27T00:49:37Z"
+    updated_at: "2026-10-27T00:49:37Z"
+    phase: "architecture"
+    category: "design"
+    summary: "SelectionConfig moves to core/types.ts with the provenance fields; TruncationResult.reviewignoreSource is declared; no new reviewignore_source value."
+    decision: "No base_api value; the intersection casts in paged-fetch.ts and truncation.ts are deleted."
+    rationale: "The API read returns the same file the git read would; a new enum value would ripple through rendering, docs and tests for no operator decision (DEC-1064)."
+    alternatives_considered:
+      - option: "base_api provenance"
+        rejected_because: "same trust level; churn"
+    consequences:
+      positive:
+        - "typed plumbing, no schema change"
+      negative:
+        - "the record cannot say which read answered (the WARN line does)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "fda884fb"
+    source: "grimoires/loa/sdd.md § 5.3"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:49:37Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1071"
+    created_at: "2026-10-27T00:49:41Z"
+    updated_at: "2026-10-27T00:49:41Z"
+    phase: "architecture"
+    category: "design"
+    summary: "The stats suffix grammar is removed this cycle; a failed content read writes one [bridgebuilder] WARN line on stderr; no logger is threaded into paged-fetch."
+    decision: "patternSuffix, PATTERN_SUFFIX and exclusionPattern are deleted; readers use excluded[].pattern; the WARN names the file and the outcome."
+    rationale: "The structured field shipped in cycle-135 (DEC-1050); the module already writes WARNs through process.stderr, so a logger would be churn for one line."
+    alternatives_considered:
+      - option: "keep the suffix one more release"
+        rejected_because: "two grammars for one fact"
+      - option: "thread ILogger"
+        rejected_because: "signature churn across the two-pass fetch"
+    consequences:
+      positive:
+        - "no dual grammar"
+      negative:
+        - "a stats-suffix reader elsewhere (none known) breaks"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "fda884fb"
+    source: "grimoires/loa/sdd.md § 5.5, § 4"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:49:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.5"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1072"
+    created_at: "2026-10-27T00:49:45Z"
+    updated_at: "2026-10-27T00:49:45Z"
+    phase: "architecture"
+    category: "security"
+    summary: "Head-side scope validation downgrades to a WARN only in pull-request mode, inside resolveConfig via isPullRequestContext; local mode still throws."
+    decision: "In PR mode an invalid protected_paths / max_content_fetches / exclude_patterns shape on the head is WARNed and left unset so the trusted value governs."
+    rationale: "resolveConfig already receives env; the trusted value is what applies on a PR anyway, so failing the run on the head's invalid value only lets a PR break its own review loudly (Bridgebuilder round-1 #12, DEC-1057)."
+    alternatives_considered:
+      - option: "leave it as a config error"
+        rejected_because: "a PR author can make their own review fail, which hides nothing but wastes a run"
+      - option: "defer to a later cycle"
+        rejected_because: "the mode is one call away"
+    consequences:
+      positive:
+        - "consistent with applyTrustedReviewScope"
+      negative:
+        - "a genuinely broken head config is only WARNed on PRs"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "fda884fb"
+    source: "grimoires/loa/sdd.md § 5.6"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:49:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.6"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1073"
+    created_at: "2026-10-27T01:00:45Z"
+    updated_at: "2026-10-27T01:00:45Z"
+    phase: "discovery"
+    category: "design"
+    summary: "Scaffold detection/rewrite scoped to the simple-release job block: exactly one single-line job-level if:, else refuse; same verdict with and without yq."
+    decision: "awk range from the simple-release: key to the next same-indentation key; step-level if:, other jobs, comments and multi-line values never match; yq v4 (mikefarah) is used only when yq --version names it."
+    rationale: "A line-anchored grep could rewrite a step's if: or another job's copy in a downstream operator's CI; the blockers were right that the fixtures would not have caught it."
+    alternatives_considered:
+      - option: "line-anchored grep for any if:"
+        rejected_because: "can change the wrong line"
+      - option: "require yq"
+        rejected_because: "not every mount host has it; the fallback must give the same verdict"
+    consequences:
+      positive:
+        - "one unambiguous target or nothing"
+      negative:
+        - "a reformatted legacy guard is reported as customised"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3f93dc45"
+    source: "grimoires/loa/prd.md § FR-1; Appendix C (SKP-001, SKP-002)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:00:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-1 1.1"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1074"
+    created_at: "2026-10-27T01:00:49Z"
+    updated_at: "2026-10-27T01:00:49Z"
+    phase: "discovery"
+    category: "design"
+    summary: "Base .reviewignore: typed local outcomes; only unknown_commit calls the contents API; 404 at the pinned base sha = none; one resolution per base sha per run."
+    decision: "The call targets the PR's base repository (the run's owner/repo, never a fork) at pin.base_sha, is cached across restarted attempts until the base sha changes, does not count against max_content_fetches and is not governed by fetch_missing_patches."
+    rationale: "The base sha was read from pulls/N on the same provider in the same attempt, so a 404 can only mean the path is absent; the other failure classes must keep the fail-closed degrade; one call per run bounds the cost."
+    alternatives_considered:
+      - option: "call the API whenever the local read fails for any reason"
+        rejected_because: "a symlink or oversize at a known base would be masked by an API read"
+      - option: "treat 404 as base_unavailable"
+        rejected_because: "every PR against a base without .reviewignore would degrade on shallow checkouts"
+    consequences:
+      positive:
+        - "precise trigger; fail-closed paths untouched"
+      negative:
+        - "a provider that mislabels an unknown ref as 404 would read none (the pin makes this unreachable)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3f93dc45"
+    source: "grimoires/loa/prd.md § FR-2; Appendix C (gpt IMP-005/006/007/008, opus IMP-001/003)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:00:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-2 1.1"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1075"
+    created_at: "2026-10-27T01:00:53Z"
+    updated_at: "2026-10-27T01:00:53Z"
+    phase: "discovery"
+    category: "security"
+    summary: "Head-side scope validation is FR-5 (Could Have), fail closed: in PR mode the key is left unset so the trusted value or default governs; bad trusted = error."
+    decision: "bd-gyrgq closes on (a)–(d); FR-5 ships if it lands in the sprint, else is deferred without blocking."
+    rationale: "The blocker was right that a downgrade must never install the head's invalid value or depend on an unvalidated replacement; DEC-1055 already makes the no-source case fall to defaults."
+    alternatives_considered:
+      - option: "keep (e) inside bd-gyrgq"
+        rejected_because: "a Could Have inside a Should Have bead muddles the close criteria"
+    consequences:
+      positive:
+        - "explicit, testable, fail closed"
+      negative:
+        - "one more FR"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3f93dc45"
+    source: "grimoires/loa/prd.md § FR-5; Appendix C (SKP-007, opus IMP-002/009, gpt IMP-010)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:00:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-5 1.1"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1076"
+    created_at: "2026-10-27T01:00:56Z"
+    updated_at: "2026-10-27T01:00:56Z"
+    phase: "discovery"
+    category: "process"
+    summary: "Ship gates bind to the exact final PR head sha: every check run completed, the six required checks success, skipped only for path-filtered jobs."
+    decision: "Bridgebuilder verdict on the final head when the two-round budget allows; otherwise the post-round fixes land red-first, are lead-read and the PR records that the final head was not re-reviewed (DEC-1060 shape); merge-triggered runs on main are monitored, not a gate."
+    rationale: "cycle-135 practised this; the PRD now states it so the ship script's checks are the requirement, not a habit."
+    alternatives_considered:
+      - option: "require a Bridgebuilder round on every head"
+        rejected_because: "unbounded spend for lead-verified one-line fixes"
+    consequences:
+      positive:
+        - "the gate is a statement about one sha"
+      negative:
+        - "the last fixes may lack a third voice (documented)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3f93dc45"
+    source: "grimoires/loa/prd.md § FR-4; Appendix C (SKP-010, gpt IMP-012, opus IMP-016)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:00:56Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-4 1.1; ship-1-merge.sh"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1077"
+    created_at: "2026-10-27T01:01:00Z"
+    updated_at: "2026-10-27T01:01:00Z"
+    phase: "discovery"
+    category: "design"
+    summary: "The scaffold's refusal (flag set, text not recognised) is a WARN with return 0 — both mount callers run under set -e."
+    decision: "scaffold_post_merge_workflow keeps returning 0 in every branch; the WARN names the file and the reason; the fix mode prints a one-line notice on success."
+    rationale: "mount-loa.sh and mount-submodule.sh treat the scaffold as best-effort; making the opt-in refusal fatal would turn a warning into a failed mount."
+    alternatives_considered:
+      - option: "return 2 on refusal"
+        rejected_because: "aborts the mount under set -e"
+    consequences:
+      positive:
+        - "no caller change; the signal is the WARN"
+      negative:
+        - "a scripted caller cannot branch on the refusal (it can grep the WARN)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3f93dc45"
+    source: "grimoires/loa/prd.md § FR-1; Appendix C (gpt IMP-004, opus IMP-005)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:01:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-1 1.1; mount-loa.sh:703, mount-submodule.sh:308"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1078"
+    created_at: "2026-10-27T01:16:19Z"
+    updated_at: "2026-10-27T01:16:19Z"
+    phase: "architecture"
+    category: "design"
+    summary: "Scaffold detection has one path, awk, no yq; normalisation strips a ${{ }} wrapper, a trailing comment and one pair of quotes before comparing."
+    decision: "Quoted keys, anchors, aliases and duplicates never match; the rewrite requires the exact single-line legacy form."
+    rationale: "Two parsers that must agree doubled the test matrix and still left yq's multi-line handling undefined; one deterministic awk pass is auditable and runs on every mount host."
+    alternatives_considered:
+      - option: "yq v4 with an awk fallback (PRD 1.1)"
+        rejected_because: "two verdict paths to keep in sync for no detection gain"
+    consequences:
+      positive:
+        - "one path, one fixture set"
+      negative:
+        - "no YAML-aware parse; exotic layouts are treated as customised"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sdd.md § 5.1; § 11.F (opus IMP-003/004, gpt IMP-001/002)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:16:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.1 1.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1079"
+    created_at: "2026-10-27T01:16:23Z"
+    updated_at: "2026-10-27T01:16:23Z"
+    phase: "architecture"
+    category: "design"
+    summary: "The simple-release block ends at the first non-blank, non-comment line with indentation ≤ J; the job's child indentation is read from the file."
+    decision: "No job-id regex: a later job id with digits or a quoted key cannot extend the block into another job's if:."
+    rationale: "The blocker was right that [A-Za-z_-]+ misses valid job ids; indentation is the YAML structure the file actually encodes."
+    alternatives_considered:
+      - option: "widen the job-id regex"
+        rejected_because: "still a guess at the grammar"
+    consequences:
+      positive:
+        - "structure-driven"
+      negative:
+        - "tabs are not supported (GitHub does not accept them either)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sdd.md § 5.1; § 11.F (SKP-003, opus IMP-001/002)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:16:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.1 1.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1080"
+    created_at: "2026-10-27T01:16:27Z"
+    updated_at: "2026-10-27T01:16:27Z"
+    phase: "architecture"
+    category: "design"
+    summary: "The awk scan tracks block scalars: content lines of a | or > value never yield an if: candidate (a run: | body cannot look like the guard)."
+    decision: "A line opening a block scalar at indentation k makes every following line with indentation > k content; a fixture places the legacy text inside a run: | step."
+    rationale: "Without it a workflow's shell step could trigger a false WARN or, with the flag, a wrong rewrite."
+    alternatives_considered:
+      - option: "ignore the case"
+        rejected_because: "a plausible layout in downstream workflows"
+    consequences:
+      positive:
+        - "no false candidates from scalar bodies"
+      negative:
+        - "~10 more lines of awk"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sdd.md § 5.1; § 11.F (SKP-004)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:16:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.1 1.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1081"
+    created_at: "2026-10-27T01:16:31Z"
+    updated_at: "2026-10-27T01:16:31Z"
+    phase: "architecture"
+    category: "security"
+    summary: "Fix mode writes safely: symlink refused, the line re-read before writing, temp file in the same directory, mode preserved, mv -f."
+    decision: "The replacement line is <original indent>if: <ALLOWLIST> preserving the original quoting style."
+    rationale: "The scaffold rewrites an operator's CI workflow; a race or a symlink must not turn a one-line fix into damage."
+    alternatives_considered:
+      - option: "sed in place"
+        rejected_because: "not portable (cross-platform lint) and not atomic"
+    consequences:
+      positive:
+        - "atomic, verified"
+      negative:
+        - "a few more lines"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sdd.md § 5.1; § 11.F (gpt IMP-003, opus IMP-005)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:16:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.1 1.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1082"
+    created_at: "2026-10-27T01:16:35Z"
+    updated_at: "2026-10-27T01:16:35Z"
+    phase: "architecture"
+    category: "design"
+    summary: "unknown_commit by git cat-file -e exit status (LC_ALL=C); the base resolution cached per base sha incl. failures; one reviewignoreBase object."
+    decision: "BaseRead = ok | absent | unknown_commit | other; SelectionConfig.reviewignoreBase?: { patterns, source: base | none }; source none always carries []."
+    rationale: "Exit status beats English stderr fragments across locales; caching failures keeps the one-call budget across restarted attempts; one object cannot be half-set."
+    alternatives_considered:
+      - option: "match stderr strings"
+        rejected_because: "locale- and version-dependent"
+      - option: "two optional fields"
+        rejected_because: "patterns without a source or vice versa is representable"
+    consequences:
+      positive:
+        - "robust classification; honest cache"
+      negative:
+        - "one extra git call (cat-file) on the failure path only"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sdd.md § 5.2, § 5.3; § 11.F (opus IMP-007/008/009, gpt IMP-005/006/011)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:16:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.2 1.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1083"
+    created_at: "2026-10-27T01:16:39Z"
+    updated_at: "2026-10-27T01:16:39Z"
+    phase: "architecture"
+    category: "security"
+    summary: "A 404 for .reviewignore becomes none only after an access probe on a base-existing listed file; no target → fail closed; DEC-1043 kept for base_unavailable."
+    decision: "The probe calls getFileContent on the first modified/removed/renamed listed file at the base sha with maxBytes 1; text/too_large/binary prove access; at most two calls per resolution. SKP-001 is kept as DEC-1043 (leak side weighted heavier), restated, with OQ-3 for a future review."
+    rationale: "GitHub answers 404 for both a missing path and a missing permission; a fine-grained token can read pull requests without contents. Changing DEC-1043 inside a hygiene cycle would flip a security trade-off the operator confirmed yesterday."
+    alternatives_considered:
+      - option: "treat every 404 as none"
+        rejected_because: "an authorization gap would silently drop the deny list"
+      - option: "apply no patterns on base_unavailable"
+        rejected_because: "sends excluded content to the model; a separate decision (OQ-3)"
+    consequences:
+      positive:
+        - "404 is proven before it widens coverage"
+      negative:
+        - "one more call on the 404 path; PRs that only add files cannot be confirmed and stay fail-closed"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sdd.md § 5.2 step 4, § 6, § 9, OQ-3; § 11.F (SKP-002, SKP-001, opus IMP-015, gpt IMP-009)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:16:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.2 1.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1084"
+    created_at: "2026-10-27T01:16:43Z"
+    updated_at: "2026-10-27T01:16:43Z"
+    phase: "architecture"
+    category: "security"
+    summary: "FR-5 deferral is explicit: deferredScopeKeys set by resolveConfig, cleared by applyTrustedReviewScope, asserted at the pipeline entry; main.ts order pinned."
+    decision: "A configuration that still carries deferred keys cannot reach the review pipeline; composition tests cover permissive-head vs restrictive-trusted and mixed valid/invalid keys."
+    rationale: "The blocker was right that a suppressed validation must not be consumable without the trusted replacement; making the deferral a value the applier clears turns the invariant into a check."
+    alternatives_considered:
+      - option: "rely on main.ts calling the applier"
+        rejected_because: "a future caller could skip it silently"
+    consequences:
+      positive:
+        - "invariant enforced at runtime and pinned"
+      negative:
+        - "one more provenance field"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sdd.md § 5.6, § 1.4; § 11.F (SKP-008, gpt IMP-007/008, opus IMP-014)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:16:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.6 1.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1085"
+    created_at: "2026-10-27T01:24:30Z"
+    updated_at: "2026-10-27T01:24:30Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "Red-first gate wording: suites green at every fix commit and the final head; a red commit fails only its own new cases, verified on the landed pair."
+    decision: "red-test-check.sh / red-green-npm.sh prove the pair; CI runs on the PR head, not on each intermediate commit."
+    rationale: "'Green at every landed commit' contradicted the red-first discipline the cycle relies on; the pair is the unit of truth."
+    alternatives_considered:
+      - option: "squash red and fix into one commit"
+        rejected_because: "loses the red evidence the review gate reproduces"
+    consequences:
+      positive:
+        - "precise, checkable"
+      negative:
+        - "intermediate red commits exist in history (by design)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "sprint-plan/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sprint.md § Acceptance Criteria; Appendix (gpt IMP-001, opus IMP-001)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:24:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:sprint-plan"
+        evidence: "sprint.md 1.3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1086"
+    created_at: "2026-10-27T01:24:34Z"
+    updated_at: "2026-10-27T01:24:34Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "FR-5 becomes Task 1.3b with a deferral trigger (gates fail after one return, or not landed at Task 1.4 → bead); CHANGELOG hunks leave implementer patches."
+    decision: "Implementers return CHANGELOG text and judgment calls in their reports; the lead inserts and decides (keeps the mechanical kind honest and avoids A/B hunk collisions)."
+    rationale: "A Could Have inside a Should Have task had no exit; two implementers editing one CHANGELOG hunk always conflicts."
+    alternatives_considered:
+      - option: "keep FR-5 inside Task 1.3"
+        rejected_because: "no deferral point"
+      - option: "let implementers edit CHANGELOG"
+        rejected_because: "guaranteed merge conflict between A and B"
+    consequences:
+      positive:
+        - "clean deferral; no conflicts"
+      negative:
+        - "the lead edits CHANGELOG by hand"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "sprint-plan/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sprint.md Tasks 1.3/1.3b, Patch contract; Appendix (gpt IMP-002, opus IMP-002/013/015)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:24:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:sprint-plan"
+        evidence: "sprint.md 1.3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1087"
+    created_at: "2026-10-27T01:24:38Z"
+    updated_at: "2026-10-27T01:24:38Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "Ship gates name the six required checks, bind to the exact final PR head, record the merged commit separately, and define the unattended loop exits."
+    decision: "Allowlist/red violations > 2 returns → lead implements or defers; dissent unreachable → lead-only gate with a DEC row; rounds exhausted → red-first lead-read fixes recorded; spend cap or the one-day window → HALT with state recorded. The archive PR is the separate housekeeping merge under DEC-0960."
+    rationale: "The reviewers were right that 'green' and 'one PR' were ambiguous without the names, the sha and the exits."
+    alternatives_considered:
+      - option: "leave the exits implicit"
+        rejected_because: "an unattended run needs a stopping rule it can cite"
+    consequences:
+      positive:
+        - "every gate is a statement about one sha and one rule"
+      negative:
+        - "longer plan text"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "sprint-plan/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sprint.md header Execution, § Acceptance Criteria, Task 1.6; Appendix (gpt IMP-003…007/012, opus IMP-007/008/020)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:24:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:sprint-plan"
+        evidence: "sprint.md 1.3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1088"
+    created_at: "2026-10-27T01:24:42Z"
+    updated_at: "2026-10-27T01:24:42Z"
+    phase: "sprint-planning"
+    category: "testing"
+    summary: "Pre-merge live probe for G-3: a depth-1 clone of the PR head runs the built fetch path with the real gh adapter on the cycle's PR (no model call)."
+    decision: "Done before the merge from the PR head's dist so the new code is exercised on a real shallow checkout; the cycle-135 Q-1 probe shape (node against dist, one or two gh calls)."
+    rationale: "The fixtures prove the logic; one real shallow checkout proves the gh 404/probe shapes the fixtures assume."
+    alternatives_considered:
+      - option: "a full Bridgebuilder --dry-run from the shallow clone"
+        rejected_because: "spends model calls for a fetch-path question"
+      - option: "post-merge dogfood on a later PR"
+        rejected_because: "Bridgebuilder filters merged PRs; the next PR is the archive"
+    consequences:
+      positive:
+        - "real provider shapes, zero model spend"
+      negative:
+        - "one more pre-merge step"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "sprint-plan/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sprint.md Task 1.E2E; Appendix (opus IMP-017)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:24:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:sprint-plan"
+        evidence: "sprint.md 1.3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1089"
+    created_at: "2026-10-27T01:42:40Z"
+    updated_at: "2026-10-27T01:42:40Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Scaffold fix mode keeps the file mode with cp -p onto the mktemp file (POSIX, no stat dispatch); the not-writable check is explicit before any write."
+    decision: "cp -p then a truncating redirect preserves the mode in one portable path; a 0444 target is left unchanged with a WARN even though mv -f in a writable directory would replace it."
+    rationale: "compat-lib.sh has no mode helper and two stat dialects are two code paths for one result; the AC expects a read-only target to stay unchanged."
+    alternatives_considered:
+      - option: "stat -c %a || stat -f %Lp then chmod"
+        rejected_because: "two platform paths"
+    consequences:
+      positive:
+        - "portable, one path"
+      negative:
+        - "cp -p copies the whole file once before the rewrite (small files)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "90b25922"
+    source: "~/.cache/loa/cycle-136/reports/a.md § 4 (1, 3)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:42:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "90b259222 (red 4e81a0df5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1090"
+    created_at: "2026-10-27T01:42:44Z"
+    updated_at: "2026-10-27T01:42:44Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Fix-mode failure WARN names the reason ('could not be rewritten (<reason>) — left unchanged'): not writable, no temp file, line changed, symlink, mode, write, m"
+    decision: "A distinct WARN per failure class instead of the generic refuse WARN; a re-read mismatch also reports its reason."
+    rationale: "FR-1's non-writable AC asks for a WARN naming the failure; the generic refuse text would not."
+    alternatives_considered:
+      - option: "reuse the refuse WARN"
+        rejected_because: "does not name the failure"
+    consequences:
+      positive:
+        - "operator sees why"
+      negative:
+        - "one more message text to pin"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "90b25922"
+    source: "~/.cache/loa/cycle-136/reports/a.md § 4 (2)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:42:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "90b259222"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1091"
+    created_at: "2026-10-27T01:42:48Z"
+    updated_at: "2026-10-27T01:42:48Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The rewrite keeps a trailing comment, a missing final newline and CRLF; single-quoted YAML is unescaped for comparison and re-escaped on rewrite."
+    decision: "The replacement line is <indent>if: <quote><ALLOWLIST><quote><comment>, CRLF preserved, no final newline added when the file had none."
+    rationale: "Dropping a user comment would delete user text; a literal 'strip one pair of quotes' would never match a validly single-quoted legacy guard."
+    alternatives_considered:
+      - option: "refuse commented or quoted lines"
+        rejected_because: "needlessly strict"
+    consequences:
+      positive:
+        - "one line changes, nothing else"
+      negative:
+        - "quote handling adds a few branches"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "90b25922"
+    source: "~/.cache/loa/cycle-136/reports/a.md § 4 (4, 5)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:42:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "90b259222"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1092"
+    created_at: "2026-10-27T01:42:54Z"
+    updated_at: "2026-10-27T01:42:54Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Normalisation strips the comment before the ${{ }} wrapper (a commented wrapped guard must still unwrap); on LEGACY with the flag two lines print."
+    decision: "The comment is stripped before the wrapper because '${{ … }} # c' only unwraps once the comment is gone; the WARN prints unconditionally on LEGACY as the SDD pseudo-code shows."
+    rationale: "The SDD listed the wrapper first; the literal order fails on a commented wrapped guard."
+    alternatives_considered:
+      - option: "the SDD's literal order"
+        rejected_because: "misses a commented wrapped guard"
+    consequences:
+      positive:
+        - "every documented form normalises"
+      negative:
+        - "two stderr lines on a fixed file"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "90b25922"
+    source: "~/.cache/loa/cycle-136/reports/a.md § 4 (6, 7)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:42:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "90b259222"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1093"
+    created_at: "2026-10-27T01:42:59Z"
+    updated_at: "2026-10-27T01:42:59Z"
+    phase: "implementation"
+    category: "testing"
+    summary: "Fixtures: the 4-space legacy workflow is a positive case; a symlinked target is silent and refused with the flag; the jobs section ends at a column-0 key."
+    decision: "T26 asserts WARN + one-line rewrite for the 4-space fixture; T28 the symlink refusal even when the link points at a legacy file; T22 covers a real run: | body and a deliberately shallow opener to exercise the scalar tracker; a top-level key after jobs: ends the section."
+    rationale: "The PRD listed the 4-space fixture among the negatives by mistake — it carries the legacy guard; valid YAML never has scalar content at exactly the child indentation, so a malformed fixture is what exercises the tracker."
+    alternatives_considered:
+      - option: "force byte-identical with the flag on the 4-space fixture"
+        rejected_because: "contradicts the fix mode"
+    consequences:
+      positive:
+        - "fixtures match the spec's intent"
+      negative:
+        - "one fixture is deliberately malformed (commented as such)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "90b25922"
+    source: "~/.cache/loa/cycle-136/reports/a.md § 4 (8, 9, 10, 11)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:42:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "4e81a0df5"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1094"
+    created_at: "2026-10-27T01:56:18Z"
+    updated_at: "2026-10-27T01:56:18Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "resolveBaseReviewignore runs only for a Loa-aware repository (detectLoa, explicit repoRoot): a non-Loa repo never consults .reviewignore, so no call, no INFO."
+    decision: "The SDD text implied an unconditional call; the selection consults .reviewignore only when the repository is Loa-aware, so the resolution is gated the same way."
+    rationale: "An unconditional call would spend a contents read and print a notice about a file the selection never applies, and would add a call to every non-Loa fixture."
+    alternatives_considered:
+      - option: "always resolve"
+        rejected_because: "wasted call and a misleading INFO line"
+    consequences:
+      positive:
+        - "no behaviour change for non-Loa repos"
+      negative:
+        - "one more detectLoa evaluation per attempt"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "~/.cache/loa/cycle-136/reports/b.md § 4 (2)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:56:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "66c35c9c4 (red 92b8ab78f)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1095"
+    created_at: "2026-10-27T01:56:25Z"
+    updated_at: "2026-10-27T01:56:25Z"
+    phase: "implementation"
+    category: "security"
+    summary: "The access probe targets modified or removed listed files only (no previous_filename in the listing); an add-only PR cannot be probed and a 404 stays degraded."
+    decision: "A renamed file's new path need not exist at the base, so it is not a probe target; a non-40-hex base sha returns undefined before any read."
+    rationale: "The probe must hit a path that exists at the base or it proves nothing; fail closed when no such path is listed."
+    alternatives_considered:
+      - option: "probe a renamed file's new name"
+        rejected_because: "may not exist at the base"
+    consequences:
+      positive:
+        - "probe never lies"
+      negative:
+        - "add-only PRs on shallow checkouts stay degraded when .reviewignore is absent at the base"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "~/.cache/loa/cycle-136/reports/b.md § 4 (3, 4)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:56:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "66c35c9c4"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1096"
+    created_at: "2026-10-27T01:56:31Z"
+    updated_at: "2026-10-27T01:56:31Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "A resolved none keeps the absent-at-base checkout check (DEC-1056 WARN, symlink refusal); tests force the local read's class via deps.readBaseReviewignore."
+    decision: "resolveBasePatterns routes source none through absentAtBase; the local read's class is forced in tests through an optional TwoPassDeps field defaulting to the real reader."
+    rationale: "Skipping the checkout on the most common path (a full clone whose base lacks the file) would silently drop the DEC-1056 WARN; temp git repos cannot model a shallow clone offline."
+    alternatives_considered:
+      - option: "skip the checkout entirely when reviewignoreBase is set"
+        rejected_because: "drops the WARN and changes symlink behaviour"
+    consequences:
+      positive:
+        - "today's semantics preserved exactly"
+      negative:
+        - "one more seam on TwoPassDeps"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "~/.cache/loa/cycle-136/reports/b.md § 4 (1, 5)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:56:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "66c35c9c4"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1097"
+    created_at: "2026-10-27T01:56:37Z"
+    updated_at: "2026-10-27T01:56:37Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "unknown_commit = a numeric non-zero exit of git cat-file -e (a non-git repoRoot counts); a timeout or spawn failure with no status is other."
+    decision: "Exit status under LC_ALL=C decides; exit 128 on a non-repository is unknown_commit and leads to the API read."
+    rationale: "A missing clone is exactly the case the API read exists for; a timeout says nothing about the clone and must stay fail-closed."
+    alternatives_considered:
+      - option: "treat exit 128 as other"
+        rejected_because: "a non-repository repoRoot would degrade although the API could answer"
+    consequences:
+      positive:
+        - "locale-independent"
+      negative:
+        - "a corrupted repository is indistinguishable from a shallow one (both read the API)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "~/.cache/loa/cycle-136/reports/b.md § 4 (6)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:56:37Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "66c35c9c4"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1098"
+    created_at: "2026-10-27T01:56:43Z"
+    updated_at: "2026-10-27T01:56:43Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "WARN rendering: filenames and error details are JSON-quoted via boundedForLog (≤ 200 chars, escaped); the base_unavailable detail is quoted too."
+    decision: "One renderer for every WARN/INFO operand; the failed-read WARN fires for error / too_large / binary and the empty-content case, never for budget / skipped_cap / deadline / aborted."
+    rationale: "Quoting makes escaping visible and disambiguates names with spaces; bounding applies to every detail per D-2.6."
+    alternatives_considered:
+      - option: "unquoted names"
+        rejected_because: "ambiguous with spaces"
+    consequences:
+      positive:
+        - "one bounded renderer"
+      negative:
+        - "the base_unavailable WARN changes shape (quoted detail)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "~/.cache/loa/cycle-136/reports/b.md § 4 (7, 8, 9)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:56:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "5d5080b69 (red 52e988057)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1099"
+    created_at: "2026-10-27T01:56:49Z"
+    updated_at: "2026-10-27T01:56:49Z"
+    phase: "implementation"
+    category: "security"
+    summary: "FR-5: exclude_patterns gains a list-of-strings shape check (a scalar used to split into characters); deferredScopeKeys deleted by the applier; one WARN per key."
+    decision: "In local mode the new shape check throws a named config error (behaviour change from the silent split); on a PR it defers like the other two keys."
+    rationale: "The silent split hid a misconfiguration; one WARN per key keeps the operator's log readable."
+    alternatives_considered:
+      - option: "keep the silent split"
+        rejected_because: "a string exclude_patterns became one-character patterns"
+    consequences:
+      positive:
+        - "named errors; one WARN per key"
+      negative:
+        - "a local config with a scalar exclude_patterns now fails loudly"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "~/.cache/loa/cycle-136/reports/b.md § 4 (10, 11, 12)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:56:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "63f6d1ae3 (red 613ffad95)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1100"
+    created_at: "2026-10-27T01:56:54Z"
+    updated_at: "2026-10-27T01:56:54Z"
+    phase: "implementation"
+    category: "security"
+    summary: "FR-5 hand-off: resolveConfig reads PR signals from its env argument; the deferral list lives on provenance; main.ts asserts after the applier."
+    decision: "main.ts passes GITHUB_EVENT_NAME / GITHUB_BASE_REF to resolveConfig, hands provenance to applyTrustedReviewScope and asserts immediately after; the pipeline-entry assertion inside fetchPRFilesTwoPass is not implemented (it would need a BridgebuilderConfig field)."
+    rationale: "A pure resolveConfig stays testable; the two mode detections use the same inputs so they cannot disagree in production; the main.ts assertion plus the call-order pin is the enforcement."
+    alternatives_considered:
+      - option: "a BridgebuilderConfig field + a check in fetchPRFilesTwoPass"
+        rejected_because: "types.ts churn for a check main.ts already performs; filed only if judged insufficient"
+    consequences:
+      positive:
+        - "one enforcement point, pinned"
+      negative:
+        - "a future caller that skips main.ts has only the pin"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "~/.cache/loa/cycle-136/reports/b.md § 4 (13, 14), § 5; lead wiring"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:56:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "63f6d1ae3 + the lead's main.ts wiring commit"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1101"
+    created_at: "2026-10-27T01:57:00Z"
+    updated_at: "2026-10-27T01:57:00Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Task 1.3b (FR-5) accepted into the sprint: its pair landed green on the first return, so the deferral trigger did not fire; G-4 counts FR-5."
+    decision: "Landed as 613ffad95 → 63f6d1ae3 after 1.2 and 1.3; the lead wires main.ts."
+    rationale: "The trigger (gates fail after one return, or not landed at Task 1.4) was not met."
+    alternatives_considered:
+      - option: "defer to a bead anyway"
+        rejected_because: "no trigger fired"
+    consequences:
+      positive:
+        - "bd-gyrgq's open item closes in the same cycle"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "grimoires/loa/sprint.md Task 1.3b; ~/.cache/loa/cycle-136/reports/b.md § 2"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:57:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "63f6d1ae3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1102"
+    created_at: "2026-10-27T02:27:35Z"
+    updated_at: "2026-10-27T02:27:35Z"
+    phase: "review"
+    category: "security"
+    summary: "A plain-scalar if: that continues on a deeper line is multi-line: notsingle — silent, with the flag the refuse WARN, byte-identical (the dissent's BLOCKING)."
+    decision: "After a candidate if: at the child indentation, the next non-blank non-comment line deeper than C (comments and blank lines skipped) marks the candidate multi-line; a mis-indented key counts too (not ours to rewrite)."
+    rationale: "The first physical line of a customised multi-line guard can equal the legacy text; rewriting it would leave the continuation dangling and break the workflow."
+    alternatives_considered:
+      - option: "special-case continuations to stay silent under the flag"
+        rejected_because: "multi-line would behave two ways"
+    consequences:
+      positive:
+        - "no misdetection of customised multi-line guards"
+      negative:
+        - "a legacy guard reformatted onto two lines is treated as customised (by design, DEC-1078)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "be35c3ac"
+    source: "grimoires/loa/a2a/sprint-280/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T02:27:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "be35c3ac6 (red eb2dac6b9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1103"
+    created_at: "2026-10-27T02:27:39Z"
+    updated_at: "2026-10-27T02:27:39Z"
+    phase: "review"
+    category: "implementation"
+    summary: "With the flag set and the rewrite succeeding only the fixed notice prints; the legacy WARN prints when the flag is off or ahead of a refuse/failure WARN."
+    decision: "T17/T26/T29–T32 pin the one-line success; T14/T27/T33/T34 keep the WARN-first shape for off / refuse / failure."
+    rationale: "A log that tells the operator to set a flag they set, followed by 'fixed', reads as a contradiction on every CI mount; FR-1 asked for a one-line notice."
+    alternatives_considered:
+      - option: "keep the SDD pseudo-code's unconditional WARN"
+        rejected_because: "readability on every flagged mount log"
+    consequences:
+      positive:
+        - "one line on success"
+      negative:
+        - "the rewrite helper's stdout is now a protocol (empty = success)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "be35c3ac"
+    source: "grimoires/loa/a2a/sprint-280/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T02:27:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "be35c3ac6"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1104"
+    created_at: "2026-10-27T02:27:43Z"
+    updated_at: "2026-10-27T02:27:43Z"
+    phase: "review"
+    category: "testing"
+    summary: "The real pre-cycle-135 post-merge.yml (git show 4256a1b3) is a committed fixture; T38 asserts WARN, byte-identical, and a one-line rewrite equal to the swap."
+    decision: "tests/fixtures/mount-workflow-scaffold/post-merge-legacy.yml (277 lines) rather than an embedded heredoc, so it stays diffable against its source commit."
+    rationale: "Every other fixture was synthetic; the production file is the one the detection must match."
+    alternatives_considered:
+      - option: "embed in the bats file"
+        rejected_because: "277 lines inside a heredoc, not diffable"
+    consequences:
+      positive:
+        - "real-world evidence"
+      negative:
+        - "one fixture file to keep in sync if the legacy shape is ever edited (it will not be)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "be35c3ac"
+    source: "grimoires/loa/a2a/sprint-280/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T02:27:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "eb2dac6b9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1105"
+    created_at: "2026-10-27T02:27:47Z"
+    updated_at: "2026-10-27T02:27:47Z"
+    phase: "review"
+    category: "testing"
+    summary: "B's round-1 patch is tests only and green by design: deadline is silent, an empty text answer is error + one WARN, stderr helpers forward the callback."
+    decision: "Landed outside land.sh's red expectation as b695008fc with the reason in the commit; the pre-existing synchronous captureStderr helpers in truncation.test.ts are untouched."
+    rationale: "The cases pin behaviour that already exists; a red-first demand would force an artificial breakage."
+    alternatives_considered:
+      - option: "skip the pins"
+        rejected_because: "the contract's silence set would be unpinned"
+    consequences:
+      positive:
+        - "contract pinned"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "be35c3ac"
+    source: "grimoires/loa/a2a/sprint-280/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T02:27:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "b695008fc"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1106"
+    created_at: "2026-10-27T02:27:52Z"
+    updated_at: "2026-10-27T02:27:52Z"
+    phase: "review"
+    category: "process"
+    summary: "Rejected advisory: a block-scalar or two-line legacy guard gets no WARN (by design, DEC-1078); the temp-file leak window is bead bd-lkdsx."
+    decision: "Anything the single-line grammar does not reduce to the two shipped texts stays customised and silent; a trap inside a sourced library function would touch the callers' trap state, so the leak window is filed, not fixed here."
+    rationale: "Warning on a prefix match of a multi-line value is exactly the false positive the BLOCKING finding protects against; the leak window is milliseconds and Actions ignores the file."
+    alternatives_considered:
+      - option: "warn on block-scalar legacy guards"
+        rejected_because: "prefix-match false positives"
+    consequences:
+      positive:
+        - "one grammar"
+      negative:
+        - "a reformatted legacy guard is not reported"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "be35c3ac"
+    source: "grimoires/loa/a2a/sprint-280/engineer-feedback-r1.md § Rejected dissent payloads, Dispositions 7"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T02:27:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "engineer-feedback-r1.md; bd-lkdsx"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1107"
+    created_at: "2026-10-27T02:41:48Z"
+    updated_at: "2026-10-27T02:41:48Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 280 audit: third dissent run used as an audit pass over the whole diff (2/2 voices); 4 LOW — two filed, one pin bead, one refuted."
+    decision: "Review used two runs (A diff, B diff); the audit used the third over the combined source diff with the SDD's error-handling and risk sections as context."
+    rationale: "The cap is ≤ 3 per sprint; splitting 2 + 1 gives the audit an independent voice on the composed change, which sprint 279 lacked (DEC-1052)."
+    alternatives_considered:
+      - option: "three review runs, lead-only audit (sprint 279 shape)"
+        rejected_because: "B's diff was already covered by one run; the audit gained more from a voice than a third review run"
+    consequences:
+      positive:
+        - "independent audit voice"
+      negative:
+        - "no third review run on the round-1 fixes (lead-read + red-first instead)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "audit-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "c2b1a321"
+    source: "grimoires/loa/a2a/sprint-280/auditor-sprint-feedback.md § Dissent"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T02:41:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:audit-sprint"
+        evidence: "~/.cache/loa/cycle-136/dissent/audit-envelope.json"
     rejection_rationale: null
     follow_up: null
     prior_requests: []

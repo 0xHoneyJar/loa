@@ -1,0 +1,24 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "ext/napi/js_native_api.rs", "anchor_lines": [3976, 3988],
+            "description": "byte_length + byte_offset can overflow usize (panic in debug, wraparound in release), bypassing the bounds check so an out-of-range DataView is created over the ArrayBuffer.",
+            "severity": "high", "category": "security"},
+    "H02": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "tests/napi/dataview_test.js", "anchor_lines": [],
+            "description": "Adds a regression test for the overflowing offset + length case.", "severity": null, "category": null},
+    "H03": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "tests/napi/src/dataview.rs", "anchor_lines": [],
+            "description": "Parameterises the test helper for out-of-range dataview creation.", "severity": null, "category": null},
+    "H04": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "tests/napi/src/dataview.rs", "anchor_lines": [],
+            "description": "Test helper uses the new parameters instead of fixed values.", "severity": null, "category": null},
+    "H05": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "tests/napi/src/dataview.rs", "anchor_lines": [],
+            "description": "Adds test entry points for out-of-range and overflow cases.", "severity": null, "category": null},
+    "H06": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "tests/napi/src/dataview.rs", "anchor_lines": [],
+            "description": "Registers the new overflow test function.", "severity": null, "category": null}
+  },
+  "incidents": {}
+}

@@ -1,0 +1,32 @@
+{
+  "hunks": {
+    "H01": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "cli/tools/installer/local.rs", "anchor_lines": [],
+            "description": "Passes the resolved npmrc to setup_npm_compat for the new signature.", "severity": null, "category": null},
+    "H02": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "cli/tools/installer/npm_compat.rs", "anchor_lines": [],
+            "description": "Imports ResolvedNpmRc needed by the registry fix.", "severity": null, "category": null},
+    "H03": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D2",
+            "file": "cli/tools/installer/npm_compat.rs", "anchor_lines": [],
+            "description": "Adds the pinned TYPES_NODE_VERSION constant used by the @types/node pinning fix.", "severity": null, "category": null},
+    "H04": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "cli/tools/installer/npm_compat.rs", "anchor_lines": [],
+            "description": "Threads npmrc parameter into setup_npm_compat.", "severity": null, "category": null},
+    "H05": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "cli/tools/installer/npm_compat.rs", "anchor_lines": [],
+            "description": "Passes npmrc to ensure_types_node.", "severity": null, "category": null},
+    "H06": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "cli/tools/installer/npm_compat.rs", "anchor_lines": [],
+            "description": "Adds npmrc parameter to ensure_types_node.", "severity": null, "category": null},
+    "H08": {"verdict": "defect", "not_defect_class": null, "group": "D2",
+            "file": "cli/tools/installer/npm_compat.rs", "anchor_lines": [569, 572, 575, 576],
+            "description": "ensure_types_node downloads whatever @types/node is the registry's latest and reuses any previously materialized copy regardless of version, so type-check results drift with registry releases and stale copies are never refreshed.", "severity": "medium", "category": "logic"},
+    "H09": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "cli/tools/installer/npm_compat.rs", "anchor_lines": [],
+            "description": "Passes npmrc to the undici-types download.", "severity": null, "category": null},
+    "H11": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "cli/tools/installer/npm_compat.rs", "anchor_lines": [609, 610, 611],
+            "description": "download_npm_package hardcodes registry.npmjs.org, ignoring the project's configured registry (.npmrc / NPM_CONFIG_REGISTRY), so private registries, mirrors and offline setups are bypassed.", "severity": "medium", "category": "contract"}
+  },
+  "incidents": {}
+}

@@ -1,0 +1,19 @@
+{
+ "H04": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": "packages/shared/src/domAttrConfig.ts",
+  "description": "disablepictureinpicture and disableremoteplayback are missing from the boolean attribute lists, so setting them to false renders/keeps the attribute (e.g. disablepictureinpicture=\"false\") instead of removing it on client and SSR.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "agreed defect, group, severity, category and description (disablepictureinpicture / disableremoteplayback missing from the boolean-attribute lists, so false renders the attribute); anchors: union — A adds 24-26, the rest of the list where the two names belong",
+  "anchor_lines": [
+   15,
+   22,
+   23,
+   24,
+   25,
+   26
+  ]
+ }
+}

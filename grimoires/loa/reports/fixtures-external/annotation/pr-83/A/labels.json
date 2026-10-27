@@ -1,0 +1,24 @@
+{
+  "hunks": {
+    "H01": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "packages/runtime-core/src/renderer.ts", "anchor_lines": [],
+            "description": "Imports getTransitionRoot needed by the fragment-transition removal fix.", "severity": null, "category": null},
+    "H07": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "packages/runtime-core/src/renderer.ts", "anchor_lines": [2292, 2293, 2294, 2295, 2296, 2297, 2298, 2299, 2300, 2301, 2302, 2303, 2304, 2305, 2306, 2307, 2308, 2309, 2310],
+            "description": "Removing a Fragment vnode that carries a transition bypasses the leave transition and afterLeave (removed immediately via removeFragment, or via a dev-only DEV_ROOT_FRAGMENT path), so production and dev behave differently and out-in transitions are not run/released.",
+            "severity": "high", "category": "logic"},
+    "H08": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "packages/runtime-core/src/renderer.ts", "anchor_lines": [2323, 2324],
+            "description": "performRemove only removes the single el node, so it cannot correctly remove a fragment's full DOM range after its leave transition.",
+            "severity": "high", "category": "logic"},
+    "H09": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "packages/runtime-core/src/renderer.ts", "anchor_lines": [2331],
+            "description": "The leave-transition check tests the vnode's own ELEMENT shape flag, so a fragment whose transition root is an element never gets its leave transition.",
+            "severity": "high", "category": "logic"},
+    "H10": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "packages/runtime-core/src/renderer.ts", "anchor_lines": [2336, 2338],
+            "description": "leave/delayLeave are invoked on vnode.el rather than the transition root element, which is wrong for fragment vnodes whose el is the fragment start anchor.",
+            "severity": "high", "category": "logic"}
+  },
+  "incidents": {}
+}

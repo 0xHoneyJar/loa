@@ -1,0 +1,5 @@
+id	kind	ref	date	files	excerpt
+I01	fix-commit	a2bd6fa897c3	2026-09-29T07:16:50Z	packages/vite/src/node/optimizer/index.ts	fix(optimizer): preserve excluded optional peer require fallbacks (#23600) Co-authored-by: sapphi-red <green@sapphi.red>
+I02	fix-commit	f20609630faa	2026-10-09T14:00:19Z	packages/vite/src/node/optimizer/index.ts	fix(optimizer): fall back to yarn.lock for lockfile hash (#23667) Co-authored-by: sapphi-red <green@sapphi.red>
+I03	fix-commit	a7d56967ef00	2026-10-15T10:35:37Z	packages/vite/src/node/optimizer/index.ts	fix(optimizer): skip patches dir hash for nub lockfile (#23761)
+I04	fix-commit	8e890e1ce438	2026-10-21T05:40:21Z	packages/vite/src/node/optimizer/index.ts	fix(optimizer): skip patches dir check for yarn.lock fallback (#23725)

@@ -1,0 +1,44 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-58",
+  "hunk_count": 4,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "crates/nu-glob/src/dc_glob/globber.rs",
+      "head_end": 354,
+      "head_start": 354,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "crates/nu-glob/src/dc_glob/mod.rs",
+      "head_end": 389,
+      "head_start": 386,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H03": {
+      "cited_by": [],
+      "file": "crates/nu-glob/src/dc_glob/mod.rs",
+      "head_end": 935,
+      "head_start": 933,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H04": {
+      "cited_by": [],
+      "file": "crates/nu-glob/src/dc_glob/mod.rs",
+      "head_end": 947,
+      "head_start": 947,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [],
+  "incidents": "incidents/pr-58.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

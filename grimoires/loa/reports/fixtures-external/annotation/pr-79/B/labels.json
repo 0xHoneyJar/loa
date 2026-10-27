@@ -1,0 +1,14 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "types/route.d.ts", "anchor_lines": [49],
+            "description": "RouteShorthandHook rebuilds the hook signature from Parameters<T> only, dropping the hook's `this` type, so shorthand route hooks lose their `this` (FastifyInstance) typing.",
+            "severity": "medium", "category": "contract"}
+  },
+  "incidents": {
+    "I01": {"verdict": "not-at-head", "group": null, "file": "types/instance.d.ts",
+            "anchor_lines": [], "description": "The addresses() return type has nothing to do with this change's route hook typing, and the packet does not show head instance.d.ts, so I can't confirm it was already wrong at head.", "severity": null},
+    "I02": {"verdict": "defect-at-head", "group": "D2", "file": "types/route.d.ts",
+            "anchor_lines": [51, 60], "description": "RouteShorthandOptions at head has no logSerializers per-route option, even though the runtime accepts and documents it.", "severity": "low"}
+  }
+}

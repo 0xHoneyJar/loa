@@ -1,0 +1,231 @@
+{
+  "fixture": "pr-57",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "deep-name 2026-10-26",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "95edd60422ae809f0d2aeaf732458360d591d6e6",
+    "fix_commit": "5f2241642635008739292d5afca75217de0c469f",
+    "incidents_meta": {
+      "main_sha": "6e9f66f5dca58c594a7c23c5f1107103045be8d2"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "libs/npm_cache/lib.rs",
+      "anchor_line": 77,
+      "anchors": [
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        83
+      ],
+      "must_match": "#[derive(Debug, Clone, Copy, PartialEq, Eq)]",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H03",
+      "source_commit": "95edd604",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "agreed defect (verdict, group, severity, category); anchors: the union (A 78-82, B 77-83) \u2014 the whole format-selection block",
+      "review_driven": false
+    },
+    {
+      "id": "V02",
+      "file": "libs/npm_cache/lib.rs",
+      "anchor_line": 412,
+      "anchors": [
+        412,
+        465
+      ],
+      "must_match": "full_packument: bool,",
+      "severity": "medium",
+      "category": "logic",
+      "label_source": "fix-commit",
+      "source": "hunk:H11",
+      "source_commit": "95edd604",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    },
+    {
+      "id": "V03",
+      "file": "libs/npm_cache/lib.rs",
+      "anchor_line": 571,
+      "anchors": [
+        571,
+        572,
+        573
+      ],
+      "must_match": "let scripts =",
+      "severity": "medium",
+      "category": "error-handling",
+      "label_source": "fix-commit",
+      "source": "hunk:H13",
+      "source_commit": "95edd604",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "agreed defect (anchors 571-573, group, category); severity: a malformed non-object `scripts` field is an uncommon registry input and the impact is bounded to that one package failing to load \u2014 medium (B), not a common-path failure (A)",
+      "review_driven": false
+    },
+    {
+      "id": "V04",
+      "file": "libs/npm_installer/local.rs",
+      "anchor_line": 688,
+      "anchors": [
+        688,
+        764,
+        959,
+        1058,
+        1688,
+        1689,
+        1690,
+        1692,
+        1693,
+        1695,
+        1699
+      ],
+      "must_match": "&join_package_name(Cow::Borrowed(&sub_node_modules), name),",
+      "severity": "high",
+      "category": "security",
+      "label_source": "fix-commit",
+      "source": "hunk:H25,H26",
+      "source_commit": "95edd604",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "adjudicated",
+      "adjudication": "agreed defect (verdict, group, severity high, category security); anchors: the union \u2014 B's sites inside symlink_package_dir (1688-1699) and A's call sites (688, 764, 959, 1058) where the unvalidated package names and aliases become destination paths; description B's (names the traversal and the reserved .deno entry); agreed defect (verdict, group, severity, category); anchors: the union (A adds 1695)",
+      "review_driven": false
+    }
+  ],
+  "fix_regions": [
+    {
+      "id": "F001",
+      "file": "libs/npm_installer/local.rs",
+      "start": 688,
+      "end": 688,
+      "source": "fix/5f2241642635:688-688"
+    },
+    {
+      "id": "F002",
+      "file": "libs/npm_installer/local.rs",
+      "start": 763,
+      "end": 764,
+      "source": "fix/5f2241642635:763-764"
+    },
+    {
+      "id": "F003",
+      "file": "libs/npm_installer/local.rs",
+      "start": 769,
+      "end": 769,
+      "source": "fix/5f2241642635:769-769"
+    },
+    {
+      "id": "F004",
+      "file": "libs/npm_installer/local.rs",
+      "start": 778,
+      "end": 781,
+      "source": "fix/5f2241642635:778-781"
+    },
+    {
+      "id": "F005",
+      "file": "libs/npm_installer/local.rs",
+      "start": 823,
+      "end": 826,
+      "source": "fix/5f2241642635:823-826"
+    },
+    {
+      "id": "F006",
+      "file": "libs/npm_installer/local.rs",
+      "start": 855,
+      "end": 858,
+      "source": "fix/5f2241642635:855-858"
+    },
+    {
+      "id": "F007",
+      "file": "libs/npm_installer/local.rs",
+      "start": 909,
+      "end": 912,
+      "source": "fix/5f2241642635:909-912"
+    },
+    {
+      "id": "F008",
+      "file": "libs/npm_installer/local.rs",
+      "start": 959,
+      "end": 959,
+      "source": "fix/5f2241642635:959-959"
+    },
+    {
+      "id": "F009",
+      "file": "libs/npm_installer/local.rs",
+      "start": 1058,
+      "end": 1058,
+      "source": "fix/5f2241642635:1058-1058"
+    },
+    {
+      "id": "F010",
+      "file": "libs/npm_installer/local.rs",
+      "start": 1678,
+      "end": 1678,
+      "source": "fix/5f2241642635:1678-1678"
+    },
+    {
+      "id": "F011",
+      "file": "libs/npm_installer/local.rs",
+      "start": 1689,
+      "end": 1689,
+      "source": "fix/5f2241642635:1689-1689"
+    },
+    {
+      "id": "F012",
+      "file": "libs/npm_installer/local.rs",
+      "start": 1690,
+      "end": 1690,
+      "source": "fix/5f2241642635:1690-1690"
+    },
+    {
+      "id": "F013",
+      "file": "libs/npm_installer/local.rs",
+      "start": 2366,
+      "end": 2366,
+      "source": "fix/5f2241642635:2366-2366"
+    },
+    {
+      "id": "F014",
+      "file": "libs/npm_installer/local.rs",
+      "start": 2385,
+      "end": 2385,
+      "source": "fix/5f2241642635:2385-2385"
+    },
+    {
+      "id": "F015",
+      "file": "libs/npm_installer/local.rs",
+      "start": 2391,
+      "end": 2391,
+      "source": "fix/5f2241642635:2391-2391"
+    }
+  ]
+}

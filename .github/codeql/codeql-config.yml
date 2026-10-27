@@ -1,0 +1,12 @@
+# CodeQL configuration (referenced by .github/workflows/security-audit.yml).
+# The review-fixture corpus and the build-task fixtures are frozen copies of OTHER repositories' code at a
+# defect-carrying revision (evals/fixtures/review-prs/pr-NN/{head,base}, grimoires/loa/evals/*/tasks/*/fixture).
+# They are test data, not Loa's code: their defects are the point. Alerts there are noise, so they are excluded.
+name: "Loa CodeQL config"
+paths-ignore:
+  - evals/fixtures/review-prs/*/head
+  - evals/fixtures/review-prs/*/base
+  - evals/fixtures/review-prs/*/upstream
+  - grimoires/loa/evals/*/tasks/*/fixture
+  - grimoires/loa/evals/*/tasks/*/hidden
+  - evals/tests/fixtures

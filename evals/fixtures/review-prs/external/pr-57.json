@@ -1,0 +1,93 @@
+{
+  "base_commit": "e0431ffd8f94ccbdd271a84e2c980b65b5ae18b0",
+  "files": {
+    "base": [
+      {
+        "blob": "6fbe2f4ad833681216a9688c684701d473820dca",
+        "path": "libs/npm_cache/Cargo.toml",
+        "sha256": "ea07208212fb3521eee24116f01bddcacfab388885430e5bcb3d7597539c9b8d",
+        "size": 1570
+      },
+      {
+        "blob": "1454cc48a5685a8526903b8afc6d23820e10669a",
+        "path": "libs/npm_cache/fs_util.rs",
+        "sha256": "8ee1256afff2a639aa02928b1d750255ac96c06ffae8412f91c0dffe72f275f8",
+        "size": 3320
+      },
+      {
+        "blob": "aff4fe4d14af63321fc57066d548b04faa2b57b8",
+        "path": "libs/npm_cache/lib.rs",
+        "sha256": "6720a76f3d882614b4b19a4cee422dece63d6f3b5b4f1d8de492f68fba2fa28e",
+        "size": 26670
+      },
+      {
+        "blob": "0902fc8dfe128bb305d8155377c8b7a9a89760fb",
+        "path": "libs/npm_installer/fs.rs",
+        "sha256": "427f71bc7c36a2a2156dfc719c59a7fcd9c3f0f6faaea4975476920a2d67fe89",
+        "size": 5184
+      },
+      {
+        "blob": "bd114231c44689e8f56a52ed2a846fee9c65cdd6",
+        "path": "libs/npm_installer/local.rs",
+        "sha256": "5fc88b22fd47c9273ae9d9e7646de42aa196a5cb157b3b9e17cedfc0049e5a59",
+        "size": 85837
+      }
+    ],
+    "head": [
+      {
+        "blob": "e9e778b75e1e34de630298e32741a2cf8d121614",
+        "path": "libs/npm_cache/Cargo.toml",
+        "sha256": "7d33351594875a75dd3565c2f23970169dd40124d05bc201ab765cc39bc48f75",
+        "size": 1580
+      },
+      {
+        "blob": "bc685e68e3fbde42cf975e8a45a5035c22deeb51",
+        "path": "libs/npm_cache/fs_util.rs",
+        "sha256": "d9866945202962586d1c1b9a62ba375886beacd7d37247081d9725f52ea952a1",
+        "size": 5125
+      },
+      {
+        "blob": "30e1c13f9766c82f499af14529732afeeff4fa7a",
+        "path": "libs/npm_cache/lib.rs",
+        "sha256": "f79a0456f262aa5c790df00d8475d66619cfe89d43362453fd0a8684e66fc24d",
+        "size": 26751
+      },
+      {
+        "blob": "6633abc43d4c7f529b8283488a64a9a0f72223d2",
+        "path": "libs/npm_installer/fs.rs",
+        "sha256": "2ce98c3e7d81990210b6f5cbe4308f10ee3e49944ac5288f16cf6e27830dac3e",
+        "size": 6039
+      },
+      {
+        "blob": "e1cc254ca56471708ecb0226576bb8f3c92c1f7a",
+        "path": "libs/npm_installer/local.rs",
+        "sha256": "45a7daccb52ee884178c63a80bfb616484f4c0f0726313799319c9a5c3b8153c",
+        "size": 86702
+      }
+    ]
+  },
+  "fix_commit": "5f2241642635008739292d5afca75217de0c469f",
+  "fix_first": "5f2241642635008739292d5afca75217de0c469f",
+  "fix_parent": "cf09f6de7ba8b2bc1d1511bd11156f25001fe934",
+  "fixture": "pr-57",
+  "head_commit": "95edd60422ae809f0d2aeaf732458360d591d6e6",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "b641c75c0b04ccfddcb1145d2554ab49b6ca9411",
+      "path": "LICENSE.md",
+      "sha256": "f62497fffecc0852960c8d3e6934b9db86d16396e9b604072e923892cae3a588",
+      "size": 1074
+    }
+  ],
+  "merge_commit": "9ec3275a1944c603c7d414154e3b3dcca613a0fe",
+  "pr": 36191,
+  "pr_base_sha": "e0431ffd8f94ccbdd271a84e2c980b65b5ae18b0",
+  "pr_url": "https://github.com/denoland/deno/pull/36191",
+  "schema_version": 1,
+  "scope_paths": null,
+  "skipped": [],
+  "source_url": "https://github.com/denoland/deno",
+  "trees": "committed",
+  "visibility": "public"
+}

@@ -1,0 +1,37 @@
+{
+  "fixture": "pr-80",
+  "label_set": "v2",
+  "approved": true,
+  "approved_by": "deep-name 2026-10-26",
+  "record": {
+    "sprint": null,
+    "record_ref": null,
+    "head_commit": "7491d921a5e8c62ca2a6f9eb82b5e9c9ce7c50b4",
+    "fix_commit": "ce41dc0fbb4ed75e9a42f3972ac896333f6a7396",
+    "incidents_meta": {
+      "main_sha": "5df959f3af698823dd582f1c3661f3e80df0b5da"
+    }
+  },
+  "defects": [
+    {
+      "id": "V01",
+      "file": "types/instance.d.ts",
+      "anchor_line": 133,
+      "must_match": "addresses(): AddressInfo[]",
+      "severity": "low",
+      "category": "contract",
+      "label_source": "fix-commit",
+      "source": "hunk:H01",
+      "source_commit": "7491d921",
+      "synthetic": false,
+      "annotators": [
+        "A",
+        "B"
+      ],
+      "agreement": "agreed",
+      "adjudication": null,
+      "review_driven": false
+    }
+  ],
+  "fix_regions": []
+}

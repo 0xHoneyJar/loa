@@ -1,0 +1,314 @@
+diff --git a/cli/tools/installer/local.rs b/cli/tools/installer/local.rs
+index 8c1dfd38b..5fb10db6d 100644
+--- a/cli/tools/installer/local.rs
++++ b/cli/tools/installer/local.rs
+@@ -284,7 +284,7 @@ pub async fn sync_types_command(
+   // project to discover every external (npm:/jsr:/http(s):) specifier the code
+   // actually uses — including specifiers written directly in source and across
+   // workspace members, not just those declared in the root import map.
+-  let graph_specifiers = {
++  let (graph_specifiers, local_wasm_modules) = {
+     let graph_container = factory.main_module_graph_container().await?;
+     let roots = graph_container.collect_specifiers(
+       &root_patterns,
+@@ -365,7 +365,33 @@ pub async fn sync_types_command(
+         specifiers.insert(root.to_string());
+       }
+     }
++    // Local `.wasm` modules (scheme `file:`) can't be type-checked as binaries:
++    // stock tsc reports a spurious `TS2307 Cannot find module './foo.wasm'`.
++    // deno_graph already materialized each wasm module's typed exports into a
++    // `.d.ts` (`source_dts`); collect them here so `setup_npm_compat` can write
++    // them out and point tsc at them (mirroring the remote-wasm treatment in
++    // `install_http_modules`).
++    let mut local_wasm_modules: Vec<(Url, String)> = Vec::new();
+     for module in graph.modules() {
++      if let deno_graph::Module::Wasm(wasm) = module
++        && wasm.specifier.scheme() == "file"
++      {
++        let dts = if !wasm.source_dts.is_empty() {
++          wasm.source_dts.to_string()
++        } else {
++          match deno_graph::source::wasm::wasm_module_to_dts(&wasm.source) {
++            Ok(dts) => dts,
++            Err(e) => {
++              log::debug!(
++                "wasm dts generation failed for {}: {e}",
++                wasm.specifier
++              );
++              continue;
++            }
++          }
++        };
++        local_wasm_modules.push((wasm.specifier.clone(), dts));
++      }
+       for (raw, _dep) in module.dependencies() {
+         // Collect scheme specifiers (npm:/jsr:/http:) and bare specifiers
+         // (import-map aliases like `@std/fmt/colors`, `fresh/runtime`). Skip
+@@ -380,7 +406,10 @@ pub async fn sync_types_command(
+         specifiers.insert(raw.clone());
+       }
+     }
+-    specifiers.into_iter().collect::<Vec<_>>()
++    (
++      specifiers.into_iter().collect::<Vec<_>>(),
++      local_wasm_modules,
++    )
+   };
+ 
+   // The stock TypeScript compatibility config needs the managed npm
+@@ -435,6 +464,7 @@ pub async fn sync_types_command(
+     &http_client,
+     &permissions,
+     &graph_specifiers,
++    &local_wasm_modules,
+     &npm_resolver,
+     resolved_compiler_options.as_ref(),
+     manage_root_tsconfig,
+diff --git a/cli/tools/installer/npm_compat.rs b/cli/tools/installer/npm_compat.rs
+index 65f2ae855..474937c8e 100644
+--- a/cli/tools/installer/npm_compat.rs
++++ b/cli/tools/installer/npm_compat.rs
+@@ -283,6 +283,7 @@ pub async fn setup_npm_compat(
+   http_client: &HttpClient,
+   permissions: &PermissionsContainer,
+   graph_specifiers: &[String],
++  local_wasm_modules: &[(Url, String)],
+   npm_resolver: &CliNpmResolver,
+   resolved_compiler_options: Option<&Value>,
+   manage_root_tsconfig: bool,
+@@ -398,6 +399,23 @@ pub async fn setup_npm_compat(
+     }
+   };
+ 
++  // Local `.wasm` imports (`import { x } from "./foo.wasm"`) can't be checked as
++  // binaries: stock tsc reports a spurious `TS2307 Cannot find module`. Mirror
++  // each wasm module's generated typed declarations into `.deno/wasm/<rel>`
++  // (renamed to `.d.wasm.ts` so `allowArbitraryExtensions` picks them up) and
++  // add `.deno/wasm` as a `rootDirs` overlay of the project root so tsc resolves
++  // the relative `./foo.wasm` specifier to the mirror. Unlike remote wasm (a
++  // non-relative specifier handled via `paths`), a relative specifier is never
++  // matched by tsconfig `paths`, hence the `rootDirs` overlay.
++  let has_local_wasm =
++    match install_local_wasm_modules(project_root, local_wasm_modules) {
++      Ok(has_wasm) => has_wasm,
++      Err(e) => {
++        log::warn!("Failed to materialize local wasm modules: {e}");
++        false
++      }
++    };
++
+   // Warn about npm packages that could be resolved neither through a local
+   // node_modules directory nor through the generated global-cache projects.
+   let mut unmaterialized: Vec<String> = combined_imports
+@@ -481,6 +499,7 @@ pub async fn setup_npm_compat(
+     &npm_cache_projects.references,
+     node_types.type_root.as_deref(),
+     &excludes,
++    has_local_wasm,
+     manage_root_tsconfig,
+   )?;
+ 
+@@ -831,6 +850,7 @@ fn generate_deno_tsconfig(
+   npm_project_references: &[String],
+   node_types_root: Option<&str>,
+   excludes: &[String],
++  has_local_wasm: bool,
+   manage_root_tsconfig: bool,
+ ) -> Result<(), AnyError> {
+   let generated = crate::tsc::tsconfig_gen::generate_tsconfig(
+@@ -849,6 +869,7 @@ fn generate_deno_tsconfig(
+     npm_project_references,
+     node_types_root,
+     excludes,
++    has_local_wasm,
+     manage_root_tsconfig,
+   )
+   .map_err(|e| anyhow!("Failed to generate tsconfig: {e}"))?;
+@@ -1028,6 +1049,53 @@ fn extract_tarball_gz(gz_bytes: &[u8], dest: &Path) -> Result<(), AnyError> {
+ /// path (relative to `.deno/`) that tsc should resolve it to.
+ pub type HttpModulePaths = BTreeMap<Url, String>;
+ 
++/// Materialize local (`file:`) `.wasm` modules' generated typed declarations
++/// under `.deno/wasm/`, mirroring their path relative to the project root and
++/// renaming `foo.wasm` -> `foo.d.wasm.ts` so stock tsc resolves the relative
++/// `import "./foo.wasm"` via `allowArbitraryExtensions` + a `rootDirs` overlay
++/// (added by `build_tsconfig`). `dts_modules` pairs each wasm's `file:` URL with
++/// its already-generated declaration text (from deno_graph). Returns whether any
++/// wasm module was written (so the caller can enable the tsconfig options only
++/// when needed).
++///
++/// Unlike remote wasm (a non-relative specifier keyed into tsconfig `paths` by
++/// `install_http_modules`), a relative `./foo.wasm` specifier is never matched
++/// by `paths`; the `rootDirs` overlay is what makes tsc find the mirror.
++fn install_local_wasm_modules(
++  project_root: &Path,
++  dts_modules: &[(Url, String)],
++) -> Result<bool, AnyError> {
++  if dts_modules.is_empty() {
++    return Ok(false);
++  }
++  let wasm_root = project_root.join(".deno").join("wasm");
++  let mut wrote_any = false;
++  for (url, dts) in dts_modules {
++    let Ok(path) = url.to_file_path() else {
++      continue;
++    };
++    // Mirror the wasm file's location relative to the project root so the
++    // `rootDirs` overlay resolves it to the same relative specifier the source
++    // used. A wasm module outside the project root has no stable relative
++    // location under `.deno/wasm/`, so skip it (rare; tsc keeps its TS2307).
++    let Ok(rel) = path.strip_prefix(project_root) else {
++      continue;
++    };
++    // `foo.wasm` -> `foo.d.wasm.ts` (the extension `allowArbitraryExtensions`
++    // looks for when resolving `import "./foo.wasm"`).
++    let file_name = rel.file_name().and_then(|n| n.to_str()).unwrap_or("");
++    let stem = file_name.strip_suffix(".wasm").unwrap_or(file_name);
++    let dts_name = format!("{stem}.d.wasm.ts");
++    let dest = wasm_root.join(rel).with_file_name(dts_name);
++    if let Some(parent) = dest.parent() {
++      std::fs::create_dir_all(parent)?;
++    }
++    std::fs::write(&dest, dts.as_bytes())?;
++    wrote_any = true;
++  }
++  Ok(wrote_any)
++}
++
+ /// Materialize http(s): modules referenced from `deno.json` `imports` (and
+ /// their transitive remote/relative imports) into `.deno/remote/<host><path>`.
+ ///
+diff --git a/cli/tsc/tsconfig_gen.rs b/cli/tsc/tsconfig_gen.rs
+index 2759c06b8..0a38a4ae4 100644
+--- a/cli/tsc/tsconfig_gen.rs
++++ b/cli/tsc/tsconfig_gen.rs
+@@ -187,6 +187,7 @@ pub fn generate_tsconfig(
+   npm_project_references: &[String],
+   node_types_root: Option<&str>,
+   excludes: &[String],
++  has_local_wasm: bool,
+   manage_root_tsconfig: bool,
+ ) -> Result<GeneratedTsConfig, std::io::Error> {
+   // Write Deno type definitions to .deno/types/deno/ (private typeRoot).
+@@ -232,6 +233,7 @@ pub fn generate_tsconfig(
+     npm_project_references,
+     node_types_root,
+     excludes,
++    has_local_wasm,
+   );
+ 
+   // Write to .deno/tsconfig.json
+@@ -766,6 +768,7 @@ fn build_tsconfig(
+   npm_project_references: &[String],
+   node_types_root: Option<&str>,
+   excludes: &[String],
++  has_local_wasm: bool,
+ ) -> Value {
+   let mut compiler_options = base_compiler_options();
+ 
+@@ -877,6 +880,35 @@ fn build_tsconfig(
+     compiler_options.insert("rootDirs".to_string(), Value::Array(rebased));
+   }
+ 
++  // Local `.wasm` imports: their generated declarations were mirrored under
++  // `.deno/wasm/<rel>` (as `<name>.d.wasm.ts`). Overlay `.deno/wasm` on the
++  // project root via `rootDirs` and enable `allowArbitraryExtensions` so tsc
++  // resolves a relative `import "./foo.wasm"` (never matched by `paths`) to the
++  // mirror. `..` is the project root as seen from the generated `.deno/`
++  // tsconfig; `./wasm` is the mirror dir. Both are appended to whatever
++  // `rootDirs` the user already has (rebased above), so we don't clobber theirs.
++  if has_local_wasm {
++    compiler_options
++      .insert("allowArbitraryExtensions".to_string(), json!(true));
++    let root_dirs = match compiler_options.get_mut("rootDirs") {
++      Some(Value::Array(existing)) => existing,
++      _ => {
++        compiler_options
++          .insert("rootDirs".to_string(), Value::Array(Vec::new()));
++        match compiler_options.get_mut("rootDirs") {
++          Some(Value::Array(existing)) => existing,
++          _ => unreachable!(),
++        }
++      }
++    };
++    for entry in ["..", "./wasm"] {
++      let value = Value::String(entry.to_string());
++      if !root_dirs.contains(&value) {
++        root_dirs.push(value);
++      }
++    }
++  }
++
+   // Merge the user's `compilerOptions.types`. Bare packages that resolve via
+   // typeRoots (`deno`/`node`/`@types/*`) stay in the `types` array; entries
+   // stock tsc can't resolve there (an imported npm package, a relative path) are
+@@ -2362,6 +2394,7 @@ interface AlsoKeep {
+       &[],
+       None,
+       &[],
++      false,
+     );
+ 
+     let include = tsconfig.get("include").unwrap().as_array().unwrap();
+@@ -2388,6 +2421,7 @@ interface AlsoKeep {
+       &[],
+       None,
+       &excludes,
++      false,
+     );
+     let exclude = tsconfig.get("exclude").unwrap().as_array().unwrap();
+     // node_modules always excluded; project excludes are rebased onto `../`.
+@@ -2418,6 +2452,7 @@ interface AlsoKeep {
+       &[],
+       None,
+       &[],
++      false,
+     );
+ 
+     // Should use "files" instead of "include"/"exclude"
+@@ -2446,6 +2481,7 @@ interface AlsoKeep {
+       &references,
+       None,
+       &[],
++      false,
+     );
+ 
+     assert_eq!(
+@@ -2482,6 +2518,7 @@ interface AlsoKeep {
+       &[],
+       None,
+       &[],
++      false,
+     );
+ 
+     let paths = tsconfig
+diff --git a/tests/specs/check/wasm_multi_value/__test__.jsonc b/tests/specs/check/wasm_multi_value/__test__.jsonc
+index da765812a..25b1a7c32 100644
+--- a/tests/specs/check/wasm_multi_value/__test__.jsonc
++++ b/tests/specs/check/wasm_multi_value/__test__.jsonc
+@@ -1,8 +1,4 @@
+ {
+-  // ignored: local `.wasm` imports aren't type-materialized (only remote wasm
+-  // is), so tsc can't resolve `./x.wasm` -> spurious TS2307 instead of the real
+-  // multi-value type error. https://github.com/denoland/deno/issues/36085
+-  "ignore": true,
+   "args": "check main.ts",
+   "output": "check.out",
+   "exitCode": 1
+diff --git a/tests/specs/check/wasm_multi_value/check.out b/tests/specs/check/wasm_multi_value/check.out
+index c1c0b21d0..8b484e038 100644
+--- a/tests/specs/check/wasm_multi_value/check.out
++++ b/tests/specs/check/wasm_multi_value/check.out
+@@ -1,7 +1,7 @@
+ Check [WILDCARD]main.ts
+-TS2307 [ERROR]: Cannot find module './multi_value.wasm' or its corresponding type declarations.
+-import { add_and_sub } from "./multi_value.wasm";
+-                            ~~~~~~~~~~~~~~~~~~~~
+-    at file:///[WILDCARD]/main.ts:1:29
++TS2322 [ERROR]: Type '[number, number]' is not assignable to type 'string'.
++const result: string = add_and_sub(1, 2);
++      ~~~~~~
++    at file:///[WILDCARD]/main.ts:3:7
+ 
+ error: Type checking failed.

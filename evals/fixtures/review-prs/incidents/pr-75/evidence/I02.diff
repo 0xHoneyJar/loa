@@ -1,0 +1,20 @@
+commit a711f1c6328ca7f59857ed99e32853cf49b19a15
+Date: 2026-10-22T13:25:23+09:00
+
+fix(ssr): convert external require against built-in modules to import for `ssr.target=webworker` (#23759)
+
+diff --git a/packages/vite/src/node/plugins/resolve.ts b/packages/vite/src/node/plugins/resolve.ts
+index 29c789f684..c4048dbedb 100644
+--- a/packages/vite/src/node/plugins/resolve.ts
++++ b/packages/vite/src/node/plugins/resolve.ts
+@@ -280,6 +280,10 @@ export function oxcResolvePlugin(
+           },
+           environmentConsumer: partialEnv.config.consumer,
+           environmentName: partialEnv.name,
++          convertExternalRequire:
++            options.isBuild &&
++            partialEnv.name === 'ssr' &&
++            partialEnv.config.ssr.target === 'webworker',
+           builtins: partialEnv.config.resolve.builtins,
+           external: options.external,
+           noExternal: noExternal,

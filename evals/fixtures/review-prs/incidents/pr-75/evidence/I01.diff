@@ -1,0 +1,63 @@
+commit 0d86b3485fbbd0fcb9a1f70a14adedfcb7a1fff1
+Date: 2026-10-21T15:25:09+09:00
+
+fix(resolve): support subpath imports with multiple `#` (#23631)
+
+Co-authored-by: sapphi-red <green@sapphi.red>
+
+diff --git a/packages/vite/src/node/plugins/resolve.ts b/packages/vite/src/node/plugins/resolve.ts
+index f4eb17290f..29c789f684 100644
+--- a/packages/vite/src/node/plugins/resolve.ts
++++ b/packages/vite/src/node/plugins/resolve.ts
+@@ -501,16 +501,41 @@ export function resolveSubpathImports(
+   const basedir = path.dirname(importer)
+   const pkgData = findNearestPackageData(basedir, options.packageCache)
+   if (!pkgData) return
+-
+-  let { file: idWithoutPostfix, postfix } = splitFileAndPostfix(id.slice(1))
+-  idWithoutPostfix = '#' + idWithoutPostfix
+-
+-  let importsPath = resolveExportsOrImports(
+-    pkgData.data,
+-    idWithoutPostfix,
+-    options,
+-    'imports',
+-  )
++  // Imports keys may themselves contain `#` or `?` (e.g. `##/*`, `#a?b`).
++  // Try the full id first, then each query or hash boundary from right to left
++  // so that the longest matching key wins (#16085, #23622).
++  let importsPath: string | undefined
++  let postfix = ''
++  let fullIdError: unknown
++  for (
++    let postfixIndex = id.length;
++    postfixIndex > 0;
++    postfixIndex = Math.max(
++      id.lastIndexOf('?', postfixIndex - 1),
++      id.lastIndexOf('#', postfixIndex - 1),
++    )
++  ) {
++    const key = id.slice(0, postfixIndex)
++    try {
++      importsPath = resolveExportsOrImports(
++        pkgData.data,
++        key,
++        options,
++        'imports',
++      )
++      if (importsPath !== undefined) {
++        postfix = id.slice(postfixIndex)
++        break
++      }
++    } catch (e) {
++      if (Object.hasOwn(pkgData.data.imports, key)) throw e
++      // resolve.exports throws when no key matches; keep the full id error.
++      fullIdError ??= e
++    }
++  }
++  if (importsPath === undefined && fullIdError) {
++    throw fullIdError
++  }
+ 
+   if (importsPath?.[0] === '.') {
+     importsPath = path.relative(basedir, path.join(pkgData.dir, importsPath))

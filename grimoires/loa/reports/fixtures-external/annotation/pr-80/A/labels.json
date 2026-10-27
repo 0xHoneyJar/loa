@@ -1,0 +1,9 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "types/instance.d.ts", "anchor_lines": [133],
+            "description": "The addresses() typing declares only AddressInfo[] although the method can also return string addresses (e.g. Unix socket or pipe paths), so the type contract is wrong for those servers.",
+            "severity": "low", "category": "contract"}
+  },
+  "incidents": {}
+}

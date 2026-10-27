@@ -1,0 +1,117 @@
+{
+  "base_commit": "ae4b94d7cc35f62468297791aa4ab8c3af7377ba",
+  "files": {
+    "base": [
+      {
+        "blob": "8f43dd5a8e97189bc5535ae72c4866726086e163",
+        "path": "docs/CHANGELOG.md",
+        "sha256": "fd82add354bda50c3a4156587941351fe173a48f432280dc876a897596a08948",
+        "size": 26811
+      },
+      {
+        "blob": "7cd6615cc7e36015b33ff42d589d8011acd25fd4",
+        "path": "libexec/bats-core/bats",
+        "sha256": "791a6e8a743a177a76ce763d14437ee73d28ed2130c6cc2facdb804cab949c49",
+        "size": 17046
+      },
+      {
+        "blob": "a89176269c0762959cf35b2de3409fed63ef5eac",
+        "path": "libexec/bats-core/bats-exec-suite",
+        "sha256": "d8c3ccde89c893524b85db21e276172e5880bc6f123ad17b66ed312309b0b475",
+        "size": 10422
+      },
+      {
+        "blob": "9894b5f050169607a09ce1e15f54df4889a00bed",
+        "path": "man/bats.1",
+        "sha256": "36bb8bdd1c7e8ff3d6f67d9944e53f75c027e1b2a25c8f7f2a534b64e072dbca",
+        "size": 7993
+      },
+      {
+        "blob": "bd6a0bc7edba7ed2603482018c4f3f3aa35376d4",
+        "path": "man/bats.1.ronn",
+        "sha256": "15c5631de7f2d1ba887b10f55138f4b17cd2e58afb2652f8f02ed7e22171c5db",
+        "size": 7126
+      },
+      {
+        "blob": "7fbe8d6e630040c898f7ae226cffe34dc7a21e90",
+        "path": "test/bats.bats",
+        "sha256": "1e747f5107ede5b2d7c873ed6f7ead207f81df88e145491800e231e9bdde5f90",
+        "size": 65825
+      },
+      {
+        "blob": "125ce0175c0df29319b3ad1b7b9f5f8d32289d09",
+        "path": "test/suite.bats",
+        "sha256": "a801cd9e77ac2cfcf74802d3ef39c6e9be8c27d72f8456b4514b6fc56454480b",
+        "size": 9868
+      }
+    ],
+    "head": [
+      {
+        "blob": "675b69e9c5977aeba005d31d0901c64f9efca86c",
+        "path": "docs/CHANGELOG.md",
+        "sha256": "0f407edc7f4d52cf0d6006fba28fa50e3a0d5540cd2a461415da78261177a478",
+        "size": 27015
+      },
+      {
+        "blob": "2efadb034c3902e65acb192bd32b2d8221ae0dc7",
+        "path": "libexec/bats-core/bats",
+        "sha256": "baa9b83030b8a3b48991e724472bcc33719ef22542d8d52af0b7f4985464c73a",
+        "size": 17118
+      },
+      {
+        "blob": "19f38c38aef98d205c5099f4d60d0db223d07027",
+        "path": "libexec/bats-core/bats-exec-suite",
+        "sha256": "6c88f7e6407b809bafc82bd98287cecfb6600e5fa230e7e97617aecb9e634219",
+        "size": 10561
+      },
+      {
+        "blob": "1fd4803c82cf6e87e62d0c07f3dd8af385c97475",
+        "path": "man/bats.1",
+        "sha256": "50481026a7f5966c57f50a825aa30b983c4bdb13dde13ffc8ecc46bffa6e5ea5",
+        "size": 8143
+      },
+      {
+        "blob": "f6179b03aaded5b127abb9d643ab15476b2808c3",
+        "path": "man/bats.1.ronn",
+        "sha256": "ed9a09c3577e1299d9c30916ec6b3679e9666a6d3f24ba0c70c166f12df4909e",
+        "size": 7278
+      },
+      {
+        "blob": "3a4765b8ffa2ad156ab418cb80290400d8a303d7",
+        "path": "test/bats.bats",
+        "sha256": "ab81b13d6fd8a0e8994622d4b342790981edd453e859d8d989f3422106c26d6f",
+        "size": 67022
+      },
+      {
+        "blob": "49590529ee08ba2b7b82cc30db988820fa67d1c4",
+        "path": "test/suite.bats",
+        "sha256": "70cdfea0b070c421af20c2aa3f5a292c745b390709485382b294882d87cbe178",
+        "size": 9921
+      }
+    ]
+  },
+  "fix_commit": "62edb3cbdcf07edb4b84ffc15e1baeac4d43d015",
+  "fix_first": "62edb3cbdcf07edb4b84ffc15e1baeac4d43d015",
+  "fix_parent": "ddfefa0f62be102c63bbbdb942759782dd35305c",
+  "fixture": "pr-81",
+  "head_commit": "2dd6ab7335d0602c666c94b3e92053b20881cb63",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "0c74299786eaf4e811b75f135143e1702d847537",
+      "path": "LICENSE.md",
+      "sha256": "55074b2b3b87809105034e1468e59076554d76a80c67bcc592000cc3d929852d",
+      "size": 2535
+    }
+  ],
+  "merge_commit": "ddfefa0f62be102c63bbbdb942759782dd35305c",
+  "pr": 1240,
+  "pr_base_sha": "ae4b94d7cc35f62468297791aa4ab8c3af7377ba",
+  "pr_url": "https://github.com/bats-core/bats-core/pull/1240",
+  "schema_version": 1,
+  "scope_paths": null,
+  "skipped": [],
+  "source_url": "https://github.com/bats-core/bats-core",
+  "trees": "committed",
+  "visibility": "public"
+}

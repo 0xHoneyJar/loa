@@ -82,6 +82,14 @@ boundary_constant, groups ([[task…]…]; look j follows group j), mde (default
 or power_json (a path to power.json holding planned_final_se; relative to the registration's
 directory, else the cwd), sensitivities (optional order), arms (unused for routing here).
 
+The primary rule (loa-smol instrument repair, REPORT.md §2; grader 1.5.0 --judge-verdicts; judge-pairs.sh): when every
+valid cell of both primary arms carries grade.json recall_judged, --final reads the primary Δ — and every pair-based
+read of the final (LMM, permutation, secondaries, missingness bounds, the sensitivities) — on the judged caught set
+(the defects with a blind `describes` verdict on a credited pair, grade.json credited_pairs), primary.rule is "judged"
+and the pm3 Δ (the grader's ±3 credit on the same pairs) is printed first among the sensitivities as
+pm3_grader_credit. Otherwise the read is unchanged (pm3; no `rule` key). BARE-1 alone (session1) keeps the pm3 read:
+no per-session verdicts exist. --look is unchanged either way.
+
 Outputs (DIR/<stem>.json + DIR/<stem>.md, stem default "reads"): sorted keys, floats as %.4f,
 no timestamps, no absolute paths, the input hashes printed — byte-identical across runs.
 Degenerate inputs print a named status instead of a number: no_valid_pairs, zero_se, too_few_prs,
@@ -678,11 +686,54 @@ def co_reads(cells, reg, upto, seed):
                              "dollar_matching": dm}}
 
 
+# ---------------------------------------------------------------- the primary rule (loa-smol instrument repair)
+PM3_SENSITIVITY = "pm3_grader_credit"
+
+
+def judged_caught_ids(grade):
+    """the defects with a blind `describes` verdict on a credited pair of a grader-1.5.0 --judge-verdicts grade (its
+    credited_pairs), or None when the grade carries no numeric recall_judged"""
+    rj = (grade or {}).get("recall_judged") if isinstance(grade, dict) else None
+    if not isinstance(rj, (int, float)) or isinstance(rj, bool):
+        return None
+    return {p["defect_key"] for p in grade.get("credited_pairs") or []
+            if isinstance(p, dict) and p.get("verdict") == "describes" and p.get("blind") is True and isinstance(p.get("defect_key"), str)}
+
+
+def judged_rule_applies(cells, arms=(PRIMARY_A, PRIMARY_B)):
+    """every valid cell of both primary arms carries recall_judged (and each arm has a valid cell)"""
+    for arm in arms:
+        valid = [c for c in cells if c["arm"] == arm and c["valid"]]
+        if not valid or any(judged_caught_ids(c["grade"]) is None for c in valid):
+            return False
+    return True
+
+
+def judged_cells(cells):
+    """the cells under the judged rule: a cell whose grade carries recall_judged counts the defects with a blind
+    `describes` verdict as caught; any other cell keeps its pm3 caught set; session1 keeps the pm3 read"""
+    out = []
+    for c in cells:
+        ids = judged_caught_ids(c["grade"])
+        if ids is None:
+            out.append(c)
+            continue
+        caught = sorted(ids & set(c["defect_ids"]), key=lambda d: int(d[1:]))
+        out.append(dict(c, caught_ids=caught, caught=len(caught), statistic_source="grade.credited_pairs[describes, blind]"))
+    return out
+
+
 def final_reads(cells, inputs, reg, seed, planned_se, sens_dir=None, judge_dir=None):
     out = {}
+    rule = "judged" if judged_rule_applies(cells) else "pm3"
+    cells_pm3 = cells if rule == "judged" else None
+    if rule == "judged":
+        cells = judged_cells(cells)
     pairs, lost = common.make_pairs(cells, PRIMARY_A, PRIMARY_B)
     tasks = {p["pr"] for p in pairs}
     prim = primary_read(pairs, seed)
+    if rule == "judged":
+        prim["rule"] = rule
     groups = reg.get("groups") or []
     ran = [j for j, g in enumerate(groups, 1) if any(c["task"] in g for c in cells)]
     if groups and ran and planned_se:
@@ -718,7 +769,7 @@ def final_reads(cells, inputs, reg, seed, planned_se, sens_dir=None, judge_dir=N
     out["guard"] = guard(cells, inputs, [PRIMARY_A, PRIMARY_B])
     out["missingness"] = missingness(cells, inputs, [PRIMARY_A, PRIMARY_B, FABLE_B, REVIEW_ONLY],
                                      lambda mode: bound_pairs(cells, PRIMARY_A, PRIMARY_B, mode), seed)
-    out["sensitivities"] = sensitivities(cells, inputs, reg, seed, pairs, sens_dir, judge_dir, prim)
+    out["sensitivities"] = sensitivities(cells, inputs, reg, seed, pairs, sens_dir, judge_dir, prim, cells_pm3)
     # addendum 16 (iv): §5 reports the co-reads "beside the primary at every look and at the final" —
     # the final look covers every group
     out["co_reads"] = co_reads(cells, reg, len(groups), seed)
@@ -737,9 +788,11 @@ def _session1_all(cells, pairs, tasks):
         if all(p["matched"].get("session1") for p in pairs) and pairs else {"status": "no_session1"}
 
 
-def sensitivities(cells, inputs, reg, seed, pairs, sens_dir, judge_dir, prim):
-    order = reg.get("sensitivities") or DEFAULT_SENSITIVITIES
+def sensitivities(cells, inputs, reg, seed, pairs, sens_dir, judge_dir, prim, pm3_cells=None):
+    order = list(reg.get("sensitivities") or DEFAULT_SENSITIVITIES)
     res = {}
+    if pm3_cells is not None:   # the judged primary rule: the grader's pm3 credit is the first sensitivity
+        order = [PM3_SENSITIVITY] + [n for n in order if n != PM3_SENSITIVITY]
     judge = None
     if judge_dir:
         jp = os.path.join(judge_dir, "result.json")
@@ -808,6 +861,12 @@ def sensitivities(cells, inputs, reg, seed, pairs, sens_dir, judge_dir, prim):
                 if name == "class9_nonrepo_egress_reincluded" else reincluded_family(cells, reg, seed)
         elif name == "pr_weighted":
             res[name] = prim.get("pr_weighted") or {"status": prim.get("status")}
+        elif name == PM3_SENSITIVITY:
+            if pm3_cells is None:
+                res[name] = {"status": "not_applicable"}
+            else:
+                res[name], _ = contrast(pm3_cells, PRIMARY_A, PRIMARY_B, seed)
+                res[name]["rule"] = "pm3"
         elif name == "matched_fable_contrast":
             res[name], _ = contrast(cells, PRIMARY_A, FABLE_B, seed)
         else:
@@ -1005,7 +1064,9 @@ def render_md(doc):
         L.append(md_co_reads(doc["co_reads"]))
     if doc["mode"] == "final":
         L.append("## Pre-registered reads\n\n")
-        L.append(md_primary("primary %s − %s" % (PRIMARY_A, PRIMARY_B), doc["primary"]))
+        L.append(md_primary("primary %s − %s%s" % (PRIMARY_A, PRIMARY_B, " (rule judged: a credit needs a blind `describes` verdict; "
+                                                    "pm3 first among the sensitivities)" if doc["primary"].get("rule") == "judged" else ""),
+                            doc["primary"]))
         pw = doc["primary"].get("pr_weighted")
         if pw:
             L.append("| PR-weighted | Δ %s | 95 %% %s | 90 %% %s | | |\n" % (f4(pw["delta"]), iv(pw["ci95"]), iv(pw["ci90"])))

@@ -1,0 +1,22 @@
+{
+ "H01": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": "crates/nu-glob/src/dc_glob/compiler.rs",
+  "description": "Separator elision uses pattern_is_trailing_recursive, which is true for any suffix ending in `**`, so every `/` in multi-component patterns like `a/b/**` or absolute `{cwd}/**` (used by `ls **`) is dropped, producing wrong matches.",
+  "severity": "high",
+  "category": "logic",
+  "reason": "anchors: union — 296, 304-305 (the predicate's signature and its Recurse arm) are agreed; A adds 306-310, the Alternatives arm of the same pattern_is_trailing_recursive predicate whose truth for any `**` suffix drives the separator elision at 148; verdict, group, severity, category and description agreed",
+  "anchor_lines": [
+   148,
+   296,
+   304,
+   305,
+   306,
+   307,
+   308,
+   309,
+   310
+  ]
+ }
+}

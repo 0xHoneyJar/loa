@@ -66,6 +66,7 @@ MODEL_AVAILABILITY = {
     "opus_5_5": {"model": "claude-opus-5-5", "catalog_date": "2026-10-05", "cutoff": None},
 }
 RETRIEVAL = "public-repository"
+RETRIEVAL_PRIVATE = "private-repository"
 
 def head_date(commit):
     """The head commit's committer date, UTC, YYYY-MM-DD."""
@@ -83,12 +84,14 @@ def exposure_values(commit):
     opus = "unverified" if oc is None else ("post-cutoff" if d[:7] > oc else "pre-cutoff")
     return d, fable, opus
 
-def exposure_block(commit):
+def exposure_block(commit, retrieval=RETRIEVAL):
+    """retrieval: public-repository (the default; the record seeder and public external sources) or
+    private-repository (seed-corpus-from-external.sh --private-source: the head was never retrievable)"""
     d, fable, opus = exposure_values(commit)
     return ("exposure:\n"
             f"  fable_5_1: {fable}      # knowledge cutoff {MODEL_AVAILABILITY['fable_5_1']['knowledge_cutoff']}; head committed {d} (UTC)\n"
             f"  opus_5_5: {opus}        # vendor cutoff not published; the catalog date {MODEL_AVAILABILITY['opus_5_5']['catalog_date']} is an upper bound only\n"
-            f"  retrieval: {RETRIEVAL}\n"
+            f"  retrieval: {retrieval}\n"
             f'contamination_note: "fix commits on main since {d}; sandbox has network; egress scanned (grader class 9)"\n')
 
 def stamp_exposure(fx):

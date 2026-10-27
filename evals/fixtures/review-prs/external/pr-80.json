@@ -1,0 +1,87 @@
+{
+  "base_commit": "e61a91e73bed771396d8ae7365b5d3ca2501e624",
+  "files": {
+    "base": [
+      {
+        "blob": "cabafbf33747264c5a0b1876be374b8a75c81665",
+        "path": "docs/Reference/Hooks.md",
+        "sha256": "98a1ee68e44aec6463892f70232f581479500347bd7c5a9f2960e87ad2f0c497",
+        "size": 29342
+      },
+      {
+        "blob": "ce4fbf99c34514e7d1a5d1a78735509deb7f060c",
+        "path": "fastify.js",
+        "sha256": "5add794a377ebe58962363b1ca59ade93e404ba3b82ef37fc7434ddeb993af53",
+        "size": 34137
+      },
+      {
+        "blob": "5c5869d358ed4d24811f669431919548f6a54d6a",
+        "path": "test/types/using.tst.ts",
+        "sha256": "c87dedd6dfb22a54ef337af79a8c3997b22f1b521d679647c27ee2262d09e26d",
+        "size": 536
+      },
+      {
+        "blob": "b0b31f7fb4662f4776db062802b954d320d719d0",
+        "path": "types/instance.d.ts",
+        "sha256": "ed88904685c88c8b3afc0dfd977187ac5ed144ff0933089ea16a3e7e8ead32a5",
+        "size": 37480
+      }
+    ],
+    "head": [
+      {
+        "blob": "35be49cccca3af50f958b7a6fa2d2a3dd6673fe2",
+        "path": "docs/Reference/Hooks.md",
+        "sha256": "4e5a38e55bd9cf342bcff3b844ad3c4ba91d3a613b36c4a624348400270d6305",
+        "size": 29801
+      },
+      {
+        "blob": "a059348176cab1b9fe0c401ab4cb9cb725810727",
+        "path": "fastify.js",
+        "sha256": "03cd666ed5de5213b051161ce6786b9a9affb46d844f57abebbfda9b1c159c06",
+        "size": 34848
+      },
+      {
+        "blob": "83938aba3c2ef1e401aa48f5de0994701b61a3ac",
+        "path": "test/close-disposable.test.js",
+        "sha256": "6ce76dc63bbae82bf53089a15c5b111bcfbda4ef2b9117d694e2c99a135b9509",
+        "size": 3310
+      },
+      {
+        "blob": "e9eaf9d0a653c6814e05d1ccab451f6b0b8f54a6",
+        "path": "test/types/using.tst.ts",
+        "sha256": "f09cc22e0b3d4cc43e199d33bd1e80e4a9c90308fc1605f4a0a07bac8f4b0cf2",
+        "size": 1047
+      },
+      {
+        "blob": "4820dff272d304bef1f9c6b3dd58ce122943f5a7",
+        "path": "types/instance.d.ts",
+        "sha256": "7fbe749094ccacc20a3f8fdbf43e0b076875b1cb90d0b7da032012fad4990b38",
+        "size": 37629
+      }
+    ]
+  },
+  "fix_commit": "ce41dc0fbb4ed75e9a42f3972ac896333f6a7396",
+  "fix_first": "ce41dc0fbb4ed75e9a42f3972ac896333f6a7396",
+  "fix_parent": "5d4c23352d90c2474bfaf1a0d530c86b699cb795",
+  "fixture": "pr-80",
+  "head_commit": "7491d921a5e8c62ca2a6f9eb82b5e9c9ce7c50b4",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "266e719722c4d45a9d6282e5ca9e8a77b2b67f8c",
+      "path": "LICENSE",
+      "sha256": "23c91863859171455a536380991b4160fee4e19e2d8dc353ecf7143cc4e53ca2",
+      "size": 1123
+    }
+  ],
+  "merge_commit": "5d4c23352d90c2474bfaf1a0d530c86b699cb795",
+  "pr": 7121,
+  "pr_base_sha": "e61a91e73bed771396d8ae7365b5d3ca2501e624",
+  "pr_url": "https://github.com/fastify/fastify/pull/7121",
+  "schema_version": 1,
+  "scope_paths": null,
+  "skipped": [],
+  "source_url": "https://github.com/fastify/fastify",
+  "trees": "committed",
+  "visibility": "public"
+}

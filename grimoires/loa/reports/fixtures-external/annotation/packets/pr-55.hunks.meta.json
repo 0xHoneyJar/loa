@@ -1,0 +1,151 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-55",
+  "hunk_count": 17,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/__tests__/build.spec.ts",
+      "head_end": 115,
+      "head_start": 115,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/__tests__/build.spec.ts",
+      "head_end": 1391,
+      "head_start": 1391,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H03": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/css.ts",
+      "head_end": 41,
+      "head_start": 41,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H04": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/css.ts",
+      "head_end": 75,
+      "head_start": 75,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H05": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/css.ts",
+      "head_end": 89,
+      "head_start": 89,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H06": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/css.ts",
+      "head_end": 397,
+      "head_start": 397,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H07": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/css.ts",
+      "head_end": 1448,
+      "head_start": 1448,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H08": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "head_end": 7,
+      "head_start": 7,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H09": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "head_end": 11,
+      "head_start": 11,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H10": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "head_end": 29,
+      "head_start": 29,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H11": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "head_end": 318,
+      "head_start": 315,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H12": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "head_end": 332,
+      "head_start": 332,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H13": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "head_end": 340,
+      "head_start": 340,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H14": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "head_end": 389,
+      "head_start": 389,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H15": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "head_end": 407,
+      "head_start": 407,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H16": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "head_end": 484,
+      "head_start": 484,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H17": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/importAnalysisBuild.ts",
+      "head_end": 531,
+      "head_start": 495,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [
+    "I01",
+    "I02"
+  ],
+  "incidents": "incidents/pr-55.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

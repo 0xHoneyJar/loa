@@ -1,0 +1,4 @@
+{
+ "H01": {"base": "A", "verdict": "defect", "group": "D1", "anchors": "union", "severity": "medium", "category": "error-handling", "reason": "agreed defect, group, severity, category and description; anchors differ by line 409 (A: the dereference that crashes): union"},
+ "I02": {"base": "B", "verdict": "defect-at-head", "group": "D2", "anchors": "union", "severity": "medium", "category": "logic", "reason": "agreed defect-at-head, group and severity (preload dependencies left out of the chunk hash, so a hash can stay the same while the chunk's preload keys change — the pr-55 D1 defect seen from this fixture's file); both left category null, an incident-only defect needs one: logic (pr-55 I02 precedent); anchors: union — A could not fix the exact lines and took the hashing block 405-412, B the three lines where the import-map keys are selected; the union keeps every head line either annotator tied to the behaviour"}
+}

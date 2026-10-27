@@ -349,3 +349,27 @@ teardown() {
   run "$VS" --root "$R" --allow-partial --suite-file "$SUITE"
   [ "$status" -eq 1 ]; grep -q 'schema: review_catch.k is not a known key' <<<"$output"
 }
+
+@test "VS-TS-1 runtime (the grader-side node_modules): null or {node_modules: /abs/…/node_modules, image: <ref>} on a build task validates; a relative or misnamed path, a ':' in it, an unknown key, a non-mapping, a bad image and the key on a review-catch task are each one violation" {
+  make_task "$R" tasks bug-fix-01 bug-fix
+  make_task "$R" tasks review-catch-01 review-catch
+  local ty="$R/tasks/bug-fix-01/task.yaml" rty="$R/tasks/review-catch-01/task.yaml"
+  yq -i '.runtime = null' "$ty"
+  run "$VS" --root "$R" --allow-partial; [ "$status" -eq 0 ]
+  yq -i '.runtime = {"node_modules": "/srv/checkout/node_modules", "image": "loa-ablation:node-dev"}' "$ty"
+  run "$VS" --root "$R" --allow-partial; [ "$status" -eq 0 ]
+  yq -i '.runtime = {"node_modules": "/srv/checkout/node_modules/"}' "$ty"
+  run "$VS" --root "$R" --allow-partial; [ "$status" -eq 0 ]
+  for v in '{"node_modules": "checkout/node_modules"}' '{"node_modules": "/srv/checkout/deps"}' '{"node_modules": "/srv/a:b/node_modules"}' \
+           '{"node_modules": "/srv/../x/node_modules"}' '{"node_modules": "/srv/node_modules", "foo": 1}' '7' '{"image": "bad image"}' '{"image": 3}'; do
+    V="$v" yq -i '.runtime = (strenv(V) | fromjson)' "$ty"
+    run "$VS" --root "$R" --allow-partial
+    [ "$status" -eq 1 ] || { echo "$v: $status $output"; false; }
+    [ "$(grep -c '^tasks/bug-fix-01: schema: runtime' <<<"$output")" -eq 1 ] || { echo "$v: $output"; false; }
+  done
+  yq -i '.runtime = null' "$ty"
+  yq -i '.runtime = {"node_modules": "/srv/checkout/node_modules"}' "$rty"
+  run "$VS" --root "$R" --allow-partial
+  [ "$status" -eq 1 ]
+  grep -q '^tasks/review-catch-01: schema: runtime applies to build types only$' <<<"$output"
+}

@@ -1,0 +1,17 @@
+{
+ "H02": {
+  "verdict": "defect",
+  "group": "D1",
+  "file": "packages/vite/src/node/server/middlewares/indexHtml.ts",
+  "description": "The fallback HTML page has no <meta charset> declaration, so browsers may decode the inlined non-ASCII HMR runtime with a legacy encoding and corrupt the inline module script.",
+  "severity": "medium",
+  "category": "logic",
+  "reason": "agreed defect, group, severity, category and description (the fallback page carries no <meta charset>); anchors differ by line 572 (A): union",
+  "anchor_lines": [
+   571,
+   572,
+   573,
+   574
+  ]
+ }
+}

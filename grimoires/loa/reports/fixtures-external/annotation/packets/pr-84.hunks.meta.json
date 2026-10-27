@@ -1,0 +1,20 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-84",
+  "hunk_count": 1,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "crates/biome_js_syntax/src/parentheses/expression.rs",
+      "head_end": 960,
+      "head_start": 960,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [],
+  "incidents": "incidents/pr-84.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

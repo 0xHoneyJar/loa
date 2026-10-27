@@ -1,0 +1,93 @@
+{
+  "base_commit": "a9222e780251ab3d04e027ea3a6c56c5bbff3c3b",
+  "files": {
+    "base": [
+      {
+        "blob": "5d9c11b92435c26cae170a660941f2ec69592036",
+        "path": "packages/vite/src/node/plugins/resolve.ts",
+        "sha256": "401f6fa84c7040d618c7e3dd91f66bc91221ed84fb33f6499593f6557f6351fb",
+        "size": 37438
+      },
+      {
+        "blob": "2aaa27c5e91e8853f6ff931d5893c201e7174a7a",
+        "path": "packages/vite/src/node/server/__tests__/moduleUrl.spec.ts",
+        "sha256": "8d5250f293ea809f20c48232b8fa9b3422ef30e4110401d5afc489cf36bb5f3b",
+        "size": 3284
+      },
+      {
+        "blob": "c433aa6ebc2b0a35b1e656817d276f1f5b1d1287",
+        "path": "packages/vite/src/node/server/middlewares/indexHtml.ts",
+        "sha256": "1510600475eee42582b52491a79f050c0168c8e271c4cb513fbb9d3011b6383d",
+        "size": 18628
+      },
+      {
+        "blob": "e3ff4628ae91a7144547fa0db51f7a0d9898042f",
+        "path": "packages/vite/src/node/server/middlewares/transform.ts",
+        "sha256": "39a6e059f2d51dbc0f6d401b2bab7cfff9716ab42e512ff722bf01a0d38f57df",
+        "size": 13469
+      },
+      {
+        "blob": "428fedeefa76180550fa332d232b263d8ce62e43",
+        "path": "packages/vite/src/node/server/moduleUrl.ts",
+        "sha256": "54beed711306ca0694db1f9033113cdd8ea156b6d396d7ad582a96669d4b5ac9",
+        "size": 2042
+      }
+    ],
+    "head": [
+      {
+        "blob": "f4eb17290f82571a15643410f351bbf2ddbcd5a8",
+        "path": "packages/vite/src/node/plugins/resolve.ts",
+        "sha256": "d84bc9ba6cb7772d731d6e7dee8cf8f446dfa66ecc036c159b2559508867ffdd",
+        "size": 37334
+      },
+      {
+        "blob": "fab0f69fa9f956f845cb749b6d6a216221cb5b7f",
+        "path": "packages/vite/src/node/server/__tests__/moduleUrl.spec.ts",
+        "sha256": "efcb7575ad805caca87ba83ea1dcd50b3c14e16e09d638bc4a7cb187286d7efe",
+        "size": 4064
+      },
+      {
+        "blob": "f1fcda84beae7cfbafe95e808b8df85d85df391c",
+        "path": "packages/vite/src/node/server/middlewares/indexHtml.ts",
+        "sha256": "424d463bc8172b63a370156ec674915520525ea0abdcc7258485e6ce9143dca1",
+        "size": 18468
+      },
+      {
+        "blob": "78c492073b2a59a387caea9e8db263a203cace25",
+        "path": "packages/vite/src/node/server/middlewares/transform.ts",
+        "sha256": "50b691d57c3ecdd3da9982d72c7e65f4f6e034ac48b98c5c7aa6d54b6824b399",
+        "size": 13402
+      },
+      {
+        "blob": "e71c57a81f24c48c74927db870dfbdcf245c9411",
+        "path": "packages/vite/src/node/server/moduleUrl.ts",
+        "sha256": "4636dbdde4724e9e89e5d162e28f118adf2b6510e1fa7941bae8bda5b4d06896",
+        "size": 2277
+      }
+    ]
+  },
+  "fix_commit": "197daf6c4c7bfdaa005bebcc41dd2ff22fa3a5b6",
+  "fix_first": "197daf6c4c7bfdaa005bebcc41dd2ff22fa3a5b6",
+  "fix_parent": "0075c4bdd8d2cd731a839411cf36cf9f8d754a8a",
+  "fixture": "pr-75",
+  "head_commit": "42af28ed6ade7b68b5e72908366219b843f52e78",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "b7e97ecb6aa4dd70b3e3a637afa2ae16feb7cd12",
+      "path": "LICENSE",
+      "sha256": "692057af3d664cbb79ac38293eb50aa3c4987f8182e2a440136e59e08f1b4a54",
+      "size": 1101
+    }
+  ],
+  "merge_commit": "df7b40ee9d691e9f4e2413244f6665ef5482dce3",
+  "pr": 23828,
+  "pr_base_sha": "a9222e780251ab3d04e027ea3a6c56c5bbff3c3b",
+  "pr_url": "https://github.com/vitejs/vite/pull/23828",
+  "schema_version": 1,
+  "scope_paths": null,
+  "skipped": [],
+  "source_url": "https://github.com/vitejs/vite",
+  "trees": "committed",
+  "visibility": "public"
+}

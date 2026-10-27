@@ -1,0 +1,103 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-74",
+  "hunk_count": 11,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/css.ts",
+      "head_end": 75,
+      "head_start": 75,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/css.ts",
+      "head_end": 397,
+      "head_start": 397,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H03": {
+      "cited_by": [],
+      "file": "playground/css/__tests__/tests.ts",
+      "head_end": 3,
+      "head_start": 3,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H04": {
+      "cited_by": [],
+      "file": "playground/css/__tests__/tests.ts",
+      "head_end": 11,
+      "head_start": 11,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H05": {
+      "cited_by": [],
+      "file": "playground/css/__tests__/tests.ts",
+      "head_end": 18,
+      "head_start": 18,
+      "insertion": true,
+      "review_driven": false
+    },
+    "H06": {
+      "cited_by": [],
+      "file": "playground/css/__tests__/tests.ts",
+      "head_end": 42,
+      "head_start": 36,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H07": {
+      "cited_by": [],
+      "file": "playground/css/__tests__/tests.ts",
+      "head_end": 61,
+      "head_start": 59,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H08": {
+      "cited_by": [],
+      "file": "playground/css/__tests__/tests.ts",
+      "head_end": 83,
+      "head_start": 81,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H09": {
+      "cited_by": [],
+      "file": "playground/css/__tests__/tests.ts",
+      "head_end": 423,
+      "head_start": 417,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H10": {
+      "cited_by": [],
+      "file": "playground/css/__tests__/tests.ts",
+      "head_end": 433,
+      "head_start": 431,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H11": {
+      "cited_by": [],
+      "file": "playground/css/__tests__/tests.ts",
+      "head_end": 441,
+      "head_start": 440,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [
+    "I01",
+    "I02"
+  ],
+  "incidents": "incidents/pr-74.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

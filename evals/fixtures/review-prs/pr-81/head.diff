@@ -1,0 +1,143 @@
+diff --git a/docs/CHANGELOG.md b/docs/CHANGELOG.md
+index 8f43dd5..675b69e 100644
+--- a/docs/CHANGELOG.md
++++ b/docs/CHANGELOG.md
+@@ -11,6 +11,10 @@ The format is based on [Keep a Changelog][kac] and this project adheres to
+ 
+ ## [Unreleased]
+ 
++### Added
++
++* `$BATS_ALLOW_EMPTY_SUITE` environment variable as an alternative to `--allow-empty-suite`, which keeps test setups compatible with Bats versions before 1.14 that don't know the flag (#1240)
++
+ ### Fixed
+ 
+ * pretty formatter was not the default on interactive shells anymore (#1220)
+diff --git a/libexec/bats-core/bats b/libexec/bats-core/bats
+index 7cd6615..2efadb0 100755
+--- a/libexec/bats-core/bats
++++ b/libexec/bats-core/bats
+@@ -36,6 +36,7 @@ HELP_TEXT_HEADER
+ 
+   --abort                   Stop execution of suite on first failed test
+   --allow-empty-suite       Exit with code 0 (instead of the default code 1) when no tests are found.
++                            Can also be set via $BATS_ALLOW_EMPTY_SUITE
+   -c, --count               Count test cases without running any tests
+   --code-quote-style <style>
+                             A two character string of code quote delimiters
+diff --git a/libexec/bats-core/bats-exec-suite b/libexec/bats-core/bats-exec-suite
+index a891762..19f38c3 100755
+--- a/libexec/bats-core/bats-exec-suite
++++ b/libexec/bats-core/bats-exec-suite
+@@ -15,7 +15,11 @@ flags=('--dummy-flag') # add a dummy flag to prevent unset variable errors on em
+ setup_suite_file=''
+ BATS_TRACE_LEVEL="${BATS_TRACE_LEVEL:-0}"
+ BATS_SHOW_OUTPUT_OF_SUCCEEDING_TESTS=
+-BATS_EMPTY_SUITE_STATUS=1
++if [[ -n "${BATS_ALLOW_EMPTY_SUITE:-}" ]]; then
++  BATS_EMPTY_SUITE_STATUS=0
++else
++  BATS_EMPTY_SUITE_STATUS=1
++fi
+ 
+ abort() {
+   printf 'Error: %s\n' "$1" >&2
+@@ -193,7 +197,7 @@ printf '1..%d\n' "${test_count}"
+ if [[ "${test_count}" == 0 ]]; then
+   bats_exec_suite_status=$BATS_EMPTY_SUITE_STATUS
+   if (( bats_exec_suite_status != 0)); then
+-    printf "ERROR: Found no tests. (Try \`--allow-empty-suite\`?)" >&2
++    printf "ERROR: Found no tests. Use \`--allow-empty-suite\` or \`BATS_ALLOW_EMPTY_SUITE=1\` to suppress this error." >&2
+   fi
+   bats_exit_suite
+ fi
+diff --git a/man/bats.1 b/man/bats.1
+index 9894b5f..1fd4803 100644
+--- a/man/bats.1
++++ b/man/bats.1
+@@ -42,7 +42,7 @@ An empty tag list matches tests without tags\.
+ .IP "\(bu" 4
+ \fB\-\-abort\fR: Stop execution of suite on first failed test
+ .IP "\(bu" 4
+-\fB\-\-allow\-empty\-suite\fR: Exit with code 0 (instead of the default code 1) when no tests are found\.
++\fB\-\-allow\-empty\-suite\fR: Exit with code 0 (instead of the default code 1) when no tests are found\. Can also be set via \fB$BATS_ALLOW_EMPTY_SUITE\fR (to any non\-empty value), which keeps compatibility with Bats versions that don't know this flag\.
+ .IP "\(bu" 4
+ \fB\-c\fR, \fB\-\-count\fR: Count the number of test cases without running any tests
+ .IP "\(bu" 4
+diff --git a/man/bats.1.ronn b/man/bats.1.ronn
+index bd6a0bc..f6179b0 100644
+--- a/man/bats.1.ronn
++++ b/man/bats.1.ronn
+@@ -80,6 +80,8 @@ OPTIONS
+     Stop execution of suite on first failed test
+   * `--allow-empty-suite`:
+     Exit with code 0 (instead of the default code 1) when no tests are found.
++    Can also be set via `$BATS_ALLOW_EMPTY_SUITE` (to any non-empty value),
++    which keeps compatibility with Bats versions that don't know this flag.
+   * `-c`, `--count`:
+     Count the number of test cases without running any tests
+   * `--code-quote-style <style>`:
+diff --git a/test/bats.bats b/test/bats.bats
+index 7fbe8d6..3a4765b 100755
+--- a/test/bats.bats
++++ b/test/bats.bats
+@@ -47,7 +47,7 @@ setup() {
+   [ "${lines[0]}" = "1..0" ]
+   [ "${#lines[@]}" -eq 1 ]
+ 
+-  [ "${stderr_lines[0]}" = "ERROR: Found no tests. (Try \`--allow-empty-suite\`?)" ]
++  [ "${stderr_lines[0]}" = "ERROR: Found no tests. Use \`--allow-empty-suite\` or \`BATS_ALLOW_EMPTY_SUITE=1\` to suppress this error." ]
+   [ "${#stderr_lines[@]}" -eq 1 ]
+ }
+ 
+@@ -1696,6 +1696,37 @@ END_OF_ERR_MSG
+   reentrant_run -0 bats --allow-empty-suite "$FIXTURE_ROOT/passing.bats"
+ }
+ 
++@test "--allow-empty-suite exits successfully on empty suite" {
++  bats_require_minimum_version 1.5.0
++  reentrant_run --separate-stderr -0 bats --allow-empty-suite "$FIXTURE_ROOT/empty.bats"
++
++  [ "${lines[0]}" = "1..0" ]
++  [ "${#lines[@]}" -eq 1 ]
++  [ "${#stderr_lines[@]}" -eq 0 ]
++}
++
++@test "BATS_ALLOW_EMPTY_SUITE exits successfully on empty suite" {
++  bats_require_minimum_version 1.5.0
++  reentrant_run --separate-stderr -0 env BATS_ALLOW_EMPTY_SUITE=1 bats "$FIXTURE_ROOT/empty.bats"
++
++  [ "${lines[0]}" = "1..0" ]
++  [ "${#lines[@]}" -eq 1 ]
++  [ "${#stderr_lines[@]}" -eq 0 ]
++}
++
++@test "empty BATS_ALLOW_EMPTY_SUITE does not allow an empty suite" {
++  bats_require_minimum_version 1.5.0
++  reentrant_run --separate-stderr -1 env BATS_ALLOW_EMPTY_SUITE= bats "$FIXTURE_ROOT/empty.bats"
++
++  [ "${lines[0]}" = "1..0" ]
++  [ "${stderr_lines[0]}" = "ERROR: Found no tests. Use \`--allow-empty-suite\` or \`BATS_ALLOW_EMPTY_SUITE=1\` to suppress this error." ]
++}
++
++@test "BATS_ALLOW_EMPTY_SUITE does not fail when there are tests" {
++  bats_require_minimum_version 1.5.0
++  reentrant_run -0 env BATS_ALLOW_EMPTY_SUITE=1 bats "$FIXTURE_ROOT/passing.bats"
++}
++
+ @test "empty testfile path is an error" {
+   bats_require_minimum_version 1.5.0
+ 
+diff --git a/test/suite.bats b/test/suite.bats
+index 125ce01..4959052 100755
+--- a/test/suite.bats
++++ b/test/suite.bats
+@@ -9,7 +9,7 @@ setup() {
+   reentrant_run --separate-stderr -1 bats "$FIXTURE_ROOT/empty"
+   [ "$output" = "1..0" ]
+   # shellcheck disable=SC2154
+-  [ "$stderr" = "ERROR: Found no tests. (Try \`--allow-empty-suite\`?)" ]
++  [ "$stderr" = "ERROR: Found no tests. Use \`--allow-empty-suite\` or \`BATS_ALLOW_EMPTY_SUITE=1\` to suppress this error." ]
+ }
+ 
+ @test "running a suite with one test file" {

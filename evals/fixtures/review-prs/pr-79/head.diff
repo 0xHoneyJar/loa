@@ -1,0 +1,58 @@
+diff --git a/test/types/fastify.tst.ts b/test/types/fastify.tst.ts
+index 6cdd9ae5..89f6988d 100644
+--- a/test/types/fastify.tst.ts
++++ b/test/types/fastify.tst.ts
+@@ -3,6 +3,7 @@ import * as http from 'node:http'
+ import * as http2 from 'node:http2'
+ import * as https from 'node:https'
+ import { Socket } from 'node:net'
++import pino from 'pino'
+ import { expect } from 'tstyche'
+ import fastify, {
+   ConnectionError,
+@@ -180,6 +181,10 @@ const customLogger = {
+   debug: () => { },
+   child: () => customLogger
+ }
++const pinoLogger = pino()
++const pinoLoggerServer: FastifyInstance = fastify({ loggerInstance: pinoLogger })
++
++expect(pinoLoggerServer).type.toBeAssignableTo<FastifyInstance>()
+ expect(fastify({ logger: customLogger })).type.toBeAssignableTo<
+   FastifyInstance<http.Server, http.IncomingMessage, http.ServerResponse, FastifyBaseLogger>
+ >()
+diff --git a/types/instance.d.ts b/types/instance.d.ts
+index 777f84cd..b0b31f7f 100644
+--- a/types/instance.d.ts
++++ b/types/instance.d.ts
+@@ -579,7 +579,7 @@ export interface FastifyInstance<
+    * which allows for modifying or adding child logger bindings and logger options, or
+    * returning a completely custom child logger implementation.
+    */
+-  childLoggerFactory: FastifyChildLoggerFactory<RawServer, RawRequest, RawReply, Logger, TypeProvider>;
++  childLoggerFactory: FastifyChildLoggerFactory<RawServer, RawRequest, RawReply, FastifyBaseLogger, TypeProvider>;
+ 
+   /**
+    * Hook function that is called when creating a child logger instance for each request
+@@ -598,7 +598,7 @@ export interface FastifyInstance<
+    * }
+    * ```
+    */
+-  setChildLoggerFactory(factory: FastifyChildLoggerFactory<RawServer, RawRequest, RawReply, Logger,
++  setChildLoggerFactory(factory: FastifyChildLoggerFactory<RawServer, RawRequest, RawReply, FastifyBaseLogger,
+     TypeProvider>): FastifyInstance<RawServer, RawRequest, RawReply, Logger, TypeProvider>;
+ 
+   /**
+diff --git a/types/route.d.ts b/types/route.d.ts
+index dce4cff2..239bf763 100644
+--- a/types/route.d.ts
++++ b/types/route.d.ts
+@@ -78,7 +78,7 @@ export interface RouteShorthandOptions<
+     reply: FastifyReply<RouteGeneric, RawServer, RawRequest, RawReply, ContextConfig, NoInfer<SchemaCompiler>,
+       TypeProvider>
+   ) => void;
+-  childLoggerFactory?: FastifyChildLoggerFactory<RawServer, RawRequest, RawReply, Logger, TypeProvider>;
++  childLoggerFactory?: FastifyChildLoggerFactory<RawServer, RawRequest, RawReply, FastifyBaseLogger, TypeProvider>;
+   schemaErrorFormatter?: SchemaErrorFormatter;
+ 
+   // hooks

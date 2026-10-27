@@ -1,0 +1,7 @@
+# approved-by: deep-name 2026-10-26
+# fixture pr-56 | external https://github.com/vitejs/vite pull request #23667 | base 12bb28c22379 | head 65086ddbd28b | fix a7d56967ef00..a7d56967ef00
+# seeded by evals/harness/seed-corpus-from-external.sh; defects V01 … from the blind annotation (two Opus 5.5 annotators, annotation_merge.py; label_source fix-commit, review_driven false), fix rows carried; approval pending
+defect_id	severity	category	file	must_match	label_source	source	annotators	agreement	adjudication	review_driven
+V01	low	logic	packages/vite/src/node/optimizer/index.ts	@L1270	fix-commit	hunk:H01	A,B	agreed	-	false
+V02	low	logic	packages/vite/src/node/optimizer/index.ts	@L1310	incident	incident:I01	A,B	adjudicated	agreed defect-at-head (both annotators, severity low, group D2); both inferred the line from the fix diff's numbering (A 1299, B 1297) — at head the yarn.lock fallback entry's checkPatchesDir is optimizer/index.ts:1310; category logic (an incident-only defect needs one)	false
+F001	-	fix	packages/vite/src/node/optimizer/index.ts	-	fix	fix/a7d56967ef00:1270-1270	-	-	-	-

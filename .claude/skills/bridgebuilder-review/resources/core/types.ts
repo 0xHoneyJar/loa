@@ -59,7 +59,7 @@ export interface CoverageRecord {
    * checkout because the base read failed (`base_unavailable`: the review degrades as `reviewignore_unavailable`,
    * review round 1), or nowhere.
    */
-  reviewignore_source?: "base" | "checkout" | "base_unavailable" | "none";
+  reviewignore_source?: ReviewignoreSource;
   /** cycle-135 C-2: the PR's file list contains `.reviewignore` (the file itself is protected and reviewed). */
   reviewignore_changed_in_pr?: boolean;
 }
@@ -325,6 +325,24 @@ export interface RunSummary {
   results: ReviewResult[];
 }
 
+/** cycle-135 C-2 (DEC-1027) / cycle-136 Task 1.0: where the applied `.reviewignore` was read from. */
+export type ReviewignoreSource = "base" | "checkout" | "base_unavailable" | "none";
+
+/**
+ * cycle-136 Task 1.0 (DEC-1069, DEC-1070): the selection's configuration — the `BridgebuilderConfig` keys `truncateFiles`
+ * reads plus the `.reviewignore` provenance inputs (moved here from paged-fetch.ts so the two modules share one type).
+ */
+export type SelectionConfig = Pick<
+  BridgebuilderConfig,
+  | "excludePatterns" | "maxDiffBytes" | "maxFilesPerPr" | "loaAware" | "repoRoot" | "selfReview"
+  | "protectedPaths" | "fetchMissingPatches" | "maxContentFetches"
+> & {
+  /** cycle-135 C-2 (DEC-1027): read `.reviewignore` at this PR base sha (undefined: the checkout copy). */
+  reviewignoreBaseSha?: string;
+  /** cycle-136 C-2 (DEC-1069, D-2.5): the base `.reviewignore` already resolved by paged-fetch (contents API); wins over the sha read. */
+  reviewignoreBase?: { patterns: string[]; source: "base" | "none" };
+};
+
 export interface TruncationResult {
   included: PullRequestFile[];
   /** cycle-135 C-2 (review round 1): `pattern` is the default or user pattern that excluded the file, when one did. */
@@ -332,6 +350,8 @@ export interface TruncationResult {
   totalBytes: number;
   /** cycle-135 C-2: protected files kept although a wildcard user exclusion matched them (the first matching wildcard). */
   protectedKept?: Array<{ file: string; pattern: string }>;
+  /** cycle-135 C-2 / cycle-136 Task 1.0 (DEC-1070): where the applied `.reviewignore` came from; undefined when it was not consulted. */
+  reviewignoreSource?: ReviewignoreSource;
   /** True when all files were excluded by Loa filtering (no app files remain). */
   allExcluded?: boolean;
   /** Banner string when Loa files were excluded. */

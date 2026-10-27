@@ -1,0 +1,15 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "lib/reply.js", "anchor_lines": [283, 285, 288],
+            "description": "When set-cookie is first set with an array, head stores the caller's array by reference, so later set-cookie calls push into (mutate) the caller's array, making a shared/module-level array grow and leak cookies across requests.",
+            "severity": "high", "category": "logic"},
+    "H03": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "test/internals/reply.test.js", "anchor_lines": [],
+            "description": "Adds a regression test that a caller's set-cookie array is not mutated.", "severity": null, "category": null}
+  },
+  "incidents": {
+    "I01": {"verdict": "not-at-head", "group": null, "file": "lib/reply.js",
+            "anchor_lines": [], "description": "Stream trailer timing fix in sendStream is unrelated to the set-cookie header behaviour of this change; nothing shown ties it to the head code under review.", "severity": null}
+  }
+}

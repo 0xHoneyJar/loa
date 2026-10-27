@@ -1,0 +1,45 @@
+{
+ "context": 12,
+ "feedback_files": [],
+ "fix_regions_only": {
+  "removed": [
+   "H03",
+   "H04",
+   "H05",
+   "H06",
+   "H07",
+   "H08",
+   "H09",
+   "H10",
+   "H11"
+  ],
+  "rule": "hunks not overlapping a seeder fix region (\u00b13 head lines) removed before annotation; full packet in annotation/packets-full/"
+ },
+ "fixture": "pr-74",
+ "hunk_count": 2,
+ "hunks": {
+  "H01": {
+   "cited_by": [],
+   "file": "packages/vite/src/node/plugins/css.ts",
+   "head_end": 75,
+   "head_start": 75,
+   "insertion": true,
+   "review_driven": false
+  },
+  "H02": {
+   "cited_by": [],
+   "file": "packages/vite/src/node/plugins/css.ts",
+   "head_end": 397,
+   "head_start": 397,
+   "insertion": false,
+   "review_driven": false
+  }
+ },
+ "incident_ids": [
+  "I01",
+  "I02"
+ ],
+ "incidents": "incidents/pr-74.tsv",
+ "record_ref": null,
+ "review_driven_count": 0
+}

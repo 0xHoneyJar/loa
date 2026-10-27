@@ -1,0 +1,5 @@
+{
+ "I01": {"base": "A", "verdict": "defect-at-head", "group": "D2", "anchors": [1310], "severity": "low", "category": "logic",
+         "description": "The yarn.lock fallback lockfile entry checks '.yarn/patches' even though yarn records patches in the lockfile, so the optimizer hash depends on an unrelated directory and can invalidate the cache when nothing changed.",
+         "reason": "agreed defect-at-head (both annotators, severity low, group D2); both inferred the line from the fix diff's numbering (A 1299, B 1297) — at head the yarn.lock fallback entry's checkPatchesDir is optimizer/index.ts:1310; category logic (an incident-only defect needs one)"}
+}

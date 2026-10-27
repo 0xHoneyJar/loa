@@ -1,0 +1,15 @@
+{
+ "I02": {
+  "verdict": "defect-at-head",
+  "group": "D2",
+  "file": "types/route.d.ts",
+  "description": "RouteShorthandOptions at head has no logSerializers per-route option, even though the runtime accepts and documents it.",
+  "severity": "low",
+  "category": "contract",
+  "reason": "the head RouteShorthandOptions type has no logSerializers option although the runtime accepts and documents it, so the wrong behaviour (a type that rejects a valid option) is present at head in a fixture file — defect-at-head (B); A's not-at-head rests on the gap being pre-existing and untouched by the PR, which the codebook does not require (pr-55 I02 precedent); category contract (the types/runtime contract), the one field B left null",
+  "anchor_lines": [
+   51,
+   60
+  ]
+ }
+}

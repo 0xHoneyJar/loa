@@ -1,0 +1,9 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "crates/biome_js_syntax/src/parentheses/expression.rs", "anchor_lines": [960],
+            "description": "member_chain_callee_needs_parens ignores import() call expressions in the object chain, so a `new` callee like `new (import('x').Foo)()` loses required parentheses and changes semantics.",
+            "severity": "medium", "category": "logic"}
+  },
+  "incidents": {}
+}

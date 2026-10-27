@@ -1,0 +1,2 @@
+id	kind	ref	date	files	excerpt
+I01	fix-commit	8e890e1ce438	2026-10-21T05:40:21Z	packages/vite/src/node/optimizer/index.ts	fix(optimizer): skip patches dir check for yarn.lock fallback (#23725)

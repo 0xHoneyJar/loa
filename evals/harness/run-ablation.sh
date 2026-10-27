@@ -50,7 +50,11 @@
 #                        batch never writes the tracked file (DEC-0428: smoke rows decide nothing)
 #   --suite-root DIR     suite root (default grimoires/loa/evals/ablation-2.0)
 #   --suite-file F       suite file (default evals/suites/ablation-2.0.yaml)
-#   --image IMG          container image (default loa-ablation:259, the pinned pipeline image — README § Pipeline version)
+#   --image IMG          container image (default loa-ablation:259, the pinned pipeline image — README § Pipeline version).
+#                        A task whose task.yaml declares runtime.image runs and grades in that image instead
+#                        (pipeline-run.sh / ablation-grade.sh § Runtime mounts, 2026-10-26); MANIFEST.json tasks[]
+#                        carries the task's runtime block, the run's pipeline.json image_digest is that image's, and
+#                        the drift guard's image_digest comparison does not read it as drift
 #   --executor MODE      container (default) or host; passed to pipeline-run.sh and the grader
 #                        (host grading needs LOA_EVAL_ALLOW_HOST_GRADING=1, see ablation-grade.sh)
 #   --pre-registration-ref TEXT  the NOTES pre-registration heading and timestamp (MANIFEST)
@@ -267,8 +271,9 @@
 #      version, pipeline.json image_digest must equal MANIFEST image_digest). A mismatch rows
 #      the trial infrastructure_error, records STATUS.json drift, launches nothing more and
 #      fails the batch once the running trials end
-#   5. ablation-grade.sh D <task> --suite-root … [--tasks-dir smoke] [--allow-partial] --executor … --image …
-#      --docker-bin … (scored runs that passed 3 and 4; exit 2 → row infrastructure_error)
+#   5. ablation-grade.sh D <task> --suite-root … --suite-file … [--tasks-dir smoke] [--allow-partial] --executor …
+#      --image … --docker-bin … (scored runs that passed 3 and 4; exit 2 → row infrastructure_error; the batch's
+#      --suite-file reaches the grader's freeze check, so a suite frozen against ablation-2.0-v3.yaml grades)
 #      under timeout -s TERM -k 30 $LOA_ABLATION_GRADE_TIMEOUT_S (default
 #      1800; unwrapped when timeout is absent): exit 124 or 137 → row infrastructure_error,
 #      `run-ablation: grade timed out after Ns` in the trial log, grade_rc keeps the exit
@@ -836,7 +841,7 @@ trap 'rm -rf "$WORK"' EXIT
 printf '%s\n' "$SUITE_JSON" > "$WORK/suite.json"
 for t in "${SEL_TASKS[@]}"; do
   yq -o=json '{"id": .id, "type": .type, "bounds": (.bounds // {}), "bsm": (.review_catch.bare_sessions_matched // null),
-               "bsmf": (.review_catch.bare_sessions_matched_fable // null)}' "$TDIR/$t/task.yaml" \
+               "bsmf": (.review_catch.bare_sessions_matched_fable // null), "runtime": (.runtime // null)}' "$TDIR/$t/task.yaml" \
     | jq -c --arg y "$TDIR/$t/task.yaml" --arg want "$WANT_TYPES" \
         'select($want == "" or (.type as $t | ($want | split(" ") | map(select(. != ""))) | index($t)) != null) | with_entries(.) + {yaml: $y}'   # .type is the task'"'"'s, not the list'"'"'s (Sprint 261 dry run; RAB-27)
 done | jq -s -c '.' > "$WORK/tasks.json" || die "a task.yaml does not parse"
@@ -909,7 +914,8 @@ if first is None:
         for f, v in seen:
             got = re.search(r"[0-9]+\.[0-9]+\.[0-9]+", v)
             if (got.group(0) if got else v) != want: hit("cli_version", want, v); break
-    elif not seen and m.get("image_digest") and p.get("image_digest") and m["image_digest"] != p["image_digest"]:
+    elif (not seen and m.get("image_digest") and p.get("image_digest") and m["image_digest"] != p["image_digest"]
+          and not (p.get("arm_evidence") or {}).get("runtime_image")):   # a task-declared image (runtime.image) is not drift
         hit("image_digest", m["image_digest"], p["image_digest"])
 print(json.dumps(first) if first is not None else "null")
 print(json.dumps(extra, sort_keys=True))
@@ -1319,7 +1325,7 @@ write_manifest() {  # write_manifest <path> <dry_run>
        suite_root: $suite_root, tasks_dir: $tasks_dir, rows_file: $rows,
        suite_version: ($s.suite_version // $s.version // null),
        suite_manifest_sha256: (if $msha == "" then null else $msha end),
-       arms: $arms, tasks: [$tasks_f[0][] | {id, type}], refused: $p.refused,
+       arms: $arms, tasks: [$tasks_f[0][] | {id, type} + (if .runtime != null then {runtime} else {} end)], refused: $p.refused,
        trials_per_type: {build: $tb, "review-catch": $tr}, trials_planned: ($p.plan | length),
        plan: $p.plan, arm_map: ([$p.plan[] | {(.run_id): .arm}] | add // {}),
        shuffle_seed: $seed, shuffle: "trial-major; python3 random.Random(shuffle_seed).shuffle per trial block, blocks in order",
@@ -1629,7 +1635,7 @@ post_checks() {
         done < <(jq -r 'to_entries[] | [.key, (.value.phases | join(",")), (.value.output_tokens | tostring)] | @tsv' <<<"$PR_EXTRA")
         if [[ "$PR_DRIFT" != null ]]; then PR_OVERRIDE=infrastructure_error; printf 'run-ablation: drift %s\n' "$PR_DRIFT" >> "$plog"; fi
         if [[ -z "$PR_OVERRIDE" ]]; then
-          local -a g=("$GRADE_BIN" "$rd" "$task" --suite-root "$SUITE_ROOT" --executor "$EXECUTOR" --image "$IMAGE" --docker-bin "$DOCKER_BIN")
+          local -a g=("$GRADE_BIN" "$rd" "$task" --suite-root "$SUITE_ROOT" --suite-file "$SUITE_FILE" --executor "$EXECUTOR" --image "$IMAGE" --docker-bin "$DOCKER_BIN")
           [[ "$SMOKE" == true ]] && g+=(--tasks-dir smoke)
           [[ "$ALLOW_PARTIAL" == true ]] && g+=(--allow-partial)
           PR_GRC=0; ${GRADE_TMO[@]+"${GRADE_TMO[@]}"} "${g[@]}" >> "$plog" 2>&1 || PR_GRC=$?
@@ -1868,7 +1874,7 @@ PY
     else te=fail; ter="took-effect exit $trc: $(grep -E ' FAIL' <<<"$tout" | head -4 | cut -c1-200 | tr '\n' ';' || true)"; fi
   fi
   if [[ -z "$override" ]]; then
-    local -a g=("$GRADE_BIN" --union "$cell" --task-id "$task" --suite-root "$SUITE_ROOT")
+    local -a g=("$GRADE_BIN" --union "$cell" --task-id "$task" --suite-root "$SUITE_ROOT" --suite-file "$SUITE_FILE")
     [[ "$SMOKE" == true ]] && g+=(--tasks-dir smoke)
     [[ "$ALLOW_PARTIAL" == true ]] && g+=(--allow-partial)
     ${GRADE_TMO[@]+"${GRADE_TMO[@]}"} "${g[@]}" >> "$clog" 2>&1 || grc=$?

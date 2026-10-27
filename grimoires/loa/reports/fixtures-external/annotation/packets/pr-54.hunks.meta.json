@@ -1,0 +1,28 @@
+{
+  "context": 12,
+  "feedback_files": [],
+  "fixture": "pr-54",
+  "hunk_count": 2,
+  "hunks": {
+    "H01": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/assetImportMetaUrl.ts",
+      "head_end": 5,
+      "head_start": 5,
+      "insertion": false,
+      "review_driven": false
+    },
+    "H02": {
+      "cited_by": [],
+      "file": "packages/vite/src/node/plugins/assetImportMetaUrl.ts",
+      "head_end": 152,
+      "head_start": 151,
+      "insertion": false,
+      "review_driven": false
+    }
+  },
+  "incident_ids": [],
+  "incidents": "incidents/pr-54.tsv",
+  "record_ref": null,
+  "review_driven_count": 0
+}

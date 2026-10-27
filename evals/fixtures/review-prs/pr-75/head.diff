@@ -1,0 +1,206 @@
+diff --git a/packages/vite/src/node/plugins/resolve.ts b/packages/vite/src/node/plugins/resolve.ts
+index 5d9c11b92..f4eb17290 100644
+--- a/packages/vite/src/node/plugins/resolve.ts
++++ b/packages/vite/src/node/plugins/resolve.ts
+@@ -16,7 +16,6 @@ import {
+   DEP_VERSION_RE,
+   DEV_PROD_CONDITION,
+   ENV_ENTRY,
+-  FS_PREFIX,
+   SPECIAL_QUERY_RE,
+ } from '../constants'
+ import { canExternalizeFile } from '../external'
+@@ -34,11 +33,11 @@ import {
+   resolvePackageData,
+ } from '../packages'
+ import type { Plugin } from '../plugin'
++import { moduleUrlToFilePath } from '../server/moduleUrl'
+ import {
+   bareImportRE,
+   createDebugger,
+   deepImportRE,
+-  fsPathFromId,
+   getNpmPackageName,
+   injectQuery,
+   isBuiltin,
+@@ -433,10 +432,7 @@ function optimizerResolvePlugin(
+         // tryFileResolve or /fs/ resolution but these files may not yet
+         // exists if we are in the middle of a deps re-processing
+         if (asSrc && depsOptimizer.isOptimizedDepUrl(id)) {
+-          const optimizedPath = id.startsWith(FS_PREFIX)
+-            ? fsPathFromId(id)
+-            : normalizePath(path.resolve(root, id.slice(1)))
+-          return optimizedPath
++          return moduleUrlToFilePath(id, root)
+         }
+ 
+         if (!isDataUrl(id) && !isExternalUrl(id)) {
+diff --git a/packages/vite/src/node/server/__tests__/moduleUrl.spec.ts b/packages/vite/src/node/server/__tests__/moduleUrl.spec.ts
+index 2aaa27c5e..fab0f69fa 100644
+--- a/packages/vite/src/node/server/__tests__/moduleUrl.spec.ts
++++ b/packages/vite/src/node/server/__tests__/moduleUrl.spec.ts
+@@ -7,6 +7,7 @@ import type { DevEnvironment } from '../environment'
+ import {
+   browserUrlToModuleUrl,
+   fileToModuleUrl,
++  moduleUrlToFilePath,
+   resolvedIdToModuleUrl,
+ } from '../moduleUrl'
+ 
+@@ -38,6 +39,31 @@ describe('ModuleURL and BrowserURL conversions', () => {
+     }
+   })
+ 
++  it('recovers file paths from root-relative and filesystem ModuleURLs', () => {
++    const files = [
++      root,
++      `${root}/.hidden.js`,
++      `${root}/src/a%25 b-あ.js`,
++      `${root}/src/file?#.js`,
++      `${root}-sibling/file.js`,
++    ]
++    for (const file of files) {
++      expect(moduleUrlToFilePath(fileToModuleUrl(file, root), root)).toBe(file)
++    }
++    expect(moduleUrlToFilePath('/@fs/C:/outside/file.js', root)).toBe(
++      'C:/outside/file.js',
++    )
++    expect(moduleUrlToFilePath('/src/file.js', '/')).toBe(
++      normalizePath(path.resolve('/src/file.js')),
++    )
++  })
++
++  it('keeps multiple leading slashes relative to root', () => {
++    expect(moduleUrlToFilePath('//src/file.js', root)).toBe(
++      `${root}/src/file.js`,
++    )
++  })
++
+   for (const [moduleUrl, browserPath] of [
+     [
+       '/src/a%25 b-あ.js?raw&plugin=a%2Fb',
+diff --git a/packages/vite/src/node/server/middlewares/indexHtml.ts b/packages/vite/src/node/server/middlewares/indexHtml.ts
+index c433aa6eb..f1fcda84b 100644
+--- a/packages/vite/src/node/server/middlewares/indexHtml.ts
++++ b/packages/vite/src/node/server/middlewares/indexHtml.ts
+@@ -32,7 +32,6 @@ import {
+ import { checkPublicFile } from '../../publicDir'
+ import {
+   ensureWatchedFile,
+-  fsPathFromId,
+   getHash,
+   injectQuery,
+   isCSSRequest,
+@@ -43,7 +42,7 @@ import {
+   processSrcSetSync,
+   tryStatSync,
+ } from '../../utils'
+-import { browserUrlToModuleUrl } from '../moduleUrl'
++import { browserUrlToModuleUrl, moduleUrlToFilePath } from '../moduleUrl'
+ import {
+   BasicMinimalPluginContext,
+   basePluginContextMeta,
+@@ -106,14 +105,10 @@ export function createDevHtmlTransformFn(
+ }
+ 
+ function getHtmlFilename(url: string, server: ViteDevServer) {
+-  const urlPath = cleanUrl(url)
+-  if (urlPath.startsWith(FS_PREFIX)) {
+-    return decodeURIComponent(fsPathFromId(urlPath))
+-  } else {
+-    return decodeURIComponent(
+-      normalizePath(path.join(server.config.root, urlPath.slice(1))),
+-    )
+-  }
++  return moduleUrlToFilePath(
++    decodeURIComponent(cleanUrl(url)),
++    server.config.root,
++  )
+ }
+ 
+ function shouldPreTransform(url: string, config: ResolvedConfig) {
+@@ -516,8 +511,8 @@ export function indexHtmlMiddleware(
+       }
+ 
+       let filePath: string
+-      if (isDev && url.startsWith(FS_PREFIX)) {
+-        filePath = decodeURIComponent(fsPathFromId(url))
++      if (isDev) {
++        filePath = moduleUrlToFilePath(decodeURIComponent(url), root)
+       } else {
+         filePath = normalizePath(
+           path.resolve(path.join(root, decodeURIComponent(url))),
+diff --git a/packages/vite/src/node/server/middlewares/transform.ts b/packages/vite/src/node/server/middlewares/transform.ts
+index e3ff4628a..78c492073 100644
+--- a/packages/vite/src/node/server/middlewares/transform.ts
++++ b/packages/vite/src/node/server/middlewares/transform.ts
+@@ -1,5 +1,4 @@
+ import fsp from 'node:fs/promises'
+-import path from 'node:path'
+ import colors from 'picocolors'
+ import type { ExistingRawSourceMap } from 'rolldown'
+ import type { Connect } from '#dep-types/connect'
+@@ -14,22 +13,20 @@ import {
+   DEP_VERSION_RE,
+   ERR_FILE_NOT_FOUND_IN_OPTIMIZED_DEP_DIR,
+   ERR_OPTIMIZE_DEPS_PROCESSING_ERROR,
+-  FS_PREFIX,
+ } from '../../constants'
+ import { isDirectCSSRequest, isDirectRequest } from '../../plugins/css'
+ import { isHTMLProxy } from '../../plugins/html'
+ import {
+   createDebugger,
+-  fsPathFromId,
+   injectQuery,
+   isCSSRequest,
+   isImportRequest,
+   isJSRequest,
+-  normalizePath,
+   prettifyUrl,
+   removeImportQuery,
+   removeTimestampQuery,
+ } from '../../utils'
++import { moduleUrlToFilePath } from '../moduleUrl'
+ import { ERR_CLOSED_SERVER } from '../pluginContainer'
+ import { send } from '../send'
+ import { applySourcemapIgnoreList } from '../sourcemap'
+@@ -165,9 +162,10 @@ export function transformMiddleware(
+         if (depsOptimizer?.isOptimizedDepUrl(url)) {
+           // If the browser is requesting a source map for an optimized dep, it
+           // means that the dependency has already been pre-bundled and loaded
+-          const sourcemapPath = url.startsWith(FS_PREFIX)
+-            ? fsPathFromId(url)
+-            : normalizePath(path.resolve(server.config.root, url.slice(1)))
++          const sourcemapPath = moduleUrlToFilePath(
++            withoutQuery,
++            server.config.root,
++          )
+           // url may contain relative path that may resolve outside of the optimized deps directory
+           if (!depsOptimizer.isOptimizedDepFile(sourcemapPath)) {
+             return next()
+diff --git a/packages/vite/src/node/server/moduleUrl.ts b/packages/vite/src/node/server/moduleUrl.ts
+index 428fedeef..e71c57a81 100644
+--- a/packages/vite/src/node/server/moduleUrl.ts
++++ b/packages/vite/src/node/server/moduleUrl.ts
+@@ -2,7 +2,7 @@ import fs from 'node:fs'
+ import path from 'node:path'
+ import { cleanUrl, unwrapId, withTrailingSlash } from '../../shared/utils'
+ import { FS_PREFIX } from '../constants'
+-import { stripBase } from '../utils'
++import { fsPathFromId, normalizePath, stripBase } from '../utils'
+ import type { DevEnvironment } from './environment'
+ 
+ /** Map a normalized filesystem path to a ModuleURL. */
+@@ -19,6 +19,12 @@ export function fileToModuleUrl(file: string, root: string): string {
+   return path.posix.join(FS_PREFIX, file)
+ }
+ 
++export function moduleUrlToFilePath(pathname: string, root: string): string {
++  return pathname.startsWith(FS_PREFIX)
++    ? fsPathFromId(pathname)
++    : normalizePath(path.resolve(root, `.${pathname}`))
++}
++
+ /**
+  * Choose a ModuleURL for a resolved module. ModuleURLs have no base and keep
+  * virtual IDs unwrapped, matching module graph and HMR identities.

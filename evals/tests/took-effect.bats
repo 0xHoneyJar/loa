@@ -667,3 +667,39 @@ tedp() { run "$TE" --run-dir "$1" --suite-file "$SDP" --arm a1_dp; }
   te131 "$CRD" --task-yaml "$CTY" --source-repo "$CSRC"
   [ "$status" -eq 1 ]; line oracle_closed | grep -q 'overlay_excluded=1:.claude/adapters/loa_cheval/types.py, the answer set excludes 3:'
 }
+
+@test "TE-TS-1 runtime_mount_present: vacuous OK without a runtime key; FAIL without --task-yaml; with the key, FAIL until the evidence and every launcher_argv carry the mounts and the image, then OK" {
+  yq '(.arms[] | select(.id == "a0_bare") | .took_effect) += ["runtime_mount_present"]' "$SUITE" > "$T/suite.yaml"
+  local r="$T/runs/a0-build" ty="$T/ts.yaml"
+  run "$TE" --run-dir "$r" --suite-file "$T/suite.yaml" --task-yaml "$FX/tasks/bf-01/task.yaml"
+  [ "$status" -eq 0 ]
+  line runtime_mount_present | grep -q ' OK task declares no runtime'
+  run "$TE" --run-dir "$r" --suite-file "$T/suite.yaml"
+  [ "$status" -eq 1 ]
+  line runtime_mount_present | grep -q ' FAIL --task-yaml is required'
+  cp "$FX/tasks/bf-01/task.yaml" "$ty"
+  printf 'runtime: {node_modules: "/srv/seen/node_modules", image: "loa-ablation:node-dev"}\n' >> "$ty"
+  run "$TE" --run-dir "$r" --suite-file "$T/suite.yaml" --task-yaml "$ty"
+  [ "$status" -eq 1 ]
+  line runtime_mount_present | grep -q ' FAIL evidence runtime_node_modules=<none>, task /srv/seen/node_modules'
+  edit_json "$r/meta/pipeline.json" '.arm_evidence += {runtime_node_modules: "/srv/seen/node_modules", runtime_mounts: "/workspace/node_modules,/workspace/apps/x/node_modules"}'
+  run "$TE" --run-dir "$r" --suite-file "$T/suite.yaml" --task-yaml "$ty"
+  line runtime_mount_present | grep -q ' FAIL evidence runtime_image=<none>, task loa-ablation:node-dev'
+  edit_json "$r/meta/pipeline.json" '.arm_evidence.runtime_image = "loa-ablation:node-dev"'
+  run "$TE" --run-dir "$r" --suite-file "$T/suite.yaml" --task-yaml "$ty"
+  [ "$status" -eq 1 ]
+  line runtime_mount_present | grep -q ' FAIL missing in launcher_argv: phase-BARE.argv.json:/workspace/node_modules'
+  edit_json "$r/meta/phase-BARE.argv.json" '.launcher_argv += ["-v", "/srv/seen/node_modules:/workspace/node_modules:ro", "loa-ablation:node-dev"]'
+  run "$TE" --run-dir "$r" --suite-file "$T/suite.yaml" --task-yaml "$ty"
+  [ "$status" -eq 1 ]
+  line runtime_mount_present | grep -q ' FAIL missing in launcher_argv: phase-BARE.argv.json:/workspace/apps/x/node_modules'
+  edit_json "$r/meta/phase-BARE.argv.json" '.launcher_argv += ["-v", "/srv/seen/apps/x/node_modules:/workspace/apps/x/node_modules:ro"]'
+  run "$TE" --run-dir "$r" --suite-file "$T/suite.yaml" --task-yaml "$ty"
+  [ "$status" -eq 0 ] || { echo "$output"; false; }
+  line runtime_mount_present | grep -q ' OK mounts 2 in 1 argv, image loa-ablation:node-dev'
+  # a mount that is not read-only, or that points elsewhere, is not the task's
+  edit_json "$r/meta/phase-BARE.argv.json" '.launcher_argv |= map(if . == "/srv/seen/node_modules:/workspace/node_modules:ro" then "/srv/seen/node_modules:/workspace/node_modules:rw" else . end)'
+  run "$TE" --run-dir "$r" --suite-file "$T/suite.yaml" --task-yaml "$ty"
+  [ "$status" -eq 1 ]
+  line runtime_mount_present | grep -q ' FAIL missing in launcher_argv: phase-BARE.argv.json:/workspace/node_modules'
+}

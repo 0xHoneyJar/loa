@@ -1,0 +1,12 @@
+{
+  "hunks": {
+    "H01": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "packages/vite/src/node/plugins/assetImportMetaUrl.ts", "anchor_lines": [],
+            "description": "Imports cleanUrl needed by the D1 fix.", "severity": null, "category": null},
+    "H02": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "packages/vite/src/node/plugins/assetImportMetaUrl.ts", "anchor_lines": [151, 152],
+            "description": "The resolved file path may carry a query/hash suffix, so tryStatSync fails and the asset is never added as a watch file (or a path with a query is watched).",
+            "severity": "medium", "category": "logic"}
+  },
+  "incidents": {}
+}

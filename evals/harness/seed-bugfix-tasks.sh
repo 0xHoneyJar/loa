@@ -3,43 +3,97 @@
 # seed-bugfix-tasks.sh — cycle-130 bug-fix task seeder (SDD §5.14, Sprint 259 Task 2.2)
 #
 # Turns Loa fix commits into candidate bug-fix tasks for the ablation suite.
-# Lists the commits since DATE whose subject starts with `fix` or `bug`, whose
+# Lists the commits since DATE (reachable from --rev, default HEAD) whose subject
+# starts with `fix` or `bug`, whose
 # diff touched a test file (a path under a `tests/` directory, `test_*.py`,
 # `*_test.py` or `*.bats`) and whose touched files all lie under the allowed
 # roots; refuses by name any candidate touching .claude/, CLAUDE.md,
 # .loa.config.yaml, grimoires/ or .run/ (a path component equal to one of
-# those). For each selected candidate (the first N, newest first) it writes
-# <out>/tasks/bugfix-NN/ (next free number):
+# those). --ignore-paths names prefixes whose touched files are left out of the
+# task before those rules run (the fix's documentation under grimoires/, a
+# generated checksum file): they are never in the fixture, the reference patch
+# or the hidden tests, and task.yaml source.origin records them; a fix whose
+# substance was in an ignored path fails its proof and is never written. A
+# candidate changing tests of several runners is skipped unless --runner names
+# one: that runner's changed tests are the hidden check, the other runners'
+# changed tests stay at their base version (source.origin records them).
+#
+# TypeScript (runner `ts`): a `*.test.ts` / `*.spec.ts` file is a ts test. Its
+# command comes from the test script of the package.json nearest above it, at
+# the parent: `node … --test …` becomes `node --test <the script's own flags>
+# --test-reporter=tap <patterns>`; `vitest …` (or no test script and vitest among
+# the dependencies) becomes `npx [--prefix <pkg>] vitest run --reporter=tap-flat
+# [--root <pkg>] <paths>` — the package's own vitest (npx looks in the prefix's
+# node_modules, never on PATH; --prefix/--root only when the package is not the
+# fixture root). Both report TAP, which the proof and ablation-grade.sh read
+# alike (top-level results; a nested subtest is indented). The patterns are the
+# changed test files (roots scope) or, touched scope, each test directory's
+# `<dir>/*.test.ts` glob (node expands it itself: no shell) or the directory as a
+# vitest filter. A package whose test script is neither is skipped with the
+# script named; so are tests of two packages in one commit. The fixture also
+# carries, from the test's directory up to the root, package.json, tsconfig*.json,
+# vitest/vite config, pnpm-workspace.yaml and .npmrc (protected), and the files
+# the tests and the touched sources import — relative imports transitively, a
+# workspace package whole (pnpm-workspace.yaml `packages:` or the root
+# package.json `workspaces`) — wherever they lie. The proof needs the project's
+# installed dependencies: --node-modules DIR (below); without it a ts candidate
+# is skipped by name (`no node_modules for the proof`). Tested by
+# evals/tests/seed-ts.bats with a stub vitest.
+#
+# For each selected candidate (the first N, newest first) it writes
+# <out>/tasks/<prefix>-NN/ (next free number; the prefix is `bugfix`, or the
+# --id-prefix given — a suite version belongs in the id, `bugfix-v3`, so a row
+# of one suite version can never pool with a cell of another):
 #   fixture/    from the PARENT commit: the touched non-test files, the other
 #               non-test files in their directories (the modules they most
 #               likely use), the base version of each changed test, and the
 #               test infrastructure the tests rely on (conftest.py up to the
-#               root, __init__.py, *.bash and *helper* files beside each test,
-#               root pytest.ini / pyproject.toml / setup.cfg / tox.ini) — a
-#               plain tree, no .git
+#               root, every non-test file in and below each test's directory —
+#               import shims, data builders, fixtures — and the root pytest.ini /
+#               pyproject.toml / setup.cfg / tox.ini) — a
+#               plain tree, no .git. With --fixture-scope roots the context is
+#               instead EVERY file under the allowed roots at the parent (the
+#               repository slice the tests see: libraries in other directories,
+#               test fixtures, suite files; symlinks skipped, mount-owned paths
+#               never) — for a repository whose tests reach across directories,
+#               as Loa's harness tests do. A file of git mode 100755 keeps its
+#               executable bit in the fixture (a shell tool the tests run)
 #   hidden/     tests/<path> = each added or changed test at the commit,
 #               manifest.json {"files":[{src, dest}]}, reference.patch = the
 #               commit's diff of the non-test files (a/ b/ prefixes, patch -p1)
 #   task.yaml   source {kind: loa-history, fix_commit, base_commit, date};
-#               grader_protected = the infrastructure files; regression_command
-#               null; test_command = python3 -m pytest -q <test dirs> | bats <test dirs>
-#   TASK.md     the subject line, the observed failure count, the test command;
-#               never the diff, never a test name (the subject is sanitised:
-#               no paths, file names, test names or the word for grader files)
+#               grader_protected = the infrastructure files (roots scope: plus
+#               every file under a top-level fixture/tests/, as validate-suite.sh
+#               requires); regression_command null; test_command = python3 -m
+#               pytest -q <test dirs> | bats <test dirs> (roots scope: the
+#               changed test FILES — the directories hold the suite's other tests)
+#   TASK.md     the subject line, the observed failure count, the test command
+#               (roots scope: the test directory and the runner, `bats <file>`,
+#               since the exact command would name a hidden test file); never the
+#               diff, never a test name (the subject is sanitised: no paths, file
+#               names, test names or the word for grader files)
 # A task is built in a private temporary directory and moved into place only
 # after its proof passed: the test command, with the hidden tests overlaid, is
 # red at base and green with the reference patch, run on the host under
 # `env -i PATH HOME=<fresh tmp> LC_ALL=C` plus PYTHONUSERBASE (the host's user
-# base, so a user-site pytest is found) and PYTHONDONTWRITEBYTECODE=1, and
-# evals/graders/no-secrets.sh passes on the whole task directory (a hit is a
-# refusal). The selecting lead still rewrites TASK.md's observed behaviour and
+# base, so a user-site pytest is found) and PYTHONDONTWRITEBYTECODE=1, each run
+# under the grader's per-command deadline (LOA_EVAL_GRADE_TIMEOUT_S, 1-9999 s,
+# default 120 as in ablation-grade.sh; at the deadline the run's whole process
+# group is killed and the proof fails with exit 124 — a task the grader could not
+# finish is never written), and evals/graders/no-secrets.sh passes on the whole
+# task directory (a hit is a refusal). The selecting lead still rewrites TASK.md's observed behaviour and
 # the criterion by hand before a task is frozen.
 #
 # Usage:
 #   seed-bugfix-tasks.sh --since DATE [--select N] --out DIR [--repo DIR]
-#                        [--paths CSV] [--suite-version N] [--dry-run]
+#                        [--paths CSV] [--suite-version N] [--id-prefix P]
+#                        [--fixture-scope touched|roots] [--rev REV]
+#                        [--ignore-paths CSV] [--runner pytest|bats|ts]
+#                        [--node-modules DIR] [--dry-run]
 #
 #   --since DATE       YYYY-MM-DD; commits whose committer date is on or after it
+#   --rev REV          list the commits reachable from REV (default HEAD): a branch, tag or
+#                      sha; refused (exit 2) when it is not a commit of the repository
 #   --select N         tasks to materialise (default 4); refusals and skips do not
 #                      count, a failed proof does
 #   --out DIR          suite root; tasks go to DIR/tasks/<id>/
@@ -47,21 +101,42 @@
 #   --paths CSV        allowed roots (default tools,evals/harness,evals/graders,
 #                      tests/unit,evals/tests); a mount-owned root is refused
 #   --suite-version N  suite_version written to task.yaml (default 1)
+#   --id-prefix P      task id prefix, [a-z0-9][a-z0-9-]{0,60} (default bugfix): ids are
+#                      <P>-NN, the next free number under <out>/tasks/
+#   --fixture-scope S  touched (default: the touched files' directories) or roots (the
+#                      whole allowed-roots slice at the parent; see fixture/ above)
+#   --ignore-paths CSV relative prefixes whose touched files are left out of the task
+#                      (default none; see above); a commit with nothing else is skipped
+#   --runner R         pytest | bats | ts: with a mixed candidate, the hidden check's runner
+#                      (default: a mixed candidate is skipped)
+#   --node-modules DIR an installed node_modules directory of the repository (a checkout's
+#                      <root>/node_modules after pnpm/npm install), for a ts proof: the proof's
+#                      tree gets, at its root and in every directory holding a package.json whose
+#                      counterpart <checkout>/<dir>/node_modules exists, a node_modules of symlinks
+#                      to that directory's entries (nothing copied, nothing written there: a
+#                      runner's cache directories are left out, so its writes land in the proof's
+#                      tree; a workspace link points at the same package inside the tree). Exit 2
+#                      when DIR is not an existing directory named node_modules
 #   --dry-run          list candidates, refusals and skips; write nothing
 #   LOA_SEED_BATS      bats binary used for the proof when bats is not on PATH
+#   LOA_EVAL_GRADE_TIMEOUT_S  the proof's per-run deadline (default 120 s; usage error outside 1-9999)
 #
 # Output (stdout, one line each):
 #   candidate <sha12> <date> <subject>
 #   refused <sha12>: <path>                 (or: a secret pattern in the materialised task)
-#   skipped <sha12>: <reason>
-#   proof bugfix-NN <sha12>: red N failed / green M passed
-#   proof-failed <sha12>: <reason>
+#   skipped <sha12>: <reason>                (… | mixed test runners (pytest and bats) |
+#                                            no <runner> test added or changed | every touched path is ignored |
+#                                            no node_modules for the proof (--node-modules DIR) |
+#                                            the test script of <pkg>/package.json is not vitest or node --test: …)
+#   proof <prefix>-NN <sha12>: red N failed / green M passed
+#   proof-failed <sha12>: <reason>           (a ts reason ends with `; first error: <line>` when the run named one)
 #   wrote <dir>
 #   seed-bugfix: C candidate(s), R refused, S skipped; selected X, written W, proof failed F
 #
 # Exit: 0 done (also when nothing qualified); 1 a selected candidate failed its
-#       proof; 2 usage (bad option or date, not a git repository, bad --paths).
-# Tested by evals/tests/seed-bugfix.bats.
+#       proof; 2 usage (bad option or date, not a git repository, bad --paths,
+#       --id-prefix, --ignore-paths or --node-modules).
+# Tested by evals/tests/seed-bugfix.bats and evals/tests/seed-ts.bats.
 # =============================================================================
 set -euo pipefail
 export LC_ALL=C

@@ -1,0 +1,277 @@
+name: Post-Merge Pipeline
+
+# Triggers on push to main only (merge events)
+on:
+  push:
+    branches: [main]
+
+# =============================================================================
+# Issue #669 / Bridgebuilder F-001 (PR #671): submodule recursion decision trail
+# =============================================================================
+# All `actions/checkout` steps below set `submodules: recursive`. Required for
+# Loa's submodule install mode where `.claude/scripts/*` are symlinks into the
+# `.loa/` submodule — without recursion, runtime hits `exit-127: No such file
+# or directory: .claude/scripts/classify-pr-type.sh`.
+#
+# Trade-off (security): consumers with their own (non-Loa) submodules will now
+# also fetch them on every post-merge run. Mitigations:
+#   1. GH Actions runner does NOT execute submodule post-checkout hooks; the
+#      recursive fetch only places source files on the runner disk.
+#   2. The workflow token's permissions (`contents: write, pull-requests:
+#      write, actions: read`) bound the blast radius of any malicious
+#      submodule content.
+#   3. Consumers should review their `.gitmodules` before adding new entries
+#      to avoid pinning untrusted sources.
+#
+# If a future job demonstrably does not need submodules, downgrade to
+# `submodules: false` for that job specifically — but keep the default at
+# `recursive` so the symlink-resolution failure mode does not return.
+# =============================================================================
+
+# Candidate preparation has no tag, release, or comment write permission.
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+# Prevent concurrent runs — queue newer pushes
+concurrency:
+  group: post-merge-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # =============================================================================
+  # CLASSIFY — Determine PR type and route to appropriate pipeline
+  # =============================================================================
+  classify:
+    name: Classify Merge
+    runs-on: ubuntu-latest
+    outputs:
+      pr_number: ${{ steps.classify.outputs.pr_number }}
+      pr_type: ${{ steps.classify.outputs.pr_type }}
+      merge_sha: ${{ github.sha }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          # Issue #669: submodule installs symlink .claude/scripts/* into the
+          # submodule. Without `submodules: recursive`, runtime invocation
+          # fails with `exit-127: No such file or directory`. No-op on
+          # non-submodule consumer repos.
+          submodules: recursive
+
+      # Issue #986: on submodule mounts the .claude/* symlinks are GITIGNORED
+      # ("recreated on mount" — mount-submodule.sh writes them to .gitignore),
+      # so even a `submodules: recursive` checkout lacks them and every
+      # .claude/scripts/* invocation is exit-127. Reconcile recreates the
+      # symlink set. No-op on vendored mounts and the Loa repo itself (.loa/
+      # absent). No `|| true` — partial reconcile must fail loud (#660 pt 2).
+      - name: Reconcile Loa symlinks (submodule mounts)
+        run: |
+          if [ -x .loa/.claude/scripts/mount-submodule.sh ]; then
+            bash .loa/.claude/scripts/mount-submodule.sh --reconcile
+          fi
+
+      - name: Classify PR type
+        id: classify
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ github.sha }}
+        run: |
+          # Issue #668: classify by merge commit subject (PRIMARY, in-tree)
+          # rather than relying solely on `gh pr view` API state. The wrapper
+          # surfaces gh failures loudly to stderr instead of silently
+          # falling through to "other".
+          #
+          # Bridgebuilder F001 (PR #670): the wrapper writes pr_type and
+          # pr_number to $GITHUB_OUTPUT directly. Capture stdout for log
+          # readability only — do NOT re-parse $GITHUB_OUTPUT (it's a
+          # producer-write, runner-read contract; reading it back inverts
+          # GitHub's intent and breaks if the wrapper ever uses heredoc syntax).
+          # #1085 preflight: fail LOUD (not a buried chmod error that cascades
+          # into silently skipping tag/CHANGELOG/release) when a Loa script is
+          # unresolved — the submodule-symlink-not-checked-out edge case.
+          for _s in .claude/scripts/classify-merge-pr.sh; do
+            test -f "$_s" || { echo "::error::Loa script '$_s' unresolved — submodule symlink not checked out? Ensure 'submodules: recursive' resolves .claude/scripts (#1085)."; exit 1; }
+          done
+          chmod +x .claude/scripts/classify-merge-pr.sh
+          RESULT=$(.claude/scripts/classify-merge-pr.sh --merge-sha "$MERGE_SHA")
+          echo "Classifier output:"
+          echo "$RESULT"
+
+  # =============================================================================
+  # SIMPLE RELEASE — Prepare bugfix/other candidates without publication
+  # =============================================================================
+  simple-release:
+    name: Prepare Release (Bugfix or Other)
+    needs: classify
+    if: needs.classify.outputs.pr_type != 'cycle' && needs.classify.outputs.pr_number != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          # Issue #669: submodule installs symlink .claude/scripts/* into the
+          # submodule. Without `submodules: recursive`, runtime invocation
+          # fails with `exit-127: No such file or directory`. No-op on
+          # non-submodule consumer repos.
+          submodules: recursive
+
+      # Issue #986: on submodule mounts the .claude/* symlinks are GITIGNORED
+      # ("recreated on mount" — mount-submodule.sh writes them to .gitignore),
+      # so even a `submodules: recursive` checkout lacks them and every
+      # .claude/scripts/* invocation is exit-127. Reconcile recreates the
+      # symlink set. No-op on vendored mounts and the Loa repo itself (.loa/
+      # absent). No `|| true` — partial reconcile must fail loud (#660 pt 2).
+      - name: Reconcile Loa symlinks (submodule mounts)
+        run: |
+          if [ -x .loa/.claude/scripts/mount-submodule.sh ]; then
+            bash .loa/.claude/scripts/mount-submodule.sh --reconcile
+          fi
+
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Prepare release candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PM_PR_NUMBER: ${{ needs.classify.outputs.pr_number }}
+          PM_PR_TYPE: ${{ needs.classify.outputs.pr_type }}
+          PM_MERGE_SHA: ${{ github.sha }}
+        run: |
+          # #1085 preflight: unresolved submodule scripts must fail visibly.
+          for _s in .claude/scripts/post-merge-orchestrator.sh .claude/scripts/semver-bump.sh .claude/scripts/bootstrap.sh; do
+            test -f "$_s" || { echo "::error::Loa script '$_s' unresolved — reconcile the submodule mount (#1085)."; exit 1; }
+          done
+          # bootstrap.sh is sourced; preserve its non-executable tracked mode.
+          chmod +x .claude/scripts/post-merge-orchestrator.sh .claude/scripts/semver-bump.sh
+          .claude/scripts/post-merge-orchestrator.sh --generate \
+            --pr "$PM_PR_NUMBER" --type "$PM_PR_TYPE" --sha "$PM_MERGE_SHA"
+          git diff "$PM_MERGE_SHA" HEAD > .run/post-merge-candidate.patch
+          git bundle create .run/post-merge-candidate.bundle HEAD
+          sha256sum .run/post-merge-candidate.json > .run/post-merge-candidate.sha256
+          echo "Release candidate prepared; inspect the artifact before explicit publication." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain inspectable release candidate
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: release-candidate-${{ github.sha }}
+          include-hidden-files: true
+          if-no-files-found: error
+          path: |
+            .run/post-merge-candidate.json
+            .run/post-merge-candidate.patch
+            .run/post-merge-ledger.patch
+            .run/post-merge-candidate.bundle
+            .run/post-merge-candidate.sha256
+            .run/post-merge-state.json
+
+  # =============================================================================
+  # FULL PIPELINE — Prepare complete cycle candidates without publication
+  # =============================================================================
+  full-pipeline:
+    name: Prepare Release (Cycle)
+    needs: classify
+    # KF-063 (bd-hyx0n): a push to main without a PR (the publisher's
+    # `chore(ledger): archive <cycle> after merge` fast-forward) has no PR
+    # number; run 40112013975 classified it cycle and --generate aborted on
+    # `--pr is required`. Like simple-release, this job requires a PR number,
+    # so a push without a PR runs neither job (tests/unit/post-merge-workflow-guards.bats).
+    if: needs.classify.outputs.pr_type == 'cycle' && needs.classify.outputs.pr_number != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          # Issue #669: submodule installs symlink .claude/scripts/* into the
+          # submodule. Without `submodules: recursive`, runtime invocation
+          # fails with `exit-127: No such file or directory`. No-op on
+          # non-submodule consumer repos.
+          submodules: recursive
+
+      # Issue #986: on submodule mounts the .claude/* symlinks are GITIGNORED
+      # ("recreated on mount" — mount-submodule.sh writes them to .gitignore),
+      # so even a `submodules: recursive` checkout lacks them and every
+      # .claude/scripts/* invocation is exit-127. Reconcile recreates the
+      # symlink set. No-op on vendored mounts and the Loa repo itself (.loa/
+      # absent). No `|| true` — partial reconcile must fail loud (#660 pt 2).
+      - name: Reconcile Loa symlinks (submodule mounts)
+        run: |
+          if [ -x .loa/.claude/scripts/mount-submodule.sh ]; then
+            bash .loa/.claude/scripts/mount-submodule.sh --reconcile
+          fi
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Prepare release candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PM_PR_NUMBER: ${{ needs.classify.outputs.pr_number }}
+          PM_PR_TYPE: ${{ needs.classify.outputs.pr_type }}
+          PM_MERGE_SHA: ${{ github.sha }}
+        run: |
+          # #1085 preflight: unresolved submodule scripts must fail visibly.
+          for _s in .claude/scripts/post-merge-orchestrator.sh .claude/scripts/semver-bump.sh .claude/scripts/bootstrap.sh; do
+            test -f "$_s" || { echo "::error::Loa script '$_s' unresolved — reconcile the submodule mount (#1085)."; exit 1; }
+          done
+          # bootstrap.sh is sourced; preserve its non-executable tracked mode.
+          chmod +x .claude/scripts/post-merge-orchestrator.sh .claude/scripts/semver-bump.sh
+          .claude/scripts/post-merge-orchestrator.sh --generate \
+            --pr "$PM_PR_NUMBER" --type "$PM_PR_TYPE" --sha "$PM_MERGE_SHA"
+          git diff "$PM_MERGE_SHA" HEAD > .run/post-merge-candidate.patch
+          git bundle create .run/post-merge-candidate.bundle HEAD
+          sha256sum .run/post-merge-candidate.json > .run/post-merge-candidate.sha256
+          echo "Release candidate prepared; inspect the artifact before explicit publication." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain inspectable release candidate
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: release-candidate-${{ github.sha }}
+          include-hidden-files: true
+          if-no-files-found: error
+          path: |
+            .run/post-merge-candidate.json
+            .run/post-merge-candidate.patch
+            .run/post-merge-ledger.patch
+            .run/post-merge-candidate.bundle
+            .run/post-merge-candidate.sha256
+            .run/post-merge-state.json
+
+  # =============================================================================
+  # NOTIFY — Post results and alert on failure
+  # =============================================================================
+  notify:
+    name: Notify
+    needs: [classify, simple-release, full-pipeline]
+    if: always() && needs.classify.outputs.pr_number != ''
+    runs-on: ubuntu-latest
+    steps:
+      - name: Discord notification on failure
+        if: |
+          (needs.simple-release.result == 'failure' || needs.full-pipeline.result == 'failure') &&
+          env.DISCORD_WEBHOOK_URL != ''
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.MELANGE_DISCORD_WEBHOOK }}
+        run: |
+          PAYLOAD=$(jq -n \
+            --arg pr "${{ needs.classify.outputs.pr_number }}" \
+            --arg type "${{ needs.classify.outputs.pr_type }}" \
+            --arg run "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --arg simple "${{ needs.simple-release.result }}" \
+            --arg full "${{ needs.full-pipeline.result }}" \
+            '{
+              content: "⚠️ Post-merge pipeline failed for PR #\($pr) (\($type))\nSimple: \($simple) | Full: \($full)\nRun: \($run)"
+            }')
+          curl -s -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK_URL" || true

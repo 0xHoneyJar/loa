@@ -1,0 +1,103 @@
+commit a479a7ce59f99b6f5a0d20f0745dbd16a3906c09
+Date: 2026-10-14T08:28:39Z
+
+fix(reply): send stream trailers after the stream actually finishes (#6953)
+
+## Checklist
+
+- [x] run `npm run test`
+- [x] tests are included
+- [ ] documentation is changed or added
+- [x] commit message and code follows the [Developer's Certification of
+Origin](https://github.com/fastify/fastify/blob/main/CONTRIBUTING.md#developers-certificate-of-origin-11)
+and the [Code of
+conduct](https://github.com/fastify/fastify/blob/main/CODE_OF_CONDUCT.md)
+
+## What this does
+
+When trailers are registered, `sendStream()` pipes with `{ end: false }`
+so `sendTrailer()` can own `res.end()` once the trailers resolve, since
+the default pipe behavior would end the response on its own and race the
+trailer flush (`fastify.inject()` never touches a real socket, so this
+race never showed up in the existing tests).
+
+The trailer flush itself was wired through a plain `payload.on('end',
+...)` listener. If the stream had already ended before `reply.send()`
+was called, that `end` event had already fired and the listener was
+registered too late, so the trailers never got sent, and since nothing
+else was calling `res.end()` either, the response hung.
+
+This moves the trailer flush into the `eos` (`stream.finished`) listener
+already present in `sendStream()`. It fires exactly once when the stream
+is done, error or not, and it fires even for a stream that finished
+before the listener was attached, so the pre-ended case is handled the
+same way as the normal one.
+
+## Tests
+
+Added real-socket coverage in `test/reply-trailers.test.js`, since
+`inject()` can't see the pipe/`res.end()` race: trailers on a Readable
+stream, trailers on a web ReadableStream, a stream with no trailers
+registered, a stream that errors before ending, and a stream that has
+already ended before being handed to `send()`.
+
+---------
+
+Signed-off-by: kyungseopk1m <kks0919@kakao.com>
+Co-authored-by: Antonio Tripodi <Tony133@users.noreply.github.com>
+Co-authored-by: Matteo Collina <hello@matteocollina.com>
+
+diff --git a/lib/reply.js b/lib/reply.js
+index 32182f55..8979dff7 100644
+--- a/lib/reply.js
++++ b/lib/reply.js
+@@ -843,9 +843,6 @@ function sendStream (payload, res, reply) {
+   let sourceOpen = true
+   let errorLogged = false
+ 
+-  // set trailer when stream ended
+-  sendStreamTrailer(payload, res, reply)
+-
+   eos(payload, { readable: true, writable: false }, function (err) {
+     sourceOpen = false
+     if (err != null) {
+@@ -858,8 +855,12 @@ function sendStream (payload, res, reply) {
+       } else {
+         onErrorHook(reply, err)
+       }
++      return
++    }
++    // eos fires even for a stream that already ended
++    if (reply[kReplyTrailers] !== null) {
++      sendTrailer(null, res, reply)
+     }
+-    // there is nothing to do if there is not an error
+   })
+ 
+   eos(res, function (err) {
+@@ -891,7 +892,12 @@ function sendStream (payload, res, reply) {
+   } else {
+     reply.log.warn('response will send, but you shouldn\'t use res.writeHead in stream mode')
+   }
+-  payload.pipe(res)
++  // trailers set: the eos listener above ends the response, not pipe
++  if (reply[kReplyTrailers] !== null) {
++    payload.pipe(res, { end: false })
++  } else {
++    payload.pipe(res)
++  }
+ }
+ 
+ function sendTrailer (payload, res, reply) {
+@@ -951,11 +957,6 @@ function sendTrailer (payload, res, reply) {
+   if (skipped) res.end(null, null, null) // avoid ArgumentsAdaptorTrampoline from V8
+ }
+ 
+-function sendStreamTrailer (payload, res, reply) {
+-  if (reply[kReplyTrailers] === null) return
+-  payload.on('end', () => sendTrailer(null, res, reply))
+-}
+-
+ function onErrorHook (reply, error, cb) {
+   if (reply[kRouteContext].onError !== null && !reply[kReplyNextErrorHandler]) {
+     reply[kReplyIsRunningOnErrorHook] = true

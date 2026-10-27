@@ -1,0 +1,3 @@
+id	kind	ref	date	files	excerpt
+I01	fix-commit	c2e04187e49a	2026-10-19T05:32:57Z	playground/js-sourcemap/__tests__/js-sourcemap.spec.ts	fix(deps): update rolldown-related dependencies (#23827) Co-authored-by: renovate[bot] <29139614+renovate[bot]@users.noreply.github.com>
+I02	fix-commit	4d16e7c14d5e	2026-10-21T05:23:42Z	packages/vite/src/node/__tests__/plugins/importAnalysisBuild.spec.ts,packages/vite/src/node/plugins/importAnalysisBuild.ts	fix(build): include preload dependencies to chunk import map hashing (#23793)

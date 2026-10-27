@@ -94,7 +94,9 @@ PINS
     case "$m" in */manifests/pr-1[1-8].json)
       [ -f "$REPO_ROOT/$m" ] && [ "$(jq -r '.label_set // ""' "$REPO_ROOT/$m")" = v2 ] || bad="$bad ${f#"$REPO_ROOT/"}(old path, not a v2 key)" ;;
     esac
-  done < <(find "$REPO_ROOT/grimoires/loa/evals" -name task.yaml | LC_ALL=C sort)
+  done < <(find "$REPO_ROOT/grimoires/loa/evals" -name task.yaml -not -path '*/fixture/*' -not -path '*/hidden/*' | LC_ALL=C sort)
+  # a build task's fixture/ and hidden/ trees are frozen copies of code under test (suite v3 carries Loa's own
+  # analysis test fixtures, task.yaml files included); they are task data, not suite tasks, and are not scanned
   echo "bad:$bad"
   [ -z "$bad" ]
   [ "$n" -ge 16 ]

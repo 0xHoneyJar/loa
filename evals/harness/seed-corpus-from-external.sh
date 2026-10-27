@@ -6,8 +6,8 @@
 #
 # Usage:
 #   seed-corpus-from-external.sh <repo-url> <pr> --fix <sha>|<first>..<last>
-#                                [--incident REF] [--licence SPDX] [--commit-trees]
-#                                [--dry-run] [--out <corpus>/pr-NN]
+#                                [--incident REF] [--licence SPDX] [--commit-trees] [--private-source]
+#                                [--paths 'glob,!glob'] [--dry-run] [--out <corpus>/pr-NN]
 #                                [--max-files N] [--max-bytes N[K|M|G]] [--max-fix-diff-bytes N[K|M|G]]
 #   seed-corpus-from-external.sh --check [<corpus dir>]
 #   common: [--corpus <evals/fixtures/review-prs>] [--tasks-dir <evals/tasks>]
@@ -29,10 +29,12 @@
 # Order (every refusal happens before anything is written to the corpus):
 #   1. the URL: https://github.com/<owner>/<repo> only (no other scheme or host, no query or
 #      fragment); credentials are stripped and only the sanitised form is printed or used
-#   2. `gh api` reads the repository (licence, language), the PR (base and head sha, title, body,
-#      dates, merge commit) and binds the PR to the repository
+#   2. `gh api` reads the repository (licence, language, private), the PR (base and head sha, title,
+#      body, dates, merge commit) and binds the PR to the repository; a private repository refuses
+#      unless --private-source is given (and --private-source refuses a public one)
 #   3. a blobless clone (--filter=blob:none --no-checkout --no-recurse-submodules, hooks off,
-#      no global or system git config) fetches refs/pull/<pr>/head; the head sha must equal the
+#      no global or system git config; with --private-source the one credential helper
+#      `gh auth git-credential`, never a prompt) fetches refs/pull/<pr>/head; the head sha must equal the
 #      API's, the base sha and every fix commit must resolve, the fix must follow the head and
 #      touch at least one file the PR changed (else the PR is not where the defect came from)
 #   4. from tree metadata only (GIT_NO_LAZY_FETCH=1 `git ls-tree -r` and the GitHub git/trees API
@@ -68,7 +70,17 @@
 #      refuses (compared by licence family: "Apache License 2.0" is Apache-2.0, "GPL-2.0-only" is
 #      not MIT); --licence must equal the API's id (it cannot override contrary evidence); an id
 #      outside the allowlist (MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC) refuses;
-#      --commit-trees needs at least one root LICENSE/LICENCE/COPYING/NOTICE file
+#      --commit-trees needs at least one root LICENSE/LICENCE/COPYING/NOTICE file.
+#      --private-source (the operator's own private repository, e.g. a fleet mount; cycle-135
+#      instrument repair, Task B): when the licence API identifies no licence, --licence must name the
+#      operator's rights assertion as an SPDX LicenseRef (`LicenseRef-<id>`); that id is recorded as the
+#      licence, the allowlist, the declared-licence conflict rule and the root licence-file requirement
+#      do not apply to it (a root package.json/pyproject/Cargo declaration is logged, not judged), and
+#      the attribution row carries `-` for licence_files. An identified licence follows the public rules.
+#      fixture.yaml records `visibility: private` and `exposure.retrieval: private-repository` (the head
+#      was never retrievable; the record's contamination note is unchanged). The trees are the owner's
+#      private code: --check names every private-source fixture so a corpus that is published is
+#      published knowingly.
 #
 # Writes:
 #   --commit-trees  <corpus>/pr-NN/{fixture.yaml, head.diff, PR.md, REVIEW-INSTRUCTIONS.md,
@@ -85,15 +97,25 @@
 #   --check [DIR]   writes nothing: DIR (default --corpus) matches its SHA256SUMS; every
 #                   external/pr-NN.json fixture has its fixture.yaml (kind external, source, pr,
 #                   head, exposure), PR.md, no symlink, every recorded file with its sha256 (the
-#                   committed ones), and passes the C-4 scanner
+#                   committed ones), and passes the C-4 scanner; the OK line names the private-source
+#                   fixtures (fixture.yaml `visibility: private`), when there are any
 #
 # fixture.yaml provenance: source_url (sanitised), pr, pr_url, pr_created, pr_merged, base_commit
 # (the merge base), pr_base_sha, head_commit, merge_commit, fix_commit, fix_first, fix_parent,
 # fix_committed, fix_after_cutoff (against the lib's MODEL_AVAILABILITY table), incident, licence,
-# trees (committed | fetch-at-run-time), then the lib's exposure block for the head commit.
+# visibility (public | private), trees (committed | fetch-at-run-time), then the lib's exposure block
+# for the head commit (retrieval public-repository, or private-repository under --private-source).
 #
 # --incident REF: an https:// URL (credentials, query and fragment stripped) or an identifier
 # ([A-Za-z0-9#._:/-], at most 120 characters); recorded, never fetched.
+#
+# --paths 'glob,!glob' (cycle-135 instrument repair, Task B; the record seeder's grammar): scopes the
+# fixture to part of the PR's changed files — a comma list of fnmatch globs (`*` crosses `/`), an entry
+# starting with `!` excludes; a changed path is in scope when it matches an include (or there is none)
+# and no exclude. A fleet PR carries the mount's state files (grimoires/, .beads/, .run/) beside its
+# code; `--paths '!grimoires/*,!.beads/*,!.run/*'` leaves them out of head/, base/, head.diff and the
+# fix regions (listed in labels/pr-NN.dropped.txt as outside the scope). The fix must touch an in-scope
+# file. fixture.yaml records the scope as `scope_paths`; a scope that leaves no file refuses (exit 2).
 #
 # Test seam (bats only): with LOA_SEED_EXTERNAL_TEST_MODE=1 and BATS_TEST_FILENAME set,
 # LOA_SEED_EXTERNAL_CLONE_FROM names a local repository cloned instead of the URL (the URL is
@@ -119,7 +141,7 @@ popd >/dev/null
 declare -F secret_classes_scan >/dev/null || { echo "seed-corpus-external: FAILED: lib/secret-classes.sh did not load" >&2; exit 1; }
 
 IFS= read -r -d '' SEED_EXTERNAL_PY <<'PY' || true
-import argparse, hashlib, io, json, os, re, shutil, subprocess, sys, tarfile, tempfile, urllib.parse
+import argparse, fnmatch, hashlib, io, json, os, re, shutil, subprocess, sys, tarfile, tempfile, urllib.parse
 
 HARNESS_ROOT = sys.argv[1]
 argv = sys.argv[2:]
@@ -143,6 +165,7 @@ ap = argparse.ArgumentParser(prog="seed-corpus-from-external.sh", add_help=True)
 ap.add_argument("repo_url", nargs="?"); ap.add_argument("pr", nargs="?")
 ap.add_argument("--fix"); ap.add_argument("--incident"); ap.add_argument("--licence")
 ap.add_argument("--commit-trees", action="store_true"); ap.add_argument("--dry-run", action="store_true")
+ap.add_argument("--private-source", action="store_true"); ap.add_argument("--paths")
 ap.add_argument("--check", nargs="?", const="", default=None, metavar="DIR")
 ap.add_argument("--out")
 ap.add_argument("--max-files", default="5000"); ap.add_argument("--max-bytes", default="200M")
@@ -201,7 +224,7 @@ def check_external(corpus):
     check()   # the lib's SHA256SUMS check (exit 1 on a difference)
     ext = os.path.join(CORPUS, "external")
     names = sorted(n for n in os.listdir(ext) if re.fullmatch(r"pr-[0-9]{2}\.json", n)) if os.path.isdir(ext) else []
-    bad = []
+    bad, private = [], []
     for n in names:
         fx = n[:-5]
         try:
@@ -232,12 +255,16 @@ def check_external(corpus):
                     bad.append(f"{fx}: {side}/{e['path']} is present in a fetch-at-run-time fixture")
         hits = secret_scan(fdir, [p for p, k in listing if k == "file"])
         bad += [f"{fx}: secret scan hit {h}" for h in hits]
+        if "\nvisibility: private\n" in "\n" + y:
+            private.append(fx)
     if bad:
         fail("check failed: " + "; ".join(bad[:20]))
-    print(f"external OK: {len(names)} external fixture(s) in {CORPUS}")
+    print(f"external OK: {len(names)} external fixture(s) in {CORPUS}"
+          + (f"; {len(private)} private-source ({', '.join(private)}): their trees are the owner's private code, "
+             "publish the corpus only knowingly" if private else ""))
 
 if args.check is not None:
-    if args.repo_url or args.pr or args.fix or args.dry_run or args.commit_trees:
+    if args.repo_url or args.pr or args.fix or args.dry_run or args.commit_trees or args.private_source:
         refuse("--check takes only an optional corpus directory (see --help)")
     check_external(args.check or CORPUS)
     sys.exit(0)
@@ -291,6 +318,14 @@ def sanitise_incident(r):
         refuse("--incident must be an https:// URL or an identifier ([A-Za-z0-9#._:/-], at most 120 characters)")
     return r
 INCIDENT = sanitise_incident(args.incident)
+scope_raw = (args.paths or "").strip()
+if "\n" in scope_raw or '"' in scope_raw or "\\" in scope_raw:
+    refuse("--paths: a comma list of globs (no quote, backslash or newline)")
+scope_inc = [g for g in scope_raw.split(",") if g and not g.startswith("!")]
+scope_exc = [g[1:] for g in scope_raw.split(",") if g.startswith("!") and len(g) > 1]
+def in_scope(p):
+    return ((not scope_inc or any(fnmatch.fnmatchcase(p, g) for g in scope_inc))
+            and not any(fnmatch.fnmatchcase(p, g) for g in scope_exc))
 if args.licence is not None and not re.fullmatch(r"[A-Za-z0-9.+-]{1,64}", args.licence):
     refuse("--licence must be an SPDX identifier")
 fx = os.path.basename(args.out.rstrip("/")) if args.out else ("pr-99" if args.dry_run else None)
@@ -322,8 +357,13 @@ def gh_json(path):
 REPO_META = gh_json(f"repos/{OWNER}/{NAME}")
 if not isinstance(REPO_META, dict):
     refuse(f"{SOURCE} is not a repository the GitHub API knows")
-if REPO_META.get("private") is True:
-    refuse(f"{SOURCE} is private; only public repositories are seeded")
+PRIVATE = REPO_META.get("private") is True
+if PRIVATE and not args.private_source:
+    refuse(f"{SOURCE} is private; only public repositories are seeded (--private-source for a private repository the operator controls)")
+if args.private_source and not PRIVATE:
+    refuse(f"{SOURCE} is public; --private-source is only for a private repository (drop the flag)")
+if PRIVATE:
+    log("private source: the operator's repository; the clone authenticates through `gh auth git-credential`")
 PR_META = gh_json(f"repos/{OWNER}/{NAME}/pulls/{PR}")
 if not isinstance(PR_META, dict):
     refuse(f"{SOURCE} has no pull request #{PR}")
@@ -353,6 +393,10 @@ GIT_ENV = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_CONFIG_NOSYSTEM": "1",
            "GIT_NO_LAZY_FETCH": "1", "GIT_ASKPASS": "/bin/false"}
 GIT_SAFE = ["-c", "core.hooksPath=" + os.devnull, "-c", "core.fsmonitor=false", "-c", "transfer.fsckObjects=true",
             "-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "credential.helper="]
+if PRIVATE:
+    # the empty helper above clears any configured helper; the gh helper is then the only one (no prompt: GIT_ASKPASS
+    # is /bin/false and GIT_TERMINAL_PROMPT=0), so a missing gh login fails the clone instead of asking
+    GIT_SAFE += ["-c", "credential.helper=!gh auth git-credential"]
 clone_from = SOURCE
 if os.environ.get("LOA_SEED_EXTERNAL_TEST_MODE") == "1" and os.environ.get("BATS_TEST_FILENAME") and os.environ.get("LOA_SEED_EXTERNAL_CLONE_FROM"):
     clone_from = "file://" + os.path.abspath(os.environ["LOA_SEED_EXTERNAL_CLONE_FROM"])
@@ -445,12 +489,17 @@ def unsafe_path(p):
     return (not p or p.startswith("/") or "\\" in p or "\x00" in p or any(x in ("", ".", "..") for x in p.split("/"))
             or re.search(r"[\x00-\x1f\x7f]", p) is not None or p.split("/")[0] == ".git" or "/.git/" in "/" + p + "/")
 
-PR_CHANGES = changed(MB, HEAD)
-if not PR_CHANGES:
+PR_CHANGES_ALL = changed(MB, HEAD)
+if not PR_CHANGES_ALL:
     refuse(f"pull request #{PR} changes no file between {MB[:12]} and {HEAD[:12]}")
+skipped = []
+out_of_scope = sorted(p for _s, p in PR_CHANGES_ALL if not in_scope(p))
+skipped += [f"{p}: outside the --paths scope" for p in out_of_scope]
+PR_CHANGES = [(st, p) for st, p in PR_CHANGES_ALL if in_scope(p)]
+if not PR_CHANGES:
+    refuse(f"pull request #{PR}: no file of its {len(PR_CHANGES_ALL)} changed file(s) is inside --paths {scope_raw!r}")
 trees = {"base": ls_tree(MB), "head": ls_tree(HEAD)}
 want = {"base": [], "head": []}   # [(path, oid)]
-skipped = []
 for st, path in PR_CHANGES:
     if unsafe_path(path):
         refuse(f"unsafe path in the PR: {path!r}")
@@ -474,7 +523,8 @@ FIX_CHANGES = changed(FIX_PARENT, FIX_LAST)
 if not FIX_CHANGES:
     refuse(f"--fix {args.fix} changes no file")
 if not {p for _s, p in FIX_CHANGES} & {p for _s, p in PR_CHANGES if trees["head"].get(p)}:
-    refuse(f"--fix {args.fix} touches no file the PR changed; the PR is not where the fixed defect was introduced")
+    refuse(f"--fix {args.fix} touches no file the PR changed" + (f" inside --paths {scope_raw!r}" if scope_raw else "")
+           + "; the PR is not where the fixed defect was introduced")
 fix_trees = {"parent": ls_tree(FIX_PARENT), "fix": ls_tree(FIX_LAST)}
 fix_want = []
 for st, path in FIX_CHANGES:
@@ -634,9 +684,16 @@ if leaks:
 # ------------------------------------------------------------- licence
 lic_api = gh_json(f"repos/{OWNER}/{NAME}/license")
 spdx = (((lic_api or {}).get("license") or {}).get("spdx_id")) if isinstance(lic_api, dict) else None
+LICENSE_REF = False   # --private-source with no identified licence: the operator's LicenseRef assertion
 if not spdx or spdx in ("NOASSERTION", "OTHER"):
-    refuse(f"{SOURCE}: the GitHub licence API identifies no licence ({spdx or 'none'}); unlicensed code is not seeded")
-if args.licence is not None and args.licence != spdx:
+    if not PRIVATE:
+        refuse(f"{SOURCE}: the GitHub licence API identifies no licence ({spdx or 'none'}); unlicensed code is not seeded")
+    if not (args.licence or "").startswith("LicenseRef-") or len(args.licence) < len("LicenseRef-") + 1:
+        refuse(f"{SOURCE}: the GitHub licence API identifies no licence ({spdx or 'none'}); a private source needs "
+               "--licence LicenseRef-<id>, the operator's rights assertion, recorded as the licence")
+    spdx, LICENSE_REF = args.licence, True
+    log(f"licence: none identified; recording the operator's assertion {spdx}")
+elif args.licence is not None and args.licence != spdx:
     refuse(f"--licence {args.licence} contradicts the GitHub licence API ({spdx}); the flag cannot override that evidence")
 declared = []
 for p, b in sorted(man_bytes.items()):
@@ -663,11 +720,13 @@ def families(text):
 api_family = families(spdx)
 for p, v in declared:
     named = families(v)
-    if named and not (named & api_family):
+    if LICENSE_REF:
+        log(f"licence: {p} declares {clean(v, 60)!r} (logged; the operator's assertion {spdx} stands)")
+    elif named and not (named & api_family):
         refuse(f"{p} declares licence {clean(v, 60)!r} but the GitHub licence API says {spdx}; a conflicting declaration refuses")
-if spdx not in ALLOWLIST:
+if spdx not in ALLOWLIST and not LICENSE_REF:
     refuse(f"licence {spdx} is outside the allowlist ({', '.join(ALLOWLIST)}); third-party trees under it are not seeded")
-if args.commit_trees and not lic_bytes:
+if args.commit_trees and not lic_bytes and not LICENSE_REF:
     refuse(f"{SOURCE} has no root LICENSE/NOTICE file to commit with the trees (--commit-trees needs one)")
 
 # ------------------------------------------------------------- temporary tree + scan
@@ -719,7 +778,8 @@ def file_rows(files):
 prov = {"schema_version": 1, "fixture": fx, "source_url": SOURCE, "pr": PR, "pr_url": f"{SOURCE}/pull/{PR}",
         "pr_base_sha": PR_BASE, "base_commit": MB, "head_commit": HEAD, "merge_commit": MERGE_COMMIT,
         "fix_first": FIX_FIRST, "fix_commit": FIX_LAST, "fix_parent": FIX_PARENT, "licence": spdx,
-        "trees": "committed" if committed else "fetch-at-run-time",
+        "visibility": "private" if PRIVATE else "public", "trees": "committed" if committed else "fetch-at-run-time",
+        "scope_paths": scope_raw or None,
         "files": {"base": file_rows(base_files), "head": file_rows(head_files)},
         "licence_files": file_rows(sorted(lic_bytes.items())), "skipped": skipped}
 fixture_yaml = (
@@ -731,7 +791,8 @@ fixture_yaml = (
     f'base_commit: "{MB}"\npr_base_sha: "{PR_BASE}"\nhead_commit: "{HEAD}"\nmerge_commit: {q(MERGE_COMMIT)}\n'
     f'fix_commit: "{FIX_LAST}"\nfix_first: "{FIX_FIRST}"\nfix_parent: "{FIX_PARENT}"\nfix_committed: "{FIX_DAY}"\n'
     f'fix_after_cutoff:\n  fable_5_1: {"true" if fix_after else "false"}      # knowledge cutoff {cut}\n'
-    f'incident: {q(INCIDENT)}\nlicence: "{spdx}"\ntrees: {prov["trees"]}\n' + exposure_block(HEAD))
+    f'incident: {q(INCIDENT)}\nlicence: "{spdx}"\nvisibility: {prov["visibility"]}\ntrees: {prov["trees"]}\n'
+    + (f'scope_paths: "{scope_raw}"\n' if scope_raw else "") + exposure_block(HEAD, RETRIEVAL_PRIVATE if PRIVATE else RETRIEVAL))
 
 # fix rows: the hunks of fix^..fix, carried to head/ line numbers through the head → fix^ diff of the same file;
 # a hunk that falls where the file changed between the PR head and fix^ has no head-side place and is dropped
@@ -760,7 +821,8 @@ head_map = dict(head_files)
 fix_rows, dropped = [], list(skipped)
 for st, path in FIX_CHANGES:
     if path not in head_map:
-        dropped.append(f"{path}: the fix touches it but the PR did not change it; no fix region")
+        dropped.append(f"{path}: the fix touches it but " + ("it is outside the --paths scope" if path in out_of_scope
+                       else "the PR did not change it") + "; no fix region")
         continue
     lines = head_map[path].decode("utf-8", "replace").splitlines()
     m = to_head(path)
@@ -810,7 +872,8 @@ else:
     corpus_set(fx, "\t".join([fx, "external-fetch", HEAD[:8], f"external/{fx}.json", "-", "-", "-", "-"]))
 n = freeze()
 summary = (f"{fx} {OWNER}/{NAME}#{PR}: {len(head_files)} head file(s), {len(base_files)} base file(s), diff {len(diff_text)} B, "
-           f"{len(fix_rows)} fix row(s), licence {spdx}, fix {FIX_DAY} ({'after' if fix_after else 'before'} the {cut} cutoff), "
+           f"{len(fix_rows)} fix row(s), licence {spdx}{' (private source)' if PRIVATE else ''}, fix {FIX_DAY} "
+           f"({'after' if fix_after else 'before'} the {cut} cutoff), "
            f"trees {prov['trees']}, {len(skipped)} skipped; SHA256SUMS {n} files")
 if args.dry_run:
     rep = os.path.join(DRY_ROOT, "DRY-RUN-REPORT.txt")

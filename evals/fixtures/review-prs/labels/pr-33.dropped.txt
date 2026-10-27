@@ -1,0 +1,3 @@
+# pr-33 external https://github.com/nushell/nushell #18704: files and hunks that did not become fix regions
+crates/nu-command/src/filesystem/ls.rs: the fix touches it but the PR did not change it; no fix region
+crates/nu-command/tests/commands/ls.rs: the fix touches it but the PR did not change it; no fix region

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-135-review-coverage-followups",
+  "active_cycle": "cycle-136-bridgebuilder-followups",
   "cycles": [
     {
       "id": "cycle-036",
@@ -2779,10 +2779,10 @@
     {
       "id": "cycle-135-review-coverage-followups",
       "label": "cycle-135 — review-coverage follow-ups: segment-anchored exclusion matching (bd-ow72o), protected paths (bd-i4fyw), content fetch for patch-less added files (bd-w5pd9), housekeeping classifier value (bd-nr5i6), CPU-time test guardrails (bd-oglcu)",
-      "status": "active",
+      "status": "archived",
       "created": "2026-10-26T04:22:43Z",
-      "archived": null,
-      "archive_path": null,
+      "archived": "2026-10-26T09:22:12Z",
+      "archive_path": "grimoires/loa/archive/cycle-135-review-coverage-followups",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprints": [
@@ -2792,6 +2792,25 @@
           "status": "completed",
           "created": "2026-10-26T04:43:01Z",
           "completed": "2026-10-26T07:13:13Z"
+        }
+      ]
+    },
+    {
+      "id": "cycle-136-bridgebuilder-followups",
+      "label": "cycle-136 — Bridgebuilder and scaffold follow-ups: scaffold detects the legacy release guard (bd-akkgq), base .reviewignore through the contents API on shallow checkouts (bd-9tt4b), Bridgebuilder contract tidy-up (bd-gyrgq)",
+      "status": "active",
+      "created": "2026-10-27T00:38:33Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "grimoires/loa/prd.md",
+      "sdd": null,
+      "sprints": [
+        {
+          "global_id": 280,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-27T00:50:36Z",
+          "completed": "2026-10-27T02:40:18Z"
         }
       ]
     }
@@ -3267,6 +3286,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 280,
-  "last_updated": "2026-10-26T07:11:43Z"
+  "next_sprint_number": 281,
+  "last_updated": "2026-10-27T02:40:18Z"
 }

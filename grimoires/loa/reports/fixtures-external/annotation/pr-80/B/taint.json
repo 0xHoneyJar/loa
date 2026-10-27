@@ -1,0 +1,11 @@
+{
+  "allowed_tools": [
+    "Read",
+    "Grep",
+    "Glob",
+    "Write"
+  ],
+  "events": [],
+  "sandbox": "/workspace",
+  "tainted": false
+}

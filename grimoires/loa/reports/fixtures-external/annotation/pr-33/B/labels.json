@@ -1,0 +1,21 @@
+{
+  "hunks": {
+    "H01": {"verdict": "defect", "not_defect_class": null, "group": "D1",
+            "file": "crates/nu-glob/src/dc_glob/compiler.rs", "anchor_lines": [148, 296, 304, 305],
+            "description": "Separator elision uses pattern_is_trailing_recursive, which is true for any suffix ending in `**`, so every `/` in multi-component patterns like `a/b/**` or absolute `{cwd}/**` (used by `ls **`) is dropped, producing wrong matches.",
+            "severity": "high", "category": "logic"},
+    "H02": {"verdict": "not-defect", "not_defect_class": "docs", "group": null,
+            "file": "crates/nu-glob/src/dc_glob/compiler.rs", "anchor_lines": [],
+            "description": "Doc comment clarifying the predicate is not used for separator elision.", "severity": null, "category": null},
+    "H03": {"verdict": "not-defect", "not_defect_class": "follow-on", "group": "D1",
+            "file": "crates/nu-glob/src/dc_glob/compiler.rs", "anchor_lines": [],
+            "description": "Adds the pure-trailing-recursive predicate used by the H01 fix.", "severity": null, "category": null},
+    "H04": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "crates/nu-glob/src/dc_glob/mod.rs", "anchor_lines": [],
+            "description": "Adds a compiler regression test for a/b/** separators.", "severity": null, "category": null},
+    "H05": {"verdict": "not-defect", "not_defect_class": "test", "group": null,
+            "file": "crates/nu-glob/src/dc_glob/mod.rs", "anchor_lines": [],
+            "description": "Adds glob walk tests for multi-component and absolute trailing `**`.", "severity": null, "category": null}
+  },
+  "incidents": {}
+}

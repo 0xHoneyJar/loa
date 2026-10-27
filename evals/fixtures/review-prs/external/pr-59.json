@@ -1,0 +1,69 @@
+{
+  "base_commit": "895d8554ffdf65231287eb3193aed4b1e3ae9f72",
+  "files": {
+    "base": [
+      {
+        "blob": "b2e0e35be565dc36e4a91f475ffd65bf8f145396",
+        "path": "pydantic-core/src/validators/model_fields.rs",
+        "sha256": "92607cfc86b0d760426c113e57ce0a8e31bb5965eab63c4afe9f3190e4230626",
+        "size": 31134
+      },
+      {
+        "blob": "c1ab7816d0545698b24fcc1b0111e22ce638d706",
+        "path": "pydantic-core/src/validators/shared/lookup_tree.rs",
+        "sha256": "9e9983ed8a75530b46ff588001f0d0d7d2c306ab21baa7c8d20a58a61de5c5cd",
+        "size": 12471
+      },
+      {
+        "blob": "6cb00969a87d82fb2bbd53fc69754344ceb8bc03",
+        "path": "tests/types/test_model.py",
+        "sha256": "59db58298e79f0cd0803ea49edcb2389c6ba4a7690ea41434eee8a3ed4a6c9f7",
+        "size": 2888
+      }
+    ],
+    "head": [
+      {
+        "blob": "1192336b5de1757e52ca098655add21ecef14de6",
+        "path": "pydantic-core/src/validators/model_fields.rs",
+        "sha256": "01e050e27c88642403462ed42509fdb11fc9bbf269fd4e553cb52655ba1e021f",
+        "size": 31030
+      },
+      {
+        "blob": "11c403c6d7cf03ed85cb63f7a8e3a16d2ab877c5",
+        "path": "pydantic-core/src/validators/shared/lookup_tree.rs",
+        "sha256": "1c2fb2f37b73224fc391ca6135b5c1037549a666f1a22054a543feb6b9ac4727",
+        "size": 11775
+      },
+      {
+        "blob": "bcdf48d58f11a10e327cdcfb69697a9dbe326561",
+        "path": "tests/types/test_model.py",
+        "sha256": "000166988ab6af0f131aeabf727926db5a906d8fb82a4dfe542669bbfa8b1b94",
+        "size": 3515
+      }
+    ]
+  },
+  "fix_commit": "a6bf50b721c2dd1ed609c8bb402076e8ec0c43f3",
+  "fix_first": "a6bf50b721c2dd1ed609c8bb402076e8ec0c43f3",
+  "fix_parent": "b7e81cfc9f3ebc7d42a0ee5c85bf28db181a38f7",
+  "fixture": "pr-59",
+  "head_commit": "67ac6fd4ee9d0317e78efdace2228ca83abe4371",
+  "licence": "MIT",
+  "licence_files": [
+    {
+      "blob": "488c6260c10f2e88fa1fae58a63fccec8d600cd1",
+      "path": "LICENSE",
+      "sha256": "a9e186f3ca16b5eef84318e7a701721351a00cb7b8ae3a4394b67b49e3529ef3",
+      "size": 1129
+    }
+  ],
+  "merge_commit": "b7e81cfc9f3ebc7d42a0ee5c85bf28db181a38f7",
+  "pr": 13079,
+  "pr_base_sha": "895d8554ffdf65231287eb3193aed4b1e3ae9f72",
+  "pr_url": "https://github.com/pydantic/pydantic/pull/13079",
+  "schema_version": 1,
+  "scope_paths": null,
+  "skipped": [],
+  "source_url": "https://github.com/pydantic/pydantic",
+  "trees": "committed",
+  "visibility": "public"
+}
