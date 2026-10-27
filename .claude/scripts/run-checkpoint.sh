@@ -186,15 +186,62 @@ bead_closed() {  # $1 bead id → 0 when br reports closed
 
 cmd_read() {
   if [[ ! -f "$file" ]]; then echo "run-checkpoint: no run state at $file" >&2; return 2; fi
-  if ! jq -e . "$file" >/dev/null 2>&1; then echo "run-checkpoint: $file unparseable — no checkpoint; beads are the recovery truth" >&2; if (( json )); then echo '{"checkpoint":null,"reason":"unparseable"}'; fi; return 0; fi
   local sv cp s t p ts reason="" brc
-  sv=$(jq -r '.schema_version // 1' "$file"); cp=$(jq -c '.checkpoint // null' "$file")
-  [[ "$sv" =~ ^[0-9]+$ ]] || sv=1
+  # Fast path: ONE jq extracts schema_version, the checkpoint's null-ness and its
+  # four string fields, one per line. It answers only for the plain shape (a
+  # single JSON object; sv a number or newline-free string; checkpoint fields
+  # null/absent/false or newline- and NUL-free strings). Anything else prints
+  # nothing and falls through to the per-field reads below, which keep the
+  # original parse-check, error text and exit codes byte-for-byte.
+  local fast="" f_ok="" f_sv="" f_null="" f_fields="" f_s="" f_t="" f_p="" f_ts=""
+  fast=$(jq -s -r '
+    def okstr: type == "string" and (contains("\n") | not) and (contains("\u0000") | not);
+    def fld($o; $k): $o[$k] as $v
+      | if $v == null or $v == false then "" elif ($v | okstr) then $v else null end;
+    if length == 1 and (.[0] | type) == "object" then
+      .[0] as $d
+      | ($d.schema_version // 1
+         | if type == "number" then tostring
+           elif type == "string" then (if okstr then . else null end)
+           else "x" end) as $sv
+      | ($d.checkpoint // null) as $cp
+      | (if ($cp | type) == "object"
+         then [fld($cp; "sprint"), fld($cp; "task"), fld($cp; "phase"), fld($cp; "ts")] else null end) as $f
+      | if $sv == null then empty
+        else "Y", $sv, (if $cp == null then "1" else "0" end),
+             (if $f != null and ($f | any(. == null) | not) then "1" else "0" end),
+             ($f // ["", "", "", ""] | map(. // "") | .[])
+        end
+    else empty end' "$file" 2>/dev/null) || fast=""
+  if [[ -n "$fast" ]]; then
+    {
+      IFS= read -r f_ok; IFS= read -r f_sv; IFS= read -r f_null; IFS= read -r f_fields
+      IFS= read -r f_s; IFS= read -r f_t; IFS= read -r f_p; IFS= read -r f_ts
+    } <<< "$fast" || true
+    [[ "$f_ok" == Y ]] || fast=""
+  fi
+  if [[ -n "$fast" ]]; then
+    sv="$f_sv"; cp="null"
+    [[ "$f_null" == 1 ]] || cp="present"
+    [[ "$sv" =~ ^[0-9]+$ ]] || sv=1
+    # If the checkpoint is present but not a plain object (fields not all
+    # null/absent/false or newline- and NUL-free strings), use the original reads.
+    if [[ "$cp" != "null" && "$f_fields" != 1 ]]; then fast=""; fi
+  fi
+  if [[ -z "$fast" ]]; then
+    if ! jq -e . "$file" >/dev/null 2>&1; then echo "run-checkpoint: $file unparseable — no checkpoint; beads are the recovery truth" >&2; if (( json )); then echo '{"checkpoint":null,"reason":"unparseable"}'; fi; return 0; fi
+    sv=$(jq -r '.schema_version // 1' "$file"); cp=$(jq -c '.checkpoint // null' "$file")
+    [[ "$sv" =~ ^[0-9]+$ ]] || sv=1
+  fi
   if [[ "$cp" == "null" || "$sv" -lt 2 ]]; then
     if (( json )); then echo '{"checkpoint":null,"reason":"sprint granularity"}'; else echo "checkpoint: none (schema_version $sv → sprint granularity; resume at the first open bead of sprints.current)"; fi
     return 0
   fi
-  s=$(jq -r '.checkpoint.sprint // empty' "$file"); t=$(jq -r '.checkpoint.task // empty' "$file"); p=$(jq -r '.checkpoint.phase // empty' "$file"); ts=$(jq -r '.checkpoint.ts // empty' "$file")
+  if [[ -n "$fast" ]]; then
+    s="$f_s"; t="$f_t"; p="$f_p"; ts="$f_ts"
+  else
+    s=$(jq -r '.checkpoint.sprint // empty' "$file"); t=$(jq -r '.checkpoint.task // empty' "$file"); p=$(jq -r '.checkpoint.phase // empty' "$file"); ts=$(jq -r '.checkpoint.ts // empty' "$file")
+  fi
   if [[ -z "$s" || -z "$p" ]]; then reason="malformed checkpoint"
   elif [[ -n "$t" ]]; then
     # A task checkpoint is trusted only when beads CONFIRMS the task closed;
