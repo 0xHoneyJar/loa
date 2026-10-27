@@ -39118,3 +39118,39 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1108"
+    created_at: "2026-10-27T03:08:32Z"
+    updated_at: "2026-10-27T03:08:32Z"
+    phase: "review"
+    category: "process"
+    summary: "Bridgebuilder round 1 on PR #1307: non-degraded COMMENT (2/2 voices, 15 findings, 0 blockers); both MEDIUMs refuted by the code; no round 2."
+    decision: "No fix round: the verdict is non-degraded on the final head b2816dbc5 with nothing to change; refutations cite normalizeExcludePatterns (WARN + continue, never throws) and getFileContent's type === file check."
+    rationale: "FR-4 binds the verdict to the final head; a docs-only commit would have invalidated it for no behaviour change — the triage, DEC row and e2e update ride in the archive commit instead."
+    alternatives_considered:
+      - option: "commit the triage artefacts to the PR branch"
+        rejected_because: "moves the head under a finished verdict and restarts CI for prose"
+    consequences:
+      positive:
+        - "one round, verdict on the final head"
+      negative:
+        - "the decision row lands with the archive, not the sprint PR"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "b2816dbc"
+    source: "PR #1307 round-1 triage comment"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T03:08:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "~/.cache/loa/cycle-136/bb/round1.out; PR #1307 comments"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
