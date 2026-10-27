@@ -1701,6 +1701,135 @@ describe(".reviewignore provenance (cycle-135 C-2, bd-i4fyw)", () => {
   });
 });
 
+// --- cycle-136 C-2 (bd-9tt4b, sdd.md § 5.2/§ 5.3): typed base-read outcomes and the resolved `reviewignoreBase` ---
+
+describe("readBaseReviewignore classes and resolveBasePatterns (cycle-136 C-2, bd-9tt4b)", () => {
+  function git(root: string, ...args: string[]): string {
+    return execFileSync(
+      "git",
+      ["-C", root, "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", ...args],
+      { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] },
+    ).trim();
+  }
+
+  function repoWith(content: string | null): { root: string; sha: string } {
+    const root = tmpRepoDir("c136-base");
+    git(root, "init", "-q");
+    writeFileSync(join(root, "README"), "x\n");
+    git(root, "add", "README");
+    if (content !== null) {
+      writeFileSync(join(root, ".reviewignore"), content);
+      git(root, "add", ".reviewignore");
+    }
+    git(root, "commit", "-q", "-m", "base");
+    return { root, sha: git(root, "rev-parse", "HEAD") };
+  }
+
+  it("ok: the base blob's patterns", () => {
+    const { root, sha } = repoWith("base-only.md\n");
+    try {
+      assert.deepEqual(truncation.readBaseReviewignore(root, sha), { ok: true, patterns: ["base-only.md"] });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("absent: the commit is in the clone and has no .reviewignore", () => {
+    const { root, sha } = repoWith(null);
+    try {
+      const r = truncation.readBaseReviewignore(root, sha);
+      assert.equal(r.ok, false);
+      assert.equal(!r.ok && r.why, "absent");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("unknown_commit: a 40-hex sha the clone does not hold (cat-file -e exit status)", () => {
+    const { root } = repoWith("x.md\n");
+    try {
+      const r = truncation.readBaseReviewignore(root, "1".repeat(40));
+      assert.equal(r.ok, false);
+      assert.equal(!r.ok && r.why, "unknown_commit");
+      assert.equal(typeof (!r.ok && r.detail), "string");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("other: a symlink at the base, an oversize blob, a non-40-hex sha", () => {
+    const link = tmpRepoDir("c136-link");
+    const big = repoWith("#".repeat(truncation.REVIEWIGNORE_MAX_BYTES + 1) + "\n");
+    try {
+      git(link, "init", "-q");
+      writeFileSync(join(link, "target"), "x.md\n");
+      symlinkSync("target", join(link, ".reviewignore"));
+      git(link, "add", "target", ".reviewignore");
+      git(link, "commit", "-q", "-m", "link");
+      for (const [label, r] of [
+        ["symlink", truncation.readBaseReviewignore(link, git(link, "rev-parse", "HEAD"))],
+        ["oversize", truncation.readBaseReviewignore(big.root, big.sha)],
+        ["not 40-hex", truncation.readBaseReviewignore(big.root, "abc123")],
+      ] as const) {
+        assert.equal(r.ok, false, label);
+        assert.equal(!r.ok && r.why, "other", label);
+      }
+    } finally {
+      rmSync(link, { recursive: true, force: true });
+      rmSync(big.root, { recursive: true, force: true });
+    }
+  });
+
+  it("parseReviewignoreFile keeps today's mapping: absent → none, unknown_commit → base_unavailable", () => {
+    const { root, sha } = repoWith(null);
+    try {
+      writeFileSync(join(root, ".reviewignore"), "checkout-only.md\n");
+      assert.deepEqual(captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: sha })).value, { patterns: [], source: "none" });
+      assert.deepEqual(captureStderr(() => truncation.parseReviewignoreFile(root, { baseSha: "1".repeat(40) })).value,
+        { patterns: ["checkout-only.md"], source: "base_unavailable" });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // the checkout says `src/**` and the sha is unknown: without `reviewignoreBase` that is base_unavailable + src/** applied
+  for (const selfReview of [false, true]) {
+    const site = selfReview ? "self-review read site" : "default read site";
+    it(`${site}: reviewignoreBase wins over the sha read (base patterns, source base, no WARN)`, () => {
+      const { root } = repoWith("unused.md\n");
+      try {
+        writeFileSync(join(root, ".reviewignore"), "src/**\n");
+        const files = [file("src/a.ts", 3, 0), file("base-only.md", 1, 0)];
+        const { value: r, err } = captureStderr(() => run(files, {
+          loaAware: true, selfReview, repoRoot: root, reviewignoreBaseSha: "1".repeat(40),
+          reviewignoreBase: { patterns: ["base-only.md"], source: "base" },
+        } as Partial<ProtectedConfig>));
+        assert.equal(r.reviewignoreSource, "base");
+        assert.ok(names(r.included).includes("src/a.ts"), "the checkout's src/** is not applied");
+        assert.ok(!names(r.included).includes("base-only.md"), "the resolved base pattern applies");
+        assert.ok(!/base_unavailable/.test(err), err);
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it(`${site}: reviewignoreBase { patterns: [], source: none } applies nothing and reports none`, () => {
+      const { root } = repoWith("unused.md\n");
+      try {
+        writeFileSync(join(root, ".reviewignore"), "src/**\n");
+        const r = captureStderr(() => run([file("src/a.ts", 3, 0)], {
+          loaAware: true, selfReview, repoRoot: root, reviewignoreBaseSha: "1".repeat(40),
+          reviewignoreBase: { patterns: [], source: "none" },
+        } as Partial<ProtectedConfig>)).value;
+        assert.equal(r.reviewignoreSource, "none");
+        assert.ok(names(r.included).includes("src/a.ts"));
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+  }
+});
+
 // --- sprint-279 review round 1 (bd-ow72o, bd-i4fyw) ---
 
 describe("explicit = root-anchored or the full path (review round 1, HIGH 2)", () => {
