@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-136-bridgebuilder-followups",
+  "active_cycle": null,
   "cycles": [
     {
       "id": "cycle-036",
@@ -2798,10 +2798,10 @@
     {
       "id": "cycle-136-bridgebuilder-followups",
       "label": "cycle-136 — Bridgebuilder and scaffold follow-ups: scaffold detects the legacy release guard (bd-akkgq), base .reviewignore through the contents API on shallow checkouts (bd-9tt4b), Bridgebuilder contract tidy-up (bd-gyrgq)",
-      "status": "active",
+      "status": "archived",
       "created": "2026-10-27T00:38:33Z",
-      "archived": null,
-      "archive_path": null,
+      "archived": "2026-10-27T03:59:55Z",
+      "archive_path": "grimoires/loa/archive/cycle-136-bridgebuilder-followups",
       "prd": "grimoires/loa/prd.md",
       "sdd": null,
       "sprints": [
@@ -3287,5 +3287,5 @@
     }
   ],
   "next_sprint_number": 281,
-  "last_updated": "2026-10-27T02:40:18Z"
+  "last_updated": "2026-10-27T03:59:55Z"
 }
