@@ -127,7 +127,10 @@ keys change review scope, not provider identity, so the run is not refused. `--e
 checkout's values apply. When no trusted source can be read on a pull request (shallow checkout, no variable), the
 four keys fall to their defaults with one WARN — fail closed, so a PR head cannot widen its own review (bd-ous65). The
 trusted source must carry the keys it wants to govern: a `BRIDGEBUILDER_TRUSTED_CONFIG` variable holding only
-provider settings leaves them unset, and the defaults apply with a WARN per differing head value.
+provider settings leaves them unset, and the defaults apply with a WARN per differing head value. An invalid PR head
+value of `protected_paths`, `exclude_patterns` (not a list of strings) or `max_content_fetches` does not fail the
+review on a pull request (cycle-136): one `WARN` names the key and the reason, the head value is ignored, and the
+trusted value or the default governs. Locally it is still a config error.
 
 `.reviewignore` is read from the PR's base commit when the review knows it (`git show <base_sha>:.reviewignore`, the
 same line rules, 10 s and 1 MiB bounds, symlinks refused). A PR therefore cannot change the exclusions of its own

@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { z } from "zod/v4";
 import { GENERATED_MODEL_REGISTRY } from "./config.generated.js";
 // cycle-135 C-1 (bd-ow72o): every exclusion-pattern source goes through the one loader.
-import { excludePatternGrammarError, normalizeExcludePatterns } from "./core/truncation.js";
+import { boundedForLog, excludePatternGrammarError, normalizeExcludePatterns } from "./core/truncation.js";
 const execFileAsync = promisify(execFile);
 /**
  * Zod schema for multi-model configuration (SDD Section 2.7).
@@ -707,17 +707,20 @@ export function loadTrustedConfig(opts, deps = defaultTrustedConfigDeps) {
  * request (Bridgebuilder round 1, PR #1302, bd-ous65): the four keys fall to their defaults with one WARN — fail closed,
  * so a shallow checkout cannot be used to widen the PR's own review. main.ts calls this right after `loadTrustedConfig`.
  */
-export function applyTrustedReviewScope(config, trusted, cli) {
+export function applyTrustedReviewScope(config, trusted, cli, provenance) {
     const scope = trusted.reviewScope;
+    // (cycle-136 FR-5: a local-mode trusted load installs nothing, so a deferral stays and assertNoDeferredScopeKeys refuses)
     if (trusted.mode !== "pull-request" || scope === undefined)
         return;
+    // cycle-136 FR-5 (DEC-1084): a key resolveConfig deferred was already reported as invalid — no second drift WARN
+    const deferred = new Set(provenance?.deferredScopeKeys ?? []);
     const where = trustedSourceDescription(trusted);
     if (trusted.source === "none") {
         process.stderr.write("[bridgebuilder] WARN: no trusted config could be read on this pull request — the review-scope keys (protected_paths, " +
             "exclude_patterns, fetch_missing_patches, max_content_fetches) fall to their defaults (fail closed); the PR head's values are ignored (bd-ous65)\n");
     }
     const show = (v) => (v === undefined ? "unset" : JSON.stringify(v).slice(0, 300));
-    const warn = (key, head, value) => process.stderr.write(`[bridgebuilder] WARN: bridgebuilder.${key}: the PR head's value (${show(head)}) differs from ${where} ` +
+    const warn = (key, head, value) => deferred.has(key) || process.stderr.write(`[bridgebuilder] WARN: bridgebuilder.${key}: the PR head's value (${show(head)}) differs from ${where} ` +
         `(${show(value)}) — the trusted value governs (review scope: warned, not refused; bd-i4fyw)\n`);
     const isNull = (v) => v === null || v === undefined;
     const pp = isNull(scope.protected_paths) ? undefined : validateProtectedPaths(scope.protected_paths);
@@ -760,6 +763,26 @@ export function applyTrustedReviewScope(config, trusted, cli) {
         delete config.maxContentFetches;
     else
         config.maxContentFetches = mcf;
+    // cycle-136 FR-5: every deferred key now carries the trusted value or the default — the hand-off is complete
+    if (provenance)
+        delete provenance.deferredScopeKeys;
+}
+/**
+ * cycle-136 FR-5 (sdd.md § 5.6, DEC-1084): the review must not run on a configuration whose head-side scope keys were
+ * deferred by `resolveConfig` and never replaced by `applyTrustedReviewScope` — a config error naming the keys.
+ */
+export function assertNoDeferredScopeKeys(provenance) {
+    const keys = provenance.deferredScopeKeys ?? [];
+    if (keys.length === 0)
+        return;
+    throw new Error(`${keys.map((k) => `bridgebuilder.${k}`).join(", ")}: the PR head's invalid value was deferred but no trusted ` +
+        `replacement was applied — applyTrustedReviewScope must run before the review (cycle-136 FR-5)`);
+}
+/** cycle-136 FR-5: `bridgebuilder.exclude_patterns` must be a list of strings (the trusted side checks the same shape). */
+function validateExcludePatternList(raw) {
+    if (Array.isArray(raw) && raw.every((x) => typeof x === "string"))
+        return raw;
+    throw new Error(`bridgebuilder.exclude_patterns: expected a list of patterns, got ${String(JSON.stringify(raw)).slice(0, 300)}`);
 }
 /** `hounfour.aliases` as a string map (non-string targets — cheval's dict form included — read through `target`/`model`). */
 function stringAliases(raw) {
@@ -1486,6 +1509,33 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
             : "default";
     // Resolve repoRoot: CLI > env > git auto-detect (Bug 3 fix — issue #309)
     const repoRoot = resolveRepoRoot(cliArgs, env);
+    // cycle-136 FR-5 (sdd.md § 5.6, DEC-1084): on a pull request this YAML is the PR head's, so an invalid review-scope key
+    // there must not fail the head's own review. The head YAML is validated first, before any trusted value is seen: an
+    // invalid key is reported in one WARN, left UNSET (never the invalid value) and named in provenance.deferredScopeKeys.
+    // applyTrustedReviewScope then REPLACES the head's scope keys with the trusted source's (or the defaults) — flat
+    // lists, booleans and integers, exclude_patterns recomposed as defaults + trusted + CLI; nothing is deep-merged — and
+    // clears the list. Locally every validation error stays a config error.
+    const prMode = isPullRequestContext(cliArgs.pr, { GITHUB_EVENT_NAME: env.GITHUB_EVENT_NAME, GITHUB_BASE_REF: env.GITHUB_BASE_REF });
+    const deferredScopeKeys = [];
+    const headScope = (key, validate) => {
+        try {
+            return validate();
+        }
+        catch (err) {
+            if (!prMode)
+                throw err;
+            process.stderr.write(`[bridgebuilder] WARN: bridgebuilder.${key}: the PR head's value is invalid (${boundedForLog(String(err.message ?? err))}) ` +
+                `— ignored on a pull request; the trusted configuration (or its default) governs\n`);
+            deferredScopeKeys.push(key);
+            return undefined;
+        }
+    };
+    const protectedPaths = yaml.protected_paths !== undefined
+        ? headScope("protected_paths", () => validateProtectedPaths(yaml.protected_paths)) : undefined;
+    const maxContentFetches = yaml.max_content_fetches !== undefined
+        ? headScope("max_content_fetches", () => validateMaxContentFetches(yaml.max_content_fetches)) : undefined;
+    const headExcludes = yaml.exclude_patterns !== undefined
+        ? headScope("exclude_patterns", () => validateExcludePatternList(yaml.exclude_patterns)) : undefined;
     // Resolve remaining fields: CLI > env > yaml > defaults
     const config = {
         repos,
@@ -1504,16 +1554,14 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
             DEFAULTS.dryRun,
         excludePatterns: [
             ...DEFAULT_EXCLUDE_PATTERNS,
-            ...normalizeExcludePatterns(yaml.exclude_patterns ?? [], "bridgebuilder.exclude_patterns"),
+            ...normalizeExcludePatterns(headExcludes ?? [], "bridgebuilder.exclude_patterns"),
             ...normalizeExcludePatterns(cliArgs.exclude ?? [], "--exclude"),
         ],
         ghMaxBufferBytes: resolveGhMaxBufferBytes(yaml.gh_max_buffer_bytes),
         // cycle-135 C-2/C-3: set only when configured; readers default them (DEFAULT_PROTECTED_PATHS, true, 20).
-        ...(yaml.protected_paths !== undefined ? { protectedPaths: validateProtectedPaths(yaml.protected_paths) } : {}),
+        ...(protectedPaths !== undefined ? { protectedPaths } : {}),
         ...(yaml.fetch_missing_patches !== undefined ? { fetchMissingPatches: yaml.fetch_missing_patches } : {}),
-        ...(yaml.max_content_fetches !== undefined
-            ? { maxContentFetches: validateMaxContentFetches(yaml.max_content_fetches) }
-            : {}),
+        ...(maxContentFetches !== undefined ? { maxContentFetches } : {}),
         sanitizerMode: yaml.sanitizer_mode ?? DEFAULTS.sanitizerMode,
         maxRuntimeMinutes: yaml.max_runtime_minutes ?? DEFAULTS.maxRuntimeMinutes,
         ...(cliArgs.pr != null ? { targetPr: cliArgs.pr } : {}),
@@ -1554,6 +1602,7 @@ export async function resolveConfig(cliArgs, env, yamlConfig) {
         maxOutputTokens: maxOutputTokensSource,
         maxDiffBytes: maxDiffBytesSource,
         reviewMode: reviewModeSource,
+        ...(deferredScopeKeys.length > 0 ? { deferredScopeKeys } : {}),
     };
     return { config, provenance };
 }

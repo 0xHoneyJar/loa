@@ -227,7 +227,12 @@ export declare function loadTrustedConfig(opts: {
  */
 export declare function applyTrustedReviewScope(config: BridgebuilderConfig, trusted: TrustedConfig & {
     reviewScope?: TrustedReviewScope;
-}, cli: Pick<CLIArgs, "exclude">): void;
+}, cli: Pick<CLIArgs, "exclude">, provenance?: Pick<ConfigProvenance, "deferredScopeKeys">): void;
+/**
+ * cycle-136 FR-5 (sdd.md § 5.6, DEC-1084): the review must not run on a configuration whose head-side scope keys were
+ * deferred by `resolveConfig` and never replaced by `applyTrustedReviewScope` — a config error naming the keys.
+ */
+export declare function assertNoDeferredScopeKeys(provenance: Pick<ConfigProvenance, "deferredScopeKeys">): void;
 /** Key-order-independent structural equality over JSON values (the yq view is JSON). */
 export declare function jsonDeepEqual(a: unknown, b: unknown): boolean;
 /**
@@ -370,6 +375,9 @@ export interface EnvVars {
     BRIDGEBUILDER_REPO_ROOT?: string;
     LOA_BRIDGE_REVIEW_MODE?: string;
     BRIDGEBUILDER_PASS1_CACHE?: string;
+    /** cycle-136 FR-5: the pull-request signals `isPullRequestContext` reads (as `loadTrustedConfig` does). */
+    GITHUB_EVENT_NAME?: string;
+    GITHUB_BASE_REF?: string;
 }
 /**
  * Parse CLI arguments from process.argv.
@@ -427,6 +435,11 @@ export interface ConfigProvenance {
     maxOutputTokens: ConfigSource;
     maxDiffBytes: ConfigSource;
     reviewMode: ConfigSource;
+    /**
+     * cycle-136 FR-5 (DEC-1084): review-scope keys whose PR-head value was invalid on a pull request — left unset by
+     * resolveConfig until applyTrustedReviewScope installs the trusted value or the default (and deletes this list).
+     */
+    deferredScopeKeys?: string[];
 }
 /**
  * Format effective config for logging (secrets redacted).
