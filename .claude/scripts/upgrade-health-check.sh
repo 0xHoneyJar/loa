@@ -216,26 +216,47 @@ check_new_config_options() {
     # Check for missing top-level sections (v1.3.0+ features)
     local missing_sections=()
 
-    # recursive_jit (v0.20.0 / v1.3.0)
-    if ! yq -e '.recursive_jit' "$CONFIG_FILE" &>/dev/null; then
-        missing_sections+=("recursive_jit")
-    fi
-
-    # recursive_jit.continuous_synthesis (v1.3.1)
-    if ! yq -e '.recursive_jit.continuous_synthesis' "$CONFIG_FILE" &>/dev/null; then
-        if yq -e '.recursive_jit' "$CONFIG_FILE" &>/dev/null; then
-            missing_sections+=("recursive_jit.continuous_synthesis")
+    # Fast path: one yq call answers all four probes (truthiness mirrors
+    # `yq -e`: null/false are "missing"). Anything unexpected (parse error,
+    # multi-document stream, odd shape) falls back to the per-key probes below.
+    local probe="" fast=false
+    if probe=$(yq '(.recursive_jit | (. == null or . == false) | not), (.recursive_jit.continuous_synthesis | (. == null or . == false) | not), (.continuous_learning | (. == null or . == false) | not), (.run_mode | (. == null or . == false) | not)' "$CONFIG_FILE" 2>/dev/null); then
+        local p_rj="" p_cs="" p_cl="" p_rm="" p_extra=""
+        { read -r p_rj; read -r p_cs; read -r p_cl; read -r p_rm; read -r p_extra || true; } <<< "$probe"
+        if [[ -z "$p_extra" && "$p_rj" =~ ^(true|false)$ && "$p_cs" =~ ^(true|false)$ \
+              && "$p_cl" =~ ^(true|false)$ && "$p_rm" =~ ^(true|false)$ ]]; then
+            fast=true
+            [[ "$p_rj" == "true" ]] || missing_sections+=("recursive_jit")
+            if [[ "$p_cs" != "true" && "$p_rj" == "true" ]]; then
+                missing_sections+=("recursive_jit.continuous_synthesis")
+            fi
+            [[ "$p_cl" == "true" ]] || missing_sections+=("continuous_learning")
+            [[ "$p_rm" == "true" ]] || missing_sections+=("run_mode")
         fi
     fi
 
-    # continuous_learning (v0.17.0)
-    if ! yq -e '.continuous_learning' "$CONFIG_FILE" &>/dev/null; then
-        missing_sections+=("continuous_learning")
-    fi
+    if [[ "$fast" != "true" ]]; then
+        # recursive_jit (v0.20.0 / v1.3.0)
+        if ! yq -e '.recursive_jit' "$CONFIG_FILE" &>/dev/null; then
+            missing_sections+=("recursive_jit")
+        fi
 
-    # run_mode (v0.18.0)
-    if ! yq -e '.run_mode' "$CONFIG_FILE" &>/dev/null; then
-        missing_sections+=("run_mode")
+        # recursive_jit.continuous_synthesis (v1.3.1)
+        if ! yq -e '.recursive_jit.continuous_synthesis' "$CONFIG_FILE" &>/dev/null; then
+            if yq -e '.recursive_jit' "$CONFIG_FILE" &>/dev/null; then
+                missing_sections+=("recursive_jit.continuous_synthesis")
+            fi
+        fi
+
+        # continuous_learning (v0.17.0)
+        if ! yq -e '.continuous_learning' "$CONFIG_FILE" &>/dev/null; then
+            missing_sections+=("continuous_learning")
+        fi
+
+        # run_mode (v0.18.0)
+        if ! yq -e '.run_mode' "$CONFIG_FILE" &>/dev/null; then
+            missing_sections+=("run_mode")
+        fi
     fi
 
     if [[ ${#missing_sections[@]} -gt 0 ]]; then
