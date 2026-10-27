@@ -1,6 +1,7 @@
 export type {
   PullRequest,
   PullRequestFile,
+  FileContentResult,
   PRReview,
   PreflightResult,
   RepoPreflightResult,

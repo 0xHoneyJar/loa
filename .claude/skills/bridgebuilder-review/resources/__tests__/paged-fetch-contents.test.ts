@@ -305,3 +305,93 @@ describe("content fetch for patch-less added files (C-3)", () => {
     assert.ok(calls.some((a) => a.length === 2 && a[1].startsWith("/repos/o/r/contents/")), "the contents call carries no flags");
   });
 });
+
+// cycle-136 C-3 (FR-3 (c), sdd.md § 4, bd-gyrgq): a failed content read is no longer silent — one bounded WARN per file
+// per attempt for the outcomes error / too_large / binary (budget, skipped_cap, deadline and aborted are not failed reads).
+// (review round 1: { concurrency: 1 } — the cases swap process.stderr.write, so they must never interleave)
+describe("failed content read WARN (cycle-136 C-3, bd-gyrgq)", { concurrency: 1 }, () => {
+  async function captured<T>(fn: () => Promise<T>): Promise<{ value: T; warns: string[]; err: string }> {
+    const original = process.stderr.write;
+    let err = "";
+    // (review round 1: the stand-in keeps write()'s contract — an `encoding` or callback argument is honoured)
+    (process.stderr as unknown as { write: (c: unknown, e?: unknown, cb?: unknown) => boolean }).write = (c, e, cb) => {
+      err += String(c);
+      const done = typeof e === "function" ? e : cb;
+      if (typeof done === "function") process.nextTick(done as () => void);
+      return true;
+    };
+    try {
+      const value = await fn();
+      return { value, err, warns: err.split("\n").filter((l) => l.startsWith("[bridgebuilder] WARN: content read of ")) };
+    } finally {
+      process.stderr.write = original;
+    }
+  }
+
+  for (const [label, out, outcome] of [
+    ["binary", { kind: "binary" }, "binary"],
+    ["too_large", { kind: "too_large" }, "too_large"],
+    ["provider error", new GitProviderError("NETWORK", "gh command failed"), "error"],
+    ["any thrown error", new Error("allowlist refusal {\"message\":\"raw body\"}"), "error"],
+  ] as Array<[string, Content | Error, string]>) {
+    it(`${label}: exactly one WARN naming the file and the outcome, never the error text`, async () => {
+      const p = provider({ files: [added("src/new.ts"), patched("src/a.ts", "@@ -1 +1 @@\n+a")], serve: () => out });
+      const { warns, err } = await captured(() => fetchPRFilesTwoPass(p.git, "o", "r", 7, SEL));
+      assert.deepEqual(warns, [`[bridgebuilder] WARN: content read of "src/new.ts" failed: ${outcome} (no_patch)`], err);
+      assert.ok(!err.includes("raw body") && !err.includes("gh command failed"), err);
+    });
+  }
+
+  it("a filename with a newline is escaped (one line); a long one is bounded to 200 characters", async () => {
+    const long = "src/" + "x".repeat(400) + ".ts";
+    const p = provider({ files: [added("src/a\nb.ts"), added(long)], serve: () => ({ kind: "binary" }) });
+    const { warns, err } = await captured(() => fetchPRFilesTwoPass(p.git, "o", "r", 7, SEL));
+    assert.equal(warns.length, 2, err);
+    assert.equal(warns[0], `[bridgebuilder] WARN: content read of "src/a\\nb.ts" failed: binary (no_patch)`);
+    const shown = warns[1].slice("[bridgebuilder] WARN: content read of ".length, warns[1].indexOf(" failed: "));
+    assert.ok(shown.length <= 200 && shown.startsWith("\"src/xxx"), shown);
+    assert.equal(err.split("\n").filter((l) => l.includes("WARN: content read")).length, 2, "nothing spills onto a second line");
+  });
+
+  it("budget, skipped_cap and aborted outcomes write no WARN", async () => {
+    const p = provider({ files: [added("src/one.ts"), added("src/two.ts")], serve: (_p, _r, max) => text("x\n")(max) });
+    const capped = await captured(() => fetchPRFilesTwoPass(p.git, "o", "r", 7, { ...SEL, maxContentFetches: 0 }));
+    assert.deepEqual(capped.warns, []);
+    const tight = await captured(() => fetchPRFilesTwoPass(provider({ files: [added("src/big.ts", 500)] }).git, "o", "r", 7, { ...SEL, maxDiffBytes: 10 }));
+    assert.deepEqual(tight.warns, []);
+    const stop = provider({ files: [added("src/one.ts"), added("src/two.ts")], serve: () => new GitProviderError("RATE_LIMITED", "rate limited") });
+    const aborted = await captured(() => fetchPRFilesTwoPass(stop.git, "o", "r", 7, SEL));
+    assert.deepEqual(aborted.warns, [`[bridgebuilder] WARN: content read of "src/one.ts" failed: error (no_patch)`], "the aborted rest stay silent");
+  });
+
+  // review round 1 (MEDIUM): `deadline` is not a failed read either (the injected-clock harness of the deadline case above)
+  it("deadline outcomes write no WARN", async () => {
+    const files = [added("src/a.ts"), added("src/b.ts"), added("src/c.ts")];
+    const p = provider({ files, serve: (_p, _r, max) => text("x\n")(max) });
+    const times = [1_000, 60_000, 121_000];
+    let i = 0;
+    const now = () => times[Math.min(i++, times.length - 1)];
+    const { value: res, warns } = await captured(() =>
+      (fetchPRFilesTwoPass as (...a: unknown[]) => ReturnType<typeof fetchPRFilesTwoPass>)(p.git, "o", "r", 7, SEL, { now }));
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/c.ts", reason: "no_patch", reviewable: true, fetch: "deadline" }]);
+    assert.deepEqual(warns, []);
+  });
+
+  // review round 1 (MEDIUM; B's judgment call 9): an empty `text` answer for a file listed with additions > 0 is the
+  // outcome `error` — a failed read, so it WARNs like any other
+  it("an empty text answer with additions > 0 is error and writes one WARN", async () => {
+    const p = provider({ files: [added("src/empty.ts", 3)], serve: () => ({ kind: "text", content: "", bytes: 0 }) });
+    const { value: res, warns } = await captured(() => fetchPRFilesTwoPass(p.git, "o", "r", 7, SEL));
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/empty.ts", reason: "no_patch", reviewable: true, fetch: "error" }]);
+    assert.deepEqual(warns, [`[bridgebuilder] WARN: content read of "src/empty.ts" failed: error (no_patch)`]);
+    assert.equal(p.contentCalls.length, 1);
+  });
+
+  it("a restarted attempt writes the WARN again (once per file per attempt)", async () => {
+    const p = provider({ files: [added("src/new.ts")], serve: () => ({ kind: "binary" }), heads: [HEAD, HEAD, HEAD2] });
+    // (pulls/N reads: pin, page-1 recheck, final recheck — no pass-2 page, the file has no patch — then the restart)
+    const { value, warns } = await captured(() => fetchPRFilesTwoPass(p.git, "o", "r", 7, SEL));
+    assert.equal(value.coverage.restarts, 1);
+    assert.equal(warns.length, 2);
+  });
+});

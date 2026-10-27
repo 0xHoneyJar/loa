@@ -62,6 +62,10 @@ the real sizes. So whenever a candidate exists the selection runs twice, and a s
 | `skipped_cap` | beyond `bridgebuilder.max_content_fetches` (default 20; `0` reads nothing) |
 | `deadline` | beyond the 120 s budget for all content reads of the review |
 
+A failed read (`binary`, `too_large` or `error`) also writes one line on stderr per file and fetch attempt, with the
+file name quoted, control characters escaped and the name bounded to 200 characters; the error text and any response
+body are never printed: `[bridgebuilder] WARN: content read of "<file>" failed: <outcome> (no_patch)`.
+
 `bridgebuilder.fetch_missing_patches: false` turns the read off: such files stay `no_patch` with no `fetch` field. A
 head move that restarts the fetch discards every synthesized patch. Modified, renamed and removed files without a
 patch are unchanged.
@@ -113,8 +117,8 @@ file they match is kept, and the first matching pattern is recorded in `protecte
 `ci.yml` keep `.github/workflows/ci.yml`, while `.github/workflows/ci.yml` or the `.reviewignore` line
 `.github/workflows/` excludes it. Kept files come first in the selection order, so the file cap and the byte budget
 reach them last. The Loa framework tier is not subject to the list: in a Loa repository without the self-review
-label it still strips `.claude/settings.json`. Every omission names the default or user pattern that excluded it, in
-the `pattern` field and, for one release, as a ` [pattern: <p>]` suffix on its stats.
+label it still strips `.claude/settings.json`. Every omission names the default or user pattern that excluded it in
+the `pattern` field. The stats text no longer carries a pattern suffix (removed in cycle-136, bd-gyrgq).
 
 On a pull request, `protected_paths`, `exclude_patterns`, `fetch_missing_patches` and `max_content_fetches` come from
 the trusted config, the same source the provider keys use: `BRIDGEBUILDER_TRUSTED_CONFIG`, else the base branch's
@@ -123,16 +127,36 @@ keys change review scope, not provider identity, so the run is not refused. `--e
 checkout's values apply. When no trusted source can be read on a pull request (shallow checkout, no variable), the
 four keys fall to their defaults with one WARN — fail closed, so a PR head cannot widen its own review (bd-ous65). The
 trusted source must carry the keys it wants to govern: a `BRIDGEBUILDER_TRUSTED_CONFIG` variable holding only
-provider settings leaves them unset, and the defaults apply with a WARN per differing head value.
+provider settings leaves them unset, and the defaults apply with a WARN per differing head value. An invalid PR head
+value of `protected_paths`, `exclude_patterns` (not a list of strings) or `max_content_fetches` does not fail the
+review on a pull request (cycle-136): one `WARN` names the key and the reason, the head value is ignored, and the
+trusted value or the default governs. Locally it is still a config error.
 
 `.reviewignore` is read from the PR's base commit when the review knows it (`git show <base_sha>:.reviewignore`, the
 same line rules, 10 s and 1 MiB bounds, symlinks refused). A PR therefore cannot change the exclusions of its own
-review. Without a base it is read from the checkout. When the base read fails, for example because the base commit is
-not in the local clone, the checkout copy governs. The source is then `base_unavailable`, one `WARN` names why, and
-the review degrades as `reviewignore_unavailable`. A readable base that has no `.reviewignore` is a definitive
+review. Without a base it is read from the checkout. A readable base that has no `.reviewignore` is a definitive
 answer: no patterns apply and the source is `none`, even when the PR adds the file — that copy is reported in a
 `WARN` and takes effect after merge (`reviewignore_changed_in_pr` marks it); the review is not degraded. It is
 recorded as `base`, `checkout`, `base_unavailable` or `none`.
+
+The base copy is resolved in this order (cycle-136, bd-9tt4b):
+
+1. The local read at the base sha. When the clone holds the base commit, its answer stands: the file (`base`) or
+   its absence (`none`). No API call is made.
+2. The GitHub contents API, only when the base commit is not in the clone, as on a shallow CI checkout. The file is
+   read at the base sha from the repository under review, never a fork, with the 1 MiB bound. The source is `base`,
+   the review is not degraded, and one line names the read:
+   `[bridgebuilder] INFO: .reviewignore at base <sha> read through the contents API (the base commit is not in the clone)`.
+   A 404 counts as absence (`none`) only after one access probe: the first listed file the PR modifies or removes,
+   which exists at the base, is read at the base sha with a 1-byte bound and must answer. A failed probe, or a PR that
+   only adds files, does not confirm the absence.
+3. The checkout copy, as `base_unavailable`, for everything else: a failed probe, a rate limit or authorization
+   failure, a malformed, oversized or binary answer, a timeout, a symlink or git error at the base, or a provider
+   without the contents read. One `WARN` names why, and the review degrades as `reviewignore_unavailable`.
+
+The outcome, a failed one included, is cached per base sha for the run, so a fetch restarted after a head move makes
+no second call; a base move resolves again. The read does not count against `max_content_fetches` and is not
+switched off by `fetch_missing_patches: false`.
 
 ## Trusted provider configuration (cycle-129 D-7.5, DEC-0170; cycle-135 adds the review-scope keys)
 

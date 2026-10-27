@@ -15,6 +15,8 @@ import type { PullRequestFile } from "../ports/git-provider.js";
 // pre-flight gate accepts (exit 7 above the ceiling).
 import { GENERATED_MODEL_ALIASES, GENERATED_TOKEN_BUDGETS } from "./truncation.generated.js";
 import type {
+  ReviewignoreSource,
+  SelectionConfig,
   BridgebuilderConfig,
   TruncationResult,
   LoaDetectionResult,
@@ -390,15 +392,21 @@ function isExplicitFor(pattern: string, filename: string): boolean {
 }
 
 /**
- * cycle-135 C-2: the suffix an omission's stats carry to name the pattern that excluded it (Loa-tier and
- * user-pattern omissions). Grammar: the stats end with ` [pattern: <p>]`; parse with `/ \[pattern: (.*)\]$/`.
+ * cycle-136 C-3 (FR-3 (c), sdd.md § 4, D-2.6, bd-gyrgq): a filename or error detail as rendered in a WARN/INFO line —
+ * JSON-quoted with control characters escaped (one line, whatever the input) and at most 200 characters.
  */
-function patternSuffix(pattern: string): string {
-  return ` [pattern: ${pattern}]`;
+export function boundedForLog(value: string): string {
+  const MAX = 200;
+  let shown = JSON.stringify(value);
+  for (let n = value.length; shown.length > MAX && n > 0; ) {
+    n = Math.max(0, n - Math.max(1, shown.length - MAX)); // (escapes widen the rendering; shrink by the overshoot)
+    shown = JSON.stringify(value.slice(0, n) + "…");
+  }
+  return shown;
 }
 
 /** cycle-135 C-2 (DEC-1027): where the applied `.reviewignore` patterns came from (`base_unavailable`: round 1). */
-export type ReviewignoreSource = "base" | "checkout" | "base_unavailable" | "none";
+export type { ReviewignoreSource } from "./types.js"; // (cycle-136 Task 1.0: owned by types.ts)
 
 /**
  * Parse a `.reviewignore` file's user-curated patterns from disk.
@@ -459,23 +467,27 @@ export function parseReviewignoreFile(
   if (opts.baseSha === undefined) return readCheckoutReviewignore(repoRoot);
   const base = readBaseReviewignore(repoRoot, opts.baseSha);
   if (base.ok) return { patterns: base.patterns, source: "base" };
-  if (base.absent) {
-    // Bridgebuilder round 1 (PR #1302): a readable base without the file is definitive — no patterns apply. The checkout
-    // is still read (a symlink there is still refused); a copy the PR adds is reported, never applied.
-    const checkout = readCheckoutReviewignore(repoRoot);
-    if (checkout.source !== "none") {
-      process.stderr.write(
-        `[bridgebuilder] WARN: .reviewignore is absent at the base ${JSON.stringify(opts.baseSha)}; the checkout copy (added or kept by this PR) is not applied — its patterns take effect after merge (source: none; bd-i4fyw)\n`,
-      );
-    }
-    return { patterns: [], source: "none" };
-  }
+  if (base.why === "absent") return absentAtBase(repoRoot, opts.baseSha);
   // before the checkout read, so the reason survives a checkout refusal (which throws)
   process.stderr.write(
-    `[bridgebuilder] WARN: .reviewignore at base ${JSON.stringify(opts.baseSha)} not read — ${base.why}; the checkout copy governs (source: base_unavailable, the review degrades as reviewignore_unavailable; bd-i4fyw)\n`,
+    `[bridgebuilder] WARN: .reviewignore at base ${JSON.stringify(opts.baseSha)} not read — ${boundedForLog(base.detail)}; the checkout copy governs (source: base_unavailable, the review degrades as reviewignore_unavailable; bd-i4fyw)\n`,
   );
   const checkout = readCheckoutReviewignore(repoRoot);
   return { patterns: checkout.patterns, source: "base_unavailable" };
+}
+
+/**
+ * Bridgebuilder round 1 (PR #1302): a readable base without the file is definitive — no patterns apply. The checkout
+ * is still read (a symlink there is still refused); a copy the PR adds is reported, never applied.
+ */
+function absentAtBase(repoRoot: string, baseSha: string | undefined): { patterns: string[]; source: ReviewignoreSource } {
+  const checkout = readCheckoutReviewignore(repoRoot);
+  if (checkout.source !== "none") {
+    process.stderr.write(
+      `[bridgebuilder] WARN: .reviewignore is absent at the base ${JSON.stringify(baseSha)}; the checkout copy (added or kept by this PR) is not applied — its patterns take effect after merge (source: none; bd-i4fyw)\n`,
+    );
+  }
+  return { patterns: [], source: "none" };
 }
 
 /** The checkout `.reviewignore` read (fail-closed on anything but genuine absence). */
@@ -556,7 +568,7 @@ function readCheckoutReviewignore(repoRoot: string): { patterns: string[]; sourc
 }
 
 /** The `.reviewignore` line grammar, shared by the checkout and the base read. */
-function parseReviewignoreLines(content: string): string[] {
+export function parseReviewignoreLines(content: string): string[] {
   const patterns: string[] = [];
   // cycle-135 C-1 (bd-ow72o): lines go through the one loader; the former `/` → `/**` conversion is gone — a
   // directory line is a non-wildcard segment pattern (FR-2: `.github/workflows/` is an explicit name).
@@ -571,35 +583,69 @@ function parseReviewignoreLines(content: string): string[] {
 
 /** cycle-135 C-2: bounds of the base-ref `.reviewignore` read. */
 const REVIEWIGNORE_GIT_TIMEOUT_MS = 10_000;
-const REVIEWIGNORE_MAX_BYTES = 1024 * 1024;
+export const REVIEWIGNORE_MAX_BYTES = 1024 * 1024;
 
 /**
  * cycle-135 C-2 (bd-i4fyw, DEC-1027): `.reviewignore` as of the PR base. The sha must be 40-hex (never an option);
  * the entry must be a regular blob (a symlink is refused, as for the checkout read); bounded by a 10 s timeout and
  * 1 MiB. Never throws: a failure (absent at the base, unknown commit, git error, oversize, a symlink) is returned
  * with its reason and the caller falls back to the checkout copy.
+ *
+ * cycle-136 C-2 (bd-9tt4b, DEC-1082, sdd.md § 5.2 step 2): the failure is typed. `unknown_commit` = the clone does not
+ * hold the base commit (a shallow checkout) — decided by `git cat-file -e <sha>^{commit}`'s exit status, never by
+ * stderr text — and is the only class the caller may answer through the contents API; `absent` = the commit is held
+ * and `ls-tree` lists nothing; `other` = a non-blob mode, oversize, a `git show` failure, a timeout or a spawn failure.
+ * Every git call runs with `LC_ALL=C`.
  */
-type BaseRead = { ok: true; patterns: string[] } | { ok: false; absent: boolean; why: string };
+export type BaseRead =
+  | { ok: true; patterns: string[] }
+  | { ok: false; why: "absent" | "unknown_commit" | "other"; detail: string };
 
-function readBaseReviewignore(repoRoot: string, baseSha: string): BaseRead {
-  const none = (why: string, absent = false): BaseRead => ({ ok: false, absent, why });
-  if (!/^[0-9a-f]{40}$/.test(baseSha)) return none("not a 40-hex commit sha");
+function gitFailureDetail(err: unknown): string {
+  return String((err as Error).message ?? err).split("\n")[0].slice(0, 200);
+}
+
+export function readBaseReviewignore(repoRoot: string, baseSha: string): BaseRead {
+  const fail = (why: "absent" | "unknown_commit" | "other", detail: string): BaseRead => ({ ok: false, why, detail });
+  if (!/^[0-9a-f]{40}$/.test(baseSha)) return fail("other", "not a 40-hex commit sha");
   const opts = {
     encoding: "utf-8" as const,
     timeout: REVIEWIGNORE_GIT_TIMEOUT_MS,
     maxBuffer: REVIEWIGNORE_MAX_BYTES,
     stdio: ["ignore", "pipe", "pipe"] as Array<"ignore" | "pipe">,
+    env: { ...process.env, LC_ALL: "C" },
   };
   try {
+    execFileSync("git", ["-C", repoRoot, "cat-file", "-e", `${baseSha}^{commit}`], opts);
+  } catch (err) {
+    // a non-zero exit is "not in the clone"; a timeout or spawn failure carries no numeric status → other
+    const status = (err as { status?: unknown }).status;
+    if (typeof status === "number" && status !== 0) return fail("unknown_commit", "the base commit is not in the clone");
+    return fail("other", gitFailureDetail(err));
+  }
+  try {
     const entry = execFileSync("git", ["-C", repoRoot, "ls-tree", "-z", baseSha, "--", ".reviewignore"], opts);
-    if (entry === "") return none("absent at the base", true);
+    if (entry === "") return fail("absent", "absent at the base");
     const mode = entry.split(" ", 1)[0];
-    if (mode !== "100644" && mode !== "100755") return none(`not a regular file at the base (mode ${mode})`);
+    if (mode !== "100644" && mode !== "100755") return fail("other", `not a regular file at the base (mode ${mode})`);
     const content = execFileSync("git", ["-C", repoRoot, "show", `${baseSha}:.reviewignore`], opts);
     return { ok: true, patterns: parseReviewignoreLines(content) };
   } catch (err) {
-    return none(String((err as Error).message ?? err).split("\n")[0].slice(0, 200));
+    return fail("other", gitFailureDetail(err));
   }
+}
+
+/**
+ * cycle-136 C-2 (bd-9tt4b, D-2.5, sdd.md § 5.3): the `.reviewignore` patterns of one selection — the base copy
+ * paged-fetch already resolved (`config.reviewignoreBase`, e.g. through the contents API on a shallow checkout) when
+ * set, else today's read (the base sha when given, else the checkout). Both read sites of `truncateFiles` use it.
+ */
+function resolveBasePatterns(config: SelectionConfig): { patterns: string[]; source: ReviewignoreSource } {
+  const resolved = config.reviewignoreBase;
+  // (`none` keeps the absent-at-base checkout check: a copy the PR adds is still reported, and a symlink still refused)
+  if (resolved?.source === "none") return absentAtBase(config.repoRoot ?? process.cwd(), config.reviewignoreBaseSha);
+  if (resolved) return { patterns: [...resolved.patterns], source: resolved.source };
+  return parseReviewignoreFile(config.repoRoot ?? process.cwd(), { baseSha: config.reviewignoreBaseSha });
 }
 
 /**
@@ -880,7 +926,7 @@ export function applyLoaTierExclusion(
     if (tier === "tier1") {
       tier1Excluded.push({
         filename: file.filename,
-        stats: `+${file.additions} -${file.deletions} (Loa framework, content excluded)${patternSuffix(loaPattern)}`,
+        stats: `+${file.additions} -${file.deletions} (Loa framework, content excluded)`,
         pattern: loaPattern,
       });
     } else {
@@ -888,7 +934,7 @@ export function applyLoaTierExclusion(
       const summary = file.patch ? extractFirstHunk(file.patch) : "";
       tier2Summary.push({
         filename: file.filename,
-        stats: `+${file.additions} -${file.deletions} (Loa framework, summary only)${patternSuffix(loaPattern)}`,
+        stats: `+${file.additions} -${file.deletions} (Loa framework, summary only)`,
         summary,
         pattern: loaPattern,
       });
@@ -1392,17 +1438,8 @@ function hasPatch(file: PullRequestFile): boolean {
 
 export function truncateFiles(
   files: PullRequestFile[],
-  config: Pick<
-    BridgebuilderConfig,
-    "excludePatterns" | "maxDiffBytes" | "maxFilesPerPr" | "loaAware" | "repoRoot" | "selfReview" | "protectedPaths"
-  > & {
-    /** cycle-135 C-2 (DEC-1027): the PR base sha; when set `.reviewignore` is read from it, else from the checkout. */
-    reviewignoreBaseSha?: string;
-  },
-): TruncationResult & {
-  /** cycle-135 C-2: where the applied `.reviewignore` came from; undefined when it was not consulted (non-Loa repo). */
-  reviewignoreSource?: ReviewignoreSource;
-} {
+  config: SelectionConfig, // (cycle-136 Task 1.0: the shared type; reviewignoreBaseSha and the C-2 base inputs live on it)
+): TruncationResult {
   const patterns = config.excludePatterns ?? [];
   // cycle-135 C-2 (bd-i4fyw): protection against wildcard user exclusions; `[]` disables it.
   const protectedPatterns = config.protectedPaths ?? DEFAULT_PROTECTED_PATHS;
@@ -1423,7 +1460,7 @@ export function truncateFiles(
   let loaBanner: string | undefined;
   let loaStats: { filesExcluded: number; bytesSaved: number } | undefined;
   let allExcluded = false;
-  // cycle-135 (review round 1, LOW 5): `pattern` is the structured excluding pattern; the stats suffix stays one release.
+  // cycle-135 (review round 1, LOW 5): `pattern` is the structured excluding pattern (cycle-136 FR-3 (d): the only one).
   const loaExcludedEntries: Array<{ filename: string; stats: string; pattern?: string }> = [];
 
   let afterLoa = files;
@@ -1458,7 +1495,7 @@ export function truncateFiles(
       // filter path, which preserves the framework-exclusion safety floor.
       let userPatterns: string[] = [];
       try {
-        const ri = parseReviewignoreFile(config.repoRoot ?? process.cwd(), { baseSha: config.reviewignoreBaseSha });
+        const ri = resolveBasePatterns(config);
         userPatterns = ri.patterns;
         reviewignoreSource = ri.source;
       } catch (err) {
@@ -1514,7 +1551,7 @@ export function truncateFiles(
           if (pattern !== undefined) {
             loaExcludedEntries.push({
               filename: f.filename,
-              stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern)${patternSuffix(pattern)}`,
+              stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern)`,
               pattern,
             });
             userBytesSaved += f.patch ? new TextEncoder().encode(f.patch).byteLength : 0;
@@ -1610,7 +1647,7 @@ export function truncateFiles(
       // defaults to whatever survived phase 1.
       let userPatterns: string[] = [];
       try {
-        const ri = parseReviewignoreFile(config.repoRoot ?? process.cwd(), { baseSha: config.reviewignoreBaseSha });
+        const ri = resolveBasePatterns(config);
         userPatterns = ri.patterns;
         reviewignoreSource = ri.source;
       } catch (err) {
@@ -1674,7 +1711,7 @@ export function truncateFiles(
           if (pattern !== undefined) {
             loaExcludedEntries.push({
               filename: f.filename,
-              stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern, strict deny)${patternSuffix(pattern)}`,
+              stats: `+${f.additions} -${f.deletions} (.reviewignore user pattern, strict deny)`,
               pattern,
             });
             userExcludedCount++;
@@ -1757,7 +1794,7 @@ export function truncateFiles(
       protectedKept.delete(f.filename); // an explicit name here wins over a wildcard `.reviewignore` kept it from
       excludedByPattern.push({
         filename: f.filename,
-        stats: `+${f.additions} -${f.deletions} (excluded by pattern)${patternSuffix(pattern)}`,
+        stats: `+${f.additions} -${f.deletions} (excluded by pattern)`,
         pattern,
       });
     } else {
