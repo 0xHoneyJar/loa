@@ -35287,7 +35287,7 @@ decisions:
     prior_requests: []
   - id: "DEC-1011"
     created_at: "2026-10-26T04:27:01Z"
-    updated_at: "2026-10-26T04:27:01Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "scope"
     summary: "cycle-135 scope: the five follow-ups of the 2026-10-26 micro-sprints (bd-ow72o, bd-i4fyw, bd-w5pd9, bd-nr5i6, bd-oglcu); glob braces, fix/ routing, releases out"
@@ -35304,7 +35304,7 @@ decisions:
       negative:
         - "a red gate on one item holds the other four"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35313,19 +35313,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:01Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "grimoires/loa/context/cycle-135-brief.md § Scope"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1012"
     created_at: "2026-10-26T04:27:05Z"
-    updated_at: "2026-10-26T04:27:05Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "process"
     summary: "Grounding by direct file:line reads of the five areas (brief § Grounding facts); no /ride — the May reality snapshot is stale and the areas are small."
@@ -35340,7 +35345,7 @@ decisions:
       negative:
         - "no fresh repo-wide reality for other readers"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35349,19 +35354,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:05Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "grimoires/loa/context/cycle-135-brief.md § Grounding facts"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1013"
     created_at: "2026-10-26T04:27:09Z"
-    updated_at: "2026-10-26T04:27:09Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "security"
     summary: "Exclusion semantics: non-wildcard patterns match whole path segments (gitignore-like; no '/' any depth, with '/' root-anchored), never substrings; one matcher"
@@ -35380,7 +35390,7 @@ decisions:
       negative:
         - "a default or operator pattern that relied on substring matching (none known) stops matching"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35389,19 +35399,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:09Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "truncation.ts:182-200, 261-278, 395 (2026-10-26 read)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1014"
     created_at: "2026-10-26T04:27:13Z"
-    updated_at: "2026-10-26T04:27:13Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "security"
     summary: "Protected paths (CI workflows/actions, agent settings/hooks, git hooks) survive wildcard user exclusions; configurable list; kept files named in the coverage re"
@@ -35420,7 +35435,7 @@ decisions:
       negative:
         - "a repository whose CI lives elsewhere gains nothing; an operator who wants to exclude workflows must name them or set the list"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35429,19 +35444,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:13Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "truncation.ts:1292-1318, 1442, 1515 (user-pattern call sites); paged-fetch.ts coverage record"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1015"
     created_at: "2026-10-26T04:27:17Z"
-    updated_at: "2026-10-26T04:27:17Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "implementation"
     summary: "Patch-less added files: content fetched (bounded) via gh api contents at the head sha, reviewed as an all-additions patch; other patch-less statuses stay no_pat"
@@ -35460,7 +35480,7 @@ decisions:
       negative:
         - "one more gh api shape in the allowlist; a bounded network read per patch-less added file"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35469,19 +35489,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:17Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "paged-fetch.ts:39-150, 240-280; github-cli.ts:150-307 (2026-10-26 read); PR #1296 round 1"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1016"
     created_at: "2026-10-26T04:27:21Z"
-    updated_at: "2026-10-26T04:27:21Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "implementation"
     summary: "A fourth classifier value housekeeping (rule 1a) that both post-merge prepare jobs skip; the KF-063 no-PR guard keeps other; the orchestrator is unchanged."
@@ -35498,7 +35523,7 @@ decisions:
       negative:
         - "every consumer of pr_type must accept a fourth value (checked: the workflow jobs, notify, the orchestrator branch)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35507,19 +35532,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:21Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "classify-pr-type.sh:42-90; post-merge.yml:109, 187, 258-270; post-merge-orchestrator.sh:377-387 (2026-10-26 read)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1017"
     created_at: "2026-10-26T04:27:25Z"
-    updated_at: "2026-10-26T04:27:25Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "testing"
     summary: "The Bridgebuilder performance guardrails measure CPU time (process.cpuUsage) with their existing thresholds, so host load cannot fail the suite."
@@ -35536,7 +35566,7 @@ decisions:
       negative:
         - "CPU time of the whole process includes concurrent GC work (small, bounded)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35545,19 +35575,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:25Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "progressive-truncation.test.ts:548-590; bd-oglcu observations 2026-10-26"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1018"
     created_at: "2026-10-26T04:27:29Z"
-    updated_at: "2026-10-26T04:27:29Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "discovery"
     category: "process"
     summary: "Cycle shape: one sprint (global 279), three Opus implementers (matcher+protected; fetch+guardrails; classifier+workflow), one PR, BB round, record, archive, no"
@@ -35574,7 +35609,7 @@ decisions:
       negative:
         - "three worktrees and briefs to maintain"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "discovering-requirements/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35583,19 +35618,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:27:29Z"
         from: null
         to: "proposed"
         by: "agent:discovering-requirements"
         evidence: "grimoires/loa/context/cycle-135-brief.md § Operator instruction, § Standing rules"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1019"
     created_at: "2026-10-26T04:35:01Z"
-    updated_at: "2026-10-26T04:35:01Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "Matcher: isWildcardPattern (* ? { [) picks the branch — non-wildcard → segmentMatch; wildcard → native glob then dotSegmentGlobMatch; opts.native test seam"
@@ -35612,7 +35652,7 @@ decisions:
       negative:
         - "one optional parameter on a hot function"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35621,19 +35661,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:35:01Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "truncation.ts:94-200 (2026-10-26 read)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1020"
     created_at: "2026-10-26T04:35:04Z"
-    updated_at: "2026-10-26T04:35:04Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "Protected paths: DEFAULT_PROTECTED_PATHS + one helper at the three user-pattern call sites; kept files ride TruncationResult.protectedKept to the coverage recor"
@@ -35650,7 +35695,7 @@ decisions:
       negative:
         - "a new field in two records and one rendering section"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35659,19 +35704,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:35:04Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "truncation.ts:1292-1318, 1442, 1515; paged-fetch.ts:400-410; config.ts:1100-1142, 1524-1537"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1021"
     created_at: "2026-10-26T04:35:07Z"
-    updated_at: "2026-10-26T04:35:07Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "Content fetch in pass 1 for added files without a patch: getFileContent via gh api contents (raw), ≤ max_diff_bytes; text → synthesized patch; else untouched"
@@ -35688,7 +35738,7 @@ decisions:
       negative:
         - "pass 1 is no longer metadata-only for this one class of file (documented)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35697,19 +35747,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:35:07Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "paged-fetch.ts:14-66, 240-280; github-cli.ts:150-200, 290-307"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1022"
     created_at: "2026-10-26T04:35:11Z"
-    updated_at: "2026-10-26T04:35:11Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "housekeeping wiring: rule 1a echoes it; the wrapper passes it; simple-release adds pr_type != 'housekeeping'; the orchestrator's --type check refuses it (pinned"
@@ -35726,7 +35781,7 @@ decisions:
       negative:
         - "four files, four test files"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35735,19 +35790,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:35:11Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "classify-pr-type.sh:42-90; classify-merge-pr.sh:118-170; post-merge.yml:106-109, 179-187; post-merge-orchestrator.sh:2491-2492"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1023"
     created_at: "2026-10-26T04:35:15Z"
-    updated_at: "2026-10-26T04:35:15Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "testing"
     summary: "Guardrails: CPU time (process.cpuUsage user+system) around the measured call, thresholds unchanged (500 ms, 100 ms); quadratic stand-in as a report-only red dem"
@@ -35764,7 +35824,7 @@ decisions:
       negative:
         - "includes the process's own GC time (bounded)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35773,19 +35833,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:35:15Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "progressive-truncation.test.ts:548-590"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1024"
     created_at: "2026-10-26T04:35:18Z"
-    updated_at: "2026-10-26T04:35:18Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "process"
     summary: "Lead contract commit before dispatch: types.ts gains TruncationResult.protectedKept and CoverageRecord.protected_kept / reviewed[].source; implementers never ed"
@@ -35800,7 +35865,7 @@ decisions:
       negative:
         - "one extra lead commit"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35809,19 +35874,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:35:18Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "types.ts (TruncationResult, CoverageRecord)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1025"
     created_at: "2026-10-26T04:35:22Z"
-    updated_at: "2026-10-26T04:35:22Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "process"
     summary: "Allowlists: A truncation/config/loa-detection tests/SKILL.md; B paged-fetch/github-cli/git-provider + tests + guardrail test; C classifier/wrapper/workflow/pin"
@@ -35836,7 +35906,7 @@ decisions:
       negative:
         - "three briefs"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35845,19 +35915,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:35:22Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "grimoires/loa/sdd.md § 8"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1026"
     created_at: "2026-10-26T04:51:39Z"
-    updated_at: "2026-10-26T04:51:39Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "One glob grammar, one matcher: the segment matcher is the only wildcard matcher (no path.matchesGlob); * ** ? {a,b} [..]; other constructs rejected with a WARN"
@@ -35874,7 +35949,7 @@ decisions:
       negative:
         - "extglob and escaped patterns stop working (none in use; rejected loudly)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35883,19 +35958,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:51:39Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "flatline cycle-135-sdd-review.json SKP-003; truncation.ts:94-200"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1027"
     created_at: "2026-10-26T04:51:42Z"
-    updated_at: "2026-10-26T04:51:42Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "security"
     summary: ".reviewignore read from the PR base sha (git show <base>:.reviewignore) when a base is known, else the checkout; source and PR-modified flag recorded"
@@ -35912,7 +35992,7 @@ decisions:
       negative:
         - "a legitimate .reviewignore change takes effect after it merges, not in its own PR (documented)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35921,19 +36001,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:51:42Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "truncation.ts:277-350; paged-fetch.ts coverage record"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1028"
     created_at: "2026-10-26T04:51:46Z"
-    updated_at: "2026-10-26T04:51:46Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "Content fetch via the JSON contents endpoint (default media type), base64 decoded; size checked before decoding; encoding none / over budget → too_large"
@@ -35948,7 +36033,7 @@ decisions:
       negative:
         - "~33 % larger transfer (base64) within the bounded buffer"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35957,19 +36042,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:51:46Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "github-cli.ts:150-200; GitHub REST contents API"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1029"
     created_at: "2026-10-26T04:51:50Z"
-    updated_at: "2026-10-26T04:51:50Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "simple-release guard is an allowlist: (pr_type == 'bugfix' || 'other') && pr_number != ''; unknown, empty or malformed values run neither job (pinned)"
@@ -35984,7 +36074,7 @@ decisions:
       negative:
         - "a new legitimate type needs a guard edit (intended)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -35993,19 +36083,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:51:50Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "post-merge.yml:106-109"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1030"
     created_at: "2026-10-26T04:51:53Z"
-    updated_at: "2026-10-26T04:51:53Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "implementation"
     summary: "Content fetch bounds: only files surviving exclusion are fetched; max_content_fetches (default 20), 120 s deadline, 30 s per call; fetch_missing_patches knob"
@@ -36022,7 +36117,7 @@ decisions:
       negative:
         - "two new config keys to document"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36031,19 +36126,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:51:53Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "paged-fetch.ts:14-66; config.ts:1100-1142"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1031"
     created_at: "2026-10-26T04:51:57Z"
-    updated_at: "2026-10-26T04:51:57Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "architecture"
     category: "testing"
     summary: "Guardrails take the minimum CPU time of three runs of the measured synchronous call; the quadratic negative control is defined (O(n²) over 100 files)"
@@ -36060,7 +36160,7 @@ decisions:
       negative:
         - "the measured work runs three times (milliseconds)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "designing-architecture/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36069,19 +36169,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T04:51:57Z"
         from: null
         to: "proposed"
         by: "agent:designing-architecture"
         evidence: "progressive-truncation.test.ts:548-590"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1032"
     created_at: "2026-10-26T05:51:21Z"
-    updated_at: "2026-10-26T05:51:21Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "implementation"
     summary: "Matcher internals: translateGlobSegment + compileGlob + one memoized per-pattern predicate (patternMatcher) replace dotSegmentGlobMatch; grammar violations…"
@@ -36096,7 +36201,7 @@ decisions:
       negative:
         - "one extra memoized check per pattern"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36105,19 +36210,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:21Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "4f926bcfd"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1033"
     created_at: "2026-10-26T05:51:25Z"
-    updated_at: "2026-10-26T05:51:25Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "implementation"
     summary: "Normalisation runs once at each loader (trim; one leading ./ or / stripped), never re-applied inside truncateFiles; [!..] is the only class negation ([^..]…"
@@ -36132,7 +36242,7 @@ decisions:
       negative:
         - "operators with [^..] patterns must rewrite them to [!..] (WARN names them)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36141,19 +36251,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:25Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "4f926bcfd"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1034"
     created_at: "2026-10-26T05:51:29Z"
-    updated_at: "2026-10-26T05:51:29Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "implementation"
     summary: "Omission stats carry ' [pattern: <p>]' as a suffix for Loa-tier AND user-pattern exclusions (parsed by the coverage with / \\[pattern: (.+)\\]$/); types.ts…"
@@ -36168,7 +36283,7 @@ decisions:
       negative:
         - "a string grammar between two files (pinned by both sides' tests)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36177,19 +36292,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:29Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e6ba40f96, 625c5a901"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1035"
     created_at: "2026-10-26T05:51:33Z"
-    updated_at: "2026-10-26T05:51:33Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "implementation"
     summary: "A protected file kept from a user wildcard and later stripped by the Loa tier stays in protectedKept and renders 'then omitted (excluded_loa)'…"
@@ -36204,7 +36324,7 @@ decisions:
       negative:
         - "a kept entry may also appear among omissions (annotated)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36213,19 +36333,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:33Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e6ba40f96"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1036"
     created_at: "2026-10-26T05:51:38Z"
-    updated_at: "2026-10-26T05:51:38Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "security"
     summary: "reviewignoreBaseSha goes to truncateFiles through its config object and reviewignoreSource comes back on its result (intersection types, types.ts…"
@@ -36240,7 +36365,7 @@ decisions:
       negative:
         - "two optional fields outside types.ts (candidate for the next contract tidy-up)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36249,19 +36374,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:38Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e6ba40f96, 9300f9b3d"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1037"
     created_at: "2026-10-26T05:51:44Z"
-    updated_at: "2026-10-26T05:51:44Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "implementation"
     summary: "Config validation: protected_paths grammar violations and a non-integer max_content_fetches are errors naming the entry (in resolveConfig, since the YAML…"
@@ -36276,7 +36406,7 @@ decisions:
       negative:
         - "a typo in protected_paths stops the review until fixed (intended)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36285,19 +36415,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:44Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e6ba40f96"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1038"
     created_at: "2026-10-26T05:51:49Z"
-    updated_at: "2026-10-26T05:51:49Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "implementation"
     summary: "Content fetch placement: selection first (truncateFiles), fetch for its '(diff unavailable)' survivors, re-run the selection only when a patch was…"
@@ -36314,7 +36449,7 @@ decisions:
       negative:
         - "truncateFiles runs twice when a patch is synthesized (its WARNs may repeat)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36323,19 +36458,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:49Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "46237970c"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1039"
     created_at: "2026-10-26T05:51:55Z"
-    updated_at: "2026-10-26T05:51:55Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "security"
     summary: "No Accept header on the contents request (DEC-1028 over the stale PRD 1.1 wording); stdout taken as a string and bytes come only from base64 (no buffer…"
@@ -36352,7 +36492,7 @@ decisions:
       negative:
         - "PRD 1.1's AC wording had to be corrected (1.3)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36361,19 +36501,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:51:55Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "46237970c"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1040"
     created_at: "2026-10-26T05:52:00Z"
-    updated_at: "2026-10-26T05:52:00Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "implementation"
     summary: "maxBuffer = ceil(maxBytes × 4/3) + 4096 as specified: the real envelope's JSON-escaped newlines (+3.3 %) and link metadata (~1 KB) make files within ~3 % of…"
@@ -36388,7 +36533,7 @@ decisions:
       negative:
         - "a small band of near-limit files stays no_patch"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36397,19 +36542,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:52:00Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "46237970c"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1041"
     created_at: "2026-10-26T05:52:05Z"
-    updated_at: "2026-10-26T05:52:05Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "testing"
     summary: "The workflow-guard matrix test evaluates a hand-transcribed shell mirror of both if: expressions read from the YAML with yq (unknown guard text fails the…"
@@ -36426,7 +36576,7 @@ decisions:
       negative:
         - "a new guard shape needs a new mirror branch (intended)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36435,19 +36585,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:52:05Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "ba454a74f"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1042"
     created_at: "2026-10-26T05:52:12Z"
-    updated_at: "2026-10-26T05:52:12Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "implementation"
     category: "process"
     summary: "SDD imprecision corrected by C: post-merge-orchestrator.sh:377 assigns classify_pr_type's output directly (would yield housekeeping), but that branch is…"
@@ -36462,7 +36617,7 @@ decisions:
       negative:
         - "none"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "implementing-tasks/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36471,19 +36626,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T05:52:12Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "ba454a74f; grimoires/loa/a2a/sprint-279/reviewer.md"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1043"
     created_at: "2026-10-26T06:58:11Z"
-    updated_at: "2026-10-26T06:58:11Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "security"
     summary: "Base .reviewignore read fails closed: on any base failure the checkout copy governs as base_unavailable and the review degrades; none only if both lack it."
@@ -36500,7 +36660,7 @@ decisions:
       negative:
         - "a clone without the base commit always degrades (operators fetch the base ref)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36509,19 +36669,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:11Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "8d22e449a"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1044"
     created_at: "2026-10-26T06:58:17Z"
-    updated_at: "2026-10-26T06:58:17Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "security"
     summary: "Explicit (protection-defeating) pattern = non-wildcard that is root-anchored (a / after one trailing / ignored) or the full path; floating names keep the file."
@@ -36538,7 +36703,7 @@ decisions:
       negative:
         - "an operator must write the anchored path to exclude a protected file (documented)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36547,19 +36712,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:17Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "8d22e449a"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1045"
     created_at: "2026-10-26T06:58:23Z"
-    updated_at: "2026-10-26T06:58:23Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "security"
     summary: "On a PR the review-scope keys (protected_paths, exclude_patterns, fetch_missing_patches, max_content_fetches) follow the trusted config; drift is one WARN/key."
@@ -36576,7 +36746,7 @@ decisions:
       negative:
         - "a scope change takes effect after it merges"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36585,19 +36755,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:23Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "8d22e449a + the lead's main.ts wiring commit"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1046"
     created_at: "2026-10-26T06:58:30Z"
-    updated_at: "2026-10-26T06:58:30Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "implementation"
     summary: "Slashless wildcards float (gitignore semantics): compileGlob adds an implicit **/ at compile time; patterns are recorded as written; no default is slashless."
@@ -36614,7 +36789,7 @@ decisions:
       negative:
         - "a slashless wildcard excludes more than before (protection still applies)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36623,19 +36798,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:30Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "8d22e449a"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1047"
     created_at: "2026-10-26T06:58:36Z"
-    updated_at: "2026-10-26T06:58:36Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "implementation"
     summary: "Content-fetch budget: candidates join a 0-byte placement selection; reads follow selection order and charge the bytes ahead; a file that cannot fit is budget."
@@ -36652,7 +36832,7 @@ decisions:
       negative:
         - "two selections per attempt with candidates"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36661,19 +36841,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:36Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "04b552529"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1048"
     created_at: "2026-10-26T06:58:41Z"
-    updated_at: "2026-10-26T06:58:41Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "implementation"
     summary: "RATE_LIMITED, FORBIDDEN or HTTP 401/403 on a contents read stops the loop: error for that file, aborted for the rest; 404 or a bad envelope stays per-file."
@@ -36688,7 +36873,7 @@ decisions:
       negative:
         - "one more structural read of the error"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36697,19 +36882,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:41Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "04b552529"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1049"
     created_at: "2026-10-26T06:58:47Z"
-    updated_at: "2026-10-26T06:58:47Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "process"
     summary: "Inline anchors on contents-sourced files: no change needed — postReview sends body, event and commit_id only (pinned); findings are body text, not comments."
@@ -36724,7 +36914,7 @@ decisions:
       negative:
         - "if inline comments are ever added, the pin and this row name the constraint"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36733,19 +36923,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:47Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "04b552529"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1050"
     created_at: "2026-10-26T06:58:54Z"
-    updated_at: "2026-10-26T06:58:54Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "testing"
     summary: "Lead landing: the Loa-aware excluded-files fixture test injects checkout provenance via the test seam; its fake base sha now degrades the record by design."
@@ -36762,7 +36957,7 @@ decisions:
       negative:
         - "one more seam use in tests"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36771,19 +36966,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:58:54Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "04b552529"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1051"
     created_at: "2026-10-26T06:59:02Z"
-    updated_at: "2026-10-26T06:59:02Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "testing"
     summary: "The orchestrator HINT pin matches the line's stable prefix, not the whole line; the bogus-type case checks only the absence of the housekeeping hint."
@@ -36798,7 +36998,7 @@ decisions:
       negative:
         - "a change to the prefix wording still needs the test updated (intended)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36807,19 +37007,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T06:59:02Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "74ff045cf"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1052"
     created_at: "2026-10-26T07:06:31Z"
-    updated_at: "2026-10-26T07:06:31Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "process"
     summary: "Sprint 279 audit: no audit-type dissent run; the three permitted runs were spent at review round 0 on the three code diffs (sprint-276 precedent)."
@@ -36836,7 +37041,7 @@ decisions:
       negative:
         - "no independent voice over the round-1 patches themselves"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "audit-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36845,19 +37050,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T07:06:31Z"
         from: null
         to: "proposed"
         by: "agent:audit-sprint"
         evidence: "b02459e5a"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1053"
     created_at: "2026-10-26T07:22:55Z"
-    updated_at: "2026-10-26T07:22:55Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "process"
     summary: "PB-9 breach after landing (SKILL.md 24,710 B): the cycle-135 rules, paged-fetch detail and trusted-provider contract move to a resources reference."
@@ -36874,7 +37084,7 @@ decisions:
       negative:
         - "an operator must open the reference for the full grammar"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36883,19 +37093,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T07:22:55Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "b6d0a07b4"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1054"
     created_at: "2026-10-26T07:56:18Z"
-    updated_at: "2026-10-26T07:56:18Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "implementation"
     summary: "A wildcard pattern with a trailing slash is a directory line and covers the subtree (**/fixtures/ = **/fixtures/**); before, it matched nothing."
@@ -36912,7 +37127,7 @@ decisions:
       negative:
         - "docs/*/ also matches docs/b.md because ** spans zero segments (files only, no directory entries)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36921,19 +37136,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T07:56:18Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "23f7d9319 (red 9c4f742a6)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1055"
     created_at: "2026-10-26T07:56:22Z"
-    updated_at: "2026-10-26T07:56:22Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "security"
     summary: "No readable trusted source on a pull request: the four review-scope keys fall to their defaults with one WARN (fail closed); the PR head's values are ignored."
@@ -36950,7 +37170,7 @@ decisions:
       negative:
         - "a mount without a fetchable base loses its repository exclude_patterns on PR runs until it fetches the base or sets the variable"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36959,19 +37179,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T07:56:22Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "23f7d9319 (red 9c4f742a6); closes bd-ous65"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1056"
     created_at: "2026-10-26T07:56:27Z"
-    updated_at: "2026-10-26T07:56:27Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "security"
     summary: "A readable base that lacks .reviewignore is none: no patterns apply even if the PR adds the file (WARN, applied after merge); not degraded. Amends DEC-1043."
@@ -36986,7 +37211,7 @@ decisions:
       negative:
         - "a PR adding a large vendor tree with a .reviewignore still needs the budget to cope until merge"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -36995,19 +37220,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T07:56:27Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "23f7d9319 (red 9c4f742a6)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1057"
     created_at: "2026-10-26T07:56:31Z"
-    updated_at: "2026-10-26T07:56:31Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "process"
     summary: "Bridgebuilder round 1 on PR #1302: 3 fixed (+1 dedup), 4 documented, 6 refuted with evidence (diff-rendered regex, httpStatus on the error), 5 praise."
@@ -37022,7 +37252,7 @@ decisions:
       negative:
         - "round 2 spend"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -37031,19 +37261,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T07:56:31Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "PR #1302 triage comment"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1058"
     created_at: "2026-10-26T08:27:09Z"
-    updated_at: "2026-10-26T08:27:09Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "implementation"
     summary: "A leading / is the root anchor (gitignore): kept by normalisation; /README.md and /*.yml stop floating; /.reviewignore is explicit. Amends DEC-1026."
@@ -37060,7 +37295,7 @@ decisions:
       negative:
         - "three pinned normalisation expectations flipped (/ kept)"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -37069,19 +37304,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T08:27:09Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "70444f0d2 (red 486b356f5)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1059"
     created_at: "2026-10-26T08:27:13Z"
-    updated_at: "2026-10-26T08:27:13Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "implementation"
     summary: "A negated character class never matches the path separator: [!a] compiles to [^/a]; x[!a]y no longer matches x/y."
@@ -37095,7 +37335,7 @@ decisions:
         - "grammar promise holds for every construct"
       negative: []
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -37104,19 +37344,24 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T08:27:13Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "70444f0d2 (red 486b356f5)"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1060"
     created_at: "2026-10-26T08:27:17Z"
-    updated_at: "2026-10-26T08:27:17Z"
+    updated_at: "2026-10-27T00:33:51Z"
     phase: "review"
     category: "process"
     summary: "Bridgebuilder round 2 on PR #1302: 2 fixed (+ \\p{Cc} robustness), 4 repeats of round-1 dispositions, 1 reframe accepted as documented, 4 praise; no round 3."
@@ -37131,7 +37376,7 @@ decisions:
       negative:
         - "the final head carries lead-verified fixes without a third voice"
     proposed_by: "agent"
-    decided_by: null
+    decided_by: "agent"
     decided_by_ref: null
     evidence_sha256: null
     recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
@@ -37140,13 +37385,18 @@ decisions:
     cycle: "cycle-135-review-coverage-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-26T08:27:17Z"
         from: null
         to: "proposed"
         by: "agent:review-sprint"
         evidence: "PR #1302 round-2 triage comment"
+      - at: "2026-10-27T00:33:51Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-27T00:33:51Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
