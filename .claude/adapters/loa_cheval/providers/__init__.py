@@ -2,20 +2,64 @@
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Type
+import importlib
+from typing import TYPE_CHECKING, Any, Dict, Optional, Type
 
 from loa_cheval.providers.base import ProviderAdapter
-from loa_cheval.providers.openai_adapter import OpenAIAdapter
-from loa_cheval.providers.anthropic_adapter import AnthropicAdapter
-from loa_cheval.providers.google_adapter import GoogleAdapter
-from loa_cheval.providers.bedrock_adapter import BedrockAdapter
-from loa_cheval.providers.codex_headless_adapter import CodexHeadlessAdapter
-from loa_cheval.providers.gemini_headless_adapter import GeminiHeadlessAdapter
-from loa_cheval.providers.claude_headless_adapter import ClaudeHeadlessAdapter
-from loa_cheval.providers.cursor_headless_adapter import CursorHeadlessAdapter
-from loa_cheval.providers.grok_headless_adapter import GrokHeadlessAdapter
-from loa_cheval.providers.agy_headless_adapter import AgyHeadlessAdapter
 from loa_cheval.types import ConfigError, ProviderConfig
+
+if TYPE_CHECKING:  # names resolved lazily at runtime via module __getattr__ below
+    from loa_cheval.providers.openai_adapter import OpenAIAdapter
+    from loa_cheval.providers.anthropic_adapter import AnthropicAdapter
+    from loa_cheval.providers.google_adapter import GoogleAdapter
+    from loa_cheval.providers.bedrock_adapter import BedrockAdapter
+    from loa_cheval.providers.codex_headless_adapter import CodexHeadlessAdapter
+    from loa_cheval.providers.gemini_headless_adapter import GeminiHeadlessAdapter
+    from loa_cheval.providers.claude_headless_adapter import ClaudeHeadlessAdapter
+    from loa_cheval.providers.cursor_headless_adapter import CursorHeadlessAdapter
+    from loa_cheval.providers.grok_headless_adapter import GrokHeadlessAdapter
+    from loa_cheval.providers.agy_headless_adapter import AgyHeadlessAdapter
+
+# Adapter class name -> defining module. Each adapter module is imported on first use
+# (registry lookup or ``from loa_cheval.providers import <Name>``), not at package
+# import: a cheval spawn needs one adapter, not all ten (eso pass 17).
+_ADAPTER_MODULES: Dict[str, str] = {
+    "OpenAIAdapter": "loa_cheval.providers.openai_adapter",
+    "AnthropicAdapter": "loa_cheval.providers.anthropic_adapter",
+    "GoogleAdapter": "loa_cheval.providers.google_adapter",
+    "BedrockAdapter": "loa_cheval.providers.bedrock_adapter",
+    "CodexHeadlessAdapter": "loa_cheval.providers.codex_headless_adapter",
+    "GeminiHeadlessAdapter": "loa_cheval.providers.gemini_headless_adapter",
+    "ClaudeHeadlessAdapter": "loa_cheval.providers.claude_headless_adapter",
+    "CursorHeadlessAdapter": "loa_cheval.providers.cursor_headless_adapter",
+    "GrokHeadlessAdapter": "loa_cheval.providers.grok_headless_adapter",
+    "AgyHeadlessAdapter": "loa_cheval.providers.agy_headless_adapter",
+}
+
+
+def _adapter_class(name: str) -> Any:
+    """Adapter class by name, preferring the copy cached in module globals so every
+    path (registry, get_adapter, ``from loa_cheval.providers import X``) yields the
+    SAME class object even if a test later evicts the adapter module from sys.modules
+    (the eager imports this replaces bound the class once, at package import)."""
+    return globals().get(name) or __getattr__(name)
+
+
+def __getattr__(name: str) -> Any:
+    if name == "_ADAPTER_REGISTRY":
+        # Full plain dict (type -> class), same contents and key order as the former eager
+        # table. Built on first touch (tests, cli_adapter_types) and cached in globals();
+        # cheval's normal path resolves one type via _ADAPTER_TYPES instead.
+        registry: Dict[str, Type[ProviderAdapter]] = {t: _adapter_class(c) for t, c in _ADAPTER_TYPES.items()}
+        globals()["_ADAPTER_REGISTRY"] = registry
+        return registry
+    module = _ADAPTER_MODULES.get(name)
+    if module is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    cls = getattr(importlib.import_module(module), name)
+    globals()[name] = cls  # cache: later lookups bypass __getattr__
+    return cls
+
 
 # Provider type → adapter class mapping.
 # - cycle-096 Sprint 1 added 'bedrock'.
@@ -45,32 +89,33 @@ from loa_cheval.types import ConfigError, ProviderConfig
 #   (an xAI agentic model not pinned elsewhere). Pure inference, isolated cwd,
 #   prompt-via-file (the prompt is untrusted). See
 #   grok_headless_adapter.py.
-_ADAPTER_REGISTRY: Dict[str, Type[ProviderAdapter]] = {
-    "openai": OpenAIAdapter,
-    "anthropic": AnthropicAdapter,
-    "openai_compat": OpenAIAdapter,  # OpenAI-compatible uses the same adapter
-    "google": GoogleAdapter,
-    "bedrock": BedrockAdapter,
-    "codex-headless": CodexHeadlessAdapter,
-    "gemini-headless": AgyHeadlessAdapter,  # FR-5 repoint: gemini-cli (dead, IneligibleTier) → agy
-    "claude-headless": ClaudeHeadlessAdapter,
-    "cursor-headless": CursorHeadlessAdapter,
-    "grok-headless": GrokHeadlessAdapter,
+_ADAPTER_TYPES: Dict[str, str] = {
+    "openai": "OpenAIAdapter",
+    "anthropic": "AnthropicAdapter",
+    "openai_compat": "OpenAIAdapter",  # OpenAI-compatible uses the same adapter
+    "google": "GoogleAdapter",
+    "bedrock": "BedrockAdapter",
+    "codex-headless": "CodexHeadlessAdapter",
+    "gemini-headless": "AgyHeadlessAdapter",  # FR-5 repoint: gemini-cli (dead, IneligibleTier) → agy
+    "claude-headless": "ClaudeHeadlessAdapter",
+    "cursor-headless": "CursorHeadlessAdapter",
+    "grok-headless": "GrokHeadlessAdapter",
 }
 
 
 def get_adapter(config: ProviderConfig) -> ProviderAdapter:
     """Get a provider adapter instance for the given config."""
-    adapter_cls = _ADAPTER_REGISTRY.get(config.type)
+    adapter_cls = adapter_class_for_type(config.type)
     if adapter_cls is None:
-        raise ConfigError(f"Unknown provider type: '{config.type}'. Supported: {list(_ADAPTER_REGISTRY.keys())}")
+        raise ConfigError(f"Unknown provider type: '{config.type}'. Supported: {list(_ADAPTER_TYPES)}")
     return adapter_cls(config)
 
 
 def adapter_class_for_type(adapter_type: str) -> Optional[Type[ProviderAdapter]]:
     """The registered adapter class for a provider ``type`` (None when unknown) —
     cycle-127 r251-1 C5: cheval asks it what reaches the wire (``wire_effort``)."""
-    return _ADAPTER_REGISTRY.get(adapter_type)
+    name = _ADAPTER_TYPES.get(adapter_type)
+    return None if name is None else _adapter_class(name)
 
 
 def cli_adapter_types() -> frozenset:
@@ -85,7 +130,7 @@ def cli_adapter_types() -> frozenset:
     """
     return frozenset(
         t
-        for t, cls in _ADAPTER_REGISTRY.items()
+        for t, cls in (globals().get("_ADAPTER_REGISTRY") or __getattr__("_ADAPTER_REGISTRY")).items()
         if getattr(cls, "auth_type", None) == "headless"
     )
 
