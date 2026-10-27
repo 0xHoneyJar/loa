@@ -15,6 +15,8 @@ import type { PullRequestFile } from "../ports/git-provider.js";
 // pre-flight gate accepts (exit 7 above the ceiling).
 import { GENERATED_MODEL_ALIASES, GENERATED_TOKEN_BUDGETS } from "./truncation.generated.js";
 import type {
+  ReviewignoreSource,
+  SelectionConfig,
   BridgebuilderConfig,
   TruncationResult,
   LoaDetectionResult,
@@ -398,7 +400,7 @@ function patternSuffix(pattern: string): string {
 }
 
 /** cycle-135 C-2 (DEC-1027): where the applied `.reviewignore` patterns came from (`base_unavailable`: round 1). */
-export type ReviewignoreSource = "base" | "checkout" | "base_unavailable" | "none";
+export type { ReviewignoreSource } from "./types.js"; // (cycle-136 Task 1.0: owned by types.ts)
 
 /**
  * Parse a `.reviewignore` file's user-curated patterns from disk.
@@ -556,7 +558,7 @@ function readCheckoutReviewignore(repoRoot: string): { patterns: string[]; sourc
 }
 
 /** The `.reviewignore` line grammar, shared by the checkout and the base read. */
-function parseReviewignoreLines(content: string): string[] {
+export function parseReviewignoreLines(content: string): string[] {
   const patterns: string[] = [];
   // cycle-135 C-1 (bd-ow72o): lines go through the one loader; the former `/` → `/**` conversion is gone — a
   // directory line is a non-wildcard segment pattern (FR-2: `.github/workflows/` is an explicit name).
@@ -571,7 +573,7 @@ function parseReviewignoreLines(content: string): string[] {
 
 /** cycle-135 C-2: bounds of the base-ref `.reviewignore` read. */
 const REVIEWIGNORE_GIT_TIMEOUT_MS = 10_000;
-const REVIEWIGNORE_MAX_BYTES = 1024 * 1024;
+export const REVIEWIGNORE_MAX_BYTES = 1024 * 1024;
 
 /**
  * cycle-135 C-2 (bd-i4fyw, DEC-1027): `.reviewignore` as of the PR base. The sha must be 40-hex (never an option);
@@ -579,9 +581,9 @@ const REVIEWIGNORE_MAX_BYTES = 1024 * 1024;
  * 1 MiB. Never throws: a failure (absent at the base, unknown commit, git error, oversize, a symlink) is returned
  * with its reason and the caller falls back to the checkout copy.
  */
-type BaseRead = { ok: true; patterns: string[] } | { ok: false; absent: boolean; why: string };
+export type BaseRead = { ok: true; patterns: string[] } | { ok: false; absent: boolean; why: string };
 
-function readBaseReviewignore(repoRoot: string, baseSha: string): BaseRead {
+export function readBaseReviewignore(repoRoot: string, baseSha: string): BaseRead {
   const none = (why: string, absent = false): BaseRead => ({ ok: false, absent, why });
   if (!/^[0-9a-f]{40}$/.test(baseSha)) return none("not a 40-hex commit sha");
   const opts = {
@@ -1392,17 +1394,8 @@ function hasPatch(file: PullRequestFile): boolean {
 
 export function truncateFiles(
   files: PullRequestFile[],
-  config: Pick<
-    BridgebuilderConfig,
-    "excludePatterns" | "maxDiffBytes" | "maxFilesPerPr" | "loaAware" | "repoRoot" | "selfReview" | "protectedPaths"
-  > & {
-    /** cycle-135 C-2 (DEC-1027): the PR base sha; when set `.reviewignore` is read from it, else from the checkout. */
-    reviewignoreBaseSha?: string;
-  },
-): TruncationResult & {
-  /** cycle-135 C-2: where the applied `.reviewignore` came from; undefined when it was not consulted (non-Loa repo). */
-  reviewignoreSource?: ReviewignoreSource;
-} {
+  config: SelectionConfig, // (cycle-136 Task 1.0: the shared type; reviewignoreBaseSha and the C-2 base inputs live on it)
+): TruncationResult {
   const patterns = config.excludePatterns ?? [];
   // cycle-135 C-2 (bd-i4fyw): protection against wildcard user exclusions; `[]` disables it.
   const protectedPatterns = config.protectedPaths ?? DEFAULT_PROTECTED_PATHS;

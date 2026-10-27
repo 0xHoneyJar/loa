@@ -1,25 +1,22 @@
 import type { IGitProvider, PullRequestFile, PullRequestRef } from "../ports/git-provider.js";
 import { truncateFiles } from "./truncation.js";
 import { type DegradedReason } from "./degraded-reason.js";
-import type { BridgebuilderConfig, CoverageRecord, OmissionReason, ReviewItem, TruncationResult } from "./types.js";
+import type { BridgebuilderConfig, CoverageRecord, OmissionReason, ReviewignoreSource, ReviewItem, SelectionConfig, TruncationResult } from "./types.js";
 /** GitHub's `pulls/N/files` lists at most this many files (30 pages of 100). */
 export declare const FILES_ENDPOINT_CAP = 3000;
 export type PagedGit = Required<Pick<IGitProvider, "getPR" | "getPRFilesPage">>;
 /** cycle-135 C-3: the paged contract plus the optional content read (absent → no content fetch). */
 export type PagedContentGit = PagedGit & Pick<IGitProvider, "getFileContent">;
-export type SelectionConfig = Pick<BridgebuilderConfig, "excludePatterns" | "maxDiffBytes" | "maxFilesPerPr" | "loaAware" | "repoRoot" | "selfReview" | "protectedPaths" | "fetchMissingPatches" | "maxContentFetches">;
+export type { SelectionConfig } from "./types.js";
 /** cycle-135 C-3: default `max_content_fetches` and the total deadline for the content reads of one attempt. */
 export declare const DEFAULT_MAX_CONTENT_FETCHES = 20;
 export declare const CONTENT_FETCH_DEADLINE_MS = 120000;
-type ReviewignoreSource = NonNullable<CoverageRecord["reviewignore_source"]>;
 /** Test seams of the two-pass fetch (production passes none). */
 export interface TwoPassDeps {
     /** cycle-135 C-3: the clock for the content-fetch deadline (default `Date.now`). */
     now?: () => number;
     /** cycle-135 C-2: the selection (default `truncateFiles`); tests substitute the producer of `protectedKept`. */
-    truncate?: (files: PullRequestFile[], config: SelectionConfig & {
-        reviewignoreBaseSha?: string;
-    }) => TruncationResult;
+    truncate?: (files: PullRequestFile[], config: SelectionConfig) => TruncationResult;
     /** cycle-135 C-2: where `.reviewignore` is read from for this PR (default `defaultReviewignoreSource`). */
     reviewignoreSource?: (repoRoot: string | undefined, opts: {
         baseSha?: string;
@@ -73,5 +70,4 @@ export declare function truncationFor(item: ReviewItem, config: Parameters<typeo
 export declare function coverageMarker(coverage: CoverageRecord): string;
 /** The posted coverage section: pinned pair, counts per reason, the first 20 omitted paths, and the marker. */
 export declare function formatCoverageSection(coverage: CoverageRecord): string;
-export {};
 //# sourceMappingURL=paged-fetch.d.ts.map

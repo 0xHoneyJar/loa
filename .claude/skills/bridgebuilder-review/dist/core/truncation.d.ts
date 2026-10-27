@@ -1,5 +1,5 @@
 import type { PullRequestFile } from "../ports/git-provider.js";
-import type { BridgebuilderConfig, TruncationResult, LoaDetectionResult, SecurityPatternEntry, TokenBudget, ProgressiveTruncationResult } from "./types.js";
+import type { ReviewignoreSource, SelectionConfig, BridgebuilderConfig, TruncationResult, LoaDetectionResult, SecurityPatternEntry, TokenBudget, ProgressiveTruncationResult } from "./types.js";
 export declare const SECURITY_PATTERNS: SecurityPatternEntry[];
 export declare function isHighRisk(filename: string): boolean;
 export declare function getSecurityCategory(filename: string): string | undefined;
@@ -83,7 +83,7 @@ export declare function partitionUserExclusions(files: readonly PullRequestFile[
     }>;
 };
 /** cycle-135 C-2 (DEC-1027): where the applied `.reviewignore` patterns came from (`base_unavailable`: round 1). */
-export type ReviewignoreSource = "base" | "checkout" | "base_unavailable" | "none";
+export type { ReviewignoreSource } from "./types.js";
 /**
  * Parse a `.reviewignore` file's user-curated patterns from disk.
  *
@@ -116,6 +116,24 @@ export declare function parseReviewignoreFile(repoRoot: string, opts?: {
     patterns: string[];
     source: ReviewignoreSource;
 };
+/** The `.reviewignore` line grammar, shared by the checkout and the base read. */
+export declare function parseReviewignoreLines(content: string): string[];
+export declare const REVIEWIGNORE_MAX_BYTES: number;
+/**
+ * cycle-135 C-2 (bd-i4fyw, DEC-1027): `.reviewignore` as of the PR base. The sha must be 40-hex (never an option);
+ * the entry must be a regular blob (a symlink is refused, as for the checkout read); bounded by a 10 s timeout and
+ * 1 MiB. Never throws: a failure (absent at the base, unknown commit, git error, oversize, a symlink) is returned
+ * with its reason and the caller falls back to the checkout copy.
+ */
+export type BaseRead = {
+    ok: true;
+    patterns: string[];
+} | {
+    ok: false;
+    absent: boolean;
+    why: string;
+};
+export declare function readBaseReviewignore(repoRoot: string, baseSha: string): BaseRead;
 /**
  * Load `.reviewignore` operator-curated patterns from repo root.
  * Returns ONLY the user patterns — does NOT merge with LOA_EXCLUDE_PATTERNS.
@@ -221,11 +239,5 @@ export declare function prioritizeFiles(files: PullRequestFile[]): PullRequestFi
  * Budget target: 90% of maxInputTokens (SKP-004).
  */
 export declare function progressiveTruncate(files: PullRequestFile[], budgetTokens: number, model: string, systemPromptLen: number, metadataLen: number): ProgressiveTruncationResult;
-export declare function truncateFiles(files: PullRequestFile[], config: Pick<BridgebuilderConfig, "excludePatterns" | "maxDiffBytes" | "maxFilesPerPr" | "loaAware" | "repoRoot" | "selfReview" | "protectedPaths"> & {
-    /** cycle-135 C-2 (DEC-1027): the PR base sha; when set `.reviewignore` is read from it, else from the checkout. */
-    reviewignoreBaseSha?: string;
-}): TruncationResult & {
-    /** cycle-135 C-2: where the applied `.reviewignore` came from; undefined when it was not consulted (non-Loa repo). */
-    reviewignoreSource?: ReviewignoreSource;
-};
+export declare function truncateFiles(files: PullRequestFile[], config: SelectionConfig): TruncationResult;
 //# sourceMappingURL=truncation.d.ts.map

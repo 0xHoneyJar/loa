@@ -511,7 +511,7 @@ function readCheckoutReviewignore(repoRoot) {
     return { patterns: parseReviewignoreLines(content), source: "checkout" };
 }
 /** The `.reviewignore` line grammar, shared by the checkout and the base read. */
-function parseReviewignoreLines(content) {
+export function parseReviewignoreLines(content) {
     const patterns = [];
     // cycle-135 C-1 (bd-ow72o): lines go through the one loader; the former `/` → `/**` conversion is gone — a
     // directory line is a non-wildcard segment pattern (FR-2: `.github/workflows/` is an explicit name).
@@ -525,8 +525,8 @@ function parseReviewignoreLines(content) {
 }
 /** cycle-135 C-2: bounds of the base-ref `.reviewignore` read. */
 const REVIEWIGNORE_GIT_TIMEOUT_MS = 10_000;
-const REVIEWIGNORE_MAX_BYTES = 1024 * 1024;
-function readBaseReviewignore(repoRoot, baseSha) {
+export const REVIEWIGNORE_MAX_BYTES = 1024 * 1024;
+export function readBaseReviewignore(repoRoot, baseSha) {
     const none = (why, absent = false) => ({ ok: false, absent, why });
     if (!/^[0-9a-f]{40}$/.test(baseSha))
         return none("not a 40-hex commit sha");
