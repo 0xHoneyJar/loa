@@ -93,7 +93,7 @@ CLI text only. Every line is single-line; filenames, provider error details and 
 - `[scaffold] fixed: <target> simple-release if: → allowlist guard (one line changed; bd-nr5i6)`
 - `[scaffold] WARN: LOA_SCAFFOLD_FIX_RELEASE_GUARD=1 but <target> has no single job-level simple-release if: carrying the legacy guard — left unchanged`
 - `[bridgebuilder] INFO: .reviewignore at base <sha> read through the contents API (the base commit is not in the clone)` (once per base-sha resolution; cached, so once per run unless the base moves)
-- `[bridgebuilder] WARN: content read of <file> failed: <outcome> (no_patch)` (once per file per attempt; outcomes `error`, `too_large`, `binary`)
+- `[bridgebuilder] WARN: content read of "<file>" failed: <outcome> (no_patch)` (once per file per attempt; outcomes `error`, `too_large`, `binary`, and an empty `text` answer; the file name is JSON-quoted and bounded through `boundedForLog` — review round 1 LOW 6)
 - `[bridgebuilder] WARN: bridgebuilder.<key>: the PR head's value is invalid (<reason>) — ignored on a pull request; the trusted configuration (or its default) governs`
 
 ## 5. API Specifications
