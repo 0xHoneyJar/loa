@@ -121,17 +121,29 @@ _sanitise() {  # stdin-free: $1 → ^[A-Za-z0-9._-]+$ (may print empty)
     [[ "$s" == .* ]] && s="_${s#.}"
     printf '%s' "$s"
 }
-payload_sid="$(printf '%s' "${PAYLOAD_SID_JSON:-\"\"}" | jq -r '.' 2>/dev/null)" || payload_sid=""
+# Spawn diet: an id made only of [A-Za-z0-9._-] (every UUID) needs no JSON
+# decode or encode — its JSON form is the bytes between two quotes — so the
+# decode jq runs only for other payload ids and the encode jq only for other
+# SESSION values (payload id, LOA_SESSION_ID or the USER-date fallback).
+if [[ "${PAYLOAD_SID_JSON:-\"\"}" =~ ^\"([A-Za-z0-9._-]*)\"$ ]]; then
+    payload_sid="${BASH_REMATCH[1]}"
+else
+    payload_sid="$(printf '%s' "${PAYLOAD_SID_JSON:-\"\"}" | jq -r '.' 2>/dev/null)" || payload_sid=""
+fi
 SESSION="${payload_sid:-${LOA_SESSION_ID:-}}"
 [[ -n "$SESSION" ]] || SESSION="${USER:-unknown}-${TS:0:4}${TS:5:2}${TS:8:2}"
-SESSION_JSON="$(jq -cn --arg s "$SESSION" '$s')"
+if [[ "$SESSION" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    SESSION_JSON="\"$SESSION\""
+else
+    SESSION_JSON="$(jq -cn --arg s "$SESSION" '$s')"
+fi
 
 task_raw=""
 if [[ -f "$CHECKPOINT" ]]; then
     task_raw="$(bash "$CHECKPOINT" read --json 2>/dev/null \
         | jq -r '[.checkpoint.task?, .checkpoint.sprint?, .sprint?] | map(select(type == "string" and . != ""))
-                  | .[0] // empty | gsub("[^A-Za-z0-9._-]"; "_")' 2>/dev/null \
-        | head -1)" || task_raw=""
+                  | .[0] // empty | gsub("[^A-Za-z0-9._-]"; "_")' 2>/dev/null)" || task_raw=""
+    task_raw="${task_raw%%$'\n'*}"   # first line only (the former `| head -1`, without the fork)
 fi
 KEY="$(_sanitise "$task_raw")"
 [[ -n "$KEY" ]] || KEY="$(_sanitise "$SESSION")"
