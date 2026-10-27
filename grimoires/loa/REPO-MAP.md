@@ -7,7 +7,7 @@
 > **Reference-weighted, NOT semantic.** Symbols are ranked by a fixed-iteration damped PageRank over a graph built from lexical word-boundary occurrences of symbol names across files (bash `name() {` defs + python `def`/`class` via `ast`). This is NOT a call graph or an import graph: a name inside a comment, a string, or an unrelated same-named local counts the same as a real call. Symbols sharing a name across files **collapse into one node** whose score aggregates every definition site (marked `collision`). Treat this as a navigation hint, not verified truth. Test/fixture directories (`tests`, `__tests__`, `fixtures`) are excluded from the scan, and definitions named after bash builtins / python keywords (test mocks like `exit()`) are skipped as unrankable noise.
 
 - **Generator:** `repo-map-gen.sh` v1.0.0
-- **Input content hash (sha256):** `5f16eee533e762ff26dae84a8e117d85c2e167dfbc02643af780365a00c0277b`
+- **Input content hash (sha256):** `0a0a3417afc23f2ce5e1934879b453568e1d96edfef9d4dbdc6b6b9959a4f199`
 - **Method:** damped PageRank, damping=0.85, 50 fixed iterations, ties lexicographic.
 
 ## Top 50 Overall
@@ -16,8 +16,8 @@
 |---|--------|------|-------|-------|-----------|
 | 1 | `run` | function | 0.060439 | 2782 | .claude/scripts/beads/sweep-apply.sh:192 |
 | 2 | `p` | function | 0.059071 | 1349 | .claude/scripts/beads/sweep-apply.sh:91 |
-| 3 | `get` | function | 0.046287 | 1824 | .claude/adapters/loa_cheval/credentials/providers.py:22, .claude/adapters/loa_cheval/credentials/providers.py:33, .claude/adapters/loa_cheval/credentials/providers.py:85 (+5 more) |
-| 4 | `name` | function | 0.041565 | 1591 | .claude/adapters/loa_cheval/credentials/providers.py:26, .claude/adapters/loa_cheval/credentials/providers.py:36, .claude/adapters/loa_cheval/credentials/providers.py:88 (+2 more) |
+| 3 | `get` | function | 0.046290 | 1825 | .claude/adapters/loa_cheval/credentials/providers.py:22, .claude/adapters/loa_cheval/credentials/providers.py:33, .claude/adapters/loa_cheval/credentials/providers.py:85 (+5 more) |
+| 4 | `name` | function | 0.041565 | 1592 | .claude/adapters/loa_cheval/credentials/providers.py:26, .claude/adapters/loa_cheval/credentials/providers.py:36, .claude/adapters/loa_cheval/credentials/providers.py:88 (+2 more) |
 | 5 | `check` | function | 0.037658 | 998 | .claude/adapters/loa_cheval/metering/rate_limiter.py:51, .claude/adapters/loa_cheval/routing/capability_gate.py:28 |
 | 6 | `result` | function | 0.029617 | 1630 | .claude/scripts/lib/finding_validate.py:192 |
 | 7 | `log` | function | 0.026438 | 459 | .claude/hooks/hygiene/settings-cleanup.sh:96, .claude/scripts/adversarial-review.sh:143, .claude/scripts/beads-flatline-loop.sh:114 (+58 more) |
@@ -71,8 +71,8 @@ Top-15 slice of the global ranking with a definition under this directory.
 
 | # | Symbol | Kind | Score | Xrefs | Def sites |
 |---|--------|------|-------|-------|-----------|
-| 1 | `get` | function | 0.046287 | 1824 | .claude/adapters/loa_cheval/credentials/providers.py:22, .claude/adapters/loa_cheval/credentials/providers.py:33, .claude/adapters/loa_cheval/credentials/providers.py:85 (+5 more) |
-| 2 | `name` | function | 0.041565 | 1591 | .claude/adapters/loa_cheval/credentials/providers.py:26, .claude/adapters/loa_cheval/credentials/providers.py:36, .claude/adapters/loa_cheval/credentials/providers.py:88 (+2 more) |
+| 1 | `get` | function | 0.046290 | 1825 | .claude/adapters/loa_cheval/credentials/providers.py:22, .claude/adapters/loa_cheval/credentials/providers.py:33, .claude/adapters/loa_cheval/credentials/providers.py:85 (+5 more) |
+| 2 | `name` | function | 0.041565 | 1592 | .claude/adapters/loa_cheval/credentials/providers.py:26, .claude/adapters/loa_cheval/credentials/providers.py:36, .claude/adapters/loa_cheval/credentials/providers.py:88 (+2 more) |
 | 3 | `check` | function | 0.037658 | 998 | .claude/adapters/loa_cheval/metering/rate_limiter.py:51, .claude/adapters/loa_cheval/routing/capability_gate.py:28 |
 | 4 | `providers` | function | 0.018747 | 444 | .claude/adapters/loa_cheval/credentials/providers.py:110 |
 | 5 | `EncryptedFileProvider` | class | 0.015897 | 3 | .claude/adapters/loa_cheval/credentials/store.py:133 |
@@ -156,7 +156,7 @@ Top-15 slice of the global ranking with a definition under this directory.
 |---|--------|------|-------|-------|-----------|
 | 1 | `run` | function | 0.060439 | 2782 | .claude/scripts/beads/sweep-apply.sh:192 |
 | 2 | `p` | function | 0.059071 | 1349 | .claude/scripts/beads/sweep-apply.sh:91 |
-| 3 | `get` | function | 0.046287 | 1824 | .claude/adapters/loa_cheval/credentials/providers.py:22, .claude/adapters/loa_cheval/credentials/providers.py:33, .claude/adapters/loa_cheval/credentials/providers.py:85 (+5 more) |
+| 3 | `get` | function | 0.046290 | 1825 | .claude/adapters/loa_cheval/credentials/providers.py:22, .claude/adapters/loa_cheval/credentials/providers.py:33, .claude/adapters/loa_cheval/credentials/providers.py:85 (+5 more) |
 | 4 | `result` | function | 0.029617 | 1630 | .claude/scripts/lib/finding_validate.py:192 |
 | 5 | `log` | function | 0.026438 | 459 | .claude/hooks/hygiene/settings-cleanup.sh:96, .claude/scripts/adversarial-review.sh:143, .claude/scripts/beads-flatline-loop.sh:114 (+58 more) |
 | 6 | `error` | function | 0.021329 | 1086 | .claude/commands/scripts/common.sh:14, .claude/scripts/adversarial-review.sh:144, .claude/scripts/beads/migrate-to-br.sh:63 (+30 more) |

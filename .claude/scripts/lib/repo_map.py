@@ -100,6 +100,7 @@ def build_map(scan_root, project_root):
     token_counts = {}   # rel -> {token: count}
     defs = {}           # name -> list of (rel, lineno, kind)
     def_files = {}      # name -> set of rel
+    file_defs = {}      # rel -> set of names defined there (inverse of def_files)
     skipped = []        # rel of files that failed python parse
 
     for rel, ab in files:
@@ -127,6 +128,7 @@ def build_map(scan_root, project_root):
                 continue
             defs.setdefault(name, []).append((rel, lineno, kind))
             def_files.setdefault(name, set()).add(rel)
+            file_defs.setdefault(rel, set()).add(name)
 
     for name in defs:
         defs[name].sort(key=lambda t: (t[0], t[1]))
@@ -144,7 +146,7 @@ def build_map(scan_root, project_root):
                 refs[name] = c
         if not refs:
             continue
-        defs_in_f = [d for d in known_names if rel in def_files[d]]
+        defs_in_f = file_defs.get(rel, ())  # prebuilt inverse index, not an O(names) scan per file
         for a in defs_in_f:
             ea = out_edges[a]
             for b, w in refs.items():
