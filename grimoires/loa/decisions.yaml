@@ -38903,3 +38903,182 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1102"
+    created_at: "2026-10-27T02:27:35Z"
+    updated_at: "2026-10-27T02:27:35Z"
+    phase: "review"
+    category: "security"
+    summary: "A plain-scalar if: that continues on a deeper line is multi-line: notsingle — silent, with the flag the refuse WARN, byte-identical (the dissent's BLOCKING)."
+    decision: "After a candidate if: at the child indentation, the next non-blank non-comment line deeper than C (comments and blank lines skipped) marks the candidate multi-line; a mis-indented key counts too (not ours to rewrite)."
+    rationale: "The first physical line of a customised multi-line guard can equal the legacy text; rewriting it would leave the continuation dangling and break the workflow."
+    alternatives_considered:
+      - option: "special-case continuations to stay silent under the flag"
+        rejected_because: "multi-line would behave two ways"
+    consequences:
+      positive:
+        - "no misdetection of customised multi-line guards"
+      negative:
+        - "a legacy guard reformatted onto two lines is treated as customised (by design, DEC-1078)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "be35c3ac"
+    source: "grimoires/loa/a2a/sprint-280/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T02:27:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "be35c3ac6 (red eb2dac6b9)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1103"
+    created_at: "2026-10-27T02:27:39Z"
+    updated_at: "2026-10-27T02:27:39Z"
+    phase: "review"
+    category: "implementation"
+    summary: "With the flag set and the rewrite succeeding only the fixed notice prints; the legacy WARN prints when the flag is off or ahead of a refuse/failure WARN."
+    decision: "T17/T26/T29–T32 pin the one-line success; T14/T27/T33/T34 keep the WARN-first shape for off / refuse / failure."
+    rationale: "A log that tells the operator to set a flag they set, followed by 'fixed', reads as a contradiction on every CI mount; FR-1 asked for a one-line notice."
+    alternatives_considered:
+      - option: "keep the SDD pseudo-code's unconditional WARN"
+        rejected_because: "readability on every flagged mount log"
+    consequences:
+      positive:
+        - "one line on success"
+      negative:
+        - "the rewrite helper's stdout is now a protocol (empty = success)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "be35c3ac"
+    source: "grimoires/loa/a2a/sprint-280/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T02:27:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "be35c3ac6"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1104"
+    created_at: "2026-10-27T02:27:43Z"
+    updated_at: "2026-10-27T02:27:43Z"
+    phase: "review"
+    category: "testing"
+    summary: "The real pre-cycle-135 post-merge.yml (git show 4256a1b3) is a committed fixture; T38 asserts WARN, byte-identical, and a one-line rewrite equal to the swap."
+    decision: "tests/fixtures/mount-workflow-scaffold/post-merge-legacy.yml (277 lines) rather than an embedded heredoc, so it stays diffable against its source commit."
+    rationale: "Every other fixture was synthetic; the production file is the one the detection must match."
+    alternatives_considered:
+      - option: "embed in the bats file"
+        rejected_because: "277 lines inside a heredoc, not diffable"
+    consequences:
+      positive:
+        - "real-world evidence"
+      negative:
+        - "one fixture file to keep in sync if the legacy shape is ever edited (it will not be)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "be35c3ac"
+    source: "grimoires/loa/a2a/sprint-280/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T02:27:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "eb2dac6b9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1105"
+    created_at: "2026-10-27T02:27:47Z"
+    updated_at: "2026-10-27T02:27:47Z"
+    phase: "review"
+    category: "testing"
+    summary: "B's round-1 patch is tests only and green by design: deadline is silent, an empty text answer is error + one WARN, stderr helpers forward the callback."
+    decision: "Landed outside land.sh's red expectation as b695008fc with the reason in the commit; the pre-existing synchronous captureStderr helpers in truncation.test.ts are untouched."
+    rationale: "The cases pin behaviour that already exists; a red-first demand would force an artificial breakage."
+    alternatives_considered:
+      - option: "skip the pins"
+        rejected_because: "the contract's silence set would be unpinned"
+    consequences:
+      positive:
+        - "contract pinned"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "be35c3ac"
+    source: "grimoires/loa/a2a/sprint-280/engineer-feedback.md § Round 1 dispositions"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T02:27:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "b695008fc"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1106"
+    created_at: "2026-10-27T02:27:52Z"
+    updated_at: "2026-10-27T02:27:52Z"
+    phase: "review"
+    category: "process"
+    summary: "Rejected advisory: a block-scalar or two-line legacy guard gets no WARN (by design, DEC-1078); the temp-file leak window is bead bd-lkdsx."
+    decision: "Anything the single-line grammar does not reduce to the two shipped texts stays customised and silent; a trap inside a sourced library function would touch the callers' trap state, so the leak window is filed, not fixed here."
+    rationale: "Warning on a prefix match of a multi-line value is exactly the false positive the BLOCKING finding protects against; the leak window is milliseconds and Actions ignores the file."
+    alternatives_considered:
+      - option: "warn on block-scalar legacy guards"
+        rejected_because: "prefix-match false positives"
+    consequences:
+      positive:
+        - "one grammar"
+      negative:
+        - "a reformatted legacy guard is not reported"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "review-sprint/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "be35c3ac"
+    source: "grimoires/loa/a2a/sprint-280/engineer-feedback-r1.md § Rejected dissent payloads, Dispositions 7"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T02:27:52Z"
+        from: null
+        to: "proposed"
+        by: "agent:review-sprint"
+        evidence: "engineer-feedback-r1.md; bd-lkdsx"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
