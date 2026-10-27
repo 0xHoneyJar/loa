@@ -38616,3 +38616,290 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1094"
+    created_at: "2026-10-27T01:56:18Z"
+    updated_at: "2026-10-27T01:56:18Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "resolveBaseReviewignore runs only for a Loa-aware repository (detectLoa, explicit repoRoot): a non-Loa repo never consults .reviewignore, so no call, no INFO."
+    decision: "The SDD text implied an unconditional call; the selection consults .reviewignore only when the repository is Loa-aware, so the resolution is gated the same way."
+    rationale: "An unconditional call would spend a contents read and print a notice about a file the selection never applies, and would add a call to every non-Loa fixture."
+    alternatives_considered:
+      - option: "always resolve"
+        rejected_because: "wasted call and a misleading INFO line"
+    consequences:
+      positive:
+        - "no behaviour change for non-Loa repos"
+      negative:
+        - "one more detectLoa evaluation per attempt"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "~/.cache/loa/cycle-136/reports/b.md § 4 (2)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:56:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "66c35c9c4 (red 92b8ab78f)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1095"
+    created_at: "2026-10-27T01:56:25Z"
+    updated_at: "2026-10-27T01:56:25Z"
+    phase: "implementation"
+    category: "security"
+    summary: "The access probe targets modified or removed listed files only (no previous_filename in the listing); an add-only PR cannot be probed and a 404 stays degraded."
+    decision: "A renamed file's new path need not exist at the base, so it is not a probe target; a non-40-hex base sha returns undefined before any read."
+    rationale: "The probe must hit a path that exists at the base or it proves nothing; fail closed when no such path is listed."
+    alternatives_considered:
+      - option: "probe a renamed file's new name"
+        rejected_because: "may not exist at the base"
+    consequences:
+      positive:
+        - "probe never lies"
+      negative:
+        - "add-only PRs on shallow checkouts stay degraded when .reviewignore is absent at the base"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "~/.cache/loa/cycle-136/reports/b.md § 4 (3, 4)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:56:25Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "66c35c9c4"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1096"
+    created_at: "2026-10-27T01:56:31Z"
+    updated_at: "2026-10-27T01:56:31Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "A resolved none keeps the absent-at-base checkout check (DEC-1056 WARN, symlink refusal); tests force the local read's class via deps.readBaseReviewignore."
+    decision: "resolveBasePatterns routes source none through absentAtBase; the local read's class is forced in tests through an optional TwoPassDeps field defaulting to the real reader."
+    rationale: "Skipping the checkout on the most common path (a full clone whose base lacks the file) would silently drop the DEC-1056 WARN; temp git repos cannot model a shallow clone offline."
+    alternatives_considered:
+      - option: "skip the checkout entirely when reviewignoreBase is set"
+        rejected_because: "drops the WARN and changes symlink behaviour"
+    consequences:
+      positive:
+        - "today's semantics preserved exactly"
+      negative:
+        - "one more seam on TwoPassDeps"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "~/.cache/loa/cycle-136/reports/b.md § 4 (1, 5)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:56:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "66c35c9c4"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1097"
+    created_at: "2026-10-27T01:56:37Z"
+    updated_at: "2026-10-27T01:56:37Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "unknown_commit = a numeric non-zero exit of git cat-file -e (a non-git repoRoot counts); a timeout or spawn failure with no status is other."
+    decision: "Exit status under LC_ALL=C decides; exit 128 on a non-repository is unknown_commit and leads to the API read."
+    rationale: "A missing clone is exactly the case the API read exists for; a timeout says nothing about the clone and must stay fail-closed."
+    alternatives_considered:
+      - option: "treat exit 128 as other"
+        rejected_because: "a non-repository repoRoot would degrade although the API could answer"
+    consequences:
+      positive:
+        - "locale-independent"
+      negative:
+        - "a corrupted repository is indistinguishable from a shallow one (both read the API)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "~/.cache/loa/cycle-136/reports/b.md § 4 (6)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:56:37Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "66c35c9c4"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1098"
+    created_at: "2026-10-27T01:56:43Z"
+    updated_at: "2026-10-27T01:56:43Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "WARN rendering: filenames and error details are JSON-quoted via boundedForLog (≤ 200 chars, escaped); the base_unavailable detail is quoted too."
+    decision: "One renderer for every WARN/INFO operand; the failed-read WARN fires for error / too_large / binary and the empty-content case, never for budget / skipped_cap / deadline / aborted."
+    rationale: "Quoting makes escaping visible and disambiguates names with spaces; bounding applies to every detail per D-2.6."
+    alternatives_considered:
+      - option: "unquoted names"
+        rejected_because: "ambiguous with spaces"
+    consequences:
+      positive:
+        - "one bounded renderer"
+      negative:
+        - "the base_unavailable WARN changes shape (quoted detail)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "~/.cache/loa/cycle-136/reports/b.md § 4 (7, 8, 9)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:56:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "5d5080b69 (red 52e988057)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1099"
+    created_at: "2026-10-27T01:56:49Z"
+    updated_at: "2026-10-27T01:56:49Z"
+    phase: "implementation"
+    category: "security"
+    summary: "FR-5: exclude_patterns gains a list-of-strings shape check (a scalar used to split into characters); deferredScopeKeys deleted by the applier; one WARN per key."
+    decision: "In local mode the new shape check throws a named config error (behaviour change from the silent split); on a PR it defers like the other two keys."
+    rationale: "The silent split hid a misconfiguration; one WARN per key keeps the operator's log readable."
+    alternatives_considered:
+      - option: "keep the silent split"
+        rejected_because: "a string exclude_patterns became one-character patterns"
+    consequences:
+      positive:
+        - "named errors; one WARN per key"
+      negative:
+        - "a local config with a scalar exclude_patterns now fails loudly"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "~/.cache/loa/cycle-136/reports/b.md § 4 (10, 11, 12)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:56:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "63f6d1ae3 (red 613ffad95)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1100"
+    created_at: "2026-10-27T01:56:54Z"
+    updated_at: "2026-10-27T01:56:54Z"
+    phase: "implementation"
+    category: "security"
+    summary: "FR-5 hand-off: resolveConfig reads PR signals from its env argument; the deferral list lives on provenance; main.ts asserts after the applier."
+    decision: "main.ts passes GITHUB_EVENT_NAME / GITHUB_BASE_REF to resolveConfig, hands provenance to applyTrustedReviewScope and asserts immediately after; the pipeline-entry assertion inside fetchPRFilesTwoPass is not implemented (it would need a BridgebuilderConfig field)."
+    rationale: "A pure resolveConfig stays testable; the two mode detections use the same inputs so they cannot disagree in production; the main.ts assertion plus the call-order pin is the enforcement."
+    alternatives_considered:
+      - option: "a BridgebuilderConfig field + a check in fetchPRFilesTwoPass"
+        rejected_because: "types.ts churn for a check main.ts already performs; filed only if judged insufficient"
+    consequences:
+      positive:
+        - "one enforcement point, pinned"
+      negative:
+        - "a future caller that skips main.ts has only the pin"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "~/.cache/loa/cycle-136/reports/b.md § 4 (13, 14), § 5; lead wiring"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:56:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "63f6d1ae3 + the lead's main.ts wiring commit"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1101"
+    created_at: "2026-10-27T01:57:00Z"
+    updated_at: "2026-10-27T01:57:00Z"
+    phase: "implementation"
+    category: "process"
+    summary: "Task 1.3b (FR-5) accepted into the sprint: its pair landed green on the first return, so the deferral trigger did not fire; G-4 counts FR-5."
+    decision: "Landed as 613ffad95 → 63f6d1ae3 after 1.2 and 1.3; the lead wires main.ts."
+    rationale: "The trigger (gates fail after one return, or not landed at Task 1.4) was not met."
+    alternatives_considered:
+      - option: "defer to a bead anyway"
+        rejected_because: "no trigger fired"
+    consequences:
+      positive:
+        - "bd-gyrgq's open item closes in the same cycle"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3a5b7b4c"
+    source: "grimoires/loa/sprint.md Task 1.3b; ~/.cache/loa/cycle-136/reports/b.md § 2"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:57:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "63f6d1ae3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
