@@ -124,14 +124,20 @@ export declare const REVIEWIGNORE_MAX_BYTES: number;
  * the entry must be a regular blob (a symlink is refused, as for the checkout read); bounded by a 10 s timeout and
  * 1 MiB. Never throws: a failure (absent at the base, unknown commit, git error, oversize, a symlink) is returned
  * with its reason and the caller falls back to the checkout copy.
+ *
+ * cycle-136 C-2 (bd-9tt4b, DEC-1082, sdd.md § 5.2 step 2): the failure is typed. `unknown_commit` = the clone does not
+ * hold the base commit (a shallow checkout) — decided by `git cat-file -e <sha>^{commit}`'s exit status, never by
+ * stderr text — and is the only class the caller may answer through the contents API; `absent` = the commit is held
+ * and `ls-tree` lists nothing; `other` = a non-blob mode, oversize, a `git show` failure, a timeout or a spawn failure.
+ * Every git call runs with `LC_ALL=C`.
  */
 export type BaseRead = {
     ok: true;
     patterns: string[];
 } | {
     ok: false;
-    absent: boolean;
-    why: string;
+    why: "absent" | "unknown_commit" | "other";
+    detail: string;
 };
 export declare function readBaseReviewignore(repoRoot: string, baseSha: string): BaseRead;
 /**

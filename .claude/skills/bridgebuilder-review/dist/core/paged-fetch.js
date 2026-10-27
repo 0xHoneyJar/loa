@@ -18,7 +18,7 @@
  */
 import { GitProviderError } from "../ports/git-provider.js";
 import { createHash } from "node:crypto";
-import { deriveCallConfig, isWildcardPattern, matchesExcludePattern, truncateFiles } from "./truncation.js";
+import { deriveCallConfig, detectLoa, isWildcardPattern, matchesExcludePattern, parseReviewignoreLines, readBaseReviewignore, REVIEWIGNORE_MAX_BYTES, truncateFiles, } from "./truncation.js";
 import { FETCH_DEGRADED_REASONS, orderDegradedReasons } from "./degraded-reason.js";
 /** GitHub's `pulls/N/files` lists at most this many files (30 pages of 100). */
 export const FILES_ENDPOINT_CAP = 3000;
@@ -26,6 +26,62 @@ const PAGE_SIZE = 100;
 /** cycle-135 C-3: default `max_content_fetches` and the total deadline for the content reads of one attempt. */
 export const DEFAULT_MAX_CONTENT_FETCHES = 20;
 export const CONTENT_FETCH_DEADLINE_MS = 120_000;
+/**
+ * cycle-136 C-2 (sdd.md § 5.2, FR-2, bd-9tt4b, DEC-1082/DEC-1083): the base branch's `.reviewignore` for one base sha.
+ * The local read answers when the clone holds the base commit (`ok` → base, `absent` → none); only `unknown_commit` (a
+ * shallow checkout) reads it through the contents API against the run's target `owner/repo` at the base sha, bounded
+ * at 1 MiB — a `text` answer is complete by construction (the adapter answers `too_large` above the bound and rejects
+ * a `size` that disagrees with the decoded bytes). A 404 is not proof of absence (an authorization gap answers 404
+ * too): one probe of a listed file that exists at the base (modified or removed; the listing keeps no
+ * `previous_filename`, so a rename is no probe target) with `maxBytes` 1 must answer before it counts as `none`. Any
+ * other outcome is `undefined` — the selection's own read then reports `base_unavailable` and the review degrades
+ * (DEC-1043). The outcome, failures included, is cached per base sha for the run; the read is outside
+ * `max_content_fetches` and `fetch_missing_patches` (they govern listed files). Never throws.
+ */
+export async function resolveBaseReviewignore(git, owner, repo, baseSha, repoRoot, files, cache, readLocal = readBaseReviewignore) {
+    if (cache.has(baseSha))
+        return cache.get(baseSha);
+    const out = await resolveUncached(git, owner, repo, baseSha, repoRoot, files, readLocal);
+    cache.set(baseSha, out);
+    return out;
+}
+async function resolveUncached(git, owner, repo, baseSha, repoRoot, files, readLocal) {
+    if (!/^[0-9a-f]{40}$/.test(baseSha))
+        return undefined; // (never a ref the contents shape would refuse)
+    const local = readLocal(repoRoot ?? process.cwd(), baseSha);
+    if (local.ok)
+        return { patterns: local.patterns, source: "base" };
+    if (local.why === "absent")
+        return { patterns: [], source: "none" };
+    if (local.why !== "unknown_commit" || typeof git.getFileContent !== "function")
+        return undefined;
+    let res;
+    try {
+        res = await git.getFileContent(owner, repo, ".reviewignore", baseSha, REVIEWIGNORE_MAX_BYTES);
+    }
+    catch (err) {
+        if (!(err instanceof GitProviderError) || err.httpStatus !== 404)
+            return undefined;
+        return (await baseIsReadable(git, owner, repo, baseSha, files)) ? { patterns: [], source: "none" } : undefined;
+    }
+    if (res.kind !== "text")
+        return undefined; // (too_large, binary)
+    process.stderr.write(`[bridgebuilder] INFO: .reviewignore at base ${baseSha} read through the contents API (the base commit is not in the clone)\n`);
+    return { patterns: parseReviewignoreLines(res.content), source: "base" };
+}
+/** cycle-136 C-2 (D-2.6, SKP-002): the access probe — a file that exists at the base answers at that ref. */
+async function baseIsReadable(git, owner, repo, baseSha, files) {
+    const target = files.find((f) => f.status === "modified" || f.status === "removed");
+    if (!target)
+        return false; // (a PR that only adds files has nothing to probe: fail closed)
+    try {
+        const r = await git.getFileContent(owner, repo, target.filename, baseSha, 1);
+        return r.kind === "text" || r.kind === "too_large" || r.kind === "binary";
+    }
+    catch {
+        return false;
+    }
+}
 /*
  * cycle-135 C-2 (D-1.2a, bd-i4fyw): the `.reviewignore` provenance for the coverage record comes from the selection
  * result — `truncateFiles` reads `.reviewignore` (from the PR base sha when `reviewignoreBaseSha` is set) and returns
@@ -284,7 +340,7 @@ async function fetchMissingPatches(git, owner, repo, pin, placement, candidates,
     }
     return { synthesized, outcomes };
 }
-async function attempt(git, owner, repo, prNumber, config, restarts, deps) {
+async function attempt(git, owner, repo, prNumber, config, restarts, deps, baseReviewignore) {
     const pin = await git.getPR(owner, repo, prNumber);
     const listedTotal = Math.min(pin.changed_files, FILES_ENDPOINT_CAP);
     const pages = Math.ceil(listedTotal / PAGE_SIZE);
@@ -328,7 +384,15 @@ async function attempt(git, owner, repo, prNumber, config, restarts, deps) {
     // ── Global selection over the complete metadata list ─────────────────────
     // (the byte budget is applied below with cut semantics, so truncateFiles selects on filters, tiers and the file cap)
     // (cycle-135 C-2: the selection is given the PR base sha, so `.reviewignore` is the base ref's copy — D-1.2a)
-    const selConfig = { ...config, maxDiffBytes: Number.MAX_SAFE_INTEGER, reviewignoreBaseSha: pin.base_sha };
+    // (cycle-136 C-2: on a shallow checkout the base copy is resolved through the contents API and handed over as
+    // `reviewignoreBase`; only for a repository whose selection consults `.reviewignore` at all — the Loa-aware one)
+    const resolved = detectLoa({ loaAware: config.loaAware, repoRoot: config.repoRoot ?? process.cwd() }).isLoa
+        ? await resolveBaseReviewignore(git, owner, repo, pin.base_sha, config.repoRoot, listed, baseReviewignore, deps.readBaseReviewignore)
+        : undefined;
+    const selConfig = {
+        ...config, maxDiffBytes: Number.MAX_SAFE_INTEGER, reviewignoreBaseSha: pin.base_sha,
+        ...(resolved !== undefined ? { reviewignoreBase: resolved } : {}),
+    };
     const select = deps.truncate ?? truncateFiles;
     // ── cycle-135 C-3: content for added files listed without a patch ────────
     // (review round 1) A candidate is given a placeholder size of 0 for a placement selection: the selection's filters
@@ -482,9 +546,11 @@ async function attempt(git, owner, repo, prNumber, config, restarts, deps) {
 /** The two-pass fetch with one restart on a base/head move (sdd.md C-1). */
 export async function fetchPRFilesTwoPass(git, owner, repo, prNumber, config, deps = {}) {
     let restarts = 0;
+    // cycle-136 C-2 (D-2.5): the base `.reviewignore` per base sha for this run — a restart with the same base reuses it
+    const baseReviewignore = new Map();
     for (;;) {
         try {
-            return await attempt(git, owner, repo, prNumber, config, restarts, deps);
+            return await attempt(git, owner, repo, prNumber, config, restarts, deps, baseReviewignore);
         }
         catch (err) {
             if (!(err instanceof PrHeadMoved))

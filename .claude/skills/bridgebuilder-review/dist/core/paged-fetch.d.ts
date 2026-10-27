@@ -1,5 +1,5 @@
 import type { IGitProvider, PullRequestFile, PullRequestRef } from "../ports/git-provider.js";
-import { truncateFiles } from "./truncation.js";
+import { truncateFiles, type BaseRead } from "./truncation.js";
 import { type DegradedReason } from "./degraded-reason.js";
 import type { BridgebuilderConfig, CoverageRecord, OmissionReason, ReviewignoreSource, ReviewItem, SelectionConfig, TruncationResult } from "./types.js";
 /** GitHub's `pulls/N/files` lists at most this many files (30 pages of 100). */
@@ -21,7 +21,24 @@ export interface TwoPassDeps {
     reviewignoreSource?: (repoRoot: string | undefined, opts: {
         baseSha?: string;
     }) => ReviewignoreSource | undefined;
+    /** cycle-136 C-2: the local base `.reviewignore` read of `resolveBaseReviewignore` (default `readBaseReviewignore`). */
+    readBaseReviewignore?: (repoRoot: string, baseSha: string) => BaseRead;
 }
+/** cycle-136 C-2 (D-2.5): the base `.reviewignore` resolved for the selection (`none` always carries no patterns). */
+export type BaseReviewignore = NonNullable<SelectionConfig["reviewignoreBase"]>;
+/**
+ * cycle-136 C-2 (sdd.md § 5.2, FR-2, bd-9tt4b, DEC-1082/DEC-1083): the base branch's `.reviewignore` for one base sha.
+ * The local read answers when the clone holds the base commit (`ok` → base, `absent` → none); only `unknown_commit` (a
+ * shallow checkout) reads it through the contents API against the run's target `owner/repo` at the base sha, bounded
+ * at 1 MiB — a `text` answer is complete by construction (the adapter answers `too_large` above the bound and rejects
+ * a `size` that disagrees with the decoded bytes). A 404 is not proof of absence (an authorization gap answers 404
+ * too): one probe of a listed file that exists at the base (modified or removed; the listing keeps no
+ * `previous_filename`, so a rename is no probe target) with `maxBytes` 1 must answer before it counts as `none`. Any
+ * other outcome is `undefined` — the selection's own read then reports `base_unavailable` and the review degrades
+ * (DEC-1043). The outcome, failures included, is cached per base sha for the run; the read is outside
+ * `max_content_fetches` and `fetch_missing_patches` (they govern listed files). Never throws.
+ */
+export declare function resolveBaseReviewignore(git: PagedContentGit, owner: string, repo: string, baseSha: string, repoRoot: string | undefined, files: readonly PullRequestFile[], cache: Map<string, BaseReviewignore | undefined>, readLocal?: (repoRoot: string, baseSha: string) => BaseRead): Promise<BaseReviewignore | undefined>;
 export interface TwoPassResult {
     /** Selected files with their retained (possibly cut) patch text, in selection order. */
     files: PullRequestFile[];

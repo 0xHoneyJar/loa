@@ -427,19 +427,23 @@ export function parseReviewignoreFile(repoRoot, opts = {}) {
     const base = readBaseReviewignore(repoRoot, opts.baseSha);
     if (base.ok)
         return { patterns: base.patterns, source: "base" };
-    if (base.absent) {
-        // Bridgebuilder round 1 (PR #1302): a readable base without the file is definitive — no patterns apply. The checkout
-        // is still read (a symlink there is still refused); a copy the PR adds is reported, never applied.
-        const checkout = readCheckoutReviewignore(repoRoot);
-        if (checkout.source !== "none") {
-            process.stderr.write(`[bridgebuilder] WARN: .reviewignore is absent at the base ${JSON.stringify(opts.baseSha)}; the checkout copy (added or kept by this PR) is not applied — its patterns take effect after merge (source: none; bd-i4fyw)\n`);
-        }
-        return { patterns: [], source: "none" };
-    }
+    if (base.why === "absent")
+        return absentAtBase(repoRoot, opts.baseSha);
     // before the checkout read, so the reason survives a checkout refusal (which throws)
-    process.stderr.write(`[bridgebuilder] WARN: .reviewignore at base ${JSON.stringify(opts.baseSha)} not read — ${base.why}; the checkout copy governs (source: base_unavailable, the review degrades as reviewignore_unavailable; bd-i4fyw)\n`);
+    process.stderr.write(`[bridgebuilder] WARN: .reviewignore at base ${JSON.stringify(opts.baseSha)} not read — ${base.detail}; the checkout copy governs (source: base_unavailable, the review degrades as reviewignore_unavailable; bd-i4fyw)\n`);
     const checkout = readCheckoutReviewignore(repoRoot);
     return { patterns: checkout.patterns, source: "base_unavailable" };
+}
+/**
+ * Bridgebuilder round 1 (PR #1302): a readable base without the file is definitive — no patterns apply. The checkout
+ * is still read (a symlink there is still refused); a copy the PR adds is reported, never applied.
+ */
+function absentAtBase(repoRoot, baseSha) {
+    const checkout = readCheckoutReviewignore(repoRoot);
+    if (checkout.source !== "none") {
+        process.stderr.write(`[bridgebuilder] WARN: .reviewignore is absent at the base ${JSON.stringify(baseSha)}; the checkout copy (added or kept by this PR) is not applied — its patterns take effect after merge (source: none; bd-i4fyw)\n`);
+    }
+    return { patterns: [], source: "none" };
 }
 /** The checkout `.reviewignore` read (fail-closed on anything but genuine absence). */
 function readCheckoutReviewignore(repoRoot) {
@@ -526,29 +530,57 @@ export function parseReviewignoreLines(content) {
 /** cycle-135 C-2: bounds of the base-ref `.reviewignore` read. */
 const REVIEWIGNORE_GIT_TIMEOUT_MS = 10_000;
 export const REVIEWIGNORE_MAX_BYTES = 1024 * 1024;
+function gitFailureDetail(err) {
+    return String(err.message ?? err).split("\n")[0].slice(0, 200);
+}
 export function readBaseReviewignore(repoRoot, baseSha) {
-    const none = (why, absent = false) => ({ ok: false, absent, why });
+    const fail = (why, detail) => ({ ok: false, why, detail });
     if (!/^[0-9a-f]{40}$/.test(baseSha))
-        return none("not a 40-hex commit sha");
+        return fail("other", "not a 40-hex commit sha");
     const opts = {
         encoding: "utf-8",
         timeout: REVIEWIGNORE_GIT_TIMEOUT_MS,
         maxBuffer: REVIEWIGNORE_MAX_BYTES,
         stdio: ["ignore", "pipe", "pipe"],
+        env: { ...process.env, LC_ALL: "C" },
     };
+    try {
+        execFileSync("git", ["-C", repoRoot, "cat-file", "-e", `${baseSha}^{commit}`], opts);
+    }
+    catch (err) {
+        // a non-zero exit is "not in the clone"; a timeout or spawn failure carries no numeric status → other
+        const status = err.status;
+        if (typeof status === "number" && status !== 0)
+            return fail("unknown_commit", "the base commit is not in the clone");
+        return fail("other", gitFailureDetail(err));
+    }
     try {
         const entry = execFileSync("git", ["-C", repoRoot, "ls-tree", "-z", baseSha, "--", ".reviewignore"], opts);
         if (entry === "")
-            return none("absent at the base", true);
+            return fail("absent", "absent at the base");
         const mode = entry.split(" ", 1)[0];
         if (mode !== "100644" && mode !== "100755")
-            return none(`not a regular file at the base (mode ${mode})`);
+            return fail("other", `not a regular file at the base (mode ${mode})`);
         const content = execFileSync("git", ["-C", repoRoot, "show", `${baseSha}:.reviewignore`], opts);
         return { ok: true, patterns: parseReviewignoreLines(content) };
     }
     catch (err) {
-        return none(String(err.message ?? err).split("\n")[0].slice(0, 200));
+        return fail("other", gitFailureDetail(err));
     }
+}
+/**
+ * cycle-136 C-2 (bd-9tt4b, D-2.5, sdd.md § 5.3): the `.reviewignore` patterns of one selection — the base copy
+ * paged-fetch already resolved (`config.reviewignoreBase`, e.g. through the contents API on a shallow checkout) when
+ * set, else today's read (the base sha when given, else the checkout). Both read sites of `truncateFiles` use it.
+ */
+function resolveBasePatterns(config) {
+    const resolved = config.reviewignoreBase;
+    // (`none` keeps the absent-at-base checkout check: a copy the PR adds is still reported, and a symlink still refused)
+    if (resolved?.source === "none")
+        return absentAtBase(config.repoRoot ?? process.cwd(), config.reviewignoreBaseSha);
+    if (resolved)
+        return { patterns: [...resolved.patterns], source: resolved.source };
+    return parseReviewignoreFile(config.repoRoot ?? process.cwd(), { baseSha: config.reviewignoreBaseSha });
 }
 /**
  * Load `.reviewignore` operator-curated patterns from repo root.
@@ -1242,7 +1274,7 @@ export function truncateFiles(files, config) {
             // filter path, which preserves the framework-exclusion safety floor.
             let userPatterns = [];
             try {
-                const ri = parseReviewignoreFile(config.repoRoot ?? process.cwd(), { baseSha: config.reviewignoreBaseSha });
+                const ri = resolveBasePatterns(config);
                 userPatterns = ri.patterns;
                 reviewignoreSource = ri.source;
             }
@@ -1393,7 +1425,7 @@ export function truncateFiles(files, config) {
             // defaults to whatever survived phase 1.
             let userPatterns = [];
             try {
-                const ri = parseReviewignoreFile(config.repoRoot ?? process.cwd(), { baseSha: config.reviewignoreBaseSha });
+                const ri = resolveBasePatterns(config);
                 userPatterns = ri.patterns;
                 reviewignoreSource = ri.source;
             }
