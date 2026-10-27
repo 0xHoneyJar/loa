@@ -36,6 +36,8 @@ AUDIT_LOG="$PROJECT_ROOT/.run/red-team-audit.log"
 # sprint-bug-210 (#1025): jq_strict (fail-loud jq) from compat-lib.
 # shellcheck source=compat-lib.sh
 source "$SCRIPT_DIR/compat-lib.sh" 2>/dev/null || true
+# compat-lib probes lazily; this script calls _date_to_epoch inside $(...) per file, so probe once here.
+declare -F _compat_need_os >/dev/null 2>&1 && _compat_need_os
 
 # Conservative dispositions applied this run (parse failures + missing/
 # unparseable timestamps). Non-zero → main exits 3.

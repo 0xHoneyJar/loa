@@ -30,6 +30,8 @@ PROJECT_ROOT="${PROJECT_ROOT:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 # Source shared libraries
 if [[ -f "$SCRIPT_DIR/compat-lib.sh" ]]; then
     source "$SCRIPT_DIR/compat-lib.sh"
+    # compat-lib probes lazily; _date_to_epoch runs inside $(...) per thread line below, so probe once here.
+    _compat_need_os
 fi
 
 if [[ -f "$SCRIPT_DIR/yq-safe.sh" ]]; then
