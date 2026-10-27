@@ -1,0 +1,630 @@
+{
+  "head": "80be4b0f57b39eb05c77b0a738a2797afac635a7",
+  "audited_commit": "cea8bfe36bd243d497e46642b5602ba963e7ac23",
+  "all_named_source_and_tests_identical": true,
+  "confirmed_deleted": [
+    ".claude/adapters/loa_cheval/routing/chains.py",
+    ".claude/adapters/tests/test_gemini_smoke.sh",
+    "tests/integration/legacy-adapter-openai-endpoint-routing.bats"
+  ],
+  "issues": {
+    "1244": {
+      "source": [
+        ".claude/scripts/validate-ac-verification.sh",
+        ".claude/skills/implementing-tasks/SKILL.md",
+        ".claude/skills/planning-sprints/SKILL.md"
+      ],
+      "tests": [
+        "tests/unit/validation-skill-contracts.bats"
+      ],
+      "audit": "hooks-lifecycle",
+      "implementation_commit": "4714113a",
+      "recommendation": "CLOSE"
+    },
+    "1243": {
+      "source": [
+        ".claude/scripts/validate-artifact.sh"
+      ],
+      "tests": [
+        "tests/unit/validate-artifact.bats"
+      ],
+      "audit": "hooks-lifecycle",
+      "implementation_commit": "4714113a",
+      "recommendation": "CLOSE"
+    },
+    "1242": {
+      "source": [
+        ".claude/scripts/update.sh"
+      ],
+      "tests": [
+        "tests/unit/update-submodule-refusal.bats"
+      ],
+      "audit": "installers",
+      "implementation_commit": "c9c37398",
+      "recommendation": "CLOSE"
+    },
+    "1241": {
+      "source": [
+        ".claude/scripts/mount-submodule.sh"
+      ],
+      "tests": [
+        "tests/unit/aleph-submodule-real-installer.bats"
+      ],
+      "audit": "installers",
+      "implementation_commit": "c9c37398",
+      "recommendation": "CLOSE"
+    },
+    "1235": {
+      "source": [
+        ".claude/scripts/semver-bump.sh",
+        ".claude/scripts/post-merge-orchestrator.sh"
+      ],
+      "tests": [
+        "tests/unit/semver-evidence.bats"
+      ],
+      "audit": "release-ledger",
+      "implementation_commit": "2af691ac",
+      "recommendation": "CLOSE"
+    },
+    "1230": {
+      "source": [
+        ".claude/adapters/loa_cheval/verdict/aggregate.py",
+        ".claude/scripts/flatline-orchestrator.sh"
+      ],
+      "tests": [
+        ".claude/adapters/tests/test_verdict_quality_aggregate.py",
+        "tests/integration/flatline-issue-sweep.bats"
+      ],
+      "audit": "reviews-adapters",
+      "implementation_commit": "aa08aa41",
+      "recommendation": "CLOSE"
+    },
+    "1216": {
+      "source": [
+        ".claude/scripts/validate-artifact.sh",
+        ".claude/skills/bug-triaging/resources/templates/triage.md"
+      ],
+      "tests": [
+        "tests/unit/validate-artifact-bsd.bats"
+      ],
+      "audit": "installers",
+      "implementation_commit": "c9c37398",
+      "recommendation": "CLOSE"
+    },
+    "1215": {
+      "source": [
+        ".claude/skills/bridgebuilder-review/resources/core/reviewer.ts"
+      ],
+      "tests": [
+        ".claude/skills/bridgebuilder-review/resources/__tests__/cache.test.ts"
+      ],
+      "audit": "reviews-adapters",
+      "implementation_commit": "aa08aa41",
+      "recommendation": "CLOSE"
+    },
+    "1214": {
+      "source": [
+        ".claude/hooks/session-start/loa-l7-surface-soul.sh"
+      ],
+      "tests": [
+        "tests/integration/soul-identity-7b.bats"
+      ],
+      "audit": "hooks-lifecycle",
+      "implementation_commit": "4714113a",
+      "recommendation": "CLOSE"
+    },
+    "1206": {
+      "source": [
+        ".claude/skills/bridgebuilder-review/resources/core/template.ts"
+      ],
+      "tests": [
+        ".claude/skills/bridgebuilder-review/resources/__tests__/template.test.ts"
+      ],
+      "audit": "reviews-adapters",
+      "implementation_commit": "aa08aa41",
+      "recommendation": "CLOSE"
+    },
+    "1181": {
+      "source": [
+        ".claude/scripts/spiral-harness.sh"
+      ],
+      "tests": [
+        "tests/unit/test_spiral_task_authority.py"
+      ],
+      "audit": "hooks-lifecycle",
+      "implementation_commit": "4714113a",
+      "recommendation": "CLOSE"
+    },
+    "1174": {
+      "source": [
+        ".claude/scripts/bridge-orchestrator.sh",
+        ".claude/scripts/bridge-state.sh"
+      ],
+      "tests": [
+        "tests/unit/bridge-issue-sweep.bats"
+      ],
+      "audit": "reviews-adapters",
+      "implementation_commit": "aa08aa41",
+      "recommendation": "CLOSE"
+    },
+    "1172": {
+      "source": [
+        ".claude/settings.json",
+        ".claude/hooks/settings.hooks.json"
+      ],
+      "tests": [
+        "tests/unit/test_hook_issue_regressions.py"
+      ],
+      "audit": "hooks-lifecycle",
+      "implementation_commit": "7a900437",
+      "recommendation": "CLOSE"
+    },
+    "1099": {
+      "source": [
+        ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+        ".claude/adapters/loa_cheval/metering/budget.py",
+        ".claude/adapters/loa_cheval/metering/rollup.py",
+        ".claude/adapters/loa_cheval/providers/retry.py",
+        ".claude/adapters/cheval.py"
+      ],
+      "tests": [
+        ".claude/adapters/tests/test_cli_reported_cost.py"
+      ],
+      "audit": "reviews-adapters",
+      "implementation_commit": "866e5008",
+      "recommendation": "HOLD"
+    },
+    "1065": {
+      "source": [
+        ".claude/scripts/construct-index-gen.sh",
+        "tools/check-no-swallowed-jq.sh"
+      ],
+      "tests": [
+        "tests/unit/construct-index-swallowed.bats",
+        "tests/unit/check-no-swallowed-jq-residual.bats"
+      ],
+      "audit": "ci-coverage",
+      "implementation_commit": "aa08aa41",
+      "recommendation": "CLOSE"
+    },
+    "1037": {
+      "source": [
+        ".claude/scripts/compat-lib.sh",
+        ".claude/scripts/constructs-lib.sh"
+      ],
+      "tests": [
+        "tests/unit/compat-date-utc.bats"
+      ],
+      "audit": "installers",
+      "implementation_commit": "c9c37398",
+      "recommendation": "CLOSE"
+    },
+    "1036": {
+      "source": [
+        ".claude/scripts/post-pr-orchestrator.sh"
+      ],
+      "tests": [
+        "tests/unit/bridge-issue-sweep.bats"
+      ],
+      "audit": "reviews-adapters",
+      "implementation_commit": "aa08aa41",
+      "recommendation": "CLOSE"
+    },
+    "1032": {
+      "source": [
+        ".claude/scripts/gen-adapter-maps.sh",
+        ".claude/scripts/generated-model-maps.sh",
+        ".claude/scripts/model-adapter.sh",
+        "tools/check-no-direct-llm-fetch.allowlist",
+        ".claude/defaults/model-config.yaml",
+        ".claude/adapters/loa_cheval/routing/resolver.py",
+        ".claude/adapters/loa_cheval/metering/pricing.py"
+      ],
+      "tests": [
+        ".claude/adapters/tests/test_model_registry_parity.py",
+        "tests/integration/model-registry-sync.bats"
+      ],
+      "audit": "reviews-adapters",
+      "implementation_commit": "866e5008",
+      "recommendation": "CLOSE"
+    },
+    "1027": {
+      "source": [
+        ".claude/adapters/loa_cheval/providers/headless_cli.py",
+        ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py",
+        ".claude/adapters/loa_cheval/providers/codex_headless_adapter.py",
+        ".claude/adapters/loa_cheval/providers/gemini_headless_adapter.py",
+        ".claude/adapters/loa_cheval/providers/cursor_headless_adapter.py",
+        ".claude/adapters/loa_cheval/providers/grok_headless_adapter.py",
+        ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py"
+      ],
+      "tests": [
+        ".claude/adapters/tests/test_headless_shared_contract.py",
+        ".claude/adapters/tests/test_claude_headless_adapter.py",
+        ".claude/adapters/tests/test_codex_headless_adapter.py",
+        ".claude/adapters/tests/test_gemini_headless_adapter.py",
+        ".claude/adapters/tests/test_cursor_headless_adapter.py"
+      ],
+      "audit": "reviews-adapters",
+      "implementation_commit": "866e5008",
+      "recommendation": "HOLD"
+    },
+    "1026": {
+      "source": [
+        ".claude/adapters/loa_cheval/routing/__init__.py",
+        ".claude/adapters/loa_cheval/routing/chain_resolver.py",
+        ".claude/adapters/loa_cheval/routing/capability_gate.py",
+        ".claude/adapters/cheval.py"
+      ],
+      "tests": [
+        ".claude/adapters/tests/test_live_chain_contracts.py",
+        ".claude/adapters/tests/test_budget_fallback.py"
+      ],
+      "audit": "reviews-adapters",
+      "implementation_commit": "866e5008",
+      "recommendation": "CLOSE"
+    }
+  },
+  "files": {
+    ".claude/scripts/validate-ac-verification.sh": {
+      "sha256": "175c45f58a7ba0f738b5a4cc6df305c349cdea83cf4ff2cc7e942cd2a2faffb9",
+      "blob": "bb32a61c6a1486d1dbdf61560b0553bbe925071a",
+      "same_as_audited_commit": true
+    },
+    ".claude/skills/implementing-tasks/SKILL.md": {
+      "sha256": "a48022fca1085ce76495161103bc216144257be0ba0fbc538531e37a27455f3a",
+      "blob": "a1bbc171e832fdf7e97967eed4b2bccd48ca884b",
+      "same_as_audited_commit": true
+    },
+    ".claude/skills/planning-sprints/SKILL.md": {
+      "sha256": "ce38b43c4dff16c47b628d0718a0d36c565ac32332995af41b0da0b8437c4bd1",
+      "blob": "bec5e71940d6582b4cb7c4577112b924af38ab55",
+      "same_as_audited_commit": true
+    },
+    "tests/unit/validation-skill-contracts.bats": {
+      "sha256": "6b90d06c97a266e5efdc33aaf22c8b2b301e063a5833c98674dfb628e0cb5891",
+      "blob": "84022a9620068fedcecabf8814c0f1d474c8053b",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/validate-artifact.sh": {
+      "sha256": "e17938d8e9f336b63e0b0855b2af3696ddaba61c80d329028e5f227689e41813",
+      "blob": "d9e6bf07a0a303f676a47d9e9c8cb686534da3c5",
+      "same_as_audited_commit": true
+    },
+    "tests/unit/validate-artifact.bats": {
+      "sha256": "d0a7e7fb36be6ff7e2c4be7177f731ac6510febab8ab0ff1b1601c9387c4af9b",
+      "blob": "3359b783377b5db41e95e544596e64195b55e7d6",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/update.sh": {
+      "sha256": "ed50e1156559bd715761a77ef31db90b9be01339668685236413aa645c62b49c",
+      "blob": "d16c42fd6a27a2c38f47a2643d2a49a0bd3a8d2f",
+      "same_as_audited_commit": true
+    },
+    "tests/unit/update-submodule-refusal.bats": {
+      "sha256": "0996dea8edd17ae64dd32508891cb0aa29c794d1f17eb1f12e329a014c8f188c",
+      "blob": "fc3348eb1a2b6b8f671866010027f097b3e106a0",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/mount-submodule.sh": {
+      "sha256": "a690065e7c70a4c295be94f88236e4724e450056c170ff12a38c2745f832855d",
+      "blob": "b79867d21adc016fc2fa8b227f6f7c0ba4576d08",
+      "same_as_audited_commit": true
+    },
+    "tests/unit/aleph-submodule-real-installer.bats": {
+      "sha256": "1591792bb165cb6d66fa1c048b83a84c22b008266f8edaec42b2d663ca0b6bec",
+      "blob": "4522ed1041e1771cf3b4ff07304b350459c3fe96",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/semver-bump.sh": {
+      "sha256": "83b3a2b0cb0a60d33f337d2f93e4595aaccd156e85b29cf59b57d0760e0a4831",
+      "blob": "ed5454330612271a81e448f8a02e62eaa5a1cddc",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/post-merge-orchestrator.sh": {
+      "sha256": "3353f1991ee5d75714ce1502fae76bad825cba2da6f093a46c9ded37e9080a4c",
+      "blob": "770f217e13505061add3b899ac5d3e05a755f316",
+      "same_as_audited_commit": true
+    },
+    "tests/unit/semver-evidence.bats": {
+      "sha256": "7e6cf7acadd00ed1e1cc4c3ce54871338066e3c7b1080db733dc3ccbb22a148e",
+      "blob": "704a54c47fbfe8020f7f3fd6694df80f44e7eb9b",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/verdict/aggregate.py": {
+      "sha256": "6ae40715cdb813eff8c482ef7a90a9c7ac6b5b7b9138dea69bf0511d6e087f15",
+      "blob": "b301fbc2e713a17ed0416404aeeb215b0c6b603c",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/flatline-orchestrator.sh": {
+      "sha256": "a6f866db83c6ece0dbc0a88798c76e0467e0ec5d346a4374ddd398abbf7a4db2",
+      "blob": "ebf947f09414b9d694e8fb08fe3d6206a31df957",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/tests/test_verdict_quality_aggregate.py": {
+      "sha256": "919f9fe0ea513dbdd0eebf6a65941bd9b03af858202d92ba9670e79123c860bb",
+      "blob": "faac47b7319890870fdfb8dfbee17714f4394bb0",
+      "same_as_audited_commit": true
+    },
+    "tests/integration/flatline-issue-sweep.bats": {
+      "sha256": "0c5e770c10447e524f3b1291e65bb64a29bbefd8cdb6b43d5ee6fd53a9530099",
+      "blob": "4b4e806f47b86bcc7efa08d6b28d708bc6773043",
+      "same_as_audited_commit": true
+    },
+    ".claude/skills/bug-triaging/resources/templates/triage.md": {
+      "sha256": "cb767fe76a06ca8cce6e5bb246aad8f5557870a910649658dfdb331626b5e697",
+      "blob": "118f55a3251806910297c86a9315b01442a68e84",
+      "same_as_audited_commit": true
+    },
+    "tests/unit/validate-artifact-bsd.bats": {
+      "sha256": "d6792c3e070fbfe1ffc41e62377f1fed2e1c352fb053aa1e0e2efa66ef777883",
+      "blob": "2aa79af9cae400eae1cebaadb4ee27c2f0042121",
+      "same_as_audited_commit": true
+    },
+    ".claude/skills/bridgebuilder-review/resources/core/reviewer.ts": {
+      "sha256": "5f045f33accaed9fee903d7947f6b720c3411f1dcdc84c32468e334b4408bad6",
+      "blob": "7a4ab9b5bf9b2a997d31dddc2ae850b1b4a16d74",
+      "same_as_audited_commit": true
+    },
+    ".claude/skills/bridgebuilder-review/resources/__tests__/cache.test.ts": {
+      "sha256": "013c8c8b1247fb1c52082a88be2ed07b87543f99729b29ed5e6fac84582f242a",
+      "blob": "91e929f009bd3e665e0385fc05aeb4a410ceadb2",
+      "same_as_audited_commit": true
+    },
+    ".claude/hooks/session-start/loa-l7-surface-soul.sh": {
+      "sha256": "20526336118686c2bd4081750ee3fc0d0ba90739eb6b99a62f1353ecbd8fa8b2",
+      "blob": "c5fabd71517ae47cc11da04539bb7baf36431d5b",
+      "same_as_audited_commit": true
+    },
+    "tests/integration/soul-identity-7b.bats": {
+      "sha256": "6c221a2691e76add4aef8fdb7775ecdbd88ebc631b16f4e490b8ec6972e4ac29",
+      "blob": "d6731782e03a4606dc9c35bf20cc71390eadb5a5",
+      "same_as_audited_commit": true
+    },
+    ".claude/skills/bridgebuilder-review/resources/core/template.ts": {
+      "sha256": "9b0163d3aca18196e5701fe27575e5d27249763b42f59ea09680719e978b215f",
+      "blob": "4d07ffea7ab99a51b0d90db28e7880709ad6c3c9",
+      "same_as_audited_commit": true
+    },
+    ".claude/skills/bridgebuilder-review/resources/__tests__/template.test.ts": {
+      "sha256": "5cbb3374dbe51f75e9cba8b6ed479d2810a157fb13bd2ce977d1f0976c0e625a",
+      "blob": "0aab238f21af7d0dc050365491730d5cdadc2091",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/spiral-harness.sh": {
+      "sha256": "2b828a78953b83a4ffcc01c6223d64b928822adeeddf591e7fafeabf02322387",
+      "blob": "fe30c0f1a8420534c7d665a3665e62014473dcc0",
+      "same_as_audited_commit": true
+    },
+    "tests/unit/test_spiral_task_authority.py": {
+      "sha256": "e91bf05d140af8440d1cfac5c35901cc49da386504a5cef6a6fe81bd0851ddcb",
+      "blob": "cbf1ebfb4c497139a28239a81b9bd91f64dab664",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/bridge-orchestrator.sh": {
+      "sha256": "80d8a21bd9fc7434583e0009c0e09eb06eeb7748e859ce3a6e0eec0105a696ca",
+      "blob": "2b83e4081b89fac43ae158d8cc9b485f443edcd4",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/bridge-state.sh": {
+      "sha256": "e77f43797de8ba750eb6dedabf1ec61c812cebce96f9b2e00ecdbd1515c75998",
+      "blob": "9aef7a2d439391b247a4bc6704d1a032dce1cc56",
+      "same_as_audited_commit": true
+    },
+    "tests/unit/bridge-issue-sweep.bats": {
+      "sha256": "d4a02e38754d7700b41d98ac29d50b56dfb2a69ed84ce1a33a301af9833461c7",
+      "blob": "a0da2b5d76faf0423396b0142a4a28c4876ae167",
+      "same_as_audited_commit": true
+    },
+    ".claude/settings.json": {
+      "sha256": "e72335587934fb25e4a6b9a767b2f5899d14779f6f294d64c35479307a77bc36",
+      "blob": "b65a6088a22e36b116dfb52d78725ce4059bd972",
+      "same_as_audited_commit": true
+    },
+    ".claude/hooks/settings.hooks.json": {
+      "sha256": "ab038a387d5fd65ab76e855bb5f455474acfe50dac4f5e3c23ea6412ad7a873d",
+      "blob": "fcadee3e63466cbcab68fd5c734132baecb04e54",
+      "same_as_audited_commit": true
+    },
+    "tests/unit/test_hook_issue_regressions.py": {
+      "sha256": "9c8c9425988f6344f0c3a1bad1682181aa7aab12d4a2e62597c291e492ec9e1e",
+      "blob": "6693baebb30e877bc10c5fcf52efe3638b6f7050",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/providers/claude_headless_adapter.py": {
+      "sha256": "61a793b34e9e30b24527bd1bf4c1b10d112175af88612ceb97605fb01f3ed61a",
+      "blob": "e2a30dd8eb37a3168eb9bc12302dec7e478adde4",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/metering/budget.py": {
+      "sha256": "7123ae22cd517e8686e1c576ba32d04d8d10389ab752d1fe869cfa04411a9d8d",
+      "blob": "47f32df53770f204d7e6718c56fb50966fbbe593",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/metering/rollup.py": {
+      "sha256": "55769153f70584b6cb01f8292991eef30da779978b5160b767ff16159568c8c0",
+      "blob": "30f84ead1aa86a13cfa1740d69e8e070b8764b6d",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/providers/retry.py": {
+      "sha256": "cd034b42e1d82370e6740b3cb99d94f590f31a1ba5aaf15f92511a62cad9f5e7",
+      "blob": "266ec5e3399dd04b713707cc00706739c0ff4463",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/cheval.py": {
+      "sha256": "a9a23861c6481755255f653a8502c0c3191b2fef981cce468b26d8c83e257fc7",
+      "blob": "360a56ea6386de176fa2553f058ad6f147c8af9d",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/tests/test_cli_reported_cost.py": {
+      "sha256": "b25a5001880872ec8d45200391008a3d67fc91a46f02069dcd5db774992246bd",
+      "blob": "906c328a098cb7e3f73402c36f56e086efcc4ea3",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/construct-index-gen.sh": {
+      "sha256": "fe414c7f0884ba9571927ca821a4eaa003e95e639830f5274ed3beabebac8bce",
+      "blob": "bab1630a281a3806c50c83a29ea4c48768e7b73b",
+      "same_as_audited_commit": true
+    },
+    "tools/check-no-swallowed-jq.sh": {
+      "sha256": "1075f830027a364a895ef2305d45177b28762b896e0755bca5c83200ba26551e",
+      "blob": "8e88d624e85caa7a4e09b3c0abdcc5eb7d300895",
+      "same_as_audited_commit": true
+    },
+    "tests/unit/construct-index-swallowed.bats": {
+      "sha256": "c716b43b5508c96665db47d8e0160f32db3c74dad667ff2be6d385a0d624f719",
+      "blob": "5da21f948e45a86a1a7de17421cb3347dbfba9b4",
+      "same_as_audited_commit": true
+    },
+    "tests/unit/check-no-swallowed-jq-residual.bats": {
+      "sha256": "48f854791836e214c94bac53b3dc3b42830072413d0af4b4ec87f18479f99d4f",
+      "blob": "bda775712f34ad4a39994823ad7a409a0a615f95",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/compat-lib.sh": {
+      "sha256": "66c84b3056b2c6095888867fd44375d12d6922bbea12f2b5448b8dc24f7cc446",
+      "blob": "88d763ca5e5cade59a1f34bea0320b4199217ad1",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/constructs-lib.sh": {
+      "sha256": "b22dfc37a4baa24d38033b97c15abec4d9c27c17867e176cd1d6b672f2bf6adb",
+      "blob": "4cde0989a1f493d0f7d6738cd0cdb0db2e92f789",
+      "same_as_audited_commit": true
+    },
+    "tests/unit/compat-date-utc.bats": {
+      "sha256": "c04f60b63ad892d8904be1bf1ba25dc14052c7fd03241d9e03277f6c713f934c",
+      "blob": "80685f815e02d27055095d2877836d8c4a8536c4",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/post-pr-orchestrator.sh": {
+      "sha256": "47e85fe4e51754bd18dd8500f1e9a51b910bd96163b70d2d31241bbbabe89c14",
+      "blob": "af3c7a43f92018bf6a56f00e1481252af328e7e7",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/gen-adapter-maps.sh": {
+      "sha256": "2bfa39416dd333b21a94b53753653d8aceaa9eb6b87a5e18ec356bfa2119ac77",
+      "blob": "66b2a9f62430f5f96d119974be3c3dc54976e206",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/generated-model-maps.sh": {
+      "sha256": "3abd0676aaa4ffd9a5c03620646bf972a25231773b061090cfb9051c55c143e3",
+      "blob": "37d233b6dce5a4a85d9c452cf0fdd82181945336",
+      "same_as_audited_commit": true
+    },
+    ".claude/scripts/model-adapter.sh": {
+      "sha256": "49f38d99e2f6713b8ee7d9ce62d8a624c43a08b499858684854af4b77935972b",
+      "blob": "d310725e281af925d2b1ec364fb39df317f06f29",
+      "same_as_audited_commit": true
+    },
+    "tools/check-no-direct-llm-fetch.allowlist": {
+      "sha256": "3dc0c4037186a800622f04b2121221b4f50cecfcfebde16f6536daae774f4c70",
+      "blob": "6602780802473822b4cf135f9067ba7ecee49f76",
+      "same_as_audited_commit": true
+    },
+    ".claude/defaults/model-config.yaml": {
+      "sha256": "ea94f7d8167e1a1d31b19f929216bf00b5b9d56bd90e7920c0c72575c5d3a5aa",
+      "blob": "8728f8892c4729ab8f007c9f7edc3886e75e09bf",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/routing/resolver.py": {
+      "sha256": "60746ad68558648050e12d0f26bb43e4712982bbcf102d6083a751593733d7d4",
+      "blob": "1c512e33edc2551404633cb833b9abaf606a5329",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/metering/pricing.py": {
+      "sha256": "2f36586763f543159e08588e31f338ee3cbc11932b9fbd999a9c34f537494ab1",
+      "blob": "42b385b3a0c7ae8e8c084c12b92e2e248957c621",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/tests/test_model_registry_parity.py": {
+      "sha256": "36612c58956416b233754565e926080803df5a44eafc156a4ec125191e6f3d7a",
+      "blob": "237787e78f1b77e450d2421ad268e81c72b33347",
+      "same_as_audited_commit": true
+    },
+    "tests/integration/model-registry-sync.bats": {
+      "sha256": "e03ab719945439728a5525765b8fff8debe181c2814e718263fa188380fc69ba",
+      "blob": "a4f3b304e1aa4e6d857ab8de95c1c1ce6a804606",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/providers/headless_cli.py": {
+      "sha256": "7d9f87952f547d0d6fba47607ecbd86e29fa806972d3d071283906b83119854c",
+      "blob": "a58271f26b033999b61417120068bd86251eef01",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/providers/codex_headless_adapter.py": {
+      "sha256": "4930d10305124d07df44fa5ec1454122d658d759ee879cbcae57ec93ad1b96e6",
+      "blob": "ca3b9e5c902af50b041267fdf8e7f9f4732200ee",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/providers/gemini_headless_adapter.py": {
+      "sha256": "7c7f315da7f2e610900cd1a6d2899b2b9c068d88a64d1ff8399c9c9dab7977dd",
+      "blob": "60ef230bd2b2da55a350938848fb68e5cab93f8a",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/providers/cursor_headless_adapter.py": {
+      "sha256": "a3125ef9abfb00bb741973938916683824f48d3ad093e6d9a6e94382de39a5ea",
+      "blob": "4c2cfab01f035d66fc2b855329810f1692ef6d9e",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/providers/grok_headless_adapter.py": {
+      "sha256": "11afa1c5a0ea56264fdb7fa2e56096e237ac5708a81e8fcf2909aee4d47fa714",
+      "blob": "d81dcb1314cc89cae6d97aa0646cf3763d094095",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/providers/agy_headless_adapter.py": {
+      "sha256": "85cda2c1a89dbbdcffe7e721db10716870376e3756a66b21d55b1b05404fda9b",
+      "blob": "0397b2eaa5c2a781c70024b75107610486c1a501",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/tests/test_headless_shared_contract.py": {
+      "sha256": "8a00fb5ee69e230fafc6644502286f8bf706aa9c3a7987a5af142d82b1815373",
+      "blob": "fd14cd211acb974139701f4870096c1f72927340",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/tests/test_claude_headless_adapter.py": {
+      "sha256": "49caefd412d0f0c937c16189168cad410f1e2b650c8bfcc65bd9c41338c138e4",
+      "blob": "94df47c6917978d714ad880d6c919af0f4b39494",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/tests/test_codex_headless_adapter.py": {
+      "sha256": "ab49f7c6936ee2ce602ce91e894015531af0430b42d81d75b617cf91de8dd4be",
+      "blob": "36091e00ca0a6f4bd40fb72f2bbddce995df51ff",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/tests/test_gemini_headless_adapter.py": {
+      "sha256": "febdd638daafaeae751fa3f477ad33e62cd2e7d8d7d68a72882a819d18cbf238",
+      "blob": "e6e8063489d41a7d0d98120b9e41f7a65868e77f",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/tests/test_cursor_headless_adapter.py": {
+      "sha256": "8da79b718bda122446a787616953966dfc2bde962774443525a79b97f576c4b4",
+      "blob": "3c9fe588afd87863ad3233c706c798ac3981c2f4",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/routing/__init__.py": {
+      "sha256": "55d7483de2c461fffbc19efe3b314f1b0cc7b25601280741f793d0184f89f9fb",
+      "blob": "412d29c623c72cb3a1a7cef0a4b056721e3c3296",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/routing/chain_resolver.py": {
+      "sha256": "c40820a6b9bb0cac6f97cfb2beeabba3f9a8b9c9513b2b90c8ac46b3803821c1",
+      "blob": "b2332c544398328d0179fc2b7979c922948a6287",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/loa_cheval/routing/capability_gate.py": {
+      "sha256": "e4e520853fe115bcd65db93a50d9beffad89e8eb0d7d739a32232b2e52bbd555",
+      "blob": "bda821501dd08f3e02745a10a31e861cdbe21b87",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/tests/test_live_chain_contracts.py": {
+      "sha256": "89bb878bd8a52e1c0abdea5238b25af30a7d36723a201c2829d580ff6f8c7ad4",
+      "blob": "c4f8c390f738305d2eea430126a4334f2f73e117",
+      "same_as_audited_commit": true
+    },
+    ".claude/adapters/tests/test_budget_fallback.py": {
+      "sha256": "c887212a691eecd7b4b43be52e6f102ddf30f4ec39aaf5defbba7672c2dff607",
+      "blob": "58a8fb4bd8e154cb64de095c5cd38161fb847e20",
+      "same_as_audited_commit": true
+    }
+  }
+}
