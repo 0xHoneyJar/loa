@@ -53,6 +53,30 @@ parse_args(){
 
 # Strip control bytes (keep UTF-8 multibyte), flatten whitespace, cap length.
 san(){ printf '%s' "${1-}" | tr -d '\000-\010\013\014\016-\037\177' | tr '\t\n\r' '   ' | sed -E 's/  +/ /g; s/^ //; s/ $//' | cut -c1-160; }
+# Byte-for-byte awk twin of san() (LC_ALL=C: substr/length count BYTES, like cut -c), plus rd(), an
+# emulation of `IFS=$'\t' read -r` (a whitespace IFS: leading/trailing tabs trimmed, tab RUNS collapse to
+# one separator, last variable takes the remainder). Prepended to the emit_* awk programs so each family
+# is ONE pass with no per-field subprocesses. Keep san() and SAN_AWK in lock-step.
+SAN_AWK='
+function san(s) {
+  gsub(/\000/, "", s)
+  gsub(/[\001-\010\013\014\016-\037\177]/, "", s)
+  gsub(/[\t\n\r]/, " ", s)
+  gsub(/  +/, " ", s)
+  sub(/^ /, "", s); sub(/ $/, "", s)
+  return substr(s, 1, 160)
+}
+function rd(line, n, out,   i, p) {
+  gsub(/\000/, "", line)
+  sub(/^\t+/, "", line)
+  for (i = 1; i < n; i++) {
+    p = index(line, "\t")
+    if (p == 0) { out[i] = line; line = "" }
+    else { out[i] = substr(line, 1, p - 1); line = substr(line, p + 1); sub(/^\t+/, "", line) }
+  }
+  sub(/\t+$/, "", line); out[n] = line
+}
+'
 # Extract ONLY id-shaped outbound refs (never free prose), deduped, comma-joined.
 refs_of(){ grep -oE 'KF-[0-9]{3}|vision-[0-9]{3}|#[0-9]{2,5}|sha256:[a-f0-9]{8}' "${1}" 2>/dev/null | awk '!s[$0]++' | head -20 | paste -sd, - || true; }
 
@@ -66,9 +90,8 @@ emit_kf(){
   # whole file once in awk: on a ## KF-NNN: heading we open a new entry; the first
   # **Status**/**Symptom**/**Recurrence count** line of that entry wins. Recurrence
   # is reduced to a leading integer (5+ -> 5, >=7 -> 7); non-numeric (many/every/
-  # n/a) -> "?". Bodies are UNTRUSTED — sanitized at surfacing by san().
-  local meta; meta="$(mktemp)"
-  awk '
+  # n/a) -> "?". Bodies are UNTRUSTED — sanitized at surfacing by san() (its awk twin in SAN_AWK).
+  awk "$SAN_AWK"'
     function fieldval(line, label,   reA, reB, v) {
       # Two field-line variants, both with an optional "- " list marker:
       #   A) **Label**: value                 (colon outside the bold)
@@ -106,68 +129,84 @@ emit_kf(){
         # >= glyph (bytes \342\211\245).
         gsub(/^([>=~ ]|\342\211\245)+/, "", v)
         if (match(v, /^[0-9]+/)) num = substr(v, RSTART, RLENGTH)
-        # TAB-delimited: id, status, title, symptom, recurrence
-        printf "%s\t%s\t%s\t%s\t%s\n", id, st[id], ttl[id], sy[id], num
+        # Tab-split exactly as the former `IFS=$'\t' read -r` row loop did (an
+        # empty Status/Symptom collapses its tab and shifts the later columns —
+        # preserved byte-for-byte): id, status, title, symptom, recurrence.
+        rd(id "\t" st[id] "\t" ttl[id] "\t" sy[id] "\t" num, 5, f)
+        if (f[1] == "") continue
+        recurrence = f[5]; if (recurrence == "") recurrence = "?"
+        # cycle-121: recurrence >=3 is the load-bearing signal (CLAUDE.md intake
+        # discipline) — an unparseable count silently disarms it, so WARN loudly.
+        if (recurrence == "?")
+          print "grimoire-index: WARN — " f[1] " Recurrence count is not integer-leading; the >=3 escalation signal cannot fire for it" > "/dev/stderr"
+        # Status cells are tier-2 index material: truncate resolution prose >120
+        # chars (tier-3 detail belongs in the entry body, not the index row).
+        status = f[2]
+        if (length(status) > 120) status = substr(status, 1, 117) "..."
+        printf "kf\t%s\t%s\t%s\tgrimoires/loa/known-failures.md\t\t%s\t%s\n", \
+          san(f[1]), san(status), san(f[3]), san(f[4]), san(recurrence)
       }
     }
-  ' "$f" > "$meta"
-  while IFS=$'\t' read -r id status title symptom recurrence; do
-    [[ -n "$id" ]] || continue
-    # cycle-121: recurrence >=3 is the load-bearing signal (CLAUDE.md intake
-    # discipline) — an unparseable count silently disarms it, so WARN loudly.
-    if [[ "${recurrence:-?}" == "?" ]]; then
-      echo "grimoire-index: WARN — ${id} Recurrence count is not integer-leading; the >=3 escalation signal cannot fire for it" >&2
-    fi
-    # Status cells are tier-2 index material: truncate resolution prose >120
-    # chars (tier-3 detail belongs in the entry body, not the index row).
-    if [[ "${#status}" -gt 120 ]]; then status="${status:0:117}..."; fi
-    printf 'kf\t%s\t%s\t%s\tgrimoires/loa/known-failures.md\t\t%s\t%s\n' \
-      "$(san "$id")" "$(san "${status:-}")" "$(san "$title")" "$(san "${symptom:-}")" "$(san "${recurrence:-?}")"
-  done < "$meta"
-  rm -f "$meta"
+  ' "$f"
 }
 emit_vision(){
   local d="${G}/visions/entries"; [[ -d "$d" ]] || return 0
-  local f id status title
+  local f bn src
   for f in "$d"/vision-*.md; do
     [[ -e "$f" ]] || continue
-    id="$(grep -m1 -oE '^\*\*ID\*\*: *vision-[0-9]+' "$f" | grep -oE 'vision-[0-9]+' || true)"
-    [[ -z "$id" ]] && id="$(basename "$f" .md)"
-    status="$(grep -m1 -E '^\*\*Status\*\*:' "$f" | sed -E 's/^\*\*Status\*\*: *//' || true)"
-    title="$(grep -m1 -E '^# Vision:' "$f" | sed -E 's/^# Vision: *//' || true)"
-    printf 'vision\t%s\t%s\t%s\t%s\t%s\n' \
-      "$(san "$id")" "$(san "$status")" "$(san "$title")" "grimoires/loa/visions/entries/$(san "$(basename "$f")")" "$(refs_of "$f")"
+    bn="${f##*/}"; src="$f"
+    if [[ ! -r "$f" ]]; then
+      echo "grimoire-index: WARN — ${f} is unreadable; its vision row is emitted with blank id/status/title" >&2; src=/dev/null
+    fi
+    # One awk per file: first **ID**: vision-N (else the file stem), first **Status**: and first
+    # "# Vision:" line, each san()-ed in awk. Only refs_of stays a separate (untouched) pipeline.
+    printf '%s\t%s\n' "$(BN="$bn" awk "$SAN_AWK"'
+      !hi && match($0, /^\*\*ID\*\*: *vision-[0-9]+/) {
+        hi = 1; id = substr($0, RSTART, RLENGTH); match(id, /vision-[0-9]+/); id = substr(id, RSTART, RLENGTH)
+      }
+      !hs && /^\*\*Status\*\*:/ { hs = 1; status = $0; sub(/^\*\*Status\*\*: */, "", status) }
+      !ht && /^# Vision:/ { ht = 1; title = $0; sub(/^# Vision: */, "", title) }
+      END {
+        if (id == "") { id = ENVIRON["BN"]; sub(/\.md$/, "", id) }
+        printf "vision\t%s\t%s\t%s\tgrimoires/loa/visions/entries/%s", san(id), san(status), san(title), san(ENVIRON["BN"])
+      }' "$src")" "$(refs_of "$f")"
   done
 }
 emit_lore(){
   local f="${G}/lore/index.yaml"; [[ -f "$f" ]] || return 0
-  awk '
+  awk "$SAN_AWK"'
     /^[[:space:]]*-[[:space:]]*id:[[:space:]]*/ { id=$0; sub(/^[[:space:]]*-[[:space:]]*id:[[:space:]]*/,"",id); have=1; st="" }
-    have && /^[[:space:]]*status:[[:space:]]*/ { st=$0; sub(/^[[:space:]]*status:[[:space:]]*/,"",st); print id "\t" st; have=0 }
-  ' "$f" | while IFS=$'\t' read -r id st; do
-    printf 'lore\t%s\t%s\t%s\tgrimoires/loa/lore/index.yaml\t\n' "$(san "$id")" "$(san "$st")" "$(san "$id")"
-  done
+    have && /^[[:space:]]*status:[[:space:]]*/ {
+      st=$0; sub(/^[[:space:]]*status:[[:space:]]*/,"",st); have=0
+      rd(id "\t" st, 2, f)
+      printf "lore\t%s\t%s\t%s\tgrimoires/loa/lore/index.yaml\t\n", san(f[1]), san(f[2]), san(f[1])
+    }
+  ' "$f"
 }
 emit_handoff(){
   local f="${G}/handoffs/INDEX.md"; [[ -f "$f" ]] || return 0
-  grep -E '^\| *sha256:[a-f0-9]+ *\|' "$f" \
-    | while IFS='|' read -r _ hid file _from _to topic ts _rest; do
-        printf 'handoff\t%s\t%s\t%s\t%s\t\n' \
-          "$(san "$hid")" "$(san "$ts")" "$(san "$topic")" "grimoires/loa/handoffs/$(san "$file")"
-      done
+  # Fields split on "|" like the former `IFS='|' read -r _ hid file _from _to topic ts _rest`. Exits 1
+  # when no row matches, as the grep it replaces did (pipefail/errexit semantics preserved).
+  awk "$SAN_AWK"'
+    /^\| *sha256:[a-f0-9]+ *\|/ {
+      m = 1; split($0, a, "|")
+      printf "handoff\t%s\t%s\t%s\tgrimoires/loa/handoffs/%s\t\n", san(a[2]), san(a[7]), san(a[6]), san(a[3])
+    }
+    END { if (!m) exit 1 }
+  ' "$f"
 }
 # notes family (cycle-121): surfaces NOTES.md's ## headings so sessions can
 # jump to current working state without reading the whole file.
 emit_notes(){
   local f="${G}/NOTES.md"; [[ -f "$f" ]] || return 0
-  local n=0 line title
-  while IFS= read -r line; do
-    n=$((n+1))
-    [[ "$line" == "## "* ]] || continue
-    title="${line#\#\# }"
-    printf 'notes\t%s\t%s\t%s\t%s\t\n' \
-      "L${n}" "" "$(san "$title")" "grimoires/loa/NOTES.md#L${n}"
-  done < "$f"
+  # A final line with no trailing newline was never seen by the `while read` loop this replaces, so
+  # it is dropped here too (unterminated=1): rows are emitted one record late and the last is held back.
+  local unterminated=0; [[ -n "$(tail -c1 "$f")" ]] && unterminated=1
+  awk -v unterminated="$unterminated" "$SAN_AWK"'
+    { if (pend != "") { print pend; pend = "" } }
+    /^## / { pend = sprintf("notes\tL%d\t\t%s\tgrimoires/loa/NOTES.md#L%d\t", NR, san(substr($0, 4)), NR) }
+    END { if (pend != "" && !unterminated) print pend }
+  ' "$f"
 }
 
 # decisions family: one row per grimoires/loa/decisions.yaml entry. Columns: id,
