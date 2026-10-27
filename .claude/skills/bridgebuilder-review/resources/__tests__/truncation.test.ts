@@ -1425,10 +1425,12 @@ describe("protected paths (cycle-135 C-2, bd-i4fyw)", () => {
     }
   });
 
-  it("omissions carry the excluding pattern in the stats suffix", () => {
+  // cycle-136 C-3 (FR-3 (d), bd-gyrgq): the pattern is the structured field only; the stats lost their suffix
+  it("omissions name the excluding pattern in the pattern field; the stats carry no suffix", () => {
     const r = run([file("config/app.yml", 2, 0), file("src/a.ts", 1, 0)], { excludePatterns: ["**/*.yml"] });
     const ex = r.excluded.find((e) => e.filename === "config/app.yml");
-    assert.ok(ex && ex.stats.endsWith("(excluded by pattern) [pattern: **/*.yml]"), ex?.stats);
+    assert.equal(ex?.pattern, "**/*.yml");
+    assert.ok(ex && ex.stats.endsWith("(excluded by pattern)"), ex?.stats);
   });
 
   it("the Loa tier still strips .claude/settings.json without self-review, naming its default pattern", () => {
@@ -1437,7 +1439,8 @@ describe("protected paths (cycle-135 C-2, bd-i4fyw)", () => {
       const r = run([file(".claude/settings.json", 2, 0), file("src/a.ts", 1, 0)], { loaAware: true, repoRoot: root });
       assert.ok(!names(r.included).includes(".claude/settings.json"));
       const ex = r.excluded.find((e) => e.filename === ".claude/settings.json");
-      assert.ok(ex && /\(Loa framework, summary only\) \[pattern: \.claude\/\*\*\]$/.test(ex.stats), ex?.stats);
+      assert.ok(ex && ex.stats.endsWith("(Loa framework, summary only)"), ex?.stats);
+      assert.equal(ex?.pattern, ".claude/**");
       assert.deepEqual(r.protectedKept ?? [], []);
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -1912,7 +1915,6 @@ function matchesExcludePatternNs(f: string, p: string[]): boolean {
 }
 
 describe("structured pattern field on excluded[] (review round 1, LOW 5)", () => {
-  const SUFFIX = / \[pattern: (.+)\]$/;
   for (const [pattern, name] of [
     ["[ab].md", "a.md"],
     ["a}b", "a}b"],
@@ -1921,12 +1923,12 @@ describe("structured pattern field on excluded[] (review round 1, LOW 5)", () =>
     ["src/[ab]", "src/a"],
     ["**/[!x]]", "q/y]"],
   ] as Array<[string, string]>) {
-    it(`round-trips ${pattern} through the field and the stats suffix`, () => {
+    it(`carries ${pattern} in the field; the stats name no pattern (cycle-136 FR-3 (d))`, () => {
       const r = run([file(name, 1, 0), file("keep.ts", 1, 0)], { excludePatterns: [pattern], protectedPaths: [] });
       const ex = r.excluded.find((e) => e.filename === name) as { stats: string; pattern?: string } | undefined;
       assert.ok(ex, `${pattern} must exclude ${name}`);
       assert.equal(ex.pattern, pattern);
-      assert.equal(SUFFIX.exec(ex.stats)?.[1], pattern);
+      assert.ok(!ex.stats.includes(pattern) && !/\[pattern/.test(ex.stats), ex.stats);
     });
   }
 
@@ -1941,6 +1943,7 @@ describe("structured pattern field on excluded[] (review round 1, LOW 5)", () =>
           repoRoot: root,
         });
         const byName = new Map(r.excluded.map((e) => [e.filename, (e as { pattern?: string }).pattern]));
+        for (const e of r.excluded) assert.ok(!/\[pattern/.test(e.stats), e.stats); // (cycle-136 FR-3 (d))
         assert.equal(byName.get("secrets/k.env"), "secrets/", `selfReview=${selfReview}`);
         if (!selfReview) assert.equal(byName.get(".claude/x.md"), ".claude/**");
       }

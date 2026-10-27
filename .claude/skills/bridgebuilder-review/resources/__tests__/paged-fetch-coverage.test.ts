@@ -4,6 +4,8 @@
 // (implementer A's truncateFiles) is replaced by a double where its new fields are needed; A's code is not used here.
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { fetchPRFilesTwoPass, formatCoverageSection } from "../core/paged-fetch.js";
 import { truncateFiles } from "../core/truncation.js";
@@ -64,25 +66,55 @@ describe("coverage record: protected paths, patterns, provenance (C-2 consumer s
     assert.deepEqual(res.coverage.protected_kept, []);
   });
 
-  it("omitted[].pattern: parsed from the Loa-tier ` [pattern: <p>]` suffix and the user-pattern suffix; absent suffix tolerated", async () => {
+  // cycle-136 C-3 (FR-3 (d), bd-gyrgq): the stats suffix grammar is gone — the pattern comes from `excluded[].pattern` only
+  it("omitted[].pattern comes from the structured excluded[].pattern (Loa tier and user pattern); none recorded → none", async () => {
     const files = [
       patched("src/a.ts", "@@ -1 +1 @@\n+a"), patched(".claude/scripts/x.sh", "@@ -1 +1 @@\n+x"),
       patched("vendor/lib.js", "@@ -1 +1 @@\n+v"), patched(".claude/old.md", "@@ -1 +1 @@\n+o"),
       patched("odd/name.ts", "@@ -1 +1 @@\n+n"),
     ];
     const sel = selectionDouble(["src/a.ts"], {
-      ".claude/scripts/x.sh": "+1 -0 (Loa framework, content excluded) [pattern: .claude/scripts/**]",
-      "vendor/lib.js": "+1 -0 (.reviewignore user pattern, strict deny) [pattern: vendor/]",
+      ".claude/scripts/x.sh": { stats: "+1 -0 (Loa framework, content excluded)", pattern: ".claude/scripts/**" },
+      "vendor/lib.js": { stats: "+1 -0 (.reviewignore user pattern, strict deny)", pattern: "vendor/" },
       ".claude/old.md": "+1 -0 (Loa framework, summary only)",
-      "odd/name.ts": "+1 -0 (excluded by pattern) [pattern: odd/[ab]] x]",
+      "odd/name.ts": { stats: "+1 -0 (excluded by pattern)", pattern: "odd/[ab]] x" },
     }, []);
     const res = await run(provider(files), SEL, { truncate: sel.fn });
     const by = Object.fromEntries(res.coverage.omitted.map((o) => [o.file, o]));
     assert.deepEqual(by[".claude/scripts/x.sh"], { file: ".claude/scripts/x.sh", reason: "excluded_loa", reviewable: false, pattern: ".claude/scripts/**" });
     assert.deepEqual(by["vendor/lib.js"], { file: "vendor/lib.js", reason: "excluded_pattern", reviewable: false, pattern: "vendor/" });
     assert.deepEqual(by[".claude/old.md"], { file: ".claude/old.md", reason: "excluded_loa", reviewable: false });
-    assert.equal(by["odd/name.ts"].pattern, "odd/[ab]] x", "the suffix runs to the final ]");
+    assert.equal(by["odd/name.ts"].pattern, "odd/[ab]] x");
     assert.equal(by["odd/name.ts"].reason, "excluded_pattern");
+  });
+
+  it("a stats string carrying a literal ` [pattern: x]` is plain text: no pattern is parsed from it, the reason is unchanged", async () => {
+    const files = [patched("src/a.ts", "@@ -1 +1 @@\n+a"), patched("odd/x.ts", "@@ -1 +1 @@\n+x"), patched(".claude/z.sh", "@@ -1 +1 @@\n+z")];
+    const sel = selectionDouble(["src/a.ts"], {
+      "odd/x.ts": "+1 -0 (excluded by pattern) [pattern: x]",
+      ".claude/z.sh": "+1 -0 (Loa framework, content excluded) [pattern: x]",
+    }, []);
+    const res = await run(provider(files), { ...SEL, excludePatterns: ["odd/**"] }, { truncate: sel.fn });
+    const by = Object.fromEntries(res.coverage.omitted.map((o) => [o.file, o]));
+    assert.deepEqual(by["odd/x.ts"], { file: "odd/x.ts", reason: "excluded_pattern", reviewable: false },
+      "neither the suffix nor the config fallback supplies a pattern");
+    assert.deepEqual(by[".claude/z.sh"], { file: ".claude/z.sh", reason: "excluded_loa", reviewable: false });
+  });
+
+  // cycle-136 C-3 (FR-3 (b)/(d), sprint.md Task 1.3): a grep pin over the runtime sources (not tests, docs or dist)
+  it("the runtime sources carry no suffix grammar and no SelectionConfig / TruncationResult intersection", () => {
+    const resources = join(import.meta.dirname, "..");
+    const sources = [
+      ...readdirSync(join(resources, "core"), { recursive: true }).map(String).filter((f) => f.endsWith(".ts")).map((f) => join("core", f)),
+      ...readdirSync(resources).filter((f) => f.endsWith(".ts")),
+    ];
+    assert.ok(sources.includes(join("core", "paged-fetch.ts")) && sources.includes(join("core", "truncation.ts")), sources.join(","));
+    for (const rel of sources) {
+      const text = readFileSync(join(resources, rel), "utf8");
+      for (const needle of ["[pattern:", "SelectionConfig & {", "TruncationResult & {"]) {
+        assert.ok(!text.includes(needle), `${rel} still contains ${JSON.stringify(needle)}`);
+      }
+    }
   });
 
   it("omitted[].pattern prefers the structured excluded[].pattern over the stats suffix (review round 1, item 7)", async () => {
