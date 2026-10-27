@@ -38436,3 +38436,183 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1089"
+    created_at: "2026-10-27T01:42:40Z"
+    updated_at: "2026-10-27T01:42:40Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Scaffold fix mode keeps the file mode with cp -p onto the mktemp file (POSIX, no stat dispatch); the not-writable check is explicit before any write."
+    decision: "cp -p then a truncating redirect preserves the mode in one portable path; a 0444 target is left unchanged with a WARN even though mv -f in a writable directory would replace it."
+    rationale: "compat-lib.sh has no mode helper and two stat dialects are two code paths for one result; the AC expects a read-only target to stay unchanged."
+    alternatives_considered:
+      - option: "stat -c %a || stat -f %Lp then chmod"
+        rejected_because: "two platform paths"
+    consequences:
+      positive:
+        - "portable, one path"
+      negative:
+        - "cp -p copies the whole file once before the rewrite (small files)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "90b25922"
+    source: "~/.cache/loa/cycle-136/reports/a.md § 4 (1, 3)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:42:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "90b259222 (red 4e81a0df5)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1090"
+    created_at: "2026-10-27T01:42:44Z"
+    updated_at: "2026-10-27T01:42:44Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Fix-mode failure WARN names the reason ('could not be rewritten (<reason>) — left unchanged'): not writable, no temp file, line changed, symlink, mode, write, m"
+    decision: "A distinct WARN per failure class instead of the generic refuse WARN; a re-read mismatch also reports its reason."
+    rationale: "FR-1's non-writable AC asks for a WARN naming the failure; the generic refuse text would not."
+    alternatives_considered:
+      - option: "reuse the refuse WARN"
+        rejected_because: "does not name the failure"
+    consequences:
+      positive:
+        - "operator sees why"
+      negative:
+        - "one more message text to pin"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "90b25922"
+    source: "~/.cache/loa/cycle-136/reports/a.md § 4 (2)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:42:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "90b259222"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1091"
+    created_at: "2026-10-27T01:42:48Z"
+    updated_at: "2026-10-27T01:42:48Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "The rewrite keeps a trailing comment, a missing final newline and CRLF; single-quoted YAML is unescaped for comparison and re-escaped on rewrite."
+    decision: "The replacement line is <indent>if: <quote><ALLOWLIST><quote><comment>, CRLF preserved, no final newline added when the file had none."
+    rationale: "Dropping a user comment would delete user text; a literal 'strip one pair of quotes' would never match a validly single-quoted legacy guard."
+    alternatives_considered:
+      - option: "refuse commented or quoted lines"
+        rejected_because: "needlessly strict"
+    consequences:
+      positive:
+        - "one line changes, nothing else"
+      negative:
+        - "quote handling adds a few branches"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "90b25922"
+    source: "~/.cache/loa/cycle-136/reports/a.md § 4 (4, 5)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:42:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "90b259222"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1092"
+    created_at: "2026-10-27T01:42:54Z"
+    updated_at: "2026-10-27T01:42:54Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Normalisation strips the comment before the ${{ }} wrapper (a commented wrapped guard must still unwrap); on LEGACY with the flag two lines print."
+    decision: "The comment is stripped before the wrapper because '${{ … }} # c' only unwraps once the comment is gone; the WARN prints unconditionally on LEGACY as the SDD pseudo-code shows."
+    rationale: "The SDD listed the wrapper first; the literal order fails on a commented wrapped guard."
+    alternatives_considered:
+      - option: "the SDD's literal order"
+        rejected_because: "misses a commented wrapped guard"
+    consequences:
+      positive:
+        - "every documented form normalises"
+      negative:
+        - "two stderr lines on a fixed file"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "90b25922"
+    source: "~/.cache/loa/cycle-136/reports/a.md § 4 (6, 7)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:42:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "90b259222"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1093"
+    created_at: "2026-10-27T01:42:59Z"
+    updated_at: "2026-10-27T01:42:59Z"
+    phase: "implementation"
+    category: "testing"
+    summary: "Fixtures: the 4-space legacy workflow is a positive case; a symlinked target is silent and refused with the flag; the jobs section ends at a column-0 key."
+    decision: "T26 asserts WARN + one-line rewrite for the 4-space fixture; T28 the symlink refusal even when the link points at a legacy file; T22 covers a real run: | body and a deliberately shallow opener to exercise the scalar tracker; a top-level key after jobs: ends the section."
+    rationale: "The PRD listed the 4-space fixture among the negatives by mistake — it carries the legacy guard; valid YAML never has scalar content at exactly the child indentation, so a malformed fixture is what exercises the tracker."
+    alternatives_considered:
+      - option: "force byte-identical with the flag on the 4-space fixture"
+        rejected_because: "contradicts the fix mode"
+    consequences:
+      positive:
+        - "fixtures match the spec's intent"
+      negative:
+        - "one fixture is deliberately malformed (commented as such)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implement/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "90b25922"
+    source: "~/.cache/loa/cycle-136/reports/a.md § 4 (8, 9, 10, 11)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:42:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:implement"
+        evidence: "4e81a0df5"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
