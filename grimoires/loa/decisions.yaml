@@ -38032,3 +38032,407 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1078"
+    created_at: "2026-10-27T01:16:19Z"
+    updated_at: "2026-10-27T01:16:19Z"
+    phase: "architecture"
+    category: "design"
+    summary: "Scaffold detection has one path, awk, no yq; normalisation strips a ${{ }} wrapper, a trailing comment and one pair of quotes before comparing."
+    decision: "Quoted keys, anchors, aliases and duplicates never match; the rewrite requires the exact single-line legacy form."
+    rationale: "Two parsers that must agree doubled the test matrix and still left yq's multi-line handling undefined; one deterministic awk pass is auditable and runs on every mount host."
+    alternatives_considered:
+      - option: "yq v4 with an awk fallback (PRD 1.1)"
+        rejected_because: "two verdict paths to keep in sync for no detection gain"
+    consequences:
+      positive:
+        - "one path, one fixture set"
+      negative:
+        - "no YAML-aware parse; exotic layouts are treated as customised"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sdd.md § 5.1; § 11.F (opus IMP-003/004, gpt IMP-001/002)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:16:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.1 1.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1079"
+    created_at: "2026-10-27T01:16:23Z"
+    updated_at: "2026-10-27T01:16:23Z"
+    phase: "architecture"
+    category: "design"
+    summary: "The simple-release block ends at the first non-blank, non-comment line with indentation ≤ J; the job's child indentation is read from the file."
+    decision: "No job-id regex: a later job id with digits or a quoted key cannot extend the block into another job's if:."
+    rationale: "The blocker was right that [A-Za-z_-]+ misses valid job ids; indentation is the YAML structure the file actually encodes."
+    alternatives_considered:
+      - option: "widen the job-id regex"
+        rejected_because: "still a guess at the grammar"
+    consequences:
+      positive:
+        - "structure-driven"
+      negative:
+        - "tabs are not supported (GitHub does not accept them either)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sdd.md § 5.1; § 11.F (SKP-003, opus IMP-001/002)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:16:23Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.1 1.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1080"
+    created_at: "2026-10-27T01:16:27Z"
+    updated_at: "2026-10-27T01:16:27Z"
+    phase: "architecture"
+    category: "design"
+    summary: "The awk scan tracks block scalars: content lines of a | or > value never yield an if: candidate (a run: | body cannot look like the guard)."
+    decision: "A line opening a block scalar at indentation k makes every following line with indentation > k content; a fixture places the legacy text inside a run: | step."
+    rationale: "Without it a workflow's shell step could trigger a false WARN or, with the flag, a wrong rewrite."
+    alternatives_considered:
+      - option: "ignore the case"
+        rejected_because: "a plausible layout in downstream workflows"
+    consequences:
+      positive:
+        - "no false candidates from scalar bodies"
+      negative:
+        - "~10 more lines of awk"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sdd.md § 5.1; § 11.F (SKP-004)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:16:27Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.1 1.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1081"
+    created_at: "2026-10-27T01:16:31Z"
+    updated_at: "2026-10-27T01:16:31Z"
+    phase: "architecture"
+    category: "security"
+    summary: "Fix mode writes safely: symlink refused, the line re-read before writing, temp file in the same directory, mode preserved, mv -f."
+    decision: "The replacement line is <original indent>if: <ALLOWLIST> preserving the original quoting style."
+    rationale: "The scaffold rewrites an operator's CI workflow; a race or a symlink must not turn a one-line fix into damage."
+    alternatives_considered:
+      - option: "sed in place"
+        rejected_because: "not portable (cross-platform lint) and not atomic"
+    consequences:
+      positive:
+        - "atomic, verified"
+      negative:
+        - "a few more lines"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sdd.md § 5.1; § 11.F (gpt IMP-003, opus IMP-005)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:16:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.1 1.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1082"
+    created_at: "2026-10-27T01:16:35Z"
+    updated_at: "2026-10-27T01:16:35Z"
+    phase: "architecture"
+    category: "design"
+    summary: "unknown_commit by git cat-file -e exit status (LC_ALL=C); the base resolution cached per base sha incl. failures; one reviewignoreBase object."
+    decision: "BaseRead = ok | absent | unknown_commit | other; SelectionConfig.reviewignoreBase?: { patterns, source: base | none }; source none always carries []."
+    rationale: "Exit status beats English stderr fragments across locales; caching failures keeps the one-call budget across restarted attempts; one object cannot be half-set."
+    alternatives_considered:
+      - option: "match stderr strings"
+        rejected_because: "locale- and version-dependent"
+      - option: "two optional fields"
+        rejected_because: "patterns without a source or vice versa is representable"
+    consequences:
+      positive:
+        - "robust classification; honest cache"
+      negative:
+        - "one extra git call (cat-file) on the failure path only"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sdd.md § 5.2, § 5.3; § 11.F (opus IMP-007/008/009, gpt IMP-005/006/011)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:16:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.2 1.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1083"
+    created_at: "2026-10-27T01:16:39Z"
+    updated_at: "2026-10-27T01:16:39Z"
+    phase: "architecture"
+    category: "security"
+    summary: "A 404 for .reviewignore becomes none only after an access probe on a base-existing listed file; no target → fail closed; DEC-1043 kept for base_unavailable."
+    decision: "The probe calls getFileContent on the first modified/removed/renamed listed file at the base sha with maxBytes 1; text/too_large/binary prove access; at most two calls per resolution. SKP-001 is kept as DEC-1043 (leak side weighted heavier), restated, with OQ-3 for a future review."
+    rationale: "GitHub answers 404 for both a missing path and a missing permission; a fine-grained token can read pull requests without contents. Changing DEC-1043 inside a hygiene cycle would flip a security trade-off the operator confirmed yesterday."
+    alternatives_considered:
+      - option: "treat every 404 as none"
+        rejected_because: "an authorization gap would silently drop the deny list"
+      - option: "apply no patterns on base_unavailable"
+        rejected_because: "sends excluded content to the model; a separate decision (OQ-3)"
+    consequences:
+      positive:
+        - "404 is proven before it widens coverage"
+      negative:
+        - "one more call on the 404 path; PRs that only add files cannot be confirmed and stay fail-closed"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sdd.md § 5.2 step 4, § 6, § 9, OQ-3; § 11.F (SKP-002, SKP-001, opus IMP-015, gpt IMP-009)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:16:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.2 1.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1084"
+    created_at: "2026-10-27T01:16:43Z"
+    updated_at: "2026-10-27T01:16:43Z"
+    phase: "architecture"
+    category: "security"
+    summary: "FR-5 deferral is explicit: deferredScopeKeys set by resolveConfig, cleared by applyTrustedReviewScope, asserted at the pipeline entry; main.ts order pinned."
+    decision: "A configuration that still carries deferred keys cannot reach the review pipeline; composition tests cover permissive-head vs restrictive-trusted and mixed valid/invalid keys."
+    rationale: "The blocker was right that a suppressed validation must not be consumable without the trusted replacement; making the deferral a value the applier clears turns the invariant into a check."
+    alternatives_considered:
+      - option: "rely on main.ts calling the applier"
+        rejected_because: "a future caller could skip it silently"
+    consequences:
+      positive:
+        - "invariant enforced at runtime and pinned"
+      negative:
+        - "one more provenance field"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "architect/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sdd.md § 5.6, § 1.4; § 11.F (SKP-008, gpt IMP-007/008, opus IMP-014)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:16:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:architect"
+        evidence: "sdd.md § 5.6 1.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1085"
+    created_at: "2026-10-27T01:24:30Z"
+    updated_at: "2026-10-27T01:24:30Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "Red-first gate wording: suites green at every fix commit and the final head; a red commit fails only its own new cases, verified on the landed pair."
+    decision: "red-test-check.sh / red-green-npm.sh prove the pair; CI runs on the PR head, not on each intermediate commit."
+    rationale: "'Green at every landed commit' contradicted the red-first discipline the cycle relies on; the pair is the unit of truth."
+    alternatives_considered:
+      - option: "squash red and fix into one commit"
+        rejected_because: "loses the red evidence the review gate reproduces"
+    consequences:
+      positive:
+        - "precise, checkable"
+      negative:
+        - "intermediate red commits exist in history (by design)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "sprint-plan/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sprint.md § Acceptance Criteria; Appendix (gpt IMP-001, opus IMP-001)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:24:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:sprint-plan"
+        evidence: "sprint.md 1.3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1086"
+    created_at: "2026-10-27T01:24:34Z"
+    updated_at: "2026-10-27T01:24:34Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "FR-5 becomes Task 1.3b with a deferral trigger (gates fail after one return, or not landed at Task 1.4 → bead); CHANGELOG hunks leave implementer patches."
+    decision: "Implementers return CHANGELOG text and judgment calls in their reports; the lead inserts and decides (keeps the mechanical kind honest and avoids A/B hunk collisions)."
+    rationale: "A Could Have inside a Should Have task had no exit; two implementers editing one CHANGELOG hunk always conflicts."
+    alternatives_considered:
+      - option: "keep FR-5 inside Task 1.3"
+        rejected_because: "no deferral point"
+      - option: "let implementers edit CHANGELOG"
+        rejected_because: "guaranteed merge conflict between A and B"
+    consequences:
+      positive:
+        - "clean deferral; no conflicts"
+      negative:
+        - "the lead edits CHANGELOG by hand"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "sprint-plan/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sprint.md Tasks 1.3/1.3b, Patch contract; Appendix (gpt IMP-002, opus IMP-002/013/015)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:24:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:sprint-plan"
+        evidence: "sprint.md 1.3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1087"
+    created_at: "2026-10-27T01:24:38Z"
+    updated_at: "2026-10-27T01:24:38Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "Ship gates name the six required checks, bind to the exact final PR head, record the merged commit separately, and define the unattended loop exits."
+    decision: "Allowlist/red violations > 2 returns → lead implements or defers; dissent unreachable → lead-only gate with a DEC row; rounds exhausted → red-first lead-read fixes recorded; spend cap or the one-day window → HALT with state recorded. The archive PR is the separate housekeeping merge under DEC-0960."
+    rationale: "The reviewers were right that 'green' and 'one PR' were ambiguous without the names, the sha and the exits."
+    alternatives_considered:
+      - option: "leave the exits implicit"
+        rejected_because: "an unattended run needs a stopping rule it can cite"
+    consequences:
+      positive:
+        - "every gate is a statement about one sha and one rule"
+      negative:
+        - "longer plan text"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "sprint-plan/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sprint.md header Execution, § Acceptance Criteria, Task 1.6; Appendix (gpt IMP-003…007/012, opus IMP-007/008/020)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:24:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:sprint-plan"
+        evidence: "sprint.md 1.3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1088"
+    created_at: "2026-10-27T01:24:42Z"
+    updated_at: "2026-10-27T01:24:42Z"
+    phase: "sprint-planning"
+    category: "testing"
+    summary: "Pre-merge live probe for G-3: a depth-1 clone of the PR head runs the built fetch path with the real gh adapter on the cycle's PR (no model call)."
+    decision: "Done before the merge from the PR head's dist so the new code is exercised on a real shallow checkout; the cycle-135 Q-1 probe shape (node against dist, one or two gh calls)."
+    rationale: "The fixtures prove the logic; one real shallow checkout proves the gh 404/probe shapes the fixtures assume."
+    alternatives_considered:
+      - option: "a full Bridgebuilder --dry-run from the shallow clone"
+        rejected_because: "spends model calls for a fetch-path question"
+      - option: "post-merge dogfood on a later PR"
+        rejected_because: "Bridgebuilder filters merged PRs; the next PR is the archive"
+    consequences:
+      positive:
+        - "real provider shapes, zero model spend"
+      negative:
+        - "one more pre-merge step"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "sprint-plan/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "9247c01a"
+    source: "grimoires/loa/sprint.md Task 1.E2E; Appendix (opus IMP-017)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:24:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:sprint-plan"
+        evidence: "sprint.md 1.3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
