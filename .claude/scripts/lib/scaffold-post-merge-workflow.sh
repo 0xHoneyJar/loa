@@ -74,7 +74,7 @@ legacy_release_guard_check() {
     # (\047 is a single quote: the program lives inside bash single quotes.)
     rec=$(awk '
         function ind(s) { match(s, /^ */); return RLENGTH }
-        BEGIN { SEP = "\037"; phase = 0; J = -1; keys = 0; inblock = 0; C = -1; ncand = 0; inscalar = 0 }
+        BEGIN { SEP = "\037"; phase = 0; J = -1; keys = 0; inblock = 0; C = -1; ncand = 0; inscalar = 0; pending = 0; cmulti = 0 }
         {
             line = $0; cr = 0
             if (sub(/\r$/, "", line)) cr = 1
@@ -85,6 +85,9 @@ legacy_release_guard_check() {
             if (line ~ /^[[:space:]]*#/) next
             if (phase == 0) { if (line ~ /^jobs:[[:space:]]*(#.*)?$/) phase = 1 }
             else if (phase == 1) {
+                # a plain scalar continues on deeper lines: the candidate is multi-line
+                # when the next non-blank, non-comment line is deeper than C (review r1)
+                if (pending) { if (inblock && n > C) cmulti = 1; pending = 0 }
                 if (n == 0) { phase = 2; inblock = 0 }
                 else {
                     if (J < 0) J = n
@@ -97,7 +100,7 @@ legacy_release_guard_check() {
                     } else if (inblock) {
                         if (C < 0) C = n
                         if (n == C && substr(line, n + 1) ~ /^if:([[:space:]]|$)/) {
-                            ncand++; cline = line; craw = $0; cnum = NR; ccr = cr
+                            ncand++; cline = line; craw = $0; cnum = NR; ccr = cr; pending = 1
                         }
                     }
                 }
@@ -107,7 +110,7 @@ legacy_release_guard_check() {
         }
         END {
             if (keys != 1) { print "none"; exit }
-            if (ncand != 1) { print "notsingle"; exit }
+            if (ncand != 1 || cmulti) { print "notsingle"; exit }
             ci = ind(cline); v = substr(cline, ci + 4); comment = ""
             if (match(v, /[[:space:]]+#.*$/)) { comment = substr(v, RSTART); v = substr(v, 1, RSTART - 1) }
             gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
@@ -131,21 +134,31 @@ legacy_release_guard_check() {
         return 0
     fi
 
-    printf '%s\n' "[scaffold] WARN: $target keeps the legacy simple-release guard (pr_type != 'cycle' && pr_number != ''); since Loa cycle-135 housekeeping merges classify 'housekeeping' and this guard sends them to the orchestrator, which refuses. Replace it with: $_LOA_SCAFFOLD_ALLOWLIST_GUARD  — or re-run the mount with LOA_SCAFFOLD_FIX_RELEASE_GUARD=1 to rewrite that one line (bd-nr5i6)" >&2
+    # A successful fix prints only its notice; the legacy WARN is printed when
+    # the flag is off, or ahead of a refuse / failure WARN (review r1)
+    local legacy_msg="[scaffold] WARN: $target keeps the legacy simple-release guard (pr_type != 'cycle' && pr_number != ''); since Loa cycle-135 housekeeping merges classify 'housekeeping' and this guard sends them to the orchestrator, which refuses. Replace it with: $_LOA_SCAFFOLD_ALLOWLIST_GUARD  — or re-run the mount with LOA_SCAFFOLD_FIX_RELEASE_GUARD=1 to rewrite that one line (bd-nr5i6)"
+    local why=""
     if [[ "$fix" != "1" ]]; then
+        printf '%s\n' "$legacy_msg" >&2
         return 0
     fi
     if [[ "$wrapped" == "1" ]]; then
         # a ${{ }} wrapper is detected but never rewritten (sdd.md § 7)
-        printf '%s\n' "$refuse_msg" >&2
+        printf '%s\n%s\n' "$legacy_msg" "$refuse_msg" >&2
         return 0
     fi
-    _legacy_release_guard_rewrite "$target" "$lineno" "$cr" "$quote" "$indent" "$comment" "$raw"
+    why=$(_legacy_release_guard_rewrite "$target" "$lineno" "$cr" "$quote" "$indent" "$comment" "$raw") || why="the rewrite failed"
+    if [[ -n "$why" ]]; then
+        printf '%s\n%s\n' "$legacy_msg" "[scaffold] WARN: LOA_SCAFFOLD_FIX_RELEASE_GUARD=1 but $target could not be rewritten ($why) — left unchanged" >&2
+        return 0
+    fi
+    printf '%s\n' "[scaffold] fixed: $target simple-release if: → allowlist guard (one line changed; bd-nr5i6)" >&2
     return 0
 }
 
 # _legacy_release_guard_rewrite <target> <line> <cr> <quote> <indent> <comment> <raw-line>
-# The safe write (DEC-1081). Returns 0; every failure is one WARN naming it.
+# The safe write (DEC-1081). Prints nothing on success, else the reason for
+# the failure WARN on stdout; returns 0.
 _legacy_release_guard_rewrite() {
     local target="$1" lineno="$2" cr="$3" quote="$4" indent="$5" comment="$6" raw="$7"
     local dir="" tmp="" cur="" q="" sq="'" val="$_LOA_SCAFFOLD_ALLOWLIST_GUARD" newline="" nonl=0 why=""
@@ -188,11 +201,7 @@ _legacy_release_guard_rewrite() {
         if [[ -n "$why" ]]; then rm -f "$tmp" 2>/dev/null || true; fi
     fi
 
-    if [[ -n "$why" ]]; then
-        printf '%s\n' "[scaffold] WARN: LOA_SCAFFOLD_FIX_RELEASE_GUARD=1 but $target could not be rewritten ($why) — left unchanged" >&2
-        return 0
-    fi
-    printf '%s\n' "[scaffold] fixed: $target simple-release if: → allowlist guard (one line changed; bd-nr5i6)" >&2
+    printf '%s' "$why"
     return 0
 }
 
