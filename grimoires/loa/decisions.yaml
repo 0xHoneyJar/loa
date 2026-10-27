@@ -37400,3 +37400,227 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1061"
+    created_at: "2026-10-27T00:44:18Z"
+    updated_at: "2026-10-27T00:44:18Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "cycle-136 scope: exactly the three beads left by cycle-135 (bd-akkgq, bd-9tt4b, bd-gyrgq); guard changes, releases and the cheval retry bead out."
+    decision: "Three FRs plus the ship FR; FR-3 (e) head-side validation softening is deferrable; bd-uqdl8 (carrefour) is a candidate for the next rc-soak batch."
+    rationale: "The operator's instruction names the remaining beads; adding the mailbox item would widen a hygiene cycle into a cheval change with its own review surface."
+    alternatives_considered:
+      - option: "fold bd-uqdl8 in"
+        rejected_because: "different component (cheval), different risk; the instruction was the remaining beads"
+    consequences:
+      positive:
+        - "small, well-grounded cycle"
+      negative:
+        - "the safeguard-retry gap waits one cycle"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e1256ccc"
+    source: "grimoires/loa/prd.md § Scope & Prioritization"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:44:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "grimoires/loa/context/cycle-136-brief.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1062"
+    created_at: "2026-10-27T00:44:22Z"
+    updated_at: "2026-10-27T00:44:22Z"
+    phase: "discovery"
+    category: "process"
+    summary: "Grounding by direct file:line reads of the scaffold, workflow, Bridgebuilder source and the cycle-135 records; no /ride."
+    decision: "Every FR cites the lines it changes; the archived cycle-135 planning docs are the structural template."
+    rationale: "Brownfield reality is three files deep; a /ride over the repository would cost more than the cycle."
+    alternatives_considered:
+      - option: "/ride"
+        rejected_because: "disproportionate"
+    consequences:
+      positive:
+        - "fast, precise"
+      negative:
+        - "no whole-repo drift check this cycle"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e1256ccc"
+    source: "grimoires/loa/prd.md § Appendix B"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:44:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md Appendix B"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1063"
+    created_at: "2026-10-27T00:44:26Z"
+    updated_at: "2026-10-27T00:44:26Z"
+    phase: "discovery"
+    category: "design"
+    summary: "Scaffold on re-mount: warn once when simple-release carries the legacy guard, never overwrite; an opt-in flag rewrites only the if: line."
+    decision: "Detection via yq .jobs.\"simple-release\".if with a line-anchored grep fallback; whitespace-normalised comparison against the legacy text; WARN names the file, the legacy guard, the allowlist text and bd-nr5i6; the flag changes one line and prints a notice; unknown if: text is left alone silently."
+    rationale: "The idempotency branch exists to preserve customizations; a warning respects it, the opt-in flag gives the operator a one-line fix, and refusing unknown text avoids clobbering."
+    alternatives_considered:
+      - option: "auto-rewrite the guard on re-mount"
+        rejected_because: "overwrites a customised workflow without consent"
+      - option: "warn on every re-mount regardless of content"
+        rejected_because: "noise; the check is cheap and specific"
+    consequences:
+      positive:
+        - "signal at mount time; safe"
+      negative:
+        - "multi-line if: blocks are not detected (treated as customised)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e1256ccc"
+    source: "grimoires/loa/prd.md § FR-1"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:44:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-1"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1064"
+    created_at: "2026-10-27T00:44:30Z"
+    updated_at: "2026-10-27T00:44:30Z"
+    phase: "discovery"
+    category: "design"
+    summary: "Base .reviewignore on a shallow checkout: local sha read, then contents API at the base sha, then checkout copy; 404 = none; other failure degrades."
+    decision: "paged-fetch resolves the base copy through getFileContent(owner, repo, \".reviewignore\", pin.base_sha, 1 MiB) only when the local read reports a non-absent failure, parses it with parseReviewignoreLines, and passes the patterns to truncateFiles via a new optional selection-config input that wins over the sha read; the record keeps reviewignore_source: base."
+    rationale: "The envelope, bounds and allowlist exist since cycle-135; a shallow checkout is the default actions/checkout, so the degrade hit every downstream PR review; the API answer is the base branch's own file, so provenance base is truthful."
+    alternatives_considered:
+      - option: "a distinct base_api source value"
+        rejected_because: "same trust level as the git read; a new enum value would ripple through the record, the rendering and the docs for no operator decision"
+      - option: "keep telling operators to fetch the base ref"
+        rejected_because: "a workflow change in every downstream repository for a one-call fix"
+    consequences:
+      positive:
+        - "no degrade on the default checkout; fail-closed paths unchanged"
+      negative:
+        - "one more provider call on shallow checkouts"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e1256ccc"
+    source: "grimoires/loa/prd.md § FR-2"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:44:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-2; DEC-1043, DEC-1056"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1065"
+    created_at: "2026-10-27T00:44:35Z"
+    updated_at: "2026-10-27T00:44:35Z"
+    phase: "discovery"
+    category: "design"
+    summary: "Contract tidy-up: drop the stats suffix now, WARN on a failed content read, plumbing fields into types.ts, FileContentResult re-exported."
+    decision: "(a)–(d) are must; (e) is in scope only if resolveConfig can learn the mode from cliArgs.pr / the GitHub env the way loadTrustedConfig does, else deferred and documented."
+    rationale: "The suffix was kept one release for readers of stats; the structured field has shipped; the WARN uses the module's existing style rather than threading a logger; (e) is a loud failure, not a hiding path, so it must not grow the cycle."
+    alternatives_considered:
+      - option: "keep the suffix another release"
+        rejected_because: "two grammars for one fact"
+      - option: "thread ILogger into paged-fetch"
+        rejected_because: "signature churn across the two-pass fetch for one line"
+    consequences:
+      positive:
+        - "no 'next release' debt left"
+      negative:
+        - "a downstream reader of the stats suffix (none known) must switch to pattern"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e1256ccc"
+    source: "grimoires/loa/prd.md § FR-3"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:44:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1066"
+    created_at: "2026-10-27T00:44:41Z"
+    updated_at: "2026-10-27T00:44:41Z"
+    phase: "discovery"
+    category: "process"
+    summary: "Cycle shape: one sprint (global 280), two implementers (A shell, B TypeScript), one PR, up to 2 Bridgebuilder rounds, record, archive, no release."
+    decision: "A owns the scaffold lib + bats; B owns both Bridgebuilder beads sequentially in one worktree (same files); the lead lands red → fix pairs, runs the gates and ships with the cycle-135 ship scripts."
+    rationale: "Three small beads do not justify three implementers; B's two beads touch the same files and would conflict in parallel."
+    alternatives_considered:
+      - option: "three implementers"
+        rejected_because: "FR-2 and FR-3 overlap in paged-fetch.ts and truncation.ts"
+      - option: "lead implements directly"
+        rejected_because: "the golden path keeps implementation and review in different hands"
+    consequences:
+      positive:
+        - "no merge conflicts; cheap"
+      negative:
+        - "B is on the critical path for two beads"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "e1256ccc"
+    source: "grimoires/loa/prd.md § Timeline & Milestones"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T00:44:41Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md § Timeline"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
