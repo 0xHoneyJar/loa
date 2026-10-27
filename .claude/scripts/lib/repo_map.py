@@ -159,18 +159,19 @@ def build_map(scan_root, project_root):
         dangling = [a for a in nodes if out_weight[a] == 0]
         base = (1.0 - DAMPING) / n
         rank = {node: 1.0 / n for node in nodes}
+        # Edge order is loop-invariant: sort each non-dangling node's edges once,
+        # not on every iteration (same order => same float summation order).
+        sorted_edges = [(a, out_weight[a], sorted(out_edges[a].items()))
+                        for a in nodes if out_weight[a] != 0]
         for _ in range(ITERATIONS):
             dangling_mass = 0.0
             for d in dangling:
                 dangling_mass += rank[d]
             redistributed = DAMPING * dangling_mass / n
             new = {node: base + redistributed for node in nodes}
-            for a in nodes:
-                ow = out_weight[a]
-                if ow == 0:
-                    continue
+            for a, ow, edges in sorted_edges:
                 ra = rank[a]
-                for b, w in sorted(out_edges[a].items()):
+                for b, w in edges:
                     new[b] += DAMPING * ra * w / ow
             rank = new
         scores = {node: round(rank[node], 6) for node in nodes}
