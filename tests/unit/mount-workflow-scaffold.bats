@@ -318,6 +318,14 @@ YAML
     # the legacy if: inside an ordinary run: | body (deeper than the child indent)
     _wf "if: $ALLOWLIST" "$step_ok" | awk -v l="          if: $LEGACY" \
         '{ print } /echo "preparing the release"/ { print l }' > "$GUARDS/neg-runbody.yml"
+    # a plain-scalar continuation: the if: value goes on over the next,
+    # deeper line, so the first line alone is not the guard (review r1)
+    _wf "if: $LEGACY"$'\n'"      && github.ref == 'refs/heads/main'" "$step_ok" > "$GUARDS/neg-continuation.yml"
+    _wf "if: $ALLOWLIST"$'\n'"      # a comment between the lines"$'\n'"      && github.ref == 'refs/heads/main'" "$step_ok" > "$GUARDS/neg-continuation-allowlist.yml"
+    # the actual pre-cycle-135 workflow (git show 4256a1b3:.github/workflows/post-merge.yml)
+    cp "$PROJECT_ROOT/tests/fixtures/mount-workflow-scaffold/post-merge-legacy.yml" "$GUARDS/real-legacy.yml"
+    awk -v a="    if: $ALLOWLIST" -v l="    if: $LEGACY" '$0 == l && !d { print a; d = 1; next } { print }' \
+        "$GUARDS/real-legacy.yml" > "$GUARDS/real-allowlist.yml"
     # two job-level if: lines
     _wf "if: $LEGACY"$'\n'"    if: $LEGACY" "$step_ok" > "$GUARDS/neg-two-ifs.yml"
     # no simple-release job at all
@@ -455,7 +463,8 @@ _negative() {
     chmod 640 "$WF"
     _scaffold LOA_SCAFFOLD_FIX_RELEASE_GUARD=1
     [ "$status" -eq 0 ]
-    [ "$output" = "$(_warn_legacy "$WF")"$'\n'"$(_notice_fixed "$WF")" ] || { echo "got: $output"; return 1; }
+    # a successful fix prints only the notice (review r1)
+    [ "$output" = "$(_notice_fixed "$WF")" ] || { echo "got: $output"; return 1; }
     run diff "$GUARDS/legacy.yml" "$WF"
     [ "$(printf '%s\n' "$output" | grep -c '^<')" -eq 1 ]
     [ "$(printf '%s\n' "$output" | grep -c '^>')" -eq 1 ]
@@ -515,7 +524,7 @@ _negative() {
     cmp "$GUARDS/legacy-4sp.yml" "$WF"
     _scaffold LOA_SCAFFOLD_FIX_RELEASE_GUARD=1
     [ "$status" -eq 0 ]
-    [ "$output" = "$(_warn_legacy "$WF")"$'\n'"$(_notice_fixed "$WF")" ]
+    [ "$output" = "$(_notice_fixed "$WF")" ] || { echo "got: $output"; return 1; }
     cmp "$GUARDS/allowlist-4sp.yml" "$WF"
 }
 
@@ -553,7 +562,7 @@ _negative() {
     cmp "$GUARDS/legacy-crlf.yml" "$WF"
     _scaffold LOA_SCAFFOLD_FIX_RELEASE_GUARD=1
     [ "$status" -eq 0 ]
-    [ "$output" = "$(_warn_legacy "$WF")"$'\n'"$(_notice_fixed "$WF")" ]
+    [ "$output" = "$(_notice_fixed "$WF")" ] || { echo "got: $output"; return 1; }
     cmp "$GUARDS/allowlist-crlf.yml" "$WF"
     _scaffold LOA_SCAFFOLD_FIX_RELEASE_GUARD=1
     [ -z "$output" ]
@@ -567,6 +576,7 @@ _negative() {
     cmp "$GUARDS/legacy-comment.yml" "$WF"
     _scaffold LOA_SCAFFOLD_FIX_RELEASE_GUARD=1
     [ "$status" -eq 0 ]
+    [ "$output" = "$(_notice_fixed "$WF")" ] || { echo "got: $output"; return 1; }
     cmp "$GUARDS/allowlist-comment.yml" "$WF"
     _negative allowlist-comment.yml silent
 }
@@ -581,6 +591,7 @@ _negative() {
         cmp "$GUARDS/legacy-$q.yml" "$WF"
         _scaffold LOA_SCAFFOLD_FIX_RELEASE_GUARD=1
         [ "$status" -eq 0 ]
+        [ "$output" = "$(_notice_fixed "$WF")" ] || { echo "$q got: $output"; return 1; }
         cmp "$GUARDS/allowlist-$q.yml" "$WF"
         _negative "allowlist-$q.yml" silent
     done
@@ -590,6 +601,7 @@ _negative() {
     _install legacy-nonl.yml
     _scaffold LOA_SCAFFOLD_FIX_RELEASE_GUARD=1
     [ "$status" -eq 0 ]
+    [ "$output" = "$(_notice_fixed "$WF")" ] || { echo "got: $output"; return 1; }
     cmp "$GUARDS/allowlist-nonl.yml" "$WF"
 }
 
@@ -621,4 +633,33 @@ _negative() {
     grep -qF "LOA_SCAFFOLD_FIX_RELEASE_GUARD" "$LIB"
     grep -qF "bd-akkgq" "$LIB"
     ! grep -nE "sed -i |readlink -f|grep -P |-printf|^[[:space:]]*g?timeout [0-9]" "$LIB"
+}
+
+@test "MWS-T36: a plain-scalar continuation after the legacy if: → not the guard: silent, byte-identical; with the flag → refuse" {
+    _negative neg-continuation.yml refuse
+}
+
+@test "MWS-T37: a continuation after the allowlist if: (a comment in between) is not the single-line guard either" {
+    _negative neg-continuation-allowlist.yml refuse
+}
+
+@test "MWS-T38: the real pre-cycle-135 workflow (4256a1b3) → WARN, byte-identical; with the flag → one line changed, only the notice, result equals the allowlist swap" {
+    grep -qxF "    if: $LEGACY" "$GUARDS/real-legacy.yml"
+    run diff "$GUARDS/real-legacy.yml" "$GUARDS/real-allowlist.yml"
+    [ "$(printf '%s\n' "$output" | grep -c '^[<>]')" -eq 2 ]
+    _install real-legacy.yml
+    _scaffold
+    [ "$status" -eq 0 ]
+    [ "$output" = "$(_warn_legacy "$WF")" ] || { echo "got: $output"; return 1; }
+    cmp "$GUARDS/real-legacy.yml" "$WF"
+    _scaffold LOA_SCAFFOLD_FIX_RELEASE_GUARD=1
+    [ "$status" -eq 0 ]
+    [ "$output" = "$(_notice_fixed "$WF")" ] || { echo "got: $output"; return 1; }
+    run diff "$GUARDS/real-legacy.yml" "$WF"
+    [ "$(printf '%s\n' "$output" | grep -c '^<')" -eq 1 ]
+    [ "$(printf '%s\n' "$output" | grep -c '^>')" -eq 1 ]
+    cmp "$GUARDS/real-allowlist.yml" "$WF"
+    _scaffold LOA_SCAFFOLD_FIX_RELEASE_GUARD=1
+    [ "$status" -eq 0 ]
+    [ -z "$output" ]
 }
