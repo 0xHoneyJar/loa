@@ -309,10 +309,23 @@ def main():
     ap.add_argument("--root", required=True, help="project root")
     ap.add_argument("--scan", default=".claude", help="subdir under root to map")
     ap.add_argument("--emit", choices=["json", "md"], default="json")
+    # --out-md / --out-json: build the map ONCE and write both renderings to the
+    # given paths (stdout stays empty). Lets repo-map-gen.sh's write mode avoid a
+    # second full scan; --emit md|json behaviour is unchanged when neither is set.
+    ap.add_argument("--out-md", help="write the markdown rendering to this path")
+    ap.add_argument("--out-json", help="write the JSON rendering to this path")
     args = ap.parse_args()
 
     scan_root = os.path.join(args.root, args.scan)
     data = build_map(scan_root, args.root)
+    if args.out_md or args.out_json:
+        if args.out_md:
+            with open(args.out_md, "w", encoding="utf-8", errors="surrogateescape", newline="\n") as fh:
+                fh.write(emit_md(data, args.scan))
+        if args.out_json:
+            with open(args.out_json, "w", encoding="utf-8", errors="surrogateescape", newline="\n") as fh:
+                fh.write(emit_json(data) + "\n")
+        return
     if args.emit == "json":
         sys.stdout.write(emit_json(data) + "\n")
     else:
