@@ -2076,7 +2076,8 @@ describe("trusted-config precedence for the review-scope keys (review round 1, H
 // cycle-136 FR-5 (sdd.md § 5.6, DEC-1084, Task 1.3b): on a pull request an invalid HEAD value of a review-scope key no
 // longer fails the head's own review — resolveConfig WARNs, leaves the key unset and records it in
 // provenance.deferredScopeKeys; applyTrustedReviewScope installs the trusted value (or the default) and clears the list.
-describe("head-side scope validation deferral on a pull request (cycle-136 FR-5)", () => {
+// (review round 1: { concurrency: 1 } — the cases swap process.stderr.write, so they must never interleave)
+describe("head-side scope validation deferral on a pull request (cycle-136 FR-5)", { concurrency: 1 }, () => {
   const TRUSTED =
     "bridgebuilder:\n  protected_paths:\n    - /.github/**\n  exclude_patterns:\n    - vendor/**\n  max_content_fetches: 3\n";
   const HEAD_TEXT = "bridgebuilder:\n  max_prs: 1\n";
@@ -2101,8 +2102,11 @@ describe("head-side scope validation deferral on a pull request (cycle-136 FR-5)
   async function capturedAsync<T>(fn: () => Promise<T>): Promise<{ value: T; err: string }> {
     const original = process.stderr.write;
     let err = "";
-    (process.stderr as unknown as { write: (c: unknown) => boolean }).write = (c: unknown) => {
+    // (review round 1: the stand-in keeps write()'s contract — an `encoding` or callback argument is honoured)
+    (process.stderr as unknown as { write: (c: unknown, e?: unknown, cb?: unknown) => boolean }).write = (c, e, cb) => {
       err += String(c);
+      const done = typeof e === "function" ? e : cb;
+      if (typeof done === "function") process.nextTick(done as () => void);
       return true;
     };
     try {

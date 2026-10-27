@@ -308,12 +308,16 @@ describe("content fetch for patch-less added files (C-3)", () => {
 
 // cycle-136 C-3 (FR-3 (c), sdd.md § 4, bd-gyrgq): a failed content read is no longer silent — one bounded WARN per file
 // per attempt for the outcomes error / too_large / binary (budget, skipped_cap, deadline and aborted are not failed reads).
-describe("failed content read WARN (cycle-136 C-3, bd-gyrgq)", () => {
+// (review round 1: { concurrency: 1 } — the cases swap process.stderr.write, so they must never interleave)
+describe("failed content read WARN (cycle-136 C-3, bd-gyrgq)", { concurrency: 1 }, () => {
   async function captured<T>(fn: () => Promise<T>): Promise<{ value: T; warns: string[]; err: string }> {
     const original = process.stderr.write;
     let err = "";
-    (process.stderr as unknown as { write: (c: unknown) => boolean }).write = (c: unknown) => {
+    // (review round 1: the stand-in keeps write()'s contract — an `encoding` or callback argument is honoured)
+    (process.stderr as unknown as { write: (c: unknown, e?: unknown, cb?: unknown) => boolean }).write = (c, e, cb) => {
       err += String(c);
+      const done = typeof e === "function" ? e : cb;
+      if (typeof done === "function") process.nextTick(done as () => void);
       return true;
     };
     try {
@@ -358,6 +362,29 @@ describe("failed content read WARN (cycle-136 C-3, bd-gyrgq)", () => {
     const stop = provider({ files: [added("src/one.ts"), added("src/two.ts")], serve: () => new GitProviderError("RATE_LIMITED", "rate limited") });
     const aborted = await captured(() => fetchPRFilesTwoPass(stop.git, "o", "r", 7, SEL));
     assert.deepEqual(aborted.warns, [`[bridgebuilder] WARN: content read of "src/one.ts" failed: error (no_patch)`], "the aborted rest stay silent");
+  });
+
+  // review round 1 (MEDIUM): `deadline` is not a failed read either (the injected-clock harness of the deadline case above)
+  it("deadline outcomes write no WARN", async () => {
+    const files = [added("src/a.ts"), added("src/b.ts"), added("src/c.ts")];
+    const p = provider({ files, serve: (_p, _r, max) => text("x\n")(max) });
+    const times = [1_000, 60_000, 121_000];
+    let i = 0;
+    const now = () => times[Math.min(i++, times.length - 1)];
+    const { value: res, warns } = await captured(() =>
+      (fetchPRFilesTwoPass as (...a: unknown[]) => ReturnType<typeof fetchPRFilesTwoPass>)(p.git, "o", "r", 7, SEL, { now }));
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/c.ts", reason: "no_patch", reviewable: true, fetch: "deadline" }]);
+    assert.deepEqual(warns, []);
+  });
+
+  // review round 1 (MEDIUM; B's judgment call 9): an empty `text` answer for a file listed with additions > 0 is the
+  // outcome `error` — a failed read, so it WARNs like any other
+  it("an empty text answer with additions > 0 is error and writes one WARN", async () => {
+    const p = provider({ files: [added("src/empty.ts", 3)], serve: () => ({ kind: "text", content: "", bytes: 0 }) });
+    const { value: res, warns } = await captured(() => fetchPRFilesTwoPass(p.git, "o", "r", 7, SEL));
+    assert.deepEqual(res.coverage.omitted, [{ file: "src/empty.ts", reason: "no_patch", reviewable: true, fetch: "error" }]);
+    assert.deepEqual(warns, [`[bridgebuilder] WARN: content read of "src/empty.ts" failed: error (no_patch)`]);
+    assert.equal(p.contentCalls.length, 1);
   });
 
   it("a restarted attempt writes the WARN again (once per file per attempt)", async () => {

@@ -102,8 +102,11 @@ const sel = () => ({
 async function captured<T>(fn: () => Promise<T>): Promise<{ value: T; err: string }> {
   const original = process.stderr.write;
   let err = "";
-  (process.stderr as unknown as { write: (c: unknown) => boolean }).write = (c: unknown) => {
+  // (review round 1: the stand-in keeps write()'s contract — an `encoding` or callback argument is honoured)
+  (process.stderr as unknown as { write: (c: unknown, e?: unknown, cb?: unknown) => boolean }).write = (c, e, cb) => {
     err += String(c);
+    const done = typeof e === "function" ? e : cb;
+    if (typeof done === "function") process.nextTick(done as () => void);
     return true;
   };
   try {
@@ -136,7 +139,8 @@ function assertBaseUnavailable(r: Awaited<ReturnType<typeof run>>, label: string
   assert.equal(r.infos.length, 0, label);
 }
 
-describe("base .reviewignore through the contents API (cycle-136 C-2, bd-9tt4b)", () => {
+// (review round 1: { concurrency: 1 } — the cases swap process.stderr.write, so they must never interleave)
+describe("base .reviewignore through the contents API (cycle-136 C-2, bd-9tt4b)", { concurrency: 1 }, () => {
   it("unknown_commit + the API serves the file → base, the base patterns apply, not degraded, one call, one INFO line", async () => {
     const r = await run({ reviewignore: text("secret/**\n") });
     assert.equal(r.res.coverage.reviewignore_source, "base");
