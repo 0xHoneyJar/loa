@@ -25,6 +25,7 @@ import {
   singleModelLocalityRefusal,
   headDriftRefusal,
   applyTrustedReviewScope,
+  assertNoDeferredScopeKeys,
   EXIT_TRUSTED_CONFIG_DRIFT,
 } from "./config.js";
 import { summarizeVoices, totalVoices, decideExitCode, degradedWarnLine, type VoiceOutcome } from "./core/run-outcome.js";
@@ -451,6 +452,9 @@ export async function main(): Promise<void> {
     BRIDGEBUILDER_REPOS: process.env.BRIDGEBUILDER_REPOS,
     BRIDGEBUILDER_MODEL: process.env.BRIDGEBUILDER_MODEL,
     BRIDGEBUILDER_DRY_RUN: process.env.BRIDGEBUILDER_DRY_RUN,
+    // cycle-136 FR-5 (DEC-1084): the pull-request signals resolveConfig needs to defer an invalid head scope key
+    GITHUB_EVENT_NAME: process.env.GITHUB_EVENT_NAME,
+    GITHUB_BASE_REF: process.env.GITHUB_BASE_REF,
   });
 
   // Validate --pr + repos combination
@@ -479,7 +483,9 @@ export async function main(): Promise<void> {
   // sprint-279 review round 1 (HIGH 3, bd-i4fyw): on a pull request the review-scope keys (protected_paths,
   // exclude_patterns, fetch_missing_patches, max_content_fetches) follow the trusted source too — a PR head cannot
   // widen or disable its own review; a differing head value is replaced with one WARN per key (not a refusal).
-  applyTrustedReviewScope(config, trusted, cliArgs);
+  applyTrustedReviewScope(config, trusted, cliArgs, provenance);
+  // cycle-136 FR-5 (DEC-1084): a head scope key resolveConfig deferred must have been replaced by now — else refuse
+  assertNoDeferredScopeKeys(provenance);
   console.error(trustedConfigStartupLine(trusted));
   for (const line of trusted.warnings) console.error(line);
   // audit a257-1 MEDIUM-A2: cheval (every voice's transport) reads the CHECKOUT's configuration, so on a pull request a
