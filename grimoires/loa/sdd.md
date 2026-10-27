@@ -1,10 +1,10 @@
 # Software Design Document: Bridgebuilder and scaffold follow-ups (cycle-136)
 
-**Version:** 1.0
+**Version:** 1.1
 **Date:** 2026-10-27
 **Author:** Software Architect Agent (Claude Fable 5.1, unattended)
-**Status:** Draft 1.0 — autonomous run; design-level decisions taken on the operator's behalf are § 11.D D-1.1 … D-1.6 (proposed rows, confirm at the cycle close)
-**PRD:** `grimoires/loa/prd.md` 1.0 (FR-1 … FR-4)
+**Status:** Draft 1.1 — autonomous run; design-level decisions taken on the operator's behalf are § 11.D D-1.1 … D-1.6 (DEC-1067 … DEC-1072) and the Flatline-driven PRD 1.1 rows DEC-1073 … DEC-1077 (proposed rows, confirm at the cycle close)
+**PRD:** `grimoires/loa/prd.md` 1.1 (FR-1 … FR-5)
 **Cycle:** `cycle-136-bridgebuilder-followups`; **branch:** `feature/cycle-136-bridgebuilder-followups`
 
 ---
@@ -102,12 +102,19 @@ Unchanged signature and return (always 0). New behaviour in the existing-file br
 
 ```
 legacy_release_guard_check(target):
-  guard = yq '.jobs."simple-release".if' target        # when `command -v yq`
-        | fallback: the first `if:` line after the `simple-release:` job key (awk, job-scoped)
-  norm  = collapse whitespace, strip quotes/pipes
-  if norm == LEGACY  → WARN (above); if LOA_SCAFFOLD_FIX_RELEASE_GUARD=1 → rewrite exactly that `if:` line (sed on the matched line number), print "fixed"
+  # 1. locate the simple-release job block: from the line matching /^<J>simple-release:/ (J = the jobs' key indentation,
+  #    read from the file) to the next line matching /^<J>[A-Za-z_-]+:/ (the next job) or EOF
+  # 2. inside the block, candidate lines are /^<J+2>if:/ exactly at the job-key child indentation (step-level `if:` lines
+  #    are deeper; comments start with #; a value of `|` or `>` is multi-line)
+  # 3. exactly one candidate with a single-line value → guard; zero, two or more, or multi-line → "not a single job-level if:" → silent
+  #    (with the flag set: the "left unchanged" WARN)
+  # yq path (mikefarah v4 only, `yq --version` matched): `.jobs."simple-release".if`; a multi-line result is treated like step 3's
+  # refusal; the yq and awk paths must give the same verdict on every fixture (tests run both)
+  norm  = collapse whitespace, strip surrounding quotes
+  if norm == LEGACY  → WARN (above); if LOA_SCAFFOLD_FIX_RELEASE_GUARD=1 → rewrite exactly that physical line (sed on its line number), print "fixed"
   elif norm == ALLOWLIST → silent
   else → silent (customised; with the flag set → the "left unchanged" WARN)
+  return 0 in every branch (both callers run under set -e — DEC-1077)
 ```
 
 `LEGACY = needs.classify.outputs.pr_type != 'cycle' && needs.classify.outputs.pr_number != ''`; `ALLOWLIST = (needs.classify.outputs.pr_type == 'bugfix' || needs.classify.outputs.pr_type == 'other') && needs.classify.outputs.pr_number != ''`. Multi-line `if: |` blocks are read as customised (D-1.1). The flag is an environment variable rather than a positional argument so both callers surface it without signature changes (D-1.2).
@@ -115,12 +122,14 @@ legacy_release_guard_check(target):
 ### 5.2 `resolveBaseReviewignore(git, owner, repo, baseSha, repoRoot)` (C-2, `paged-fetch.ts`)
 
 ```ts
+type BaseRead = { ok: true; patterns: string[] } | { ok: false; why: "absent" | "unknown_commit" | "other"; detail: string };
 type BaseReviewignore = { patterns: string[]; source: "base" | "none" } | undefined;
-async function resolveBaseReviewignore(git: PagedContentGit, owner, repo, baseSha, repoRoot): Promise<BaseReviewignore>
+async function resolveBaseReviewignore(git: PagedContentGit, owner, repo, baseSha, repoRoot, cache: Map<string, BaseReviewignore>): Promise<BaseReviewignore>
 ```
-1. `readBaseReviewignore(repoRoot, baseSha)` (exported from `truncation.ts`; today's git read, never throws): `ok` → `{patterns, source: "base"}`; `absent` → `{patterns: [], source: "none"}`.
-2. Otherwise, when `typeof git.getFileContent === "function"`: `await git.getFileContent(owner, repo, ".reviewignore", baseSha, REVIEWIGNORE_MAX_BYTES)`; `kind: "text"` → `{patterns: parseReviewignoreLines(content), source: "base"}` plus the info WARN; a `GitProviderError` with `httpStatus === 404` (or the adapter's not-found code) → `{patterns: [], source: "none"}`; any other result or error → `undefined`.
+1. `readBaseReviewignore(repoRoot, baseSha)` (exported from `truncation.ts`; never throws) now classifies its failure: `absent` (empty `ls-tree` output at a commit the clone holds), `unknown_commit` (`ls-tree` fails on the object — "Not a valid object name" / "bad object"), `other` (mode not a blob, oversize, git error). `ok` → `{patterns, source: "base"}`; `absent` → `{patterns: [], source: "none"}`; `other` → `undefined`.
+2. Only `unknown_commit`, and only when `typeof git.getFileContent === "function"`: `await git.getFileContent(owner, repo, ".reviewignore", baseSha, REVIEWIGNORE_MAX_BYTES)` against the run's target `owner/repo` (the PR's base repository; never a fork's). `kind: "text"` → `{patterns: parseReviewignoreLines(content), source: "base"}` plus the notice line; a `GitProviderError` with `httpStatus === 404` → `{patterns: [], source: "none"}` (the base sha came from `pulls/N` on this provider in this attempt, so the commit exists and the path is absent); any other result or error → `undefined`.
 3. `undefined` leaves today's path: `truncateFiles` performs its own read and reports `base_unavailable` (checkout copy, degrade).
+4. The result is cached in `attempt`'s caller keyed by `baseSha` for the run, so a restarted attempt with the same base sha makes no second call; a base move (new sha) resolves again. The read is outside the `max_content_fetches` cap and the `fetch_missing_patches` switch (they govern listed files).
 
 ### 5.3 `SelectionConfig` and `TruncationResult` (C-3, `core/types.ts`)
 
@@ -142,8 +151,8 @@ Adds `FileContentResult` to the `./git-provider.js` type export block.
 ### 5.5 Stats suffix removal
 `patternSuffix` / `PATTERN_SUFFIX` / `exclusionPattern` deleted; every exclusion entry already carries `pattern`; `paged-fetch.ts` reads `ex.pattern` only; the posted stats lose the ` [pattern: <p>]` tail. `resources/exclusions-and-coverage.md` and the CHANGELOG state the removal.
 
-### 5.6 Head-side scope validation in pull-request mode (C-3 e)
-`resolveConfig(cliArgs, env, yaml)` already receives `env`; it computes `const pr = isPullRequestContext(cliArgs.pr, env)`. For the three validated scope keys (`protected_paths`, `max_content_fetches`, and the `exclude_patterns` list shape), a validation error in PR mode is caught, written as the WARN in § 4, and the key is left unset (the default; `applyTrustedReviewScope` then applies the trusted value). Local mode throws as today.
+### 5.6 Head-side scope validation in pull-request mode (FR-5, Could Have)
+`resolveConfig(cliArgs, env, yaml)` already receives `env`; it computes `const pr = isPullRequestContext(cliArgs.pr, env)`. For the three validated scope keys (`protected_paths`, `max_content_fetches`, and the `exclude_patterns` list shape), a validation error in PR mode is caught, written as the WARN in § 4, and the key is left *unset* — never the invalid value. Fail-closed composition: `applyTrustedReviewScope` then installs the trusted source's validated value, or (no source, DEC-1055) the default; an invalid *trusted* value stays a config error. Local mode throws as today. Tests cover each key under `--pr`, `GITHUB_EVENT_NAME=pull_request` and `GITHUB_BASE_REF` detection, the no-source default path, the invalid-trusted error and the three local throws (DEC-1075).
 
 ### 5.7 Configuration
 No new `.loa.config.yaml` keys. One new environment variable for the mount scripts: `LOA_SCAFFOLD_FIX_RELEASE_GUARD=1`.
@@ -152,8 +161,11 @@ No new `.loa.config.yaml` keys. One new environment variable for the mount scrip
 
 | Situation | Behaviour |
 |---|---|
-| `yq` absent | awk fallback; same detection for single-line `if:` |
-| `if:` unparseable / multi-line | treated as customised: silent; with the flag, the "left unchanged" WARN |
+| `yq` absent or not mikefarah v4 | awk fallback; same verdict on every fixture |
+| `if:` unparseable / multi-line / zero or several job-level candidates | treated as customised: silent; with the flag, the "left unchanged" WARN |
+| legacy text on a step-level `if:`, in another job or in a comment | never matched (job-scoped, indentation-anchored) |
+| base `.reviewignore`: local read `unknown_commit` | contents API (one call per base sha per run) |
+| base `.reviewignore`: local read `other` (symlink, oversize, git error) | today's `base_unavailable` + degrade, no API call |
 | contents API 404 for `.reviewignore` at the base | `none` (no patterns; the PR's own copy is not applied) |
 | contents API rate-limit / auth / malformed / too_large / binary | fall through to today's `base_unavailable` + degrade (fail closed) |
 | provider without `getFileContent` | today's behaviour |
@@ -162,9 +174,9 @@ No new `.loa.config.yaml` keys. One new environment variable for the mount scrip
 
 ## 7. Testing Strategy
 
-- **C-1 bats** (`mount-workflow-scaffold.bats` MWS-T13 …): legacy file → WARN + byte-identical; allowlist → silent; customised `if:` → silent; flag + legacy → one changed line, notice, idempotent second run; flag + customised → refuse WARN, unchanged; no `yq` on PATH (PATH scrubbed) → same detection; existing MWS-T1 … T12 unchanged.
-- **C-2** (`paged-fetch-reviewignore.test.ts`, fixture adapter): base commit absent + API text → `reviewignore_source: "base"`, base patterns applied, `degraded: false`, exactly one `.reviewignore` contents call at `pin.base_sha`; + 404 → `none`, no patterns, not degraded; + RATE_LIMITED / malformed / too_large / binary → `base_unavailable`, checkout patterns, `reviewignore_unavailable`; base commit present → zero API calls; provider without `getFileContent` → today's behaviour.
-- **C-3**: `tsc` clean; no intersection casts (grep pin in a test); `FileContentResult` imported from `../ports/index.js`; coverage fixtures use `pattern`; a literal ` [pattern: x]` in stats is plain text; failed read → one WARN; PR-mode invalid head `protected_paths` → WARN + trusted value, local → throws.
+- **C-1 bats** (`mount-workflow-scaffold.bats` MWS-T13 …): legacy file → WARN + byte-identical; allowlist → silent; customised `if:` → silent; flag + legacy → one changed line, notice, idempotent second run; flag + customised → refuse WARN, unchanged, exit 0; negative fixtures byte-identical with and without the flag — step-level `if:` with the legacy text, a second job carrying it, the text in a comment, a multi-line `if: |` block; every fixture run twice: with mikefarah `yq` v4 on PATH and with PATH scrubbed (plus a python-yq banner stub → fallback); existing MWS-T1 … T12 unchanged.
+- **C-2** (`paged-fetch-reviewignore.test.ts`, fixture adapter): `unknown_commit` + API text → `reviewignore_source: "base"`, base patterns applied, `degraded: false`, exactly one `.reviewignore` contents call at `pin.base_sha` against the target `owner/repo`, one notice line; + 404 → `none`, no patterns, not degraded; + RATE_LIMITED / FORBIDDEN / 401 / malformed / too_large / binary / size mismatch → `base_unavailable`, checkout patterns, `reviewignore_unavailable` (per case); `ok` / `absent` locally → zero API calls; `other` locally → `base_unavailable`, zero calls; provider without `getFileContent` → today's behaviour; local mode → no call; restarted attempt, same base → no second call; base move → one new call; content at the bound / one over / empty; `max_content_fetches: 0` and `fetch_missing_patches: false` do not affect it.
+- **C-3**: `tsc` clean; no intersection casts (grep pin in a test); `FileContentResult` imported from `../ports/index.js`; coverage fixtures use `pattern`; a literal ` [pattern: x]` in stats is plain text; a repository-wide `[pattern:` search is clean outside CHANGELOG / archive / a2a / the plain-text fixtures; failed read → one WARN. **FR-5**: per key, PR mode (three detection routes) + valid trusted → WARN + trusted value; PR mode + no source → default; invalid trusted → error; local → throws.
 - Red-first for every behaviour: each implementer delivers a test patch (red) and a fix patch (green); the lead reproduces red → green on the landed shas (`red-green-npm.sh`, `red-test-check.sh` for bats).
 - Suites: `npm test`, the scaffold + pipeline bats files, `tools/check-prompt-budget.sh`, the CI mirror from the landed head before the PR.
 
@@ -209,4 +221,4 @@ No new `.loa.config.yaml` keys. One new environment variable for the mount scrip
 `.claude/scripts/lib/scaffold-post-merge-workflow.sh` (whole), `.claude/scripts/mount-loa.sh:703`, `.claude/scripts/mount-submodule.sh:308`, `.github/workflows/post-merge.yml:106-114, 190-192`, `tests/unit/mount-workflow-scaffold.bats` (MWS-T1 … T12); `resources/core/paged-fetch.ts:34-71, 305-375, 463-470, 495`, `resources/core/truncation.ts:394-470, 540-600, 1393-1414, 1461, 1613`, `resources/core/types.ts:328`, `resources/ports/index.ts`, `resources/ports/git-provider.ts`, `resources/adapters/github-cli.ts` (`getFileContent`, `gh()` error mapping), `resources/config.ts:634-640, 1544-1560` (`isPullRequestContext`, `resolveConfig`), `__tests__/paged-fetch-coverage.test.ts:67-91`.
 
 ### 11.F Flatline SDD review dispositions
-Pending the review.
+Pending the review. (PRD 1.1's Flatline items that changed this design: SKP-001/002 → § 5.1 job-scoped exactly-one rule, DEC-1073; gpt IMP-005…008, opus IMP-001/003 → § 5.2 typed outcomes, 404 reasoning, per-base-sha cache, DEC-1074; SKP-007 → § 5.6 fail-closed composition, DEC-1075; gpt IMP-004 / opus IMP-005 → return 0 on refusal, DEC-1077.)

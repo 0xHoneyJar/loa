@@ -37848,3 +37848,187 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1073"
+    created_at: "2026-10-27T01:00:45Z"
+    updated_at: "2026-10-27T01:00:45Z"
+    phase: "discovery"
+    category: "design"
+    summary: "Scaffold detection/rewrite scoped to the simple-release job block: exactly one single-line job-level if:, else refuse; same verdict with and without yq."
+    decision: "awk range from the simple-release: key to the next same-indentation key; step-level if:, other jobs, comments and multi-line values never match; yq v4 (mikefarah) is used only when yq --version names it."
+    rationale: "A line-anchored grep could rewrite a step's if: or another job's copy in a downstream operator's CI; the blockers were right that the fixtures would not have caught it."
+    alternatives_considered:
+      - option: "line-anchored grep for any if:"
+        rejected_because: "can change the wrong line"
+      - option: "require yq"
+        rejected_because: "not every mount host has it; the fallback must give the same verdict"
+    consequences:
+      positive:
+        - "one unambiguous target or nothing"
+      negative:
+        - "a reformatted legacy guard is reported as customised"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3f93dc45"
+    source: "grimoires/loa/prd.md § FR-1; Appendix C (SKP-001, SKP-002)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:00:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-1 1.1"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1074"
+    created_at: "2026-10-27T01:00:49Z"
+    updated_at: "2026-10-27T01:00:49Z"
+    phase: "discovery"
+    category: "design"
+    summary: "Base .reviewignore: typed local outcomes; only unknown_commit calls the contents API; 404 at the pinned base sha = none; one resolution per base sha per run."
+    decision: "The call targets the PR's base repository (the run's owner/repo, never a fork) at pin.base_sha, is cached across restarted attempts until the base sha changes, does not count against max_content_fetches and is not governed by fetch_missing_patches."
+    rationale: "The base sha was read from pulls/N on the same provider in the same attempt, so a 404 can only mean the path is absent; the other failure classes must keep the fail-closed degrade; one call per run bounds the cost."
+    alternatives_considered:
+      - option: "call the API whenever the local read fails for any reason"
+        rejected_because: "a symlink or oversize at a known base would be masked by an API read"
+      - option: "treat 404 as base_unavailable"
+        rejected_because: "every PR against a base without .reviewignore would degrade on shallow checkouts"
+    consequences:
+      positive:
+        - "precise trigger; fail-closed paths untouched"
+      negative:
+        - "a provider that mislabels an unknown ref as 404 would read none (the pin makes this unreachable)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3f93dc45"
+    source: "grimoires/loa/prd.md § FR-2; Appendix C (gpt IMP-005/006/007/008, opus IMP-001/003)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:00:49Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-2 1.1"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1075"
+    created_at: "2026-10-27T01:00:53Z"
+    updated_at: "2026-10-27T01:00:53Z"
+    phase: "discovery"
+    category: "security"
+    summary: "Head-side scope validation is FR-5 (Could Have), fail closed: in PR mode the key is left unset so the trusted value or default governs; bad trusted = error."
+    decision: "bd-gyrgq closes on (a)–(d); FR-5 ships if it lands in the sprint, else is deferred without blocking."
+    rationale: "The blocker was right that a downgrade must never install the head's invalid value or depend on an unvalidated replacement; DEC-1055 already makes the no-source case fall to defaults."
+    alternatives_considered:
+      - option: "keep (e) inside bd-gyrgq"
+        rejected_because: "a Could Have inside a Should Have bead muddles the close criteria"
+    consequences:
+      positive:
+        - "explicit, testable, fail closed"
+      negative:
+        - "one more FR"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3f93dc45"
+    source: "grimoires/loa/prd.md § FR-5; Appendix C (SKP-007, opus IMP-002/009, gpt IMP-010)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:00:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-5 1.1"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1076"
+    created_at: "2026-10-27T01:00:56Z"
+    updated_at: "2026-10-27T01:00:56Z"
+    phase: "discovery"
+    category: "process"
+    summary: "Ship gates bind to the exact final PR head sha: every check run completed, the six required checks success, skipped only for path-filtered jobs."
+    decision: "Bridgebuilder verdict on the final head when the two-round budget allows; otherwise the post-round fixes land red-first, are lead-read and the PR records that the final head was not re-reviewed (DEC-1060 shape); merge-triggered runs on main are monitored, not a gate."
+    rationale: "cycle-135 practised this; the PRD now states it so the ship script's checks are the requirement, not a habit."
+    alternatives_considered:
+      - option: "require a Bridgebuilder round on every head"
+        rejected_because: "unbounded spend for lead-verified one-line fixes"
+    consequences:
+      positive:
+        - "the gate is a statement about one sha"
+      negative:
+        - "the last fixes may lack a third voice (documented)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3f93dc45"
+    source: "grimoires/loa/prd.md § FR-4; Appendix C (SKP-010, gpt IMP-012, opus IMP-016)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:00:56Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-4 1.1; ship-1-merge.sh"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1077"
+    created_at: "2026-10-27T01:01:00Z"
+    updated_at: "2026-10-27T01:01:00Z"
+    phase: "discovery"
+    category: "design"
+    summary: "The scaffold's refusal (flag set, text not recognised) is a WARN with return 0 — both mount callers run under set -e."
+    decision: "scaffold_post_merge_workflow keeps returning 0 in every branch; the WARN names the file and the reason; the fix mode prints a one-line notice on success."
+    rationale: "mount-loa.sh and mount-submodule.sh treat the scaffold as best-effort; making the opt-in refusal fatal would turn a warning into a failed mount."
+    alternatives_considered:
+      - option: "return 2 on refusal"
+        rejected_because: "aborts the mount under set -e"
+    consequences:
+      positive:
+        - "no caller change; the signal is the WARN"
+      negative:
+        - "a scripted caller cannot branch on the refusal (it can grep the WARN)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "plan-and-analyze/04024019-85f8-4865-8f13-7dea678336e6"
+    commit: "3f93dc45"
+    source: "grimoires/loa/prd.md § FR-1; Appendix C (gpt IMP-004, opus IMP-005)"
+    cycle: "cycle-136-bridgebuilder-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-27T01:01:00Z"
+        from: null
+        to: "proposed"
+        by: "agent:plan-and-analyze"
+        evidence: "prd.md FR-1 1.1; mount-loa.sh:703, mount-submodule.sh:308"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
