@@ -100,6 +100,7 @@ def build_map(scan_root, project_root):
     token_counts = {}   # rel -> {token: count}
     defs = {}           # name -> list of (rel, lineno, kind)
     def_files = {}      # name -> set of rel
+    file_defs = {}      # rel -> set of names defined there (inverse of def_files)
     skipped = []        # rel of files that failed python parse
 
     for rel, ab in files:
@@ -127,6 +128,7 @@ def build_map(scan_root, project_root):
                 continue
             defs.setdefault(name, []).append((rel, lineno, kind))
             def_files.setdefault(name, set()).add(rel)
+            file_defs.setdefault(rel, set()).add(name)
 
     for name in defs:
         defs[name].sort(key=lambda t: (t[0], t[1]))
@@ -144,36 +146,45 @@ def build_map(scan_root, project_root):
                 refs[name] = c
         if not refs:
             continue
-        defs_in_f = [d for d in known_names if rel in def_files[d]]
+        defs_in_f = file_defs.get(rel, ())  # prebuilt inverse index, not an O(names) scan per file
         for a in defs_in_f:
             ea = out_edges[a]
             for b, w in refs.items():
                 ea[b] = ea.get(b, 0) + w
 
     # PageRank -- sorted-list iteration, dangling-mass redistribution, fixed count.
+    # Nodes are addressed by their index in the sorted node list (list indexing,
+    # not str-keyed dict lookups, in the 50x edge-relaxation hot loop). The
+    # arithmetic and its order are unchanged: per iteration, sources are visited
+    # in sorted order and each source's edges in sorted-target order, with the
+    # same ((DAMPING * rank) * w) / out_weight expression, so every float sum is
+    # accumulated in the same order and the rounded scores are bit-identical.
     nodes = sorted(known_names)
     n = len(nodes)
     scores = {}
     if n > 0:
-        out_weight = {a: sum(out_edges[a].values()) for a in nodes}
-        dangling = [a for a in nodes if out_weight[a] == 0]
+        index = {node: i for i, node in enumerate(nodes)}
+        out_weight = [sum(out_edges[a].values()) for a in nodes]
+        dangling = [i for i in range(n) if out_weight[i] == 0]
         base = (1.0 - DAMPING) / n
-        rank = {node: 1.0 / n for node in nodes}
+        rank = [1.0 / n] * n
+        # Edge order is loop-invariant: sort each non-dangling node's edges once,
+        # not on every iteration (same order => same float summation order).
+        sorted_edges = [(i, out_weight[i],
+                         [(index[b], w) for b, w in sorted(out_edges[nodes[i]].items())])
+                        for i in range(n) if out_weight[i] != 0]
         for _ in range(ITERATIONS):
             dangling_mass = 0.0
             for d in dangling:
                 dangling_mass += rank[d]
             redistributed = DAMPING * dangling_mass / n
-            new = {node: base + redistributed for node in nodes}
-            for a in nodes:
-                ow = out_weight[a]
-                if ow == 0:
-                    continue
-                ra = rank[a]
-                for b, w in sorted(out_edges[a].items()):
-                    new[b] += DAMPING * ra * w / ow
+            new = [base + redistributed] * n
+            for i, ow, edges in sorted_edges:
+                dr = DAMPING * rank[i]
+                for b, w in edges:
+                    new[b] += dr * w / ow
             rank = new
-        scores = {node: round(rank[node], 6) for node in nodes}
+        scores = {node: round(rank[i], 6) for i, node in enumerate(nodes)}
 
     ranked = sorted(known_names, key=lambda s: (-scores[s], s))
 
@@ -309,10 +320,23 @@ def main():
     ap.add_argument("--root", required=True, help="project root")
     ap.add_argument("--scan", default=".claude", help="subdir under root to map")
     ap.add_argument("--emit", choices=["json", "md"], default="json")
+    # --out-md / --out-json: build the map ONCE and write both renderings to the
+    # given paths (stdout stays empty). Lets repo-map-gen.sh's write mode avoid a
+    # second full scan; --emit md|json behaviour is unchanged when neither is set.
+    ap.add_argument("--out-md", help="write the markdown rendering to this path")
+    ap.add_argument("--out-json", help="write the JSON rendering to this path")
     args = ap.parse_args()
 
     scan_root = os.path.join(args.root, args.scan)
     data = build_map(scan_root, args.root)
+    if args.out_md or args.out_json:
+        if args.out_md:
+            with open(args.out_md, "w", encoding="utf-8", errors="surrogateescape", newline="\n") as fh:
+                fh.write(emit_md(data, args.scan))
+        if args.out_json:
+            with open(args.out_json, "w", encoding="utf-8", errors="surrogateescape", newline="\n") as fh:
+                fh.write(emit_json(data) + "\n")
+        return
     if args.emit == "json":
         sys.stdout.write(emit_json(data) + "\n")
     else:

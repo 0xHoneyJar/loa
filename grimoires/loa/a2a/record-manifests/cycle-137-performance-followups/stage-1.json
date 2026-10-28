@@ -1,0 +1,25 @@
+{
+  "accepted_scan": [
+    {
+      "class": "audit-key-password-assignment",
+      "line": 316,
+      "path": "grimoires/loa/archive/notes/NOTES-20261028T023108Z.md"
+    }
+  ],
+  "cycle": "cycle-137-performance-followups",
+  "head": "a1360dac2efcab4c9e4f6ac6ddea98a4f05b95e9",
+  "lite_tree": null,
+  "paths": [
+    "grimoires/loa/a2a/sprint-281",
+    "grimoires/loa/a2a/sprint-282",
+    "grimoires/loa/a2a/audits/2026-10-28",
+    "grimoires/loa/a2a/flatline",
+    "grimoires/loa/a2a/prompts",
+    "grimoires/loa/NOTES.md",
+    "grimoires/loa/archive/notes"
+  ],
+  "prev": "82fe2ba68e4ccd301fe56df7eceb5d8095fa9983",
+  "results_roots": [],
+  "scan_tree": "5a3ae7ff3367f34a0690003c356b379ac5b39587",
+  "stage": "stage 1"
+}

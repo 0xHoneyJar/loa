@@ -643,3 +643,224 @@ ROWS
     run --separate-stderr bash -c 'source "$1"; agy_gate_warn_once "$2"' _ "$LIB" "$CFG"
     ! grep -q 'cannot be read' <<<"$stderr" || { echo "null headless warned: $stderr"; return 1; }
 }
+
+# ---- cycle-137 FR-3 (Task 2.3b, bd-gv5jf): the opt-in node read is memoised in the calling shell, keyed on the file's identity ----
+_agc27_count() {  # source the lib, wrap the node reader so each real read appends a line to $BATS_TEST_TMPDIR/node-calls
+    source "$LIB"
+    : > "$BATS_TEST_TMPDIR/node-calls"
+    eval "$(declare -f _agy_opt_in_node | sed '1s/^_agy_opt_in_node/_agc27_orig_node/')"
+    _agy_opt_in_node() { echo x >> "$BATS_TEST_TMPDIR/node-calls"; _agc27_orig_node "$@"; }
+}
+_agc27_calls() { wc -l < "$BATS_TEST_TMPDIR/node-calls" | tr -d ' '; }
+_agc27_ns_mtime() {  # 0 when a fresh write in this directory keeps a sub-second mtime (GNU stat), else 1
+    local p="$BATS_TEST_TMPDIR/ns-probe" t; printf x > "$p"
+    t=$(stat -c '%.9Y' -- "$p" 2>/dev/null) || return 1
+    [[ "$t" == *.* && "${t#*.}" != 000000000 ]]
+}
+_agc_settle() {  # <file>: wait until the clock is two seconds past the file's ctime — a touch or chmod stamps ctime NOW, and
+    # the lib never memoises a file whose mtime or ctime is within one second of the clock (review r2); GNU stat, else sleep 2
+    local c; c=$(stat -c %Z -- "$1" 2>/dev/null) || { sleep 2; return 0; }
+    [[ "$c" =~ ^[0-9]+$ ]] || { sleep 2; return 0; }
+    while (( $(date +%s) < c + 2 )); do sleep 0.1; done
+}
+
+@test "AGC-27 (cycle-137 FR-3) the node is read ONCE per shell for an unchanged config: two agy_opted_in calls, and agy_gate_warn_once + agy_opted_in" {
+    _agc27_count
+    _cfg cli-only true
+    touch -d "@$(( $(date +%s) - 60 ))" "$CFG"; _agc_settle "$CFG"   # an aged, settled config: a file modified within a second of the clock is never memoised (review r1 DISS-001, r2)
+    agy_opted_in "$CFG" || { echo "first call read off"; return 1; }
+    agy_opted_in "$CFG" || { echo "memo hit read off"; return 1; }
+    [ "$(_agc27_calls)" = 1 ] || { echo "node reads: $(_agc27_calls)"; return 1; }
+    _cfg cli-only '"true"'; touch -d "@$(( $(date +%s) - 60 ))" "$CFG"; _agc_settle "$CFG"; : > "$BATS_TEST_TMPDIR/node-calls"   # aged and settled again (same rule)
+    run --separate-stderr agy_gate_warn_once "$CFG"   # (run: a subshell — the warn and its own agy_opted_in share one memo there)
+    [ "$status" -eq 0 ]
+    [ "$(_agc27_calls)" = 1 ] || { echo "node reads in warn_once: $(_agc27_calls)"; return 1; }
+}
+
+@test "AGC-28 (cycle-137 FR-3) a same-length in-place rewrite is a miss: with a distinct mtime, and twice within one second" {
+    _agc27_count
+    _cfg cli-only 'true '   # (same length as `false`; the trailing space is not part of the scalar)
+    local t; t=$(( $(date +%s) - 60 ))   # aged stamps: each read below is a KEY MISS, not the current-second bypass (review r2 DISS-C-005)
+    touch -d "@$t" "$CFG"
+    agy_opted_in "$CFG" || { echo "true read off"; return 1; }
+    _cfg cli-only false; touch -d "@$(( t + 1 ))" "$CFG"
+    ! agy_opted_in "$CFG" || { echo "stale memo: false read as true"; return 1; }
+    _cfg cli-only 'true '; touch -d "@$(( t + 2 ))" "$CFG"
+    agy_opted_in "$CFG" || { echo "stale memo: true read as false"; return 1; }
+    [ "$(_agc27_calls)" = 3 ] || { echo "node reads: $(_agc27_calls) (expected 3 misses)"; return 1; }
+    _agc_settle "$CFG"   # the last touch stamped ctime now; settle, then one read populates the memo and the next is the hit
+    agy_opted_in "$CFG" || { echo "settled read off"; return 1; }
+    [ "$(_agc27_calls)" = 4 ] || { echo "node reads after settling: $(_agc27_calls) (expected 4)"; return 1; }
+    agy_opted_in "$CFG" || { echo "memo hit read off"; return 1; }   # no re-touch: served from the memo
+    [ "$(_agc27_calls)" = 4 ] || { echo "node reads after the hit: $(_agc27_calls) (expected still 4)"; return 1; }
+    if ! _agc27_ns_mtime; then skip "this filesystem keeps 1 s mtimes: the same-second rewrite case is not decidable here"; fi
+    # (no touch: two plain writes back to back, normally inside one second — only the sub-second mtime/ctime tells them apart)
+    _cfg cli-only false
+    ! agy_opted_in "$CFG" || { echo "rewrite to false not seen"; return 1; }
+    _cfg cli-only 'true '
+    agy_opted_in "$CFG" || { echo "same-second rewrite to true not seen"; return 1; }
+    _cfg cli-only false
+    ! agy_opted_in "$CFG" || { echo "same-second rewrite to false not seen"; return 1; }
+}
+
+_agc33_shim() {  # a stat shim with BSD argv and WHOLE-SECOND times for the memo's identity read only (review r1/r2)
+    # mtime = SHIM_MTIME when set, else now - SHIM_AGE (default 0 = the current second, recomputed per call);
+    # ctime = SHIM_CTIME when set (`live` = the current second at every call), else the mtime.
+    local shim="$BATS_TEST_TMPDIR/statshim"; mkdir -p "$shim"
+    cat > "$shim/stat" <<'EOF'
+#!/usr/bin/env bash
+# the memo's BSD identity read only; every other stat call (the untrusted-config check) goes to the real binary
+if [[ "$1" == "-L" && "$2" == "-f" && "$3" == "%d:%i:%z:%m:%c" ]]; then
+    f=""; for a in "$@"; do f=$a; done
+    sz=$(/usr/bin/stat -L -c %s -- "$f" 2>/dev/null) || exit 1
+    m=${SHIM_MTIME:-$(( $(date +%s) - ${SHIM_AGE:-0} ))}
+    case "${SHIM_CTIME:-}" in live) c=$(date +%s) ;; "") c=$m ;; *) c=$SHIM_CTIME ;; esac
+    printf '%s\n' "7:${sz}:${sz}:${m}:${c}"; exit 0
+fi
+exec /usr/bin/stat "$@"
+EOF
+    chmod +x "$shim/stat"
+    PATH="$shim:$PATH"; _AGY_STAT_STYLE=bsd; _AGY_NODE_MEMO_KEY=""; _AGY_NODE_MEMO_VAL=""
+}
+
+@test "AGC-33 (cycle-137 review r1 DISS-001) with whole-second stat (the BSD branch) a same-length rewrite within the same second is seen, and an aged file is still memoised" {
+    _agc27_count
+    _agc33_shim
+    # (1) the window: true, then a same-length false in the same second — the second call must read the file again
+    _cfg cli-only 'true '
+    agy_opted_in "$CFG" || { echo "true read off"; return 1; }
+    _cfg cli-only false
+    ! agy_opted_in "$CFG" || { echo "stale memo: false read as true under whole-second stat"; return 1; }
+    [ "$(_agc27_calls)" = 2 ] || { echo "node reads: $(_agc27_calls) (expected 2: no memo for a file modified in the current second)"; return 1; }
+    # (2) an aged file is still memoised: one read for two calls
+    : > "$BATS_TEST_TMPDIR/node-calls"; _AGY_NODE_MEMO_KEY=""; _AGY_NODE_MEMO_VAL=""
+    _cfg cli-only true
+    export SHIM_MTIME=$(( $(date +%s) - 60 ))   # frozen ONCE: a per-call `now - 60` changes across a clock tick (review r2 DISS-C-001)
+    agy_opted_in "$CFG" || { echo "aged true read off"; return 1; }
+    agy_opted_in "$CFG" || { echo "aged memo hit read off"; return 1; }
+    [ "$(_agc27_calls)" = 1 ] || { echo "node reads for an aged file: $(_agc27_calls) (expected 1)"; return 1; }
+    unset SHIM_MTIME
+}
+
+@test "AGC-34 (cycle-137 review r2 DISS-001) with whole-second stat a permission change within the current second is seen: an aged true config chmod'ed 0600 then 0666 in one second reads off on the second call" {
+    _agc27_count
+    _agc33_shim
+    _cfg cli-only true; chmod 0600 "$CFG"
+    export SHIM_MTIME=$(( $(date +%s) - 60 )) SHIM_CTIME=live   # content aged; the chmod stamps ctime in the current second
+    agy_opted_in "$CFG" || { echo "0600 true read off"; return 1; }
+    chmod 0666 "$CFG"   # others can write now: the permission rule must read it off — same whole second, same key
+    ! agy_opted_in "$CFG" || { echo "stale memo: a world-writable config still read as on under whole-second stat"; return 1; }
+    [ "$(_agc27_calls)" = 2 ] || { echo "node reads: $(_agc27_calls) (expected 2: no memo while ctime is in the current second)"; return 1; }
+    unset SHIM_MTIME SHIM_CTIME
+}
+
+@test "AGC-35 (cycle-137 review r2 DISS-C-002) a stamp one second old is still inside the window: a same-length rewrite is seen with the clock one tick ahead of the stamp" {
+    _agc27_count
+    _agc33_shim
+    export SHIM_AGE=1   # every identity read reports mtime = ctime = now - 1 (a coarse-clock stamp lagging the fine clock)
+    _cfg cli-only 'true '
+    agy_opted_in "$CFG" || { echo "true read off"; return 1; }
+    _cfg cli-only false
+    ! agy_opted_in "$CFG" || { echo "stale memo: false read as true with a one-second-old stamp"; return 1; }
+    [ "$(_agc27_calls)" = 2 ] || { echo "node reads: $(_agc27_calls) (expected 2: a stamp within one second of the clock is never memoised)"; return 1; }
+    unset SHIM_AGE
+}
+
+@test "AGC-36 (cycle-137 review r2) with frozen AGED stamps each key component is a miss on its own: a changed mtime, a changed ctime, a changed size — and an unchanged key is a hit" {
+    _agc27_count
+    _agc33_shim
+    local t0; t0=$(( $(date +%s) - 120 ))
+    export SHIM_MTIME=$t0 SHIM_CTIME=$t0
+    _cfg cli-only 'true '
+    agy_opted_in "$CFG" || { echo "true read off"; return 1; }
+    agy_opted_in "$CFG" || { echo "hit read off"; return 1; }
+    [ "$(_agc27_calls)" = 1 ] || { echo "node reads for an unchanged key: $(_agc27_calls) (expected 1)"; return 1; }
+    _cfg cli-only false; export SHIM_MTIME=$(( t0 + 1 ))              # same size, mtime moved by one aged second
+    ! agy_opted_in "$CFG" || { echo "mtime change not a miss"; return 1; }
+    _cfg cli-only 'true '; export SHIM_CTIME=$(( t0 + 1 ))             # same size, same mtime, ctime moved (a chmod)
+    agy_opted_in "$CFG" || { echo "ctime change not a miss"; return 1; }
+    _cfg cli-only 'false '                                             # size changed, stamps unchanged
+    ! agy_opted_in "$CFG" || { echo "size change not a miss"; return 1; }
+    [ "$(_agc27_calls)" = 4 ] || { echo "node reads: $(_agc27_calls) (expected 4: one hit, three misses)"; return 1; }
+    unset SHIM_MTIME SHIM_CTIME
+}
+
+@test "AGC-29 (cycle-137 FR-3) a POPULATED memo does not survive an mv replacement (new inode, same size and mtime), a deletion, or a config path switch" {
+    _agc27_count
+    _agc29_aged() { touch -d "@$(( $(date +%s) - 60 ))" "$1"; _agc_settle "$1"; }   # aged + settled: memoisable (audit DISS-C-003)
+    _cfg cli-only 'true '; _agc29_aged "$CFG"
+    agy_opted_in "$CFG" || { echo "true read off"; return 1; }
+    agy_opted_in "$CFG" || { echo "hit read off"; return 1; }
+    [ "$(_agc27_calls)" = 1 ] || { echo "no hit before the mv: $(_agc27_calls) reads"; return 1; }
+    printf 'hounfour:\n  headless:\n    mode: cli-only\n    agy_opt_in: false\n' > "$BATS_TEST_TMPDIR/next.yaml"
+    touch -r "$CFG" "$BATS_TEST_TMPDIR/next.yaml"
+    [ "$(wc -c < "$CFG")" = "$(wc -c < "$BATS_TEST_TMPDIR/next.yaml")" ]
+    mv -f "$BATS_TEST_TMPDIR/next.yaml" "$CFG"
+    ! agy_opted_in "$CFG" || { echo "stale memo after mv"; return 1; }
+    [ "$(_agc27_calls)" = 2 ] || { echo "reads after mv: $(_agc27_calls) (expected 2)"; return 1; }
+    _cfg cli-only true; _agc29_aged "$CFG"
+    agy_opted_in "$CFG" || { echo "true read off (2)"; return 1; }
+    agy_opted_in "$CFG" || { echo "hit read off (2)"; return 1; }
+    [ "$(_agc27_calls)" = 3 ] || { echo "no hit before the deletion: $(_agc27_calls) reads"; return 1; }
+    rm -f "$CFG"
+    run --separate-stderr agy_opted_in "$CFG"
+    [ "$status" -eq 1 ] && [ -z "$stderr" ] || { echo "deleted: status=$status stderr=$stderr"; return 1; }
+    agy_opted_in "$CFG" && { echo "deleted config opted in"; return 1; }
+    [ -z "$_AGY_NODE_MEMO_VAL" ] && [ -z "$_AGY_NODE_MEMO_KEY" ] || { echo "stale memo kept for a deleted config: $_AGY_NODE_MEMO_VAL"; return 1; }
+    _cfg cli-only true; _agc29_aged "$CFG"
+    printf 'hounfour:\n  headless:\n    agy_opt_in: false\n' > "$BATS_TEST_TMPDIR/other.yaml"; _agc29_aged "$BATS_TEST_TMPDIR/other.yaml"
+    agy_opted_in "$CFG" || { echo "true read off (3)"; return 1; }
+    agy_opted_in "$CFG" || { echo "hit read off (3)"; return 1; }
+    local n; n=$(_agc27_calls)
+    ! agy_opted_in "$BATS_TEST_TMPDIR/other.yaml" || { echo "path switch returned the other config's value"; return 1; }
+    agy_opted_in "$CFG" || { echo "switch back read off"; return 1; }
+    [ "$(_agc27_calls)" = $(( n + 2 )) ] || { echo "reads across the path switch: $(_agc27_calls) (expected $(( n + 2 )): each switch is a miss)"; return 1; }
+}
+
+@test "AGC-30 (cycle-137 FR-3) a \$(agy_opted_in …) caller gets the right answer (the memo lives only in the calling shell)" {
+    source "$LIB"
+    _cfg cli-only true
+    agy_opted_in "$CFG"
+    _cfg cli-only false; touch -d "@$(( $(date +%s) + 5 ))" "$CFG"
+    [ "$(agy_opted_in "$CFG"; echo $?)" = 1 ]
+    _cfg cli-only true; touch -d "@$(( $(date +%s) + 9 ))" "$CFG"
+    [ "$(agy_opted_in "$CFG"; echo $?)" = 0 ]
+}
+
+@test "AGC-31 (cycle-137 FR-3) the memo is never seeded from the environment: the REAL key with a forged value for a false config reads off, and the control (seeded after load) would have hit" {
+    _agc27_count
+    _cfg cli-only false; touch -d "@$(( $(date +%s) - 60 ))" "$CFG"; _agc_settle "$CFG"
+    ! agy_opted_in "$CFG" || { echo "false read on"; return 1; }
+    ! agy_opted_in "$CFG" || { echo "false read on (hit)"; return 1; }
+    [ "$(_agc27_calls)" = 1 ] && [ -n "$_AGY_NODE_MEMO_KEY" ] || { echo "no populated memo to forge: reads=$(_agc27_calls) key='$_AGY_NODE_MEMO_KEY'"; return 1; }
+    # the child inherits the real key (cfg|dev:ino:size:mtime:ctime|PATH) with a forged value: the lib resets both at load
+    run --separate-stderr env _AGY_NODE_MEMO_KEY="$_AGY_NODE_MEMO_KEY" _AGY_NODE_MEMO_VAL="bool true" \
+        bash -c 'source "$1"; agy_opted_in "$2"' _ "$LIB" "$CFG"
+    [ "$status" -eq 1 ] || { echo "a forged memo opted in: status=$status stderr=$stderr"; return 1; }
+    # control: the same forge applied AFTER the load hits (so the assertion above is about the reset, not about a key mismatch)
+    run --separate-stderr env bash -c 'source "$1"; _AGY_NODE_MEMO_KEY="$3"; _AGY_NODE_MEMO_VAL="bool true"; agy_opted_in "$2"' _ "$LIB" "$CFG" "$_AGY_NODE_MEMO_KEY"
+    [ "$status" -eq 0 ] || { echo "control: the forged key did not hit (status=$status stderr=$stderr) — the forge proves nothing"; return 1; }
+}
+
+@test "AGC-32 (cycle-137 FR-3) agy_gate_warn_once prints today's texts: untrusted, ancestor (int, alias), bool True, a string, and the availability WARN" {
+    local avail="WARN: the agy route is available here (a Google/Gemini key is set) but not planned: hounfour.headless.agy_opt_in is not true — opt in only knowingly (the prompt travels on the CLI's argv, readable by local users; the CLI must be OAuth-authed)"
+    local c want got
+    printf 'hounfour:\n  headless:\n    mode: cli-only\n    agy_opt_in: true\n' > "$BATS_TEST_TMPDIR/untrusted.yaml"; chmod 666 "$BATS_TEST_TMPDIR/untrusted.yaml"
+    printf 'hounfour:\n  headless: 5\n' > "$BATS_TEST_TMPDIR/ancestor.yaml"
+    printf 'base: &b {headless: {agy_opt_in: true}}\nhounfour: *b\n' > "$BATS_TEST_TMPDIR/ancestor-alias.yaml"
+    printf 'hounfour:\n  headless:\n    agy_opt_in: True\n' > "$BATS_TEST_TMPDIR/boolTrue.yaml"
+    printf 'hounfour:\n  headless:\n    agy_opt_in: "true"\n' > "$BATS_TEST_TMPDIR/str.yaml"
+    printf 'hounfour:\n  headless:\n    mode: cli-only\n' > "$BATS_TEST_TMPDIR/absent.yaml"
+    for c in untrusted ancestor ancestor-alias boolTrue str absent; do
+        case "$c" in
+            untrusted) want="WARN: hounfour.headless.agy_opt_in: $BATS_TEST_TMPDIR/untrusted.yaml is world-writable (mode 0666) — a config others can write never opts in (own it and \`chmod go-w\` it); the agy route stays off" ;;
+            ancestor) want="WARN: hounfour.headless is not a mapping (int) — hounfour.headless.agy_opt_in cannot be read through an alias or merge node (write the mapping inline); the agy route stays off"$'\n'"$avail" ;;
+            ancestor-alias) want="WARN: hounfour is a YAML alias — hounfour.headless.agy_opt_in cannot be read through an alias or merge node (write the mapping inline); the agy route stays off"$'\n'"$avail" ;;
+            boolTrue) want="WARN: hounfour.headless.agy_opt_in is True, a boolean spelled other than true/false — only \`agy_opt_in: true\` opts in (the lowercase scalar); the agy route stays off"$'\n'"$avail" ;;
+            str) want="WARN: hounfour.headless.agy_opt_in is present but not a YAML boolean (str) — only \`agy_opt_in: true\` opts in (expected true or false); the agy route stays off"$'\n'"$avail" ;;
+            absent) want="$avail" ;;
+        esac
+        got=$(env GOOGLE_API_KEY=x AGY_HEADLESS_BIN=no-such-agy bash -c 'source "$1"; agy_gate_warn_once "$2"; echo "rc=$?" >&2; agy_gate_warn_once "$2"' _ "$LIB" "$BATS_TEST_TMPDIR/$c.yaml" 2>&1 >/dev/null)
+        [ "$got" = "$want"$'\n'"rc=0" ] || { printf 'case %s\n--- got\n%s\n--- want\n%s\n' "$c" "$got" "$want"$'\n'"rc=0"; return 1; }
+    done
+}

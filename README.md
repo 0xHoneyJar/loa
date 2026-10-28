@@ -6,18 +6,20 @@ Power user interface: 51 slash commands (truenames).
 Architecture: Three-zone model (System: .claude/, State: grimoires/ + .beads/, App: src/).
 Configuration: .loa.config.yaml (user-owned, never modified by framework).
 Health check: /loa doctor
-Version: 2.0.0-rc.8
+Version: 2.0.0-rc.9
 -->
 
-[![Version](https://img.shields.io/badge/version-2.0.0--rc.8-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.0--rc.9-blue.svg)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-green.svg)](LICENSE.md)
-[![Release](https://img.shields.io/badge/release-v2.0.0--rc.8%20The%20follow--through-purple.svg)](https://github.com/0xHoneyJar/loa/releases/tag/v2.0.0-rc.8)
+[![Release](https://img.shields.io/badge/release-v2.0.0--rc.9%20Performance%20follow--ups-purple.svg)](https://github.com/0xHoneyJar/loa/releases/tag/v2.0.0-rc.9)
 
 > *"The Loa are pragmatic entities... They're not worshipped for salvation—they're worked with for practical results."*
 
-## What's new in v2.0.0-rc.8 (release candidate)
+## What's new in v2.0.0-rc.9 (release candidate)
 
 The 2.0 line ships as a **pre-release**: it soaks with real users, fixes land as `-rc.N`, and `2.0.0` is promoted once the exit criteria in the [rc.1 release notes](grimoires/loa/reports/release-notes-2.0.0-rc.1.md) are met. Stable users can stay on `v1.202.1` until then.
+
+**rc.9 — performance follow-ups** (cycle-137, [notes](grimoires/loa/reports/release-notes-2.0.0-rc.9.md)): the framework's own overhead drops on every session start, edit and `/loa` without a single behaviour change — the repo-map generator runs once (4.66 → 1.22 s), the grimoire index sanitises in one awk per family (1.82 → 0.83 s), the known-failures SessionStart hook is one process (488 → 15 ms), the Write/Edit PreToolUse hooks parse their payload once (≈ 78 → 62 ms), the Stop guard reads its config once (24 → 14 ms), `compat-lib.sh` probes the platform lazily, and cheval imports one provider adapter instead of ten; a deterministic spawn-budget test guards the hot paths. The loop's six follow-ups ship with it: the known-failures parsers read one more field shape and never attach a field to the wrong entry, the grimoire index caches its 1,100 decision rows behind a uid-owned trust boundary (826 → 196 ms warm), `/loa` reads its catalog fields with one yq and the agy opt-in node once, the karpathy hook needs no yq on the warm path, `audit-envelope.sh verify-chains` verifies every chain file in one process and fails closed on any malformed record, and two slow test files got faster or honestly measured. Also in this candidate: the cycle-134 post-ship fixes, the cycle-135 review-coverage follow-ups (Bridgebuilder exclusion grammar, protected paths, base `.reviewignore`, `housekeeping` merges) and the cycle-136 Bridgebuilder and scaffold follow-ups that shipped to `main` after rc.8.
 
 **rc.8 — the follow-through** (cycle-133, [notes](grimoires/loa/reports/release-notes-2.0.0-rc.8.md)): the Bridgebuilder reads every pull request pinned to one head and its enriched consensus is the consensus; release publication tags the merge commit and proves it reachable before it announces; the public record branch is a framework script with a credential scan; the eval harness gained one fail-closed session library, a per-sandbox egress guard (the host is unreachable even from a `--internal` network), a restartable batch supervisor, grader 1.5 with judge verdicts, one finding contract run by four agreeing validators (every review and audit bullet carries a `Failure:` scenario), external corpus seeding and registration v2; the beads sweep closed 174 beads with evidence and kept 147 under `backlog-2026-10`. The `home-scope` mount (Loa reviewing Loa from the sandbox HOME) landed but is not claimed — see the notes.
 
@@ -75,7 +77,7 @@ In William Gibson's Sprawl trilogy (*Neuromancer*, *Count Zero*), Loa are AI ent
 curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash
 
 # Or pin to a specific version (the release candidate; v1.202.1 is the latest stable tag)
-curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --tag v2.0.0-rc.8
+curl -fsSL https://raw.githubusercontent.com/0xHoneyJar/loa/main/.claude/scripts/mount-loa.sh | bash -s -- --tag v2.0.0-rc.9
 
 # Start Claude Code
 claude

@@ -1,13 +1,12 @@
-# Product Requirements Document: Bridgebuilder and scaffold follow-ups (cycle-136)
+# Product Requirements Document: Performance follow-ups (cycle-137)
 
-**Version:** 1.3
-**Date:** 2026-10-27
-**Author:** PRD Architect Agent (Claude Fable 5.1, unattended)
-**Status:** Draft — autonomous run (operator instruction 2026-10-27, quoted verbatim in the brief: "i sign off on all your recommended choices for the desicions and you can proceed with fixing up any remaining beads")
-**Brief:** `grimoires/loa/context/cycle-136-brief.md`
-**Cycle:** `cycle-136-bridgebuilder-followups` (ledger, active); **branch:** `feature/cycle-136-bridgebuilder-followups` from `main 54a8c2824` (the merge of PR #1306, so the confirmed cycle-135 rows DEC-1011 … DEC-1060 are the base)
-**Flatline:** `grimoires/loa/a2a/flatline/cycle-136-prd-review.json` (codex-headless + claude-headless, 2/2 voices, cross-scoring degraded — KF-041 shape; 4 skeptic blockers and 30 medium items, every one read; dispositions in Appendix C — 1.0 → 1.1); the Flatline SDD review (`cycle-136-sdd-review.json`, 5 blockers / 30 medium) changed FR-1, FR-2 and FR-5 text in 1.2 (sdd.md § 11.F, DEC-1078 … DEC-1084); the Flatline sprint review (`cycle-136-sprint-review.json`, 3 blockers / 32 medium) touched FR-1, FR-2, FR-4 and FR-5 text in 1.3 (sprint.md Appendix, DEC-1085 … DEC-1088)
-**Predecessor:** cycle-135 "review-coverage follow-ups" (PR #1302 → `fd20c4e0a`; record `record/cycle-135-review-coverage-followups` `881de5480`; archive PR #1304 → `564b05fbf`), whose review, Bridgebuilder rounds and implementer reports left exactly three beads open.
+**Version:** 1.1
+**Date:** 2026-10-28
+**Revision:** 1.1 integrates the Flatline PRD review (6 blockers, 47 medium items — dispositions in Appendix C): one authoritative release predicate, evidence bound to commit SHAs, an exact allowed-failure list, memo and cache invalidation tests, verify-chains snapshot semantics, a publish-summary stage.
+**Author:** Requirements Agent (Claude Fable 5.1, unattended)
+**Status:** Draft — autonomous cycle on the operator's instruction of 2026-10-28 ("(1) do formal gates and then release when ready and you can also work through the open beads")
+**Cycle:** `cycle-137-performance-followups` (ledger), branch `feature/cycle-137-performance`
+**Grounding:** brownfield; no `/ride` run — the grounding reads are the loop's own artifacts and the code paths named per section (Appendix B); the brief is `grimoires/loa/context/cycle-137-brief.md`
 
 ---
 
@@ -25,9 +24,9 @@
 10. Success Criteria
 11. Risks & Mitigation
 12. Timeline & Milestones
-13. Appendix A — Decisions taken on the operator's behalf
-14. Appendix C — Flatline PRD review dispositions
-15. Appendix B — Grounding reads
+13. Appendix A — Goals
+14. Appendix B — Grounding reads
+15. Appendix C — Flatline PRD review dispositions
 
 > Sources: this document's sections
 
@@ -35,11 +34,11 @@
 
 ## Executive Summary
 
-Cycle-135 shipped the review-coverage follow-ups and left three small, well-specified beads behind: the mount scaffold does not tell a downstream repository that its `post-merge.yml` still carries the legacy release guard (bd-akkgq); a Bridgebuilder run on a shallow checkout cannot read the base branch's `.reviewignore` and therefore degrades every Loa-aware pull-request review (bd-9tt4b); and the Bridgebuilder contract carries a handful of plumbing debts — a missing re-export, two fields living as intersection types, a silent failed read, and a stats suffix kept "for one release" (bd-gyrgq).
+On 2026-10-27/28 a 22-pass `extreme-software-optimization` skill loop produced 20 commits (395795939 … c0d41f5e3) that cut the framework's own overhead: the repo-map generator 4658 → 1219 ms, grimoire-index 1819 → 826 ms, the known-failures SessionStart hook 488 → 15 ms, the Write/Edit PreToolUse chain about 78 → 62 ms, the Stop guard 24 → 14 ms, and a deterministic spawn-budget guard. Every pass was profiled first, proven byte-identical old-vs-new on golden and adversarial fixtures, reviewed by a fresh Opus 5.5 agent and verified by the orchestrator — but the loop ran outside `/implement`, so the formal `/review-sprint` and `/audit-sprint` gates never ran, the branch is unpublished, and the loop left six follow-up beads.
 
-This cycle closes the three through the golden path in one sprint with two implementers (A: shell + bats for the scaffold; B: TypeScript for the two Bridgebuilder beads), each change tested first, shipped as one PR with a Bridgebuilder round, recorded and archived; no release — the v2.0.0-rc.8 soak continues. A fifth, Could-Have requirement (FR-5, head-side scope validation failing closed on a pull request) rides along if it lands.
+This cycle lands the loop through the formal gates as Sprint 1 (global 281, review and audit fixes only), closes the six beads as Sprint 2 (global 282: a latent KF field-parsing defect, four further spawn reductions with byte-identical output, two slow test files, and a security-sensitive batching design that may end as a documented deferral), and ships one PR through a Bridgebuilder round, the record branch, the archive and the `v2.0.0-rc.9` release candidate.
 
-> Sources: `grimoires/loa/context/cycle-136-brief.md`; beads bd-akkgq, bd-9tt4b, bd-gyrgq (`br show`); DEC-1043, DEC-1050, DEC-1056, DEC-1057, DEC-1060
+> Sources: `grimoires/loa/context/cycle-137-brief.md`; `.skill-loop-progress.md` § LOOP 2; `grimoires/loa/reports/perf/eso-loop-2026-10-27.md`; beads bd-atk7q, bd-gv5jf, bd-h5tcn, bd-1mfm7, bd-wctli, bd-09z1i (`br show`)
 
 ---
 
@@ -47,27 +46,25 @@ This cycle closes the three through the golden path in one sprint with two imple
 
 ### The Problem
 
-Three behaviours shipped by cycle-135 are correct but leave an operator without a signal or a path:
-
-1. **Legacy guard on re-mount.** `scaffold_post_merge_workflow` (`.claude/scripts/lib/scaffold-post-merge-workflow.sh:34-56`) returns at once when `.github/workflows/post-merge.yml` already exists, to preserve user customizations. A repository that mounted before cycle-135 therefore keeps the negative-list guard `needs.classify.outputs.pr_type != 'cycle' && needs.classify.outputs.pr_number != ''` on its `simple-release` job. Since cycle-135 its archive, ledger and decisions merges classify `housekeeping` (bd-nr5i6), so that guard passes them to the orchestrator with `--type housekeeping`, which refuses with exit 1 and a HINT line (DEC-1041, DEC-1051). The refusal is loud by design (DEC-1060), but nothing tells the operator *at mount time* that the guard is stale.
-2. **Shallow checkout degrades every review.** `parseReviewignoreFile` reads the base branch's `.reviewignore` with `git ls-tree` / `git show` at the PR base sha (`truncation.ts:447-470`). On a shallow CI checkout the base commit is not in the clone, the read fails, the checkout copy governs as `base_unavailable`, and the review degrades with the merge-blocking `reviewignore_unavailable` reason (DEC-1043, DEC-1056). The operator's only remedy is to fetch the base ref — a workflow change in every downstream repository.
-3. **Contract debts.** `ports/index.ts` does not re-export `FileContentResult`; `reviewignoreBaseSha` (selection config) and `reviewignoreSource` (result) live as intersection types outside `core/types.ts` (`paged-fetch.ts:51-53, 465-467`); a failed content read leaves only the `omitted[].fetch` outcome and no log line (`paged-fetch.ts` has no logger in scope); the ` [pattern: <p>]` stats suffix was kept one release beside the structured `excluded[].pattern` field (`truncation.ts:394-397`, `paged-fetch.ts:63-71, 375`); and the Bridgebuilder round-2 triage noted that a PR head's invalid `protected_paths` fails the head's own review before the trusted value can replace it (`config.ts` `resolveConfig`).
+1. **Unreviewed by the framework's own gates.** The 20 loop commits touch 18 System Zone files plus `checksums.json` (enumerated in § System Zone authorization: hooks on the per-tool-call path, `compat-lib.sh` sourced by about 78 scripts, the cheval provider registry, the repo-map engine). CLAUDE.md requires every code change to pass `/review-sprint` and `/audit-sprint`; the loop's per-pass Opus reviews are evidence, not the gate.
+2. **Six findings left open.** (a) `loa-kf-surface.sh:103-104` and `grimoire-index.sh:100-101` parse a `**Label**: value` or `**Label (x):**` field but not `**Label (x)**:`; a digit-less `## KF-abc:` heading does not reset `cur`, so its Symptom lands on the previous entry (latent: the live file has 0 such entries). (b) `loa-status.sh:862-869` reads the same `.loa.config.yaml` six times with `yq` (~40 ms) and `agy_gate_warn_once` (`agy-gate-lib.sh:300-304`) re-reads the opt-in node (~25 ms). (c) `profile-lib.sh` serves `karpathy_principles.diff_lines_per_task` from the live path (`_loa_pl_live`, `yq`+`jq`, ~10 ms) on every Write/Edit because it is not a profile knob (`.claude/data/profiles.yaml` lists only `surgical_diff_warning`). (d) `grimoire-index.sh:222` parses the 1,100-row `decisions.yaml` with `yq -o=json` on every run (~175-210 ms, the remaining floor) and re-parses the 600 KB index JSON twice in write mode (lines 299-330, ~25 ms). (e) `tests/unit/adversarial-review-companion.bats` exceeds 900 s (284 tests; 300 s `sleep` holder processes and 0.1 s polls at lines 182-232) and `block-destructive-bash.bats` runs its cycle-125 corpus in three tests (lines 1546-1583, ~28 s each). (f) `audit-envelope.sh verify-chain` costs ~155 ms per chain file because `_check_trust_store` (`audit_envelope.py:500`) spawns a second Python process (`audit-signing-helper.py trust-store-verify`, line 719) per call — a deliberate TOCTOU defence pinned by `tests/security/test_audit_trust_policy.py`.
+3. **Nothing shipped.** `v2.0.0-rc.8` is the latest release; the branch is local.
 
 ### User Pain Points
 
-- A maintainer who re-mounts Loa sees archive merges fail in the Post-Merge Pipeline with a HINT line, instead of being told at mount time what to change.
-- A CI operator with the default shallow checkout gets a degraded, merge-blocked Bridgebuilder review on every Loa-aware pull request until they change the workflow.
-- Contributors to the Bridgebuilder skill meet two type intersections and a duplicated suffix grammar that the cycle-135 contract commits promised to retire.
+- The maintainer cannot merge the loop without the gates the repository promises every contributor.
+- Every session start, every edit and every `/loa` still pays avoidable spawns on the paths the loop did not reach.
+- Two test files make the 51-minute unit suite longer than it needs to be and make CI timing fragile.
 
 ### Current State
 
-Everything above works as specified; the gaps are signal (1), reach (2) and hygiene (3). Cycle-135's archive merge `564b05fbf` and decisions merge `54a8c2824` both classified `housekeeping` and prepared nothing on this repository, which carries the allowlist guard.
+Branch `feature/cycle-137-performance` = `main` 9e23cbf84 + the 20 loop commits + the kickoff commit; `check-loa.sh` passes (`checksums.json` refreshed); the full unit suite on the loop head shows only the 3 pre-existing `semver-evidence` failures (KF-034) and one load-sensitive timing test (CMP-37) that passes alone.
 
 ### Desired State
 
-Mount warns about a stale guard and can fix exactly that line on request; a shallow checkout still gets `reviewignore_source: base`; the Bridgebuilder contract carries no "next release" debt.
+Sprint 281 review `All good` and audit `APPROVED` on the loop; the six beads closed with red-first tests and byte-identical output (or one deferred with a decision row); one PR merged on green checks; record and archive; `v2.0.0-rc.9` published.
 
-> Sources: `.claude/scripts/lib/scaffold-post-merge-workflow.sh:34-56`, `.github/workflows/post-merge.yml:106-114, 190-192`, `truncation.ts:394-397, 447-470`, `paged-fetch.ts:51-71, 349-375, 463-470`, `ports/index.ts`, `config.ts` (`resolveConfig`, `applyTrustedReviewScope`); DEC-1041, DEC-1043, DEC-1051, DEC-1056, DEC-1060; Post-Merge Pipeline runs 40299345049 and 40427521292
+> Sources: `.claude/hooks/loa-kf-surface.sh:103-115`, `.claude/scripts/grimoire-index.sh:100-115, 216-230, 296-330`, `.claude/scripts/loa-status.sh:848-870`, `.claude/scripts/lib/agy-gate-lib.sh:122-139, 203-205, 300-304`, `.claude/scripts/lib/profile-lib.sh:28-75, 212-260`, `.claude/data/profiles.yaml:28-48`, `tests/unit/adversarial-review-companion.bats:182-232`, `tests/unit/block-destructive-bash.bats:1546-1583`, `.claude/adapters/loa_cheval/audit_envelope.py:414, 500, 580, 719`, `~/.cache/loa/eso-loop/final-table.tsv`, `~/.cache/loa/eso-loop/bats-final/unit.tap`
 
 ---
 
@@ -75,25 +72,28 @@ Mount warns about a stale guard and can fix exactly that line on request; a shal
 
 ### Primary Goals
 
-- G-1: the three beads closed with a commit and a red-first test each.
-- G-2: a re-mount over a legacy `post-merge.yml` prints one warning naming the file, the legacy guard, the allowlist replacement, the opt-in flag and bd-nr5i6, and changes nothing; the opt-in flag rewrites exactly the `if:` line of `simple-release` and refuses anything else.
-- G-3: with the base commit absent from the clone and the provider answering, the coverage record says `reviewignore_source: base` and the review does not degrade; a 404 at the pinned base sha means `none`; any other provider failure keeps today's `base_unavailable` and the degrade.
-- G-4: the Bridgebuilder contract has no intersection-typed plumbing, re-exports `FileContentResult`, logs a failed content read, and no longer emits or parses the stats suffix (FR-5 counts toward G-4 only if it lands; otherwise it is recorded as deferred with a bead).
-- G-5: one PR, every check run green on the final head and on the merged head, one non-degraded Bridgebuilder verdict, record and archive, no release.
+- G-1: Sprint 281 — `/review-sprint` ends `All good` and `/audit-sprint` ends `APPROVED` on the 20 loop commits, with every review or audit fix landed red-first and the loop's parity proofs re-run on the final head.
+- G-2: Sprint 282 — beads bd-atk7q, bd-gv5jf, bd-h5tcn, bd-1mfm7 closed with a commit and a red-first test each; bd-wctli (test-only) closed with a commit, the TAP-set parity evidence and the negative control of FR-6; bd-09z1i closed by implementation or deferred under the deferral rule of § Release predicate (R-2) with a decision row naming the security reason.
+- G-3: the loop's gains hold on the shipped head: in the re-baseline of the sixteen loop commands no command a loop pass touched has a mean above 110 % of its `final-table.tsv` mean (faster is fine; the four untouched rows are recorded, not asserted), and `tests/unit/perf-spawn-budget.bats` is green on every landed commit.
+- G-4: the full `tests/unit` suite on the final head fails only the three tests of the allowed-failure list (§ Release predicate R-4, KF-034) and those fail identically on `main` under the same host condition; `adversarial-review-companion.bats` passes in a serial run of the whole file on an idle host (a `-f CMP-37` run alone is diagnostic, not acceptance evidence).
+- G-5: one PR from `feature/cycle-137-performance`, Bridgebuilder ≤ 2 rounds non-degraded, merged when every required check is green on the exact head, record branch and archive as every cycle.
+- G-6: `v2.0.0-rc.9` published from the post-merge candidate with the CHANGELOG heading and version markers in place.
 
 ### Key Performance Indicators (KPIs)
 
-- `npm test` green on every landed commit; `tests/unit/mount-workflow-scaffold.bats`, `classify-merge-pr.bats`, `post-merge-workflow-guards.bats` and `post-merge-orchestrator-type.bats` green.
-- Bridgebuilder round on the PR: `degraded: false`, 2/2 voices, with the head sha recorded.
-- Cycle meter spend ≤ USD 20 (subscription routes; real money ≈ 0).
+- Measured with one benchmark protocol (§ Non-Functional Requirements → Performance): `loa-status.sh` mean ≥ 40 ms below the same-session old mirror after FR-3 (the AC and this KPI are the same threshold); karpathy hook trace shows no `yq` on the warm-cache path after FR-4; `grimoire-index.sh` warm run ≤ 650 ms (from 826) and its cold run ≤ old mirror + 40 ms after FR-5; `adversarial-review-companion.bats` ≤ 300 s serial (or the measured floor recorded by a decision row) and the three `block-destructive-bash.bats` corpus tests sharing one corpus run after FR-6.
+- Parity: every FR-3/4/5 change byte-identical old-vs-new on the live inputs and the named fixtures (stdout, stderr, rc, written files).
+- Cycle meter spend ≤ USD 30 (Flatline reviews, dissent runs, Bridgebuilder rounds on subscription routes; real charges ≈ 0).
 
 ### Constraints
 
-- System Zone writes only under the bounded marker, with `checksums.json`, REPO-MAP and the Bridgebuilder dist manifest regenerated in the same commit (DEC-0824).
-- Red-first tests; one sprint; one PR (DEC-0960); ≤ 2 Bridgebuilder rounds; ≤ 3 dissent runs; no release.
-- Never edit the cycle-132 … 135 records; secret scan before every push.
+- System Zone writes carry `checksums.json` and `REPO-MAP.md` regenerated in the same commit (DEC-0824); red-first tests for behaviour changes (test-only changes prove themselves by TAP-set parity plus a negative control); no NEW timing-based tests — the one retained latency test in `block-destructive-bash.bats` is grandfathered and the spawn-budget guard is the deterministic form; `br` contract calls untouched.
+- Evidence binds to SHAs: every review, audit, parity and performance artefact names the head commit it was produced on (`reviewed_head: <sha>` in the verdict files, the head sha in each e2e table). A code commit after a verdict invalidates it and the gate re-runs on the new head (a verify-only pass is enough when the diff is a gate fix); docs-only commits (paths under `grimoires/`, `CHANGELOG.md`, `README.md`, `.loa-version.json`, `.skill-loop-progress.md`) do not.
+- Bounded loops: at most three fix → re-review iterations per gate and at most two Bridgebuilder rounds; the next finding HALTs the cycle with the state recorded (`.run/sprint-plan-state.json` HALTED, a NOTES entry, the open bead) instead of a fourth attempt.
+- One PR for both sprints (DEC-0960 pattern); ≤ 3 dissent runs per gate; the archive is the separate housekeeping merge.
+- Never edit the cycle-132 … 136 records; secret scan before every push; NOTES.md stays under the notes-size guard (rotate first if needed).
 
-> Sources: `grimoires/loa/context/cycle-136-brief.md` § Constraints; DEC-0824, DEC-0960, DEC-1018, DEC-1057
+> Sources: `grimoires/loa/context/cycle-137-brief.md` § Constraints; DEC-0824, DEC-0960; `.claude/hooks/safety/notes-size-guard.sh:28-34`
 
 ---
 
@@ -101,180 +101,238 @@ Mount warns about a stale guard and can fix exactly that line on request; a shal
 
 ### Primary Persona: The maintainer (operator)
 
-Signs off decision rows at each close, reads the ELI5 summaries, decides releases. Wants the three beads gone without a new semantic surprise.
+Asked for the formal gates, a release, and the beads. Reads the ELI5 summary and the decision rows; decides nothing mid-cycle.
 
 ### Secondary Persona: A downstream mount operator
 
-Runs `/mount` or `/update-loa` on a repository that mounted months ago; runs Bridgebuilder in CI with `actions/checkout` at its default depth 1.
+Runs the same hooks on every tool call in their own repository; gains the loop's latency cuts on `/update-loa`; must see no behaviour change.
 
-### Tertiary Persona: The lead agent and its Opus implementers
+### Tertiary Persona: The lead agent and its implementers
 
-Needs crisp seams: one shell function with a test matrix; one TypeScript read path with a fixture adapter; one contract tidy-up with no behaviour change beyond the suffix.
+Needs crisp seams: each bead is one file or one lib with an existing bats suite, a parity harness pattern (old-vs-new mirror in a real directory) and a measured target.
 
 ### Use Cases
 
-- UC-1: re-mount over a legacy workflow → one WARN, file unchanged; with `LOA_SCAFFOLD_FIX_RELEASE_GUARD=1` only the `if:` line changes; a customised or ambiguous guard is never touched.
-- UC-2: Bridgebuilder on a shallow checkout → the base `.reviewignore` arrives through the contents envelope; `reviewignore_source: base`; no degrade.
-- UC-3: a contributor imports `FileContentResult` from `ports/index.js` and reads `reviewignoreBaseSha` / `reviewignoreSource` on the typed selection config and result.
+- UC-1: a session starts → SessionStart hooks finish in ~110 ms instead of ~600 ms; the KF table is identical.
+- UC-2: an agent edits a file → the PreToolUse chain costs ~62 ms and the karpathy PostToolUse hook no longer spawns `yq` for its threshold knob.
+- UC-3: the operator runs `/loa` → one `yq` read of the model ceilings instead of six; identical status lines.
+- UC-4: CI runs the unit suite → the companion and block-destructive files finish in minutes, same pass/fail set.
+- UC-5: a release consumer installs `--tag v2.0.0-rc.9`.
 
-> Sources: `grimoires/loa/context/cycle-136-brief.md`; `.claude/skills/mounting-framework/SKILL.md` (mount path); `truncation.ts:447-470`
+> Sources: `grimoires/loa/reports/perf/eso-loop-2026-10-27.md` § Before and after; `.claude/settings.json` hooks; `grimoires/loa/context/cycle-137-brief.md`
 
 ---
 
 ## Functional Requirements
 
-### FR-1: The scaffold detects the legacy simple-release guard on re-mount (bd-akkgq)
+### FR-1: Land the optimisation loop through the formal gates (Sprint 281)
 **Priority:** Must Have
-**Description:** Inside the existing-file branch of `scaffold_post_merge_workflow` (`scaffold-post-merge-workflow.sh:38-41`), identify the `simple-release` job's own `if:` expression and nothing else with one `awk` pass (no `yq` — DEC-1078): the job block runs from the `simple-release:` key to the first non-blank, non-comment line whose indentation is not deeper than the jobs' key indentation (DEC-1079); candidates are `if:` lines at the job's child indentation, read from the file, outside block-scalar content (DEC-1080) — step-level `if:` lines, other jobs carrying the same text, comments, `run: |` bodies and multi-line (`if: |` / `>`) values never match; exactly one candidate or nothing. Normalise the value (strip a `${{ }}` wrapper, a trailing comment, whitespace runs, one pair of quotes) and compare the expression with the legacy text `needs.classify.outputs.pr_type != 'cycle' && needs.classify.outputs.pr_number != ''`. On a match print one WARN on stderr naming the file, the legacy guard, the allowlist replacement `(needs.classify.outputs.pr_type == 'bugfix' || needs.classify.outputs.pr_type == 'other') && needs.classify.outputs.pr_number != ''`, the opt-in flag and bd-nr5i6 (the cycle-135 bead that made archive, ledger and decisions merges classify `housekeeping` and prepare nothing); never modify the file. The opt-in flag `LOA_SCAFFOLD_FIX_RELEASE_GUARD=1` (an environment variable, so both mount callers surface it without a signature change — DEC-1068) rewrites exactly that one physical `if:` line to the allowlist text (preserving indentation and quoting style; symlink target refused; the line re-read immediately before writing; temp file in the same directory, mode preserved, `mv -f` — DEC-1081) and prints a one-line notice; it refuses — with a WARN and no change — when the match is not a single-line job-level `if:` carrying exactly the legacy text (duplicate, multi-line, `${{ }}`-wrapped, aliased or customised forms). The function keeps returning 0 (both callers run under `set -e`; a refusal is a WARN line, not a mount failure — DEC-1077) and the fresh-install branches are unchanged ([ASSUMPTION decision] the mount CLI surfaces the flag; the SDD decides where — DEC-1063). The repository's own `post-merge.yml`, classifier and guard are not changed by this cycle; the scaffold may rewrite a *downstream mount's* guard only on opt-in.
+**Description:** The 20 loop commits are the sprint's implementation. The engineer's report `grimoires/loa/a2a/sprint-281/reviewer.md` walks every productive pass (target, lever, parity proof, tests, measurement, review verdict, commit) and every documented no-change (passes 12 and 15). `/review-sprint` and `/audit-sprint` run against it; findings land as red-first fix commits with `checksums.json` and REPO-MAP regenerated; the loop's parity harnesses (`~/.cache/loa/eso-loop/pass-*/`) are re-run on the final head for any file a fix touches.
 **Acceptance Criteria:**
-- [ ] bats: a legacy workflow → exit 0, one WARN containing the file path, `pr_type != 'cycle'`, the allowlist text, `LOA_SCAFFOLD_FIX_RELEASE_GUARD` and `bd-nr5i6`; the file is byte-identical afterwards.
-- [ ] bats: the current allowlist workflow → exit 0, silent; a workflow with a customised single-line `if:` → silent (not ours to judge).
-- [ ] bats: the opt-in flag on a legacy file → only the `if:` line differs (`diff` shows one changed line), a one-line notice is printed, a second run is silent; the flag on a customised `if:` → refuses with a WARN, file unchanged, exit 0.
-- [ ] bats (negative fixtures, each byte-identical with and without the flag): a step-level `if:` carrying the legacy text inside `simple-release`; a second job (`legacy-copy`) carrying the legacy text while `simple-release` is already the allowlist; the legacy text inside a `#` comment; a multi-line `if: |` block holding the legacy text; the legacy text inside a `run: |` step body at the child indentation; two job-level `if:` lines; no `simple-release` job; a job id with digits (`simple-release-2:`) right after the block; a 4-space-indented workflow; a `${{ … }}`-wrapped legacy guard (detected, not rewritten); a symlinked target (→ with the flag: the refuse WARN).
-- [ ] bats: every case runs with the library sourced under `set -euo pipefail` and a PATH holding coreutils/awk/sed/grep/bash but no `yq`; a CRLF workflow is detected and a rewrite keeps `\r\n`; an inline ` # comment` after the guard is ignored by detection; a non-writable target with the flag → WARN naming the failure, unchanged, exit 0.
-- [ ] The fresh-install path (`cp` from `source_path`; `git checkout` fallback) is unchanged (existing `mount-workflow-scaffold.bats` cases stay green).
-**Dependencies:** none.
+- [ ] `reviewer.md` carries an `## AC Verification` walkthrough: for each of the 20 productive passes (1–11, 13, 14, 16–22) the parity evidence (what was compared, on which inputs), the covering bats files and counts, the before/after measurement, the review verdict and the commit hash; passes 12 and 15 with their floors.
+- [ ] Review ends `All good`; audit ends `APPROVED`; `verdict-derive.sh --gate review|audit` CONSISTENT; the `COMPLETED` marker is written; the ledger marks sprint 281 completed.
+- [ ] Every fix commit from the gates is red-first where it changes behaviour, and byte-identical old-vs-new where it changes a loop file's implementation.
+- [ ] `tests/unit/perf-spawn-budget.bats` 6/6 on the final Sprint 281 head; `check-loa.sh` passes; `repo-map-gen.sh --validate` passes.
+- [ ] Each verdict file (`engineer-feedback.md`, `auditor-sprint-feedback.md`) names the head sha it reviewed; any later code commit on the branch re-runs that gate before the sprint is `COMPLETED`.
+- [ ] Revert path: a finding that cannot be fixed within the sprint reverts that single pass commit — after checking that no later pass depends on it (shared helpers such as `compat-lib.sh`, cache conventions, mirror-harness assumptions) — with `checksums.json` + REPO-MAP regenerated in the revert commit and a `proposed` decision row.
+- [ ] Evidence preserved in reviewable storage: the per-pass `REPORT.md` and `review/VERDICT.md` files, `final-table.tsv`, `baseline/*.json`, `final/*.json`, `rebaseline.sh` and the two TAP files are copied from `~/.cache/loa/eso-loop/` to `grimoires/loa/a2a/sprint-281/evidence/` (the record branch carries `a2a/`); a clean checkout plus that directory reproduces every number cited.
+**Dependencies:** NOTES.md rotated first (Task 1.0 prerequisite) so Sprint 281 logging cannot trip the 200 KiB guard.
 
-> Sources: `.claude/scripts/lib/scaffold-post-merge-workflow.sh:20-56`, `.claude/scripts/mount-loa.sh:703`, `.claude/scripts/mount-submodule.sh:308`, `.github/workflows/post-merge.yml:106-114`, `tests/unit/mount-workflow-scaffold.bats`, `tests/unit/cycle-124-live-scaffold.bats`; DEC-1041, DEC-1051, DEC-1060, DEC-1063, DEC-1068
+> Sources: `.skill-loop-progress.md` § LOOP 2 (passes 1–22); `~/.cache/loa/eso-loop/pass-*/REPORT.md` and `review/VERDICT.md`; `.claude/skills/reviewing-code/SKILL.md` § Phase 4; `.claude/skills/auditing-security/SKILL.md`
 
-### FR-2: Bridgebuilder reads the base `.reviewignore` through the contents API when the base commit is not in the clone (bd-9tt4b)
-**Priority:** Must Have
-**Description:** The local base read (`readBaseReviewignore`, `truncation.ts`) gains typed outcomes: `ok` (patterns), `absent` (the file is missing at a commit the clone holds), `unknown_commit` (the base sha is not in the clone — `git ls-tree` fails on the object), and `other` (any other git failure, oversize, symlink). In `paged-fetch.ts` `attempt`, before the placement selection, `resolveBaseReviewignore` runs the local read first and uses its answer for `ok` (→ `base`) and `absent` (→ `none`, DEC-1056). Only `unknown_commit` triggers the contents envelope: one `git.getFileContent(owner, repo, ".reviewignore", pin.base_sha, REVIEWIGNORE_MAX_BYTES)` against the pull request's *base repository* (the `owner/repo` the run targets — for a fork PR that is the target repository, never the fork) at the pinned base sha, with the existing 1 MiB bound, timeout and allowlist shape; the text — complete by construction: the adapter answers `too_large` above the bound and rejects a `size` that disagrees with the decoded bytes — is parsed with `parseReviewignoreLines` and handed to `truncateFiles` through the selection-config input `reviewignoreBase` (`{ patterns, source }`, one object — DEC-1082), which takes precedence over the sha read; the record says `reviewignore_source: "base"` and one stderr notice names the API read (not a degrade). A 404 is not proof of absence (an authorization gap also answers 404 — DEC-1083): it becomes `none` only after one access probe — `getFileContent` of the first listed file the PR modifies, removes or renames (a path that exists at the base) at the base sha with `maxBytes` 1 — answers `text`, `too_large` or `binary`; a probe 404/error, or a PR that only adds files, keeps today's `base_unavailable` (at most two calls per resolution). Any other result (rate limit, authorisation, malformed envelope, oversize, binary, `size` mismatch) or `other` from the local read keeps today's path: the checkout copy governs as `base_unavailable` and the review degrades. The resolution — including a failed one — is cached once per base sha per run (`Map.has`) and reused across restarted attempts (a base move re-resolves; DEC-1082); `unknown_commit` is decided by `git cat-file -e <sha>^{commit}`'s exit status under `LC_ALL=C`, never by stderr text; it does not count against `max_content_fetches` and is not governed by `fetch_missing_patches` (those bound reads of *listed files*). Local mode (no PR) and a clone that holds the base commit make no API call. ([ASSUMPTION decision] `getFileContent` is optional on the port; when the provider lacks it the behaviour is today's — DEC-1064)
-**Acceptance Criteria:**
-- [ ] `paged-fetch-reviewignore.test.ts`: base commit absent (`unknown_commit`) + API returns the file → `reviewignore_source: "base"`, the base patterns apply, `degraded: false`, exactly one contents call, for `.reviewignore`, at `pin.base_sha`, against the target `owner/repo`; one notice line on stderr.
-- [ ] base commit absent + API 404 + probe readable → `none`, no patterns, not degraded, exactly two calls; + 404 + probe 404 → `base_unavailable`; + 404 with no modified/removed/renamed file in the listing → `base_unavailable`, one call; + RATE_LIMITED / FORBIDDEN / 401 / malformed envelope / `too_large` / `binary` / `size` mismatch / a non-provider throw / a timeout-shaped error → `base_unavailable`, checkout patterns, `reviewignore_unavailable` degrade (today's behaviour pinned per case).
-- [ ] base commit present in the clone → zero API calls (`ok` and `absent` answer locally); `other` local failure (a symlink at the base, oversize) → `base_unavailable` with no API call.
-- [ ] a provider without `getFileContent` → today's behaviour (`base_unavailable`); local mode → no API call; a restarted attempt with the same base sha → no second call (also after a failed resolution); a base move → one new call.
-- [ ] content exactly at `REVIEWIGNORE_MAX_BYTES` is read; one byte over is `too_large` → `base_unavailable`; an empty file → `base` with zero patterns.
-- [ ] the read does not count against `max_content_fetches` (a cap of 0 still reads it) and `fetch_missing_patches: false` does not disable it; both pinned.
-- [ ] CHANGELOG + `resources/exclusions-and-coverage.md` state the read order (local sha read → contents API when the base commit is not in the clone → checkout copy) and the notice line; `SKILL.md` is unchanged (prompt budget).
-**Dependencies:** none (the port method and the envelope exist since cycle-135).
-
-> Sources: `truncation.ts:394-470, 540-600` (`parseReviewignoreFile`, `readBaseReviewignore`, `REVIEWIGNORE_MAX_BYTES`), `paged-fetch.ts:51-60, 340-370, 463-470`, `adapters/github-cli.ts` (`getFileContent`, `contentsPathProblem`, the `gh()` error mapping), `ports/git-provider.ts` (`FileContentResult`); DEC-1027, DEC-1028, DEC-1043, DEC-1056, DEC-1064
-
-### FR-3: Bridgebuilder contract tidy-up (bd-gyrgq)
+### FR-2: KF field-variant parsing and heading reset (bd-atk7q)
 **Priority:** Should Have
-**Description:** (a) `ports/index.ts` re-exports `FileContentResult`. (b) `SelectionConfig` moves to `core/types.ts` with `reviewignoreBaseSha` and the one `reviewignoreBase` object; `reviewignoreSource` becomes a declared optional field of `TruncationResult`; the intersection types in `paged-fetch.ts` and `truncation.ts` are deleted. (c) A failed content read writes one `[bridgebuilder] WARN:` line on stderr naming the file and the outcome through `process.stderr.write`, the module's existing mechanism (no logger plumbing); the base-`.reviewignore` notice of FR-2 uses the same prefix. (d) The ` [pattern: <p>]` stats suffix is dropped: `patternSuffix`, `PATTERN_SUFFIX` and `exclusionPattern` are removed, every producer sets `pattern` (true since DEC-1050's round), the coverage reader uses `ex.pattern` only, and the `omitted[].pattern` test fixtures move to the structured field. (e) — head-side scope validation — is its own requirement, FR-5 (Could Have); bd-gyrgq closes on (a)–(d).
+**Description:** In both KF parsers (`loa-kf-surface.sh` `fieldval`, `grimoire-index.sh` `emit_kf` `fieldval`) a field line of the form `**Label (qualifier)**: value` (colon outside the bold) is parsed exactly like `**Label**: value` and `**Label (qualifier):** value`; a `## KF-<non-digits>:` heading resets the current entry (`cur = ""`) so its field lines are attributed to no entry. The two parsers stay textually aligned (the comment at `grimoire-index.sh:93-99` promises "both field variants").
 **Acceptance Criteria:**
-- [ ] `tsc` clean; `npm test` green; no `as TruncationResult & {` or `SelectionConfig & {` left in `paged-fetch.ts` / `truncation.ts` (a grep pin in a test).
-- [ ] A test imports `FileContentResult` from `../ports/index.js`.
-- [ ] `paged-fetch-coverage.test.ts`: the suffix fixtures replaced by `pattern` fields; a stats string carrying a literal ` [pattern: x]` is treated as plain text.
-- [ ] A failed read in `paged-fetch-contents.test.ts` produces one WARN line naming the file and the outcome.
-- [ ] A repository-wide search for the literal `[pattern:` returns no hits outside `CHANGELOG.md`, `grimoires/loa/archive/`, `grimoires/loa/a2a/` and test fixtures that assert the plain-text treatment.
-- [ ] Rollback: FR-2 and FR-3 (d) ship in separate commits so either is a single-commit revert before the next tag (no release this cycle).
-**Dependencies:** FR-2 lands first (same files); B sequences them in one worktree.
+- [ ] bats, red first: a fixture with `**Symptom (short)**: s` yields symptom `s` in both the hook's table and the index TSV; `**Symptom (short):** s` still yields `s`; a `## KF-abc:` entry followed by `**Symptom**: x` leaves the previous entry's symptom unchanged and emits no row for `KF-abc`.
+- [ ] On the live `known-failures.md` (0 variant entries, 63 numeric headings) the hook's stdout and `grimoire-index.sh --tsv/--json/write` outputs are byte-identical to the pre-change outputs.
+- [ ] `perf-spawn-budget.bats` kf-surface and grimoire-index counts stay within budget.
+- [ ] Drift guard: a bats test extracts the `fieldval` function body and the heading rule from both `loa-kf-surface.sh` and `grimoire-index.sh` and asserts the regex lines are identical, so the two parsers cannot diverge silently again.
+- [ ] Diagnostic behaviour for a non-numeric `## KF-abc:` heading is a silent reset (fail-open, no stderr line) — the hook's stderr stays byte-identical on every input and `grimoire-index.sh --validate` remains the drift reporter.
+- [ ] Both awk programs run under every awk available on the ship host (mawk, busybox awk, `gawk --posix`; absent interpreters skipped and named) with identical output on the fixture set.
+**Dependencies:** FR-1 (lands after the gates).
 
-> Sources: `ports/index.ts`, `core/types.ts:328`, `paged-fetch.ts:34-71, 375, 463-470`, `truncation.ts:394-397, 883-891, 1517, 1677`, `__tests__/paged-fetch-coverage.test.ts:67-91`; DEC-1045, DEC-1050, DEC-1057 (round-1 disposition #12), DEC-1060, DEC-1065
+> Sources: `.claude/hooks/loa-kf-surface.sh:96-125`, `.claude/scripts/grimoire-index.sh:93-128`; `~/.cache/loa/eso-loop/pass-6/review/VERDICT.md` (fixtures fx_e, fx_all); `grep -c '^## KF-[0-9]+:' grimoires/loa/known-failures.md` = 63, variant count 0
 
-### FR-5: Head-side review-scope validation fails closed on a pull request (from bd-gyrgq; Bridgebuilder round-1 disposition #12)
+### FR-3: loa-status config reads (bd-gv5jf)
+**Priority:** Should Have
+**Description:** `_anthropic_ceiling_json` reads the alias and five model fields with one `yq` invocation emitting one value per line (the same `//` defaults; a line count other than six or a `yq` failure falls back to the current per-field reads); `agy_gate_warn_once` and `agy_opted_in` in `agy-gate-lib.sh` obtain the opt-in node through a parent-shell memo wrapper that stores its result in a shell variable (no command substitution, so the memo survives the call): the memo is valid only while its key `<config path>|<dev>:<inode>:<size>:<mtime>` matches a fresh `stat` of the file; any component change, a `stat` failure or a different config path invalidates it and the node is re-read. The memo is process-local; a caller inside `$(...)` cannot populate it (today's cost, documented). Every caller of the two functions — `loa-status.sh`, `run-preflight.sh`, `flatline-orchestrator.sh`, `adversarial-review.sh` — keeps its behaviour. Output bytes of `loa-status.sh` (human and `--json`) are unchanged.
+**Acceptance Criteria:**
+- [ ] Old-vs-new mirror parity (stdout with ages normalised, stderr, rc) on the live config, `--json`, `--help`, an unknown flag, a `PATH` without `yq`, and a config whose `aliases.opus` is absent, whose model lacks `effective_input_ceiling`, and whose `agy_opt_in` is true / false / the string "true" / absent.
+- [ ] bats green: `loa-status-providers.bats`, `agy-gate-conformance.bats`, `flatline-tertiary-agy-opt-in.bats`, every `loa-status*.bats`.
+- [ ] hyperfine (`-N -i`, 10 runs): `loa-status.sh` mean falls by ≥ 40 ms against the same-session old mirror; the `yq` count in a `bash -x` trace of `_anthropic_ceiling_json` is 1 and the trace shows the six-line fast path taken (no per-field read) on the live config.
+- [ ] Six-line protocol fixtures (fast path or verbatim fallback, output identical either way): malformed YAML, a map where a scalar is expected, a value with an embedded newline, explicit `null`, explicit `false`, an empty final field, all optional fields absent, `yq` failing.
+- [ ] Memo fixtures in `agy-gate-conformance.bats`: hit on an unchanged file; miss after a same-size in-place rewrite `true` → `false` with a distinct mtime (`touch -d`); miss after replacement by `mv` (new inode); miss after deletion (node absent, no error); miss after switching config paths within one process; a `$(...)` caller still gets the right answer.
+- [ ] Caller coverage: old-vs-new mirror parity for `loa-status.sh` (human, `--json`) and `run-preflight.sh` (human, `--json`); bats green for `flatline-tertiary-agy-opt-in.bats`, `agy-gate-conformance.bats` and the adversarial-review agy cases.
+**Dependencies:** FR-1.
+
+> Sources: `.claude/scripts/loa-status.sh:848-870, 818-830, 895-900`, `.claude/scripts/lib/agy-gate-lib.sh:122-139, 203-215, 300-320`; `.skill-loop-progress.md` pass 14 and pass 20 hotspot tables
+
+### FR-4: Profile-lib serves the karpathy threshold knob from the cache (bd-h5tcn)
+**Priority:** Should Have
+**Description:** `karpathy_principles.diff_lines_per_task` becomes a cached knob: `profiles.yaml` lists it under a new top-level `cached_keys:` and the cache builder in `profile-lib.sh:120-160` records it in `.run/effective-config.json` so `loa_knob` hits the cache (a per-process memo is useless here — the karpathy hook is a fresh process per tool call — and is not an option). The cache id stays content-derived (config + profiles + floor), so the first run after upgrade rebuilds it; a cache built from an older `profiles.yaml` without the key simply lacks the entry and `loa_knob` falls back to the live read. The value semantics (`.loa.config.yaml` override, profile default, hard default 100, non-integer fallback) and the stale-cache / missing-cache / missing-`yq` paths are unchanged.
+**Acceptance Criteria:**
+- [ ] bats red first in `profile-lib.bats` (or `karpathy-config-schema.bats`): with a warm cache the knob resolves without spawning `yq` (trace assertion), and the resolved value equals the live-path value for an override, a profile default and the hard default.
+- [ ] The karpathy hook's state JSONL and summary are byte-identical old-vs-new across the pass-19 fixture matrix (session-id shapes × checkpoint shapes); `karpathy-*.bats` green; `profile-lib.bats` green.
+- [ ] `perf-spawn-budget.bats` gains a karpathy target with a fixed fixture and cache, measured and budgeted in the same commit.
+- [ ] Migration fixtures: an `.run/effective-config.json` built from the previous `profiles.yaml` (knob entry absent) → `loa_knob` returns the live-path value; a stale `id` → rebuild; `loa_profile` output byte-identical before and after; the cache JSON differs only by the new knob entry.
+- [ ] Value classification mirrors the live path exactly: explicit `null`, empty string, `false`, `0` and non-scalar values resolve on the warm path to what `_loa_pl_live` returns today for the same config (fixtures for each).
+**Dependencies:** FR-1.
+
+> Sources: `.claude/scripts/lib/profile-lib.sh:28-75, 120-160, 212-260`, `.claude/data/profiles.yaml:28-48`, `.claude/hooks/quality/karpathy-surgical-diff-check.sh:36-50`; `~/.cache/loa/eso-loop/pass-19/REPORT.md` § Hotspot
+
+### FR-5: grimoire-index decisions family cache and write-mode folds (bd-1mfm7)
+**Priority:** Should Have
+**Description:** The decisions family rows (the TSV `emit_decisions` produces) are cached under `.run/perf-cache/` keyed on the sha256 of `decisions.yaml` and the script version; a hit skips `yq`; a miss, a key mismatch, a missing, truncated, altered or unparsable cache, or `LOA_GRIMOIRE_INDEX_NO_CACHE=1` (an env knob documented in the header comment — no new CLI flag, so `--help` stays byte-identical; it disables both reading and writing) takes today's path and rewrites the cache atomically (exclusive `mktemp` in the cache directory, `umask 077`, symlink refusal on the directory and the file re-checked immediately before the rename, `mv -f -T` / `mv -f`, never fatal, never under `CI`/`GITHUB_ACTIONS`). The yq gate runs before the cache lookup, so a host without mikefarah `yq` emits today's skip NOTE and never consults a cache left behind. Trust model: the cached rows are the post-sanitisation output of the jq `s` filter; the reader accepts the file only when the header matches (`v1:<sha256 of decisions.yaml>:<yq major.minor>:<jq major.minor>:<row count>`), the row count matches and every row has the exact field count with no byte outside the sanitiser's output alphabet; anything else is a miss. A forged cache can be planted only by someone who can already write `decisions.yaml`. The write-mode `bad` check and final `.total` read come from one jq program that preserves the root object. `--validate`, `--tsv`, `--json` and write-mode outputs are byte-identical with no normalisation (the index embeds no timestamp or run id).
+**Acceptance Criteria:**
+- [ ] Old-vs-new parity on the live grimoire for `--tsv`, `--json`, `--validate` (stdout, stderr, rc) and write mode (stdout, stderr, `INDEX.md`, `grimoire-index.json`), cold and warm; a fixture with an edited `decisions.yaml` row invalidates the cache (the new row appears); a corrupt cache file, a symlinked cache file and a read-only `.run` all give today's output and exit codes.
+- [ ] bats red first in `grimoire-index.bats`: cache hit skips `yq` (trace assertion), cache miss rebuilds, invalidation on content change, corrupt cache ignored.
+- [ ] hyperfine warm run mean ≤ 650 ms (from 826) and cold run mean ≤ old mirror + 40 ms on the same host; `perf-spawn-budget.bats` grimoire-index budget updated in the same commit with the reason.
+- [ ] Cache robustness fixtures: a cache created with `yq` present then read with `yq` absent (skip NOTE, no cache read); a syntactically valid cache with one row removed, one row altered, a wrong key, a wrong row count (each a miss); a symlinked `.run/perf-cache` directory (no write, no read); two concurrent writers (last rename wins, both outputs correct); `decisions.yaml` rewritten between key computation and row emission (the cache is not written when the content hash differs after parsing); `git check-ignore .run/perf-cache/x` succeeds so a downstream mount's `git status` stays clean.
+**Dependencies:** FR-1.
+
+> Sources: `.claude/scripts/grimoire-index.sh:216-250, 296-330`; `.claude/hooks/safety/zone-write-guard.sh` (`.run/perf-cache` precedent, 2026-07 pass 6); `.skill-loop-progress.md` passes 4, 5, 20
+
+### FR-6: Two slow test files (bd-wctli)
+**Priority:** Should Have
+**Description:** `adversarial-review-companion.bats`: the 300 s holder processes and fixed sleeps in the test-owned `cheval` shim (the stub defined inside the bats file, lines 160–240) become injectable waits — an env knob (`CMP_STUB_HOLD_S`) read ONLY by that shim and the test bodies, never by production code, default the current values, overridden in the test's `setup` — and polls that spin to a 30 s ceiling stop at the first observable event; every test still demonstrates the same synchronisation states before asserting (holder ready, lock contended, released, timed out, cleaned up); no assertion changes. CMP-37 is NOT made deterministic (it asserts a real ordering with a real wait and is out of scope); its acceptance evidence is a serial whole-file run on an idle host. `block-destructive-bash.bats`: the cycle-125 corpus runs once in `setup_file` into `$BATS_FILE_TMPDIR` (status, stdout and stderr captured without failing `setup_file`; each corpus test asserts status 0 and JSON validity first); `-f` selection and `--jobs` still run `setup_file` once per file process; the latency test keeps its own measurement from that one run.
+**Acceptance Criteria:**
+- [ ] The pass/fail/skip set per test name is identical before and after for both files (serial runs, TAP lines compared); no assertion text, expected value or skip condition changes.
+- [ ] `adversarial-review-companion.bats` serial wall time ≤ 300 s on the ship host (from > 900 s); the three corpus tests in `block-destructive-bash.bats` run the corpus once (trace or counter evidence).
+- [ ] CI's `bats-tests.yml` Shell Tests job green on the PR head.
+- [ ] Negative control (the red-first substitute for a test-only change): with the shortened waits active, each affected companion test fails when its asserted behaviour is deliberately broken (holder exits early; reaper disabled), then passes again with the break removed — recorded per test name.
+- [ ] Baseline procedure: `bats -T` serial on the idle ship host, median of three runs, before and after; if the file stays above 300 s the measured floor and the remaining per-test costs are recorded and the AC moves to the floor by a `proposed` decision row written before `/review-sprint sprint-2`.
+**Dependencies:** FR-1.
+
+> Sources: `tests/unit/adversarial-review-companion.bats:182-232`, `tests/unit/block-destructive-bash.bats:812-845, 1546-1590`; `~/.cache/loa/eso-loop/pass-21/REPORT.md` § Profile
+
+### FR-7: audit-envelope verify-chain batching (bd-09z1i)
 **Priority:** Could Have
-**Description:** `resolveConfig(cliArgs, env, yaml)` learns the mode with `isPullRequestContext(cliArgs.pr, env)` (the same test `loadTrustedConfig` uses: `--pr`, `GITHUB_EVENT_NAME` `pull_request` / `pull_request_target`, or `GITHUB_BASE_REF`). In pull-request mode a validation error on the head's `protected_paths`, `exclude_patterns` (list shape) or `max_content_fetches` is written as one WARN naming the key and the reason, the key is left *unset* and its name is recorded in `provenance.deferredScopeKeys` (DEC-1084); the head YAML is validated before the trusted replacement, and the trusted scope keys then *replace* the head values (flat lists, booleans and integers; `exclude_patterns` is recomposed as defaults + trusted + CLI) — nothing is deep-merged; the governing value is then whatever `applyTrustedReviewScope` installs — the trusted source's value when one was loaded and validated, else the default (DEC-1055 fail-closed) — never the head's invalid value; the applier clears the list, the review pipeline refuses a configuration that still carries deferred keys, and a test pins the `main.ts` call order. If the trusted replacement itself fails validation that remains a config error (today). In local mode every validation error stays a config error. ([ASSUMPTION decision] `resolveConfig` can learn the mode from `cliArgs.pr` / the GitHub env the same way `loadTrustedConfig` does; if not, the SDD documents FR-5 as deferred — DEC-1065)
+**Description:** The SDD decides between (a) one `audit-envelope.sh verify-chains <path>…` entry — one Python process that calls the unchanged `audit_verify_chain(path)` per argument — and (b) deferral. Snapshot semantics for (a): every path is verified exactly as a per-call invocation would verify it at that moment; `_check_trust_store` is untouched, so its in-process cache (keyed by store path and content) re-authenticates the store through the subprocess snapshot whenever the store's content changes between two paths, and a store that becomes INVALID or is deleted between paths fails every later path while earlier results stand. Equivalence is proven by a test that mutates the trust store between paths (replace with a store revoking the signing key; tamper; delete) and asserts the batch results equal fresh per-call results under the same schedule; if that test cannot be made to pass without touching `_check_trust_store`, batching is deferred. Results are machine-readable, one record per input path in argument order; a missing record or an abnormal process exit is fail-closed (every path without a record counts as FAILED). The decision row names the TOCTOU argument either way.
 **Acceptance Criteria:**
-- [ ] For each of the three keys: PR mode (`--pr 1`) with an invalid head value and a valid trusted source → one WARN naming the key, the trusted value governs; PR mode detected through `GITHUB_EVENT_NAME=pull_request` and through `GITHUB_BASE_REF` alone → the same.
-- [ ] PR mode with an invalid head value and no trusted source → WARN, the default governs (DEC-1055 path); PR mode with an invalid *trusted* value → config error (unchanged).
-- [ ] Local mode (no `--pr`, no PR env) with the same invalid head values → throws as today (three cases pinned).
-- [ ] `deferredScopeKeys` is populated by `resolveConfig` and cleared by `applyTrustedReviewScope`; the pipeline entry throws a config error on a configuration that still carries deferred keys; the `main.ts` call-order pin; composition: a permissive valid head value vs a restrictive trusted value, and mixed valid/invalid keys.
-**Dependencies:** FR-3 (same files); deferrable without blocking the sprint.
+- [ ] If (a): `tests/security/test_audit_trust_policy.py` and the audit-envelope bats (44 files) green; per-path results identical to the per-call results on the live chains and on tampered / broken-link / missing / empty fixtures and under the store-mutation schedule above; `loa-status.sh` mean falls by ≥ 100 ms; no chain is mutated — `verify-chains` runs against a read-only chain tree and the sha256 of every chain file is identical before and after; a missing path is reported FAILED (`loa-status.sh` keeps pre-filtering existing files, so its valid-by-absence count is unchanged); zero arguments is a usage error.
+- [ ] If (b): a `proposed` decision row with the alternatives and the measured cost, and the bead re-labelled `deferred-cycle-137`.
+**Dependencies:** FR-1; FR-3 (same file, ordered after it).
 
-> Sources: `config.ts:634-640` (`isPullRequestContext`), `resolveConfig`, `applyTrustedReviewScope`; DEC-1045, DEC-1055, DEC-1057 (#12), DEC-1065
+> Sources: `.claude/adapters/loa_cheval/audit_envelope.py:414-440, 500-540, 580-600, 710-730`, `.claude/scripts/loa-status.sh:420-435`, `tests/security/test_audit_trust_policy.py:147-165`; `~/.cache/loa/eso-loop/pass-12/REPORT.md`
 
-### FR-4: Ship — one PR, a non-degraded Bridgebuilder verdict, record, archive, no release
+### FR-8: Ship — one PR, Bridgebuilder, merge, record, archive, publish v2.0.0-rc.9
 **Priority:** Must Have
-**Description:** As cycle-135: review and audit gates, one PR from `feature/cycle-136-bridgebuilder-followups`, Bridgebuilder round(s) ≤ 2 with the generated and planning files excluded, `record-branch.sh --cycle 136 --prev origin/record/cycle-135-review-coverage-followups`, archive PR, JACKED_OUT. **Every gate binds to the exact final PR head sha:** the admin merge requires every check run on that sha to be `completed` with conclusion `success`, or `skipped` / `neutral` only for jobs whose path filter excludes the diff (the six required checks must be `success`); any head change after a verdict invalidates it. The Bridgebuilder verdict must be non-degraded on the final head when the two-round budget allows (round 1 on the opened PR; round 2 on the head carrying round-1 fixes); when round-2 findings require fixes, those land red-first, the lead re-reads them, and the PR records that the final head was not re-reviewed by Bridgebuilder (the cycle-135 shape, DEC-1060). The CI mirror runs from the landed head before the PR and the secret scan before every push. The CHANGELOG `[Unreleased]` gains the entries; no version heading is added. Merge-triggered runs on `main` are monitored after the fact; they are not a merge gate.
+**Description:** After both sprints are `COMPLETED`: CHANGELOG `[Unreleased]` content moves under `## [2.0.0-rc.9] — <date> — Performance follow-ups (release candidate)` with the version markers the post-merge pipeline expects (the rc.8 precedent); `.loa-version.json` `framework_version` and the README install pin bumped; PR from `feature/cycle-137-performance` (title classifies `cycle`); Bridgebuilder ≤ 2 rounds non-degraded; admin merge only when every required check — Template Protection, Validate Framework Files, Lint Markdown, Lint YAML, Shell Tests, Cross-Platform Compatibility — is `success` on the exact head and nothing is pending or red; `record-branch.sh --cycle 137 --prev origin/record/cycle-136-bridgebuilder-followups`; archive via `archive-cycle.sh` on a `chore/cycle-137-archive` branch (housekeeping merge); the post-merge pipeline's candidate published with `post-merge-orchestrator.sh --publish <candidate> --approve-sha256 <digest>` from a non-shallow clone; tag `v2.0.0-rc.9` reachable from `main`; GitHub release created.
 **Acceptance Criteria:**
-- [ ] The PR title names the behaviour changes; the body lists beads, DEC rows, gates and the Bridgebuilder outcome per head sha.
-- [ ] On the final head: every check run completed; the six required checks — Template Protection, Validate Framework Files, Lint Markdown, Lint YAML, Shell Tests, Cross-Platform Compatibility — `success`; no `failure` / `cancelled` / `timed_out`; `skipped` only where the job's path filter excluded the diff (listed in the ship record); fixes landed after a Bridgebuilder round go back through the review and audit addenda before the merge; a red check on the merged commit → a follow-up fix PR, or a revert of the merge commit (with dist, checksums and REPO-MAP regenerated in the revert) if `main` is broken.
-- [ ] Bridgebuilder: ≤ 2 rounds, each non-degraded; the verdict's head sha recorded; fixes after the last round red-first and named.
-- [ ] CI mirror from the landed head (reds explained or fixed); secret scan clean on every pushed range.
-- [ ] Every check run on the merged head completed green (post-merge monitoring); the archive merge classifies `housekeeping` and prepares nothing.
-- [ ] Record branch pushed; cycle archived; `.run/*.cycle-136.jacked-out.json` parked.
-**Dependencies:** FR-1 … FR-3 (FR-5 if landed).
+- [ ] PR body lists both sprints, the beads, the DEC rows, the gates' verdicts and the Bridgebuilder outcome per head sha.
+- [ ] Every check run on the final head completed and the six required checks `success`; CI mirror (full unit suite) from the final head shows only the KF-034 reds.
+- [ ] Merge commit on `origin/main`; record stage 1 pushed; archive merge classifies `housekeeping`; `v2.0.0-rc.9` tag object = the merge commit's descendant per the pipeline, release page present, `[Unreleased]` empty.
+- [ ] `.run/*.cycle-137.jacked-out.json` parked; ledger cycle archived; follow-up beads closed or deferred.
+- [ ] Publish summary stage before `--publish`: `grimoires/loa/a2a/sprint-282/publish-summary.md` records the candidate path, its digest as printed by the pipeline AND as recomputed by the lead from the fetched candidate bytes (they must match), the candidate's `merge_sha` (must equal the merge commit on `origin/main`), the tag, the CHANGELOG heading, and every line of § Release predicate ticked true; publish runs only after that file exists.
+- [ ] Post-publish install smoke test: from a scratch directory `git clone --depth 1 --branch v2.0.0-rc.9`, run `bash .claude/scripts/check-loa.sh` and the kf-surface SessionStart hook; both succeed.
+- [ ] Every performance number in the PR body and the e2e files carries the host identifier, the hyperfine command line and the run count.
+- [ ] The ship scripts are copied to `grimoires/loa/a2a/sprint-282/ship/` with their sha256 listed in `e2e.md` (they otherwise live outside version control).
+- [ ] Bridgebuilder degraded or exhausted after two rounds: proceed with a `proposed` decision row recording the degraded state and the lead's reading of the diff; never a third round.
+- [ ] Rollback is written down before publishing: revert the merge commit on `main` (regenerating manifests), mark the GitHub release as a withdrawn pre-release and leave the tag (never deleted), reopen the beads, and record the decision row; a published candidate is never silently replaced.
+**Dependencies:** FR-1 … FR-7 landed or deferred per § Release predicate.
 
-> Sources: `~/.cache/loa/cycle-135/ship/*.sh` (the recipe that worked); DEC-0960, DEC-1057, DEC-1060, DEC-1076
+> Sources: `~/.cache/loa/cycle-135/ship/*.sh` (the recipe that worked); `~/.claude/projects/-home-merlin-Documents-thj-code-loa/memory/reference_release_process.md`; cycle-133 rc.8 publish notes; DEC-0960, DEC-1057, DEC-1060
 
 ---
 
 ## Non-Functional Requirements
 
 ### Performance
-One extra provider call per Bridgebuilder run at most (the base `.reviewignore`), only when the base commit is not in the clone; bounded by the existing 1 MiB / timeout limits; cached per base sha across restarted attempts. The scaffold check is one `yq` or `awk` pass over one file.
+Every change either removes work with byte-identical output (FR-3/4/5) or shortens tests without changing assertions (FR-6). Benchmark protocol for every number in this cycle: `hyperfine -N -i --warmup 3 --runs 10` (mean ± σ reported), old and new mirrors measured in the same session on the idle ship host, caches in the stated state (cold = `.run/perf-cache` entry absent; warm = one prior run), the baseline revision named, the host identifier and command line recorded next to the number. Mirrors live in REAL directories (the symlinked-mirror `..` escape of pass 18 is a known trap). No change may add spawns to a hot path: `perf-spawn-budget.bats` guards six paths and gains a karpathy target in FR-4.
 
 ### Security
-The contents read for `.reviewignore` uses the existing allowlisted shape pinned to a 40-hex sha against the base repository; a 404 is `none` (review everything), every other failure keeps the fail-closed degrade; the PR head's copy is never applied. The scaffold never rewrites a customised or ambiguous guard; the opt-in flag changes one line it recognises exactly and refuses anything else. Head-side validation (FR-5) downgrades only in pull-request mode and never installs the head's invalid value.
+Hooks keep their documented fail-open / fail-closed semantics; untrusted bodies (KF, decisions, handoffs, notes) stay sanitised at surfacing; the audit chain is never mutated outside `audit_emit`; the trust-store TOCTOU defence is kept exactly or the bead is deferred; the `.run/perf-cache` writes use tmp+mv, umask 077 and symlink refusal; no new eval or source of data.
 
 ### Reliability
-Red-first tests for every behaviour; the pipeline and scaffold bats files and `npm test` green on every landed commit; the CI mirror run from the landed head before the PR; rollback by single-commit revert (no release this cycle).
+Red-first tests for every behaviour change; the covering bats suites and the full unit suite green on the landed head; rollback is a single-commit revert per bead; the loop commits stay as landed (no squash) so each pass reverts alone.
 
 ### Compliance
-System Zone writes under the bounded marker with manifests regenerated (DEC-0824); decision rows for every judgment call, proposed until the operator confirms.
+System Zone writes under the bounded marker with `checksums.json` and REPO-MAP regenerated in the same commit (DEC-0824); decision rows for every judgment call, `proposed` until the operator confirms; the CHANGELOG names every behaviour-visible change (the rc heading carries the loop block).
 
 ### Authorization basis and refusal list
-Operator instruction of 2026-10-27 (verbatim above). Refused regardless of instruction: writing `main` outside the merge, deleting tags or branches, bypassing red CI or an unresolved Bridgebuilder blocker, publishing a release, touching credentials or the cycle-132 … 135 records.
+Operator instruction of 2026-10-28 (verbatim in the brief: "do formal gates and then release when ready"). Unattended merge and unattended publish are both authorised by it; the safeguards are mechanical, not a pause: the merge requires every check run complete and the six required checks `success` on the exact head plus a non-degraded Bridgebuilder verdict with no open blocking finding; the publish requires the publish-summary stage (FR-8) with the digest independently recomputed by the lead from the fetched candidate bytes and equal to the pipeline's printed digest, and the candidate's `merge_sha` equal to the merge commit. Refused regardless of instruction: writing `main` outside the merge, force-pushing, deleting tags or branches, merging with a red or pending required check, publishing a candidate whose digest was not re-canonicalised and approved, touching credentials or the live push configuration in tests, changing `br` contract calls, quarantining a test.
 
-> Sources: `grimoires/loa/context/cycle-136-brief.md`; DEC-0824; `adapters/github-cli.ts` (`getFileContent` bounds)
+> Sources: `grimoires/loa/context/cycle-137-brief.md` § Constraints; DEC-0824; `.claude/loa/CLAUDE.loa.md` § Agent-Network Primitives; `~/.cache/loa/eso-loop/REVIEW.md` § 6 (security checklist)
 
 ---
 
 ## User Experience
 
 ### Key User Flows
-Re-mount → WARN → (optional) one-line fix. Shallow CI checkout → review with `reviewignore_source: base` and one notice line. Contributor → typed fields, one import.
+Session start → identical KF table, faster. Edit → identical gate decisions, fewer spawns. `/loa` → identical status. CI → same results sooner. Release consumer → `--tag v2.0.0-rc.9`.
 
 ### Interaction Patterns
-All messages are single `[bridgebuilder] WARN:` or `[scaffold] WARN:` lines on stderr naming the file, the value seen and the action; no interactive prompts; no exit-code change for the scaffold (DEC-1077).
+No new messages on the hot paths; the only new operator-visible text is the CHANGELOG release section and the PR body.
 
 ### Accessibility Requirements
-Plain-text output; no colour-only signals.
+Plain text; no colour-only signals (`agent-ergonomics-color-guard.bats` stays green).
 
-> Sources: `paged-fetch.ts` / `truncation.ts` WARN style; `scaffold-post-merge-workflow.sh` output conventions
+> Sources: `.claude/settings.json` (hook wiring); `tests/unit/agent-ergonomics-color-guard.bats`
 
 ---
 
 ## Technical Considerations
 
 ### Architecture (for the SDD)
-C-1 scaffold detection (bash lib + bats); C-2 base `.reviewignore` via the contents envelope (paged-fetch → truncateFiles input); C-3 contract tidy-up (`core/types.ts`, `ports/index.ts`, `paged-fetch.ts`, `truncation.ts`) with FR-5 in `config.ts`. Two implementers: A (C-1), B (C-2 then C-3 and FR-5, same files, one worktree).
+C-1 Sprint 281 gate pass (reviewer.md, review, audit, fix commits); C-2 KF parser alignment (two awk programs, one regex change each, `cur` reset); C-3 loa-status single-yq ceiling read + agy node memo in the shared lib; C-4 profile-lib knob caching; C-5 grimoire-index decisions cache + jq folds; C-6 test-time injectable waits and corpus-once fixture; C-7 verify-chain batching design (implement or defer); C-8 ship and rc.9 publish.
 
 ### System Zone authorization (explicit, cycle-level)
-This PRD authorises writes under `.claude/scripts/lib/scaffold-post-merge-workflow.sh`, `.claude/skills/bridgebuilder-review/**` (source, tests, dist, `resources/exclusions-and-coverage.md`; `SKILL.md` only if the budget allows), `tests/unit/*.bats`, `CHANGELOG.md`, with `checksums.json`, REPO-MAP and the dist manifest regenerated in the same commit.
+This PRD authorises writes under `.claude/hooks/loa-kf-surface.sh`, `.claude/scripts/grimoire-index.sh`, `.claude/scripts/loa-status.sh`, `.claude/scripts/lib/agy-gate-lib.sh`, `.claude/scripts/lib/profile-lib.sh`, `.claude/data/profiles.yaml`, `.claude/scripts/audit-envelope.sh` and `.claude/adapters/loa_cheval/audit_envelope.py` (only under FR-7(a)), `.claude/checksums.json`, `grimoires/loa/REPO-MAP.md` + `.checksum`, `tests/unit/**`, `CHANGELOG.md`, `README.md`, `.loa-version.json` — each with the manifests regenerated in the same commit. Sprint 281 gate fixes are authorised only on the 18 System Zone files the loop changed (`git diff --stat main..c0d41f5e3 -- .claude/`): `adapters/loa_cheval/providers/__init__.py`, `hooks/compliance/implement-gate.sh`, `hooks/loa-kf-surface.sh`, `hooks/quality/karpathy-surgical-diff-check.sh`, `hooks/safety/notes-size-guard.sh`, `hooks/session-start/loa-run-state-surface.sh`, `scripts/archetype-resolver.sh`, `scripts/cache-manager.sh`, `scripts/compat-lib.sh`, `scripts/grimoire-index.sh`, `scripts/lib/dx-utils.sh`, `scripts/lib/push-notify-lib.sh`, `scripts/lib/repo_map.py`, `scripts/loa-status.sh`, `scripts/red-team-retention.sh`, `scripts/repo-map-gen.sh`, `scripts/run-checkpoint.sh`, `scripts/upgrade-health-check.sh` (plus `checksums.json`), and on the loop's non-System-Zone files (`tests/unit/perf-spawn-budget.bats`, three bats helper files, `grimoires/loa/reports/perf/eso-loop-2026-10-27.md`, `.skill-loop-progress.md`, `CHANGELOG.md`).
 
 ### Integrations
-GitHub contents API through the existing `gh api` allowlist; mikefarah `yq` v4 optional for the scaffold with an `awk` fallback.
+GitHub (PR, checks, merge, release) through `gh`; the post-merge pipeline (`post-merge.yml`, `post-merge-orchestrator.sh`); Bridgebuilder with `BRIDGEBUILDER_MODEL=codex-headless` as in cycle-135.
 
 ### Dependencies
 None new.
 
 ### Technical Constraints
-`SKILL.md` must stay under the 16,384 B prompt budget (DEC-1053) — documentation goes to `resources/exclusions-and-coverage.md`.
+`SKILL.md` budgets untouched (no skill prose changes planned); NOTES.md at 190 KiB must be rotated before the sprint logs push it past the 200 KiB guard; mikefarah `yq` v4 remains optional on the decisions family (the skip NOTE stays); busybox and BWK awk compatibility holds for the KF regex change (no gawk-only syntax).
 
-> Sources: DEC-1053; `tools/check-prompt-budget.sh`; `.claude/scripts/lib/scaffold-post-merge-workflow.sh`
+> Sources: DEC-0824; `.claude/hooks/safety/notes-size-guard.sh`; `.claude/scripts/grimoire-index.sh:216-221`; `~/.cache/loa/eso-loop/pass-4/review/VERDICT.md` (busybox awk evidence)
 
 ---
 
 ## Scope & Prioritization
 
 ### In Scope (MVP — this cycle)
-FR-1, FR-2, FR-3 (a)–(d), FR-4; FR-5 as Could Have.
+FR-1, FR-8 (Must); FR-2 … FR-6 (Should); FR-7 (Could — implement or defer by decision row).
 
 ### In Scope (Future Iterations)
-FR-5 if it does not land in the sprint; gitignore directory semantics for slashless wildcard matches (DEC-1054 discussion item); the cheval safeguard-retry bead bd-uqdl8.
+`yaml.CSafeLoader` for cheval config loading (error-text risk); a single-pass `ast.NodeVisitor` in `repo_map.py` (def-order risk); the `grep -q push_command` pre-check in `push-notify-lib.sh` (needs an alias fixture); the remaining `loa-status` `breaker_cli` Python start (58 ms).
 
-### Out of Scope
-Any change to this repository's classifier, workflow or release guard (the scaffold rewrites a downstream mount's guard only on opt-in); releases; new allowlist shapes; changes to the cycle-135 semantics (DEC-1043, DEC-1056, DEC-1058).
+### Explicitly Out of Scope
+New optimisation targets beyond the six beads; `br`/`br doctor` contract calls; the Flatline, Bridgebuilder and adapter wire contracts; quarantining any test; squashing the loop commits.
 
 ### Priority order under time pressure
-FR-2 (reach) → FR-1 (signal) → FR-3 (hygiene) → FR-5 → FR-4.
+FR-1 → FR-8 → FR-2 → FR-3 → FR-5 → FR-4 → FR-6 → FR-7.
 
-### Release-blocking status
-None: no release this cycle.
+### Release predicate (authoritative — every other statement about releasing defers to this one)
+`v2.0.0-rc.9` is published when and only when all of R-1 … R-8 hold; nothing else blocks or permits it.
 
-> Sources: `grimoires/loa/context/cycle-136-brief.md` § Scope, § Non-goals; DEC-1054
+- R-1 Gates: Sprint 281 and Sprint 282 each carry review `All good` and audit `APPROVED` produced on their final head sha (`reviewed_head` in the verdict files equals the sha the PR merges), `verdict-derive.sh` CONSISTENT, `COMPLETED` written, ledger status `completed`.
+- R-2 Scope and deferral: FR-1 and FR-8 are Must and cannot be deferred. Each of FR-2 … FR-7 is either LANDED (fix commit + red-first test or the FR-6 substitute, bead closed with the commit and test named) or DEFERRED: a `proposed` decision row written BEFORE `/review-sprint sprint-2` runs re-scopes the sprint (the AC line is marked deferred by that row's id), the bead is relabelled `deferred-cycle-137` and stays open, and G-2 counts it as deferred, not failed. A deferral never blocks the release; an FR that is neither landed nor deferred does.
+- R-3 Merge: the PR is merged by the ship recipe only when every check run on the exact head has completed and the six required checks — Template Protection, Validate Framework Files, Lint Markdown, Lint YAML, Shell Tests, Cross-Platform Compatibility — are `success`, Bridgebuilder is non-degraded with no open blocking finding, and the merge commit's tree equals the final reviewed head's tree (`git diff --quiet <head> <merge>` — the ship-only files `CHANGELOG.md`, `README.md`, `.loa-version.json` are part of the reviewed head because they are committed before the final gate re-run).
+- R-4 Suite: on the ship host the full `tests/unit` TAP of the final head fails ONLY tests in the allowed-failure list, and `main` under the same host condition (same `git config tag.gpgsign`) fails exactly the same ones. Allowed-failure list (KF-034, host `tag.gpgsign=true`): `semver evidence: unknown squash subject refuses silent patch`, `semver evidence: classification records its source and matching commit`, `semver evidence: breaking body retains the classifying commit identity`. No other test may fail; CMP-37 is not on the list — a CMP-37 failure in a full run is load-diagnostic only if the whole companion file then passes serially on an idle host and the full run is recorded as having overlapped another bats job.
+- R-5 CI on main: the push-to-main `BATS Tests` and `CI` workflow runs on the merge commit are `success` (CI runners do not carry KF-034).
+- R-6 Candidate binding: the pipeline's prepared candidate names `merge_sha` equal to the merge commit on `origin/main`; its digest recomputed by the lead from the fetched bytes equals the printed digest; `--approve-sha256` receives that digest.
+- R-7 Records: every `proposed` decision row of the cycle is written (dec-batch), the record branch stage 1 is pushed, `publish-summary.md` exists with R-1 … R-6 ticked.
+- R-8 Post-publish: tag `v2.0.0-rc.9` is an ancestor-descendant of the merge commit per the pipeline (`git merge-base --is-ancestor`), the release page exists, the install smoke test passes; failure here triggers the FR-8 rollback, not a silent retry.
+
+> Sources: `grimoires/loa/context/cycle-137-brief.md` § Scope, § Non-goals; `grimoires/loa/reports/perf/eso-loop-2026-10-27.md` § Follow-ups
 
 ---
 
 ## Success Criteria
 
-G-1 … G-5 as measured in `a2a/sprint-280/e2e.md`: beads closed with evidence; the scaffold matrix green (positive and negative fixtures, with and without `yq`); the shallow-checkout fixture green with `reviewignore_source: base` and the fail-closed cases pinned; `tsc` and `npm test` green with no intersection types; one PR merged with every check run green on the final head, record, archive, no release.
+### Launch Criteria
+G-1 … G-6 as measured in `a2a/sprint-281/e2e.md` and `a2a/sprint-282/e2e.md`: the two gate verdicts, the beads' commits and tests, the re-baseline table, the full-suite TAP, the PR checks, the record/archive shas, the tag and release URLs.
+
+### Post-Launch Success (30 days)
+Owner: the primary maintainer (deep-name). Evidence: `grimoires/loa/known-failures.md` (no KF entry attributes a regression to a loop or Sprint 282 commit), the `BATS Tests` history on `main` (`perf-spawn-budget.bats` never trips), downstream mount reports (no hook behaviour change). Response: a spawn-budget trip or an attributed regression opens a `/bug` micro-sprint against the single commit (each pass and each bead is one revertable commit).
+
+### Long-term Success (90 days)
+Owner: the primary maintainer. Evidence: each hook change on `main` updates `perf-spawn-budget.bats` deliberately in the same commit (the test's own history), keeping the per-tool-call chains at or below the cycle-137 numbers. Response: a budget raised without a reason line in the commit is a review finding.
 
 > Sources: § Goals & Success Metrics
 
@@ -284,79 +342,89 @@ G-1 … G-5 as measured in `a2a/sprint-280/e2e.md`: beads closed with evidence; 
 
 | Risk | Mitigation |
 |---|---|
-| The scaffold's `awk` fallback matches an `if:` of a step or another job | job-scoped range at the job's indentation; exactly one match or refuse; negative fixtures pin it |
-| A reformatted or multi-line legacy guard is not detected | reported as customised and left alone (silent); the CHANGELOG tells operators the single-line form that is detected |
-| The API read of `.reviewignore` adds a provider call on shallow-checkout runs | only on `unknown_commit`; one call per base sha per run; bounded |
-| The real `gh` 404 shape differs from the fixture | the test uses the adapter's own `GitProviderError` (`httpStatus` 404) read from the adapter's mapping; any non-404 failure falls back to the fail-closed degrade |
-| Dropping the suffix breaks a downstream reader of `stats` | the structured `pattern` field has shipped since cycle-135; CHANGELOG names the removal; single-commit revert |
-| FR-5 downgrade hides a genuine misconfiguration | the WARN names the key and reason; the trusted value or the default governs; local mode still throws |
+| The formal review finds a parity gap the per-pass reviews missed | fix red-first; re-run the pass's harness; a non-fixable finding reverts that single commit (each pass is one commit) |
+| A cache (FR-4, FR-5) serves stale values | content-keyed (sha256 + version), atomic write, corrupt/missing/symlink → today's path; invalidation fixtures in bats |
+| Injectable test waits change what the companion tests prove | defaults equal today's values; only `setup` overrides them; pass/fail set compared per test name before and after |
+| FR-7 weakens the fail-closed trust-store check | the subprocess snapshot stays; `test_audit_trust_policy.py` pins it; otherwise defer by decision row |
+| The rc.9 publish path regresses (KF-034, KF-063 history) | follow the rc.8 recipe: non-shallow clone, candidate digest re-canonicalised, `--approve-sha256`; verify the tag is reachable from `main` |
+| NOTES.md crosses the size guard mid-cycle | rotate before Sprint 281 logging starts |
+| Load-sensitive tests (CMP-37) fail in a loaded CI run | FR-6 shortens the file; acceptance evidence is a serial whole-file run on an idle host (R-4); CMP-37 itself is out of scope for determinism |
+| Rollback of the shipped collection (loop + six beads + manifests + caches + release assets) | each pass and each bead is one commit; the merge commit reverts as one unit with manifests regenerated; `.run/perf-cache` entries are keyed and simply become misses; the published release is withdrawn per FR-8 (tag kept, release marked withdrawn pre-release) |
+| A verdict is produced on one head and the PR merges another | `reviewed_head` in every verdict; R-1 and R-3 compare shas and trees; a later code commit re-runs the gate |
 
-> Sources: § Functional Requirements; DEC-1050, DEC-1057
+> Sources: § Functional Requirements; KF-034, KF-063 in `grimoires/loa/known-failures.md`; `~/.cache/loa/eso-loop/bats-final/unit.tap`
 
 ---
 
 ## Timeline & Milestones
 
-One sprint (global 280): plan → implement (A, B) → review → audit → PR → Bridgebuilder → merge → record → archive, unattended, 2026-10-27.
+Two sprints: Sprint 1 (global 281) rotate NOTES → reviewer.md → review → audit → COMPLETED (verdicts bound to the head sha); Sprint 2 (global 282) implement the six beads → ship files (CHANGELOG heading, README pin, `.loa-version.json`) → review → audit → COMPLETED on the final head; then PR → Bridgebuilder (fixes re-run the audit as a verify-only pass) → merge (R-3) → record → publish summary (R-6, R-7) → publish rc.9 → smoke test (R-8) → archive. Unattended, 2026-10-28.
 
-> Sources: `grimoires/loa/ledger.json` (sprint 280 registered)
-
----
-
-## Appendix A — Decisions taken on the operator's behalf
-
-| # | Decision | Row |
-|---|----------|-----|
-| D-1 | Scope: exactly the three beads; classifier/guard changes, releases and the cheval retry bead out | DEC-1061 |
-| D-2 | Grounding by direct file:line reads; no /ride | DEC-1062 |
-| D-3 | Scaffold: warn on the legacy guard, never overwrite; an opt-in flag rewrites exactly the `if:` line and refuses customised text | DEC-1063 |
-| D-4 | Base `.reviewignore` on a shallow checkout: local sha read → contents API at the base sha → checkout copy; 404 = `none`; other failure = `base_unavailable` + degrade; source stays `base` | DEC-1064 |
-| D-5 | Contract tidy-up: drop the stats suffix now; WARN line on a failed read; fields into `core/types.ts`; head-side validation as FR-5 | DEC-1065 |
-| D-6 | Cycle shape: one sprint, two implementers, one PR, ≤ 2 Bridgebuilder rounds, record, archive, no release; cap USD 20 | DEC-1066 |
-| D-7 | Scaffold detection and rewrite job-scoped, exactly one single-line job-level `if:`, else refuse; same with and without `yq` (Flatline SKP-001/002) | DEC-1073 |
-| D-8 | Typed local-read outcomes; only `unknown_commit` calls the API; 404 at the pinned base sha = `none`; one resolution per base sha per run (Flatline gpt IMP-005…008, opus IMP-001/003) | DEC-1074 |
-| D-9 | FR-5 as its own Could Have with a fail-closed clause (Flatline SKP-007, opus IMP-002/009) | DEC-1075 |
-| D-10 | Ship gates bound to the exact final head sha (Flatline SKP-010) | DEC-1076 |
-| D-11 | The scaffold's refusal is a WARN with return 0 (both callers run under `set -e`) (Flatline gpt IMP-004, opus IMP-005) | DEC-1077 |
-| D-12 … D-18 | Flatline SDD review: awk-only detection with full normalisation; indentation-bounded job block; block-scalar tracking; safe rewrite; `cat-file` classification, failure-inclusive cache, one `reviewignoreBase` object; 404 confirmed by an access probe, DEC-1043 kept; explicit FR-5 deferral (sdd.md § 11.D D-2.1 … D-2.7) | DEC-1078 … DEC-1084 |
-
-> Sources: this document; `grimoires/loa/decisions.yaml`
+> Sources: `grimoires/loa/context/cycle-137-brief.md`
 
 ---
 
-## Appendix C — Flatline PRD review dispositions (1.0 → 1.1)
+## Appendix A — Goals
 
-Cross-scoring degraded (KF-041 shape): 0 HIGH_CONSENSUS, 4 skeptic blockers, 30 medium items from the two voices; every item read.
+G-1 gates on the loop; G-2 six beads; G-3 gains hold + guard green; G-4 suite green modulo KF-034; G-5 PR/BB/merge/record/archive; G-6 rc.9 published.
 
-| Item | Disposition |
-|---|---|
-| SKP-001, SKP-002, gpt IMP-003, opus IMP-003/004/013 — the fallback cannot tell the job's `if:` from a step's, a copy in another job or a comment; multi-line values | **Integrated (FR-1, D-7):** detection and rewrite scoped to the `simple-release:` job block, exactly one single-line job-level `if:` at the job's indentation, refuse otherwise, identical with and without `yq`; negative fixtures (step-level, second job, comment, multi-line) added to the ACs. |
-| SKP-007, opus IMP-002, gpt IMP-010 — the PR-mode downgrade must depend on a valid trusted replacement; "if cheap" is not a requirement | **Integrated (FR-5, D-9):** (e) is its own Could Have requirement with an explicit fail-closed clause: the key is left unset and the trusted value or the default governs; an invalid trusted value stays a config error; per-key tests incl. env-based PR detection. |
-| SKP-010, gpt IMP-012, opus IMP-016 — bind the gates to the final head sha; define skipped/neutral; list the CI mirror and secret scan as ACs | **Integrated (FR-4, D-10).** |
-| gpt IMP-005/006, opus IMP-001/003 — typed local-read outcomes; only "base commit not in the clone" triggers the API; 404 → `none` only at a known commit | **Integrated (FR-2, D-8):** `ok` / `absent` / `unknown_commit` / `other`; in 1.2 the 404 is additionally confirmed by an access probe (the SDD review showed a 404 can be an authorization gap — DEC-1083). |
-| gpt IMP-007 — base repository and pinned sha, fork PRs | **Integrated (FR-2).** |
-| gpt IMP-008 — one-call budget across restarts; cache per base sha | **Integrated (FR-2).** |
-| gpt IMP-009, opus IMP-008 — matrix: no `getFileContent`, local mode, auth failure, content at the bound, empty file | **Integrated (FR-2 ACs).** |
-| opus IMP-007 — the read is not governed by `max_content_fetches` / `fetch_missing_patches` | **Integrated (FR-2).** |
-| opus IMP-014 — one notice line when the API supplies the file | **Integrated (FR-2; already in sdd.md § 4).** |
-| opus IMP-011 — repository-wide `[pattern:` search as an AC | **Integrated (FR-3).** |
-| opus IMP-012 — pin the `yq` flavour | **Integrated (FR-1: mikefarah v4 by `yq --version`, else the fallback).** |
-| opus IMP-005, gpt IMP-002/004 — how the flag reaches the function; a distinguishable refusal outcome | **Integrated / decided (FR-1, D-11):** environment variable (DEC-1068); the refusal is a WARN with return 0 because both callers run under `set -e`; a non-zero return would abort the mount. |
-| opus IMP-006 — define bd-nr5i6 in the PRD | **Integrated (FR-1, Problem Statement).** |
-| opus IMP-015 — name the bats files; `sprint-280` | **Integrated (KPIs, Success Criteria).** |
-| opus IMP-017 — documentation AC for FR-2 | **Integrated (FR-2 ACs; SKILL.md unchanged for the budget).** |
-| opus IMP-018 — rollback path | **Integrated (FR-3 AC: separate commits, single-commit revert; no release).** |
-| opus IMP-009 — FR-3 (e) as its own requirement | **Integrated (FR-5).** |
-| gpt IMP-001 — scope contradiction (guard change vs out-of-scope) | **Integrated (§ Scope: this repository's guard unchanged; downstream rewrite only on opt-in).** |
-| gpt IMP-011 — WARN semantics for base lookups | **Integrated (FR-2: notice on an API read; DEC-1056's WARN when the base lacks the file and the PR adds one is unchanged).** |
-| opus IMP-010 — move (e) to a new bead | **Rejected:** FR-5 stays in this cycle as Could Have; the mode is one call away (sdd.md § 5.6). |
-
-> Sources: `grimoires/loa/a2a/flatline/cycle-136-prd-review.json`
+> Sources: § Goals & Success Metrics
 
 ---
 
 ## Appendix B — Grounding reads
 
-`.claude/scripts/lib/scaffold-post-merge-workflow.sh` (whole file), `.claude/scripts/mount-loa.sh:703`, `.claude/scripts/mount-submodule.sh:308`, `.github/workflows/post-merge.yml:106-114, 190-192, 262-268`, `tests/unit/mount-workflow-scaffold.bats`, `tests/unit/cycle-124-live-scaffold.bats`; `.claude/skills/bridgebuilder-review/resources/core/truncation.ts:394-470, 540-600, 883-891, 1517, 1677`, `core/paged-fetch.ts:34-71, 305-375, 463-470, 495`, `core/types.ts:328`, `adapters/github-cli.ts` (`getFileContent`, `contentsPathProblem`, `gh()` error mapping), `ports/index.ts`, `ports/git-provider.ts`, `config.ts:634-640, 1544-1560` (`isPullRequestContext`, `resolveConfig`, `loadTrustedConfig`, `applyTrustedReviewScope`), `__tests__/paged-fetch-coverage.test.ts:67-91`; `grimoires/loa/archive/cycle-135-review-coverage-followups/{prd,sdd,sprint}.md`; `grimoires/loa/a2a/sprint-279/{reviewer,engineer-feedback,auditor-sprint-feedback,e2e}.md`; Post-Merge Pipeline runs 40299345049, 40427521292.
+`.skill-loop-progress.md` (LOOP 2, 22 entries); `grimoires/loa/reports/perf/eso-loop-2026-10-27.md`; `~/.cache/loa/eso-loop/{final-table.tsv, baseline/*.json, final/*.json, pass-*/REPORT.md, pass-*/review/VERDICT.md, bats-final/unit.tap}`; `.claude/hooks/loa-kf-surface.sh`; `.claude/scripts/grimoire-index.sh`; `.claude/scripts/loa-status.sh:848-870`; `.claude/scripts/lib/agy-gate-lib.sh`; `.claude/scripts/lib/profile-lib.sh`; `.claude/data/profiles.yaml`; `.claude/adapters/loa_cheval/audit_envelope.py`; `tests/unit/adversarial-review-companion.bats`; `tests/unit/block-destructive-bash.bats`; `grimoires/loa/ledger.json` (cycle-137 active, next sprint 281); `grimoires/loa/archive/cycle-136-bridgebuilder-followups/prd.md` (format precedent); `~/.cache/loa/cycle-135/ship/*.sh`.
 
-> Sources: the files named above
+> Sources: the files named in this appendix
+
+---
+
+## Appendix C — Flatline PRD review dispositions
+
+Review: `flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --budget 300` on PRD 1.0 (commit 7625d1554): 6 blockers, 47 medium items (`~/.cache/loa/cycle-137/logs/flatline-prd.out`). Every blocker is adopted; medium items are adopted unless listed under "declined" with the reason.
+
+| # | Finding (location) | Disposition in 1.1 |
+|---|---|---|
+| B1 | FR-7 snapshot consistency and revocation semantics undefined | FR-7 rewritten: per-path semantics equal per-call semantics via the untouched `_check_trust_store` cache; store-mutation schedule test (replace with revocation, tamper, delete) is the equivalence proof; fail-closed on missing records; defer if the test cannot pass |
+| B2 | No single release predicate; deferral effects undefined | § Scope → Release predicate R-1 … R-8 is the one authority; R-2 defines LANDED / DEFERRED, the pre-review decision row, the bead label and G-2's counting |
+| B3 | Evidence not bound to SHAs; no re-gate rule | § Constraints (evidence binds to SHAs; re-gate rule; docs-only exception); FR-1 AC; R-1, R-3, R-6 compare shas and trees |
+| B4 | agy memo reuse unbounded | FR-3: parent-shell wrapper with a shell-variable result, key `<cfg>|dev:ino:size:mtime`, invalidation on any change / `stat` failure / path switch; fixtures true→false same-size rewrite, `mv` replacement, deletion, path switch, `$(...)` caller |
+| B5 | No "ready to publish" predicate; no pre-publish stage | R-5 (CI on the merge commit), R-6 (candidate binding, lead-recomputed digest), R-7 (publish-summary.md); NFR Authorization records unattended merge/publish as authorised with these mechanical safeguards |
+| B6 | Allowed failures and equivalent conditions unspecified | R-4 names the three KF-034 tests, requires the same failures on `main` under the same host condition, and states when a CMP-37 isolation run is diagnostic |
+| M1, M27 | completion policy for deferred FRs | R-2 |
+| M2, M31, M42 | FR-4 approach, migration, second option | FR-4 description (cached_keys only; older cache → live fallback; migration fixtures) |
+| M3, M46, M47 | companion synchronisation states, knob scope, negative control | FR-6 description and AC |
+| M4 | corpus-once under parallel / `-f` selection, status capture | FR-6 description |
+| M5 | verify-chains freshness, ordering, exit precedence, missing paths | FR-7 description and AC |
+| M6, M7 | release digest authority; archive head / candidate acceptance | NFR Authorization; R-6, R-8 |
+| M8 | rollback of the shipped collection | FR-8 AC; § Risks row |
+| M9 | owners for 30/90-day criteria | § Success Criteria |
+| M10 | verdicts name the reviewed commit | § Constraints; FR-1 AC; R-1 |
+| M11 | reconcile green suite with KF-034 / CMP-37 | R-4; G-4 |
+| M12, M30 | durable evidence storage | FR-1 AC (evidence copied to `a2a/sprint-281/evidence/`) |
+| M13, M38 | benchmark protocol; host/command/run count | NFR Performance; FR-8 AC |
+| M14, M15, M16, M43, M44, M45 | decisions cache: yq absence, payload integrity, concurrency, trust model, cold bound | FR-5 description and AC |
+| M17, M29 | agy memo freshness; all callers covered | FR-3 description and AC |
+| M18 | six-line protocol fixtures | FR-3 AC |
+| M19 | 19 vs 20 productive passes | FR-1 AC corrected to 20 (passes 1–11, 13, 14, 16–22) |
+| M20 | red-first for test-only bd-wctli | G-2 and § Constraints: TAP-set parity plus the negative control substitute |
+| M21 | CMP-37 explicit | FR-6: not made deterministic; R-4 isolation rule |
+| M22 | revert path as an AC | FR-1 AC (with the later-pass dependency check) |
+| M23 | G-3 direction-specific | G-3: no touched command above 110 % of its final-table mean |
+| M24 | enumerate System Zone files | § System Zone authorization lists the 18 files + `checksums.json` and bounds Sprint 281 fixes to them |
+| M25 | Bridgebuilder degraded fallback | FR-8 AC |
+| M26 | post-publish install smoke test | FR-8 AC; R-8 |
+| M28 | NOTES rotation explicit | FR-1 dependency (Task 1.0 prerequisite) |
+| M32 | parser drift guard | FR-2 AC |
+| M33 | "impossible by construction" | FR-7 AC: read-only tree + sha256 before/after |
+| M34 | `--no-cache` CLI surface | FR-5: env knob `LOA_GRIMOIRE_INDEX_NO_CACHE=1`, `--help` unchanged |
+| M35 | write-mode normalisation | FR-5: none needed (no timestamp in the index) |
+| M36 | `.run/perf-cache` leaves `git status` clean | FR-5 AC (`git check-ignore`) |
+| M37 | "no timing-based tests" wording | § Constraints: no NEW timing-based tests; grandfathered test named |
+| M39 | `## KF-abc:` diagnostic | FR-2 AC: silent reset |
+| M40 | halt / park criteria | § Constraints: ≤ 3 fix→re-review iterations, ≤ 2 Bridgebuilder rounds, then HALT |
+| M41 | loa-status threshold | KPI aligned to the FR-3 AC (≥ 40 ms vs the same-session old mirror) |
+| Declined | — | none: every item is adopted (the ones above) or absorbed by R-1 … R-8 |
+
+> Sources: `~/.cache/loa/cycle-137/logs/flatline-prd.out`; this document's sections as amended

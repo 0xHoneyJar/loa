@@ -34,9 +34,12 @@ BLOCK_BYTES=204800
 payload=$(cat 2>/dev/null) || exit 0
 [[ -n "$payload" ]] || exit 0
 command -v jq >/dev/null 2>&1 || exit 0
-jq -e . >/dev/null 2>&1 <<<"$payload" || exit 0
-
-target=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"$payload" 2>/dev/null) || exit 0
+# One jq validates AND extracts: the old `jq -e .` gate (a parse error, or a last
+# document that is null/false, exits 0 without output) fused with the
+# file_path/notebook_path read, so the common non-NOTES edit pays one parse. The
+# reduce keeps the old per-document semantics: a runtime error on a non-final
+# document is skipped, one on the final document yields nothing.
+target=$(jq -rn 'reduce inputs as $d ({o: [], t: false, e: false}; . as $s | .t = (($d != null) and ($d != false)) | try (.o += [$d | (.tool_input.file_path // .tool_input.notebook_path // empty)] | .e = false) catch ($s | .t = (($d != null) and ($d != false)) | .e = true)) | if .t and (.e | not) then .o[] else empty end' <<<"$payload" 2>/dev/null) || exit 0
 [[ -n "$target" ]] || exit 0
 
 notes="${LOA_GRIMOIRE_DIR:-$REPO_ROOT/grimoires/loa}/NOTES.md"

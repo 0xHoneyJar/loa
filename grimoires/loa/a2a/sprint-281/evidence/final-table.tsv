@@ -1,0 +1,17 @@
+command	baseline_ms	final_ms
+repo-map-gen	4658.4	1218.5
+grimoire-index	1818.9	826.2
+loa-status	899	817.5
+beads-health	207.6	225.9
+upgrade-health	214.8	211.3
+cheval-help	128.6	122.1
+ss-kf-surface	487.6	15.4
+ss-runstate	29.7	17.6
+ss-ctxclass	24.2	24.7
+ss-decisions	17.1	17
+pre-write-implgate	35.4	23.1
+pre-write-notes	21.5	20.1
+pre-write-zone	12.3	13.9
+pre-bash-destructive	15.5	18.5
+post-karpathy	96	80.5
+stop-runmode	23.6	13.6

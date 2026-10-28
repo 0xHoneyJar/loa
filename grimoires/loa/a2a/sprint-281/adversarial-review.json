@@ -1,0 +1,188 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tests/unit/loa-decisions-surface.bats:_path_without",
+      "anchor_type": "function",
+      "anchor_line": 128,
+      "anchor_line_end": 135,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`local IFS=:` (line 127) is still in effect when `for t in $skipwords` runs, so a multi-word skip list such as \"yq jq\" is a single token and never equals a basename; only single-tool calls exclude anything. The old `$(IFS=' '; echo \"$*\")` was split with the same outer IFS, so this is preserved rather than introduced, but the rewrite's comment advertises the line as a working once-built skip list, and the `pw-a-b` directory naming (space to dash on `$*`) shows multi-argument use was intended.",
+      "failure_mode": "Any test calling `_path_without a b` runs with both tools still on PATH, so a degraded-path assertion passes or fails for the wrong reason and the helper's coverage is vacuous for multi-tool cases.",
+      "suggested_fix": "Build the list before switching IFS: `local -a skips; IFS=' ' read -r -a skips <<< \"$*\"`, then `local IFS=:` and test with `for t in \"${skips[@]}\"` (or `case \" $* \" in *\" $b \"*) continue;; esac`). Add one bats case asserting `_path_without yq jq` removes both from the resulting dir.",
+      "anchor_status": "valid",
+      "failure_scenario": "Any test calling `_path_without a b` runs with both tools still on PATH, so a degraded-path assertion passes or fails for the wrong reason and the helper's coverage is vacuous for multi-tool cases.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": "tests/unit/red-test-check.bats:hunk @@ -153,17 +153,21 @@",
+      "anchor_type": "hunk",
+      "anchor_line": 167,
+      "anchor_line_end": 170,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The per-file `[ -e ] || [ -L ]` guard now runs before any link from the same PATH directory exists, and the batched `ln` deliberately keeps hard-fail semantics (no `|| true`). Equivalence relies on basenames being unique within a directory as seen by the shim's filesystem. On a host where a PATH dir lives on a case-sensitive volume (Nix store, external case-sensitive APFS) and `$shim` under BATS_TEST_TMPDIR is case-insensitive (macOS default), `Foo` and `foo` both enter the batch; the old loop linked the first and the `-e` test skipped the second, while GNU/BSD `ln` now reports EEXIST for the second and exits 1, which errexit turns into a test failure. GNU, BSD and busybox `ln` all continue past a failed source and accept `--`, so the other batch semantics (first-wins across dirs, dangling-link handling) are unchanged.",
+      "failure_mode": "Hard test failure on mixed case-sensitivity hosts that passed before the batching change.",
+      "suggested_fix": "Either tolerate EEXIST only (`ln -s -- \"${batch[@]}\" \"$shim/\" 2>\"$err\" || grep -qv 'File exists' \"$err\" && exit 1`), or after the batch verify each `b` with the existing `-e || -L` check and let the following `dangling` find() be the single hard assertion.",
+      "anchor_status": "valid",
+      "failure_scenario": "Hard test failure on mixed case-sensitivity hosts that passed before the batching change.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": "tests/unit/perf-spawn-budget.bats:_trace",
+      "anchor_type": "function",
+      "anchor_line": 46,
+      "anchor_line_end": 48,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "xtrace is written to the traced shell's stderr. Any construct that redirects the stderr of a function, a `source`, or a subshell sends the trace of everything inside it to /dev/null, and child `bash script` invocations are not traced at all. The hooks under guard use exactly these shapes for their yq/jq calls: `source profile-lib.sh 2>/dev/null && enabled=\"$(loa_knob … 2>/dev/null || echo false)\"` in loa-kf-surface.sh:65-66, `switch=\"$(loa_knob … 2>/dev/null)\"` and `$(bash \"$CHECKPOINT\" read --json 2>/dev/null | jq …)` in karpathy-surgical-diff-check.sh. TOTAL and EXT therefore undercount precisely the spawns the loop optimised, and a regression that adds yq/jq calls inside such a block is invisible to both budgets. The header's claim that the test counts process spawns holds only for top-level, un-redirected commands.",
+      "failure_mode": "Budgets pass while the real spawn count regresses; the external-tool bound is enforced only on commands whose stderr is not redirected.",
+      "suggested_fix": "Trace to a dedicated descriptor instead of stderr: `exec {xfd}>\"$TRACE_FILE\"; env … BASH_XTRACEFD=$xfd bash -x …` (bash honours an inherited BASH_XTRACEFD and the fd survives `2>/dev/null` on functions and sourced files). For nested bash scripts either export `SHELLOPTS=xtrace` or document the gap in the header and in the measured numbers.",
+      "anchor_status": "valid",
+      "failure_scenario": "Budgets pass while the real spawn count regresses; the external-tool bound is enforced only on commands whose stderr is not redirected.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/perf-spawn-budget.bats:@test \"spawn budget: implement-gate.sh on a Write payload\"",
+      "anchor_type": "line",
+      "anchor_line": 134,
+      "anchor_line_end": 138,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The header states the live grimoire, .run and config are never read, but the implement-gate, notes-size-guard and run-mode-stop-guard tests pass no config seam. Both hooks supplied in context resolve REPO_ROOT from BASH_SOURCE and read `$REPO_ROOT/.loa.config.yaml` (karpathy honours LOA_CONFIG_OVERRIDE, kf-surface has LOA_KF_SURFACE_TEST_CONFIG); `PROJECT_ROOT=$proj` in the environment is not a seam either of them consults. If the three traced hooks follow the same pattern, their code path depends on the checked-out repo's knobs: a disabled gate takes an early exit and fails the `canonical_root=` / `notes=` sanity grep, and one extra knob read adds trace lines beyond a +10% headroom that is only +2 lines for notes-size-guard (26→28) and +1 for compat-lib (15→16). Separately, compat-lib's lazy probes make counts toolchain-dependent, and EXT_RE does not match `gawk`, `gsed`, `gdate`, `gstat`, `greadlink`, `grealpath`, `mawk`, `nawk`, so on hosts where compat-lib selects a g-prefixed tool EXT silently drops and the external-tool bound is vacuous.",
+      "failure_mode": "Red runs on a developer host or after an unrelated config change that are not spawn regressions, or a vacuous EXT bound on Homebrew-coreutils hosts.",
+      "suggested_fix": "Point each hook at a fixture `.loa.config.yaml` through its own config seam (add LOA_CONFIG_OVERRIDE-style seams where missing) and assert in the test that the live config path never appears in TRACE_FILE. Extend EXT_RE with the g-prefixed and alternate-awk names. Use `max(mt/10, 3)` as headroom for small budgets and record the measured toolchain (bash, awk, jq, yq versions) in the header so a CI mismatch is diagnosable.",
+      "anchor_status": "valid",
+      "failure_scenario": "Red runs on a developer host or after an unrelated config change that are not spawn regressions, or a vacuous EXT bound on Homebrew-coreutils hosts.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/adapters/loa_cheval/providers/__init__.py:_adapter_class",
+      "anchor_type": "function",
+      "anchor_line": 45,
+      "anchor_line_end": 61,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`_ADAPTER_REGISTRY` is now a derived cache built on first touch, while dispatch (`get_adapter`, `adapter_class_for_type`) reads `_ADAPTER_TYPES` plus `_adapter_class`, which prefers the package global of the class name. Two test seams silently change meaning: `patch.dict('loa_cheval.providers._ADAPTER_REGISTRY', …)` no longer affects dispatch but still affects `cli_adapter_types()`, and `patch('loa_cheval.providers.OpenAIAdapter')` now does affect dispatch (the eager table used to pin the real class). A falsy replacement (`= None`) is also silently discarded by the `or` and the real class is re-imported and re-cached. `cli_adapter_types()` still imports all ten adapter modules on first call, so any cheval dispatch path that consults it for kind:cli admission (its docstring says this is its purpose) re-pays the eager cost and lets a missing optional dependency of an unrelated adapter raise ImportError inside dispatch of a working CLI provider instead of at startup.",
+      "failure_mode": "Tests that mocked the registry or an adapter attribute keep passing or start passing for the wrong reason; a boto3-less host sees `get_adapter('claude-headless')` fail through `cli_adapter_types()` with an ImportError that no `ConfigError` handler catches.",
+      "suggested_fix": "Route dispatch through one lazily built mapping (`_registry()` returning the cached dict) so both `adapter_class_for_type` and `cli_adapter_types` read the same object that tests patch; use `name in globals()` rather than truthiness in `_adapter_class`. For `cli_adapter_types()`, derive the headless set from a static `_ADAPTER_AUTH: Dict[str, str]` kept beside `_ADAPTER_TYPES` (asserted equal to the class attribute in a unit test) so admission needs no imports, and wrap the import in `__getattr__` to re-raise as ConfigError with the adapter type and the missing module named.",
+      "anchor_status": "valid",
+      "failure_scenario": "Tests that mocked the registry or an adapter attribute keep passing or start passing for the wrong reason; a boto3-less host sees `get_adapter('claude-headless')` fail through `cli_adapter_types()` with an ImportError that no `ConfigError` handler catches.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-006",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/hooks/loa-kf-surface.sh:san",
+      "anchor_type": "line",
+      "anchor_line": 95,
+      "anchor_line_end": 100,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Two places where the byte-for-byte twin claim is host-dependent. (1) `gsub(/\\000/, …)` and the octal bracket ranges `[\\001-\\010…]` are GNU/mawk-1.3.4 behaviour; an awk that rejects a NUL or octal escape in a regex constant exits non-zero and the `2>/dev/null || true` turns a valid known-failures.md into the \"parsed ZERO KF entries\" WARNING (loud, exit 0, but the surface is lost on that host). The spawn-budget test's fixture is pure ASCII so it would not notice. (2) The comment \"GNU cut -c is byte-based in every locale\" is true for GNU, but BSD cut (macOS without coreutils) is character-based under UTF-8, so on that host the old cap was 100 characters and the new `substr` cap is 100 bytes and can cut inside a multibyte sequence, emitting an invalid UTF-8 tail into session context.",
+      "failure_mode": "On an awk without NUL/octal regex support the enabled surface degrades to the warning path for every file; on BSD-cut hosts long non-ASCII symptoms are truncated differently from the reference spec and may end mid-codepoint.",
+      "suggested_fix": "Run the golden comparison under gawk, mawk and busybox awk in CI (a one-line fixture containing \\001, \\177 and a 3-byte UTF-8 symptom longer than 100 bytes), replace `/\\000/` with a `[^\\001-\\377]` class or strip NUL via `gsub(/[^\\001-\\377]/,\"\")` if any target awk fails, and either state the byte cap as the new contract or trim a trailing partial sequence after `substr`.",
+      "anchor_status": "valid",
+      "failure_scenario": "On an awk without NUL/octal regex support the enabled surface degrades to the warning path for every file; on BSD-cut hosts long non-ASCII symptoms are truncated differently from the reference spec and may end mid-codepoint.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-281",
+    "timestamp": "2026-10-28T02:42:39Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 63165,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "f9488f1ca566ff69fd856d14259cd06cb01123257997fda932aefcc7ffb5f48a",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

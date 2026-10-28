@@ -100,6 +100,10 @@ setup() {
         return 1
     fi
     HOLDER_PIDS=()   # out-of-band lock holders a test spawns; teardown kills them (c1 C-002)
+    # the stub's reaped holds (stubborn, slow, unavailable-companion-slow) last CMP_STUB_HOLD_S seconds; unset, they keep 300.
+    # 240 is twice the longest bound a test places on one — CMP-14's 120 s run guard, so a reaper that failed is still a red, never
+    # hidden by a hold that ends on its own; CMP-30 waits < 30 s, CMP-48 the 3 s cap + the 5 s grace (cycle-137 Task 2.5, FR-6)
+    CMP_STUB_HOLD_S=240
     export LOA_ADVERSARIAL_CLI_PROBE=both   # both CLI hops "installed" unless a case says otherwise (C-007 seam)
     unset LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS
     # temp config: review enabled, primary gpt-5.5-pro with the OpenAI chain
@@ -179,7 +183,7 @@ YAML
                 jq -nc '{content: "{\"findings\":[{\"title\":\"no severity\",\"category\":\"other\",\"description\":\"Something fails.\"}]}", tokens_input: 5, tokens_output: 5, cost_usd: 0.001, latency_ms: 1, schema_enforced: false}'
                 return 0 ;;
             stubborn) # a hop that ignores TERM (a CLI stuck under a usage limit): only KILL ends it
-                bash -c 'trap "" TERM; exec -a "$0" sleep 300' "loa-cmp30-stubborn-$$"; return 0 ;;
+                bash -c 'trap "" TERM; exec -a "$0" sleep "$1"' "loa-cmp30-stubborn-$$" "${CMP_STUB_HOLD_S:-300}"; return 0 ;;
             sleeper)  sleep 20 & echo "$!" > "$T/sleeper.pid"; wait "$!"; return 0 ;;   # a hop in flight for longer than any test waits (CMP-114)
             slow2)    sleep 2; [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
             abort-shell)                   # the shell running main is ended at once (a session limit, an operator INT): the EXIT trap is all that runs (CMP-64)
@@ -203,7 +207,7 @@ YAML
             slow)     # a hung hop with a PID-scoped process name, so the orphan probe cannot match anything else on the host (c C-001)
                 # (twenty-fourth run, c1a DISS-C-002: CMP-14 tells a cap that fired first from a reaper regression — thirty-sixth run, c1a
                 # DISS-C-001: the marker is written by the pid that becomes the hung sleep, so it proves that process existed)
-                bash -c ': > "$1"; exec -a "$0" sleep 300' "loa-cmp14-hung-$$" "$T/marker-slow-spawned"   # only the reaper can end it (eighth run, c1 C-002)
+                bash -c ': > "$1"; exec -a "$0" sleep "$2"' "loa-cmp14-hung-$$" "$T/marker-slow-spawned" "${CMP_STUB_HOLD_S:-300}"   # only the reaper can end it (eighth run, c1 C-002)
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"; jq -nc '{content: "{\"findings\":[]}", tokens_input: 1, tokens_output: 1, cost_usd: 0, latency_ms: 1, schema_enforced: false}'; return 0 ;;
             errlog)   echo "boom: provider said no (token sk-ant-api03-SECRETSECRETSECRETSECRET1234)" >&2; return 1 ;;
             errquiet) # the shim's shape when cheval fails: banners only, the provider's line went to the MODELINV ledger —
@@ -229,7 +233,7 @@ YAML
             timeout)     [[ -n "$sidecar" ]] && _vq "$model" fail Other 3 > "$sidecar"; return 3 ;;
             unavailable) [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1 ;;
             unavailable-companion-slow)  # the COMPANION's call to this model HANGS (a PID-scoped sleep the reaper ends); the primary's answers
-                if [[ "$sidecar" == *vq-companion-* ]]; then bash -c 'exec -a "$0" sleep 300' "loa-cmp14-hung-$$"; [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1; fi
+                if [[ "$sidecar" == *vq-companion-* ]]; then bash -c 'exec -a "$0" sleep "$1"' "loa-cmp14-hung-$$" "${CMP_STUB_HOLD_S:-300}"; [[ -n "$sidecar" ]] && _vq "$model" fail ProviderUnavailable 1 > "$sidecar"; return 1; fi
                 [[ -n "$sidecar" ]] && _vq "$model" ok > "$sidecar"
                 jq -nc --arg m "$model" --arg s "$sev" '{content: ("{\"findings\":[{\"id\":\"DISS-001\",\"severity\":\"" + $s + "\",\"category\":\"other\",\"description\":\"from " + $m + ".\",\"failure_mode\":\"fm\"}]}"), tokens_input: 100, tokens_output: 20, cost_usd: 0.0123, latency_ms: 5, schema_enforced: false}'
                 return 0 ;;
@@ -1674,6 +1678,7 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
 @test "CMP-55 a reaper that returns non-zero never aborts the review: the envelope is still emitted (fifteenth run, a4 C-001)" {
     eval "__real_kill_tree() $(declare -f _adv_kill_tree | sed '1d')"
     _adv_kill_tree() { __real_kill_tree "$@"; return 1; }
+    CMP_STUB_HOLD_S=300   # today's hold, not shortened: no break of the hold or of the reaper fails this test (cycle-137 Task 2.5 negative control)
     _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'
     export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=3
     BEHAVIOUR[gpt-5.5-pro]=unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable

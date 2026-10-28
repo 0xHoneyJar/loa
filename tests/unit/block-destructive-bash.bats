@@ -6,6 +6,21 @@
 # Targets AC1, AC3, AC4, AC5, AC6, AC7 per sprint plan.
 # =============================================================================
 
+# The fence corpus (Group Z) is replayed ONCE per file process here, not once
+# per test (cycle-137 Task 2.5, FR-6): three tests read the same JSON. A runner
+# failure is captured, not raised, so it fails those three tests with the
+# runner's stderr instead of aborting the whole file.
+setup_file() {
+    local script_dir project_root hook
+    script_dir="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+    project_root="$(cd "$script_dir/../.." && pwd)"
+    hook="$project_root/.claude/hooks/safety/block-destructive-bash.sh"
+    unset LOA_BLOCK_DESTRUCTIVE_JQ_MISSING_WARNED
+    { bash "$project_root/$CORPUS_RUNNER" --hook "$hook" --json \
+        > "$BATS_FILE_TMPDIR/corpus.json" 2> "$BATS_FILE_TMPDIR/corpus.err"
+      echo $? > "$BATS_FILE_TMPDIR/corpus.status"; } || true
+}
+
 setup() {
     BATS_TEST_TMPDIR="${BATS_TEST_TMPDIR:-$(mktemp -d)}"
     SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
@@ -1539,8 +1554,16 @@ EOF'
 
 CORPUS_RUNNER="tests/fixtures/fence-corpus/run-corpus.sh"
 
+# Reads the replay setup_file captured: the runner must have exited 0 and
+# written parseable JSON, else the calling test fails with the runner's stderr.
 corpus_json() {
-    bash "$PROJECT_ROOT/$CORPUS_RUNNER" --hook "$HOOK" --json
+    local d="$BATS_FILE_TMPDIR"
+    [ "$(cat "$d/corpus.status" 2>/dev/null)" = "0" ] || {
+        echo "run-corpus.sh exited $(cat "$d/corpus.status" 2>/dev/null || echo '<none>'):" >&2
+        cat "$d/corpus.err" >&2 2>/dev/null; return 1; }
+    jq -e . "$d/corpus.json" >/dev/null || {
+        echo "run-corpus.sh wrote no parseable JSON; stderr:" >&2; cat "$d/corpus.err" >&2; return 1; }
+    cat "$d/corpus.json"
 }
 
 @test "cycle-125 corpus: every dangerous row still blocks (100 %)" {

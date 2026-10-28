@@ -125,14 +125,19 @@ _path_without() {
   local d="$BATS_TEST_TMPDIR/pw-$(printf '%s' "$*" | tr ' ' '-')" p f b t skip
   mkdir -p "$d"
   local IFS=:
+  local skipwords; skipwords=$(IFS=' '; echo "$*")   # once, not a subshell per file
+  local -a batch
   for p in $PATH; do
     [[ -d "$p" ]] || continue
+    batch=()
     for f in "$p"/*; do
       b="${f##*/}"; skip=0
-      for t in $(IFS=' '; echo "$*"); do [[ "$b" == "$t" ]] && skip=1; done
+      for t in $skipwords; do [[ "$b" == "$t" ]] && skip=1; done
       [[ $skip -eq 1 || -e "$d/$b" ]] && continue
-      ln -s "$f" "$d/$b" 2>/dev/null || true
+      batch+=("$f")
     done
+    # one ln per PATH dir instead of one per file; names are unique within a dir, so the -e test above is the first-wins rule
+    (( ${#batch[@]} )) && { ln -s -- "${batch[@]}" "$d/" 2>/dev/null || true; }
   done
   printf '%s' "$d"
 }

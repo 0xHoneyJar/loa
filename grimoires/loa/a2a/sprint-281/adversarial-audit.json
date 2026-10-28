@@ -1,0 +1,131 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "tests/unit/perf-spawn-budget.bats:_trace",
+      "anchor_type": "function",
+      "anchor_line": 67,
+      "anchor_line_end": 68,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "_trace runs real production hooks under `bash -x` with SHELLOPTS=xtrace and BASH_XTRACEFD exported, so every child bash inherits tracing and every expanded command line (including variable assignments the hooks derive from the environment) is written to a file. The call uses `env VAR=... bash -x` without `-i`, so the developer's or CI runner's full ambient environment reaches the hooks. The file header asserts 'the fixtures must stand alone' but only enforces it by grepping for one path ($PROJECT_ROOT/.loa.config.yaml). Ambient LOA_*/KARPATHY_*/LOA_PROFILE_CONFIG_FILE/LOA_SESSION_ID values can both change which files the traced hooks read (making the budget nondeterministic or reading live state) and end up expanded in the trace file, whose path is printed on failure.",
+      "failure_mode": "A hook that reads an ambient env value (token, path, session id) during a budget run leaves it in TRACE_FILE / TRACE_FILE.stderr; or an ambient override env var points a traced hook at live config/state, silently invalidating the 'fixtures stand alone' guarantee the budgets depend on.",
+      "suggested_fix": "Run the target with an explicit allowlisted environment: `env -i PATH=\"$PATH\" HOME=\"$W\" TMPDIR=\"$W\" \"${envs[@]}\" PS4='+' BASH_XTRACEFD=... SHELLOPTS=xtrace bash -x ...`. Extend the post-run assertion to grep the trace for \"$PROJECT_ROOT/.run\" and \"$PROJECT_ROOT/grimoires\" as well as the live config path. Test (a) already passes BATS_VERSION=1 explicitly so nothing relies on inherited bats vars.",
+      "anchor_status": "valid",
+      "failure_scenario": "A hook that reads an ambient env value (token, path, session id) during a budget run leaves it in TRACE_FILE / TRACE_FILE.stderr; or an ambient override env var points a traced hook at live config/state, silently invalidating the 'fixtures stand alone' guarantee the budgets depend on.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/hooks/loa-kf-surface.sh:rows",
+      "anchor_type": "hunk",
+      "anchor_line": 118,
+      "anchor_line_end": 127,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The single-awk rewrite (eso pass 6) correctly caps each field at 100 bytes and strips control bytes, and the id/recurrence fields are regex-constrained, so per-row formatting cannot be broken. However the number of rows is unbounded: every distinct `## KF-NNN:` heading in the repo-controlled known-failures.md yields one line that is injected into the agent's session context on SessionStart. The trust-boundary note in the header covers per-field sanitisation but not total volume. This is pre-existing behaviour and is not introduced by the pass; it is noted because the file was escalated for full review.",
+      "failure_mode": "A repository (or PR branch) that ships a known-failures.md with thousands of synthetic KF headings floods the session context at startup with attacker-authored 100-byte prose fragments, degrading or steering the session before the agent reads anything else. The feature is default-off, so this only applies when `known_failures.surface_at_session_start` is enabled.",
+      "suggested_fix": "Cap the emitted rows in the awk END loop (e.g. first 50 by file order, or sort by recurrence and keep the top N) and emit a single trailing line such as `  … +N more entries (see known-failures.md)`. Keep kf_count reporting the total so the agent still knows the full size.",
+      "anchor_status": "valid",
+      "failure_scenario": "A repository (or PR branch) that ships a known-failures.md with thousands of synthetic KF headings floods the session context at startup with attacker-authored 100-byte prose fragments, degrading or steering the session before the agent reads anything else. The feature is default-off, so this only applies when `known_failures.surface_at_session_start` is enabled.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/hooks/quality/karpathy-surgical-diff-check.sh:TRAJ_DIR",
+      "anchor_type": "hunk",
+      "anchor_line": 214,
+      "anchor_line_end": 217,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The hook's safety contract states 'A symlinked state directory or state file is not written through', and STATE_DIR / TASK_FILE are guarded with -L checks (lines 162, 165). The trajectory append path is not: `>> \"$TRAJ_DIR/karpathy-${TS:0:10}.jsonl\"` follows a symlinked TRAJ_DIR or a symlinked per-day file. TRAJ_DIR defaults to grimoires/loa/a2a/trajectory inside the repository, i.e. a path a cloned repository can populate with symlinks. The appended content is a fixed JSON schema with numeric fields and a JSON-encoded session id, so the attacker's control over the written bytes is minimal; the eso pass 19 fast-path encode (lines 135-139) is correct and does not weaken this. Pre-existing; noted because the file was escalated for full review.",
+      "failure_mode": "A repository containing a symlink at grimoires/loa/a2a/trajectory/karpathy-<today>.jsonl (or at the trajectory directory) causes the hook to append a JSON line to an arbitrary user-writable file outside the repo when the surgical-diff threshold trips. Impact is limited to appending well-formed JSON to a file the user already owns.",
+      "suggested_fix": "Mirror the state-file guards: `[[ -L \"$TRAJ_DIR\" ]] && exit 0` after the mkdir, and `traj=\"$TRAJ_DIR/karpathy-${TS:0:10}.jsonl\"; [[ -L \"$traj\" ]] && exit 0` before the append. Optionally reject a TRAJ_DIR whose realpath is outside REPO_ROOT unless the KARPATHY_TRAJECTORY_DIR seam is set.",
+      "anchor_status": "valid",
+      "failure_scenario": "A repository containing a symlink at grimoires/loa/a2a/trajectory/karpathy-<today>.jsonl (or at the trajectory directory) causes the hook to append a JSON line to an arbitrary user-writable file outside the repo when the surgical-diff threshold trips. Impact is limited to appending well-formed JSON to a file the user already owns.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-281",
+    "timestamp": "2026-10-28T03:08:52Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 34684,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "97a5be8dc32ecac9b4975ee3ec1b59f7fbeedfe987f1a9df5c79d6c9fa2105fa",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

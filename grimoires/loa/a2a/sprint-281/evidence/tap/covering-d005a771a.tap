@@ -1,0 +1,343 @@
+1..341
+ok 1 cache-manager.sh exists and is executable
+ok 2 cache-manager.sh shows help with --help
+ok 3 generate-key produces consistent hash
+ok 4 generate-key normalizes path order
+ok 5 generate-key normalizes query case
+ok 6 set creates cache entry
+ok 7 get returns cached result
+ok 8 get returns miss for non-existent key
+ok 9 delete removes cache entry
+ok 10 set rejects secret patterns
+ok 11 secret: rejects PRIVATE.KEY
+ok 12 secret: rejects BEGIN RSA
+ok 13 secret: rejects password=value (shell-style)
+ok 14 secret: rejects password: value (YAML-style)
+ok 15 secret: rejects secret_key=value
+ok 16 secret: rejects "secret": "value" (JSON)
+ok 17 secret: rejects api_key=value
+ok 18 secret: rejects access_token=value
+ok 19 secret: rejects bearer=value
+ok 20 secret: rejects client_secret=value (OAuth)
+ok 21 secret: allows secret_scanning: true (not a secret)
+ok 22 secret: allows kind: Secret (K8s manifest, not a secret)
+ok 23 secret: allows no_secret: false (compound word, not a secret)
+ok 24 secret: allows code comment about secrets (not a secret)
+ok 25 stats shows cache statistics
+ok 26 clear removes all entries
+ok 27 cache disabled when LOA_CACHE_ENABLED=false
+ok 28 integrity hash verified on get
+ok 29 #1037: BSD Z timestamps have the UTC epoch in positive and negative timezones
+ok 30 #1037: BSD timestamps without timezone retain local-time interpretation
+ok 31 #1037: GNU and Perl UTC parsing agree and invalid timestamps fail
+ok 32 #1037: constructs parser and standalone staleness fallback use UTC
+ok 33 jq_strict: emits value and exits 0 on valid JSON (JS-1)
+ok 34 jq_strict: unparseable input exits non-zero, stderr diagnostic, no default on stdout (JS-2)
+ok 35 jq_strict: filter runtime error on valid JSON is loud, never aliases to a default (JS-3)
+ok 36 jq_strict: legitimately-absent field via // default inside filter succeeds (JS-4)
+ok 37 jq_strict: JQ_STRICT_CTX tag appears in the stderr diagnostic (JS-5)
+ok 38 jq_strict: file-argument form emits value on valid file (JS-6a)
+ok 39 jq_strict: file-argument form fails loud on corrupt file (JS-6b)
+ok 40 jq_strict: jq's own parse diagnostic stays visible on stderr (JS-7)
+ok 41 A1 GNU-only PATH: sha256_portable uses sha256sum directly
+ok 42 A2 BSD-only PATH: sha256_portable falls back to shasum -a 256
+ok 43 A3 Both present: sha256_portable prefers sha256sum (GNU)
+ok 44 A4 Neither present: sha256_portable fails loud with non-zero exit
+ok 45 A5 Byte-equality: GNU sha256sum and BSD shasum -a 256 produce identical hash
+ok 46 A6 File-argv form: sha256_portable file.txt matches sha256sum file.txt
+ok 47 AC1 sprint JACKED_OUT → exactly one push naming sprint+gate, <200 chars
+ok 48 AC1 sprint READY_FOR_HITL → one push
+ok 49 AC1 sprint HALTED → one push
+ok 50 AC1 bridge JACKED_OUT → one push
+ok 51 AC1 bridge HALTED → one push
+ok 52 AC1 simstim COMPLETED → one push
+ok 53 AC1 simstim AWAITING_HITL → one push
+ok 54 AC1 simstim HALTED → one push
+ok 55 AC2 sprint RUNNING → soft-block, no push
+ok 56 AC2 bridge ITERATING → soft-block, no push
+ok 57 AC2 simstim RUNNING/implementation → soft-block, no push
+ok 58 AC3a no config file → silent no-op, no marker, stdout empty
+ok 59 AC3b enabled:false → silent no-op, no marker
+ok 60 AC3c enabled:true but empty command → silent no-op, no marker
+ok 61 AC4 failing push command → hook still exit 0, stdout empty, marker written
+ok 62 cross-source: stale sprint marker does not mask a fresh bridge gate
+ok 63 precedence: sprint fires before bridge/simstim on one Stop
+ok 64 dec-write new: ids allocate max+1 and print DEC-%04d
+ok 65 dec-write: the ledger never shrinks and never drops an id across every operation
+ok 66 dec-write: a failed write leaves the previous file byte-identical (validation refuses the candidate)
+ok 67 dec-write: an unknown schema_version is refused before any write
+ok 68 dec-write: the header comment survives a write (yq keeps the head comment)
+ok 69 dec-write: ids come from the target file only; a populated live ledger does not shift a fresh --file fixture
+ok 70 dec-write: decide and confirm without --evidence, reject without --rationale or --follow-up exit non-zero
+ok 71 dec-write: a proposed row needs a decision, a rationale and an alternative
+ok 72 dec-write: every write lands open or proposed and decided_by stays null
+ok 73 dec-write decide: open -> proposed appends one transition and sets the decide fields once
+ok 74 dec-write confirm: only --recorded-by decisions-command may confirm
+ok 75 dec-write confirm: an operator-kind ref makes decided_by operator; without one decided_by is the proposing voice
+ok 76 dec-write confirm --cycle: two matches refuse without --all; --all confirms both
+ok 77 dec-write reject: open/proposed -> rejected records rejection_rationale, follow_up and prior requests
+ok 78 dec-write reject: an agent cannot reject a decided row; the operator command can
+ok 79 dec-write supersede (agent): the new row is proposed, the old stays decided with supersede_proposed_by; confirming the new row supersedes the old
+ok 80 dec-write supersede (operator): the old row moves to superseded and nothing is removed
+ok 81 dec-write: a ref outside the grammar is refused
+ok 82 dec-write --as flatline: a missing artifact is refused; an existing one is hashed into evidence_sha256
+ok 83 dec-write --as dissent: the artifact must be an a2a adversarial-*.json
+ok 84 dec-write unattended: a RUNNING sprint-plan-state.json forces proposed/agent
+ok 85 dec-write unattended: a RUNNING .run/state.json forces proposed/agent
+ok 86 dec-write unattended: a fresh .run/unattended.json forces proposed/agent
+ok 87 dec-write unattended: LOA_UNATTENDED=1 forces proposed/agent
+ok 88 dec-write unattended: LOA_FLATLINE_MODE=autonomous forces proposed/agent
+ok 89 dec-write unattended: a PRD Status line naming an autonomous run forces proposed/agent
+ok 90 dec-write unattended: the default status is proposed; an explicit --status open stays open
+ok 91 dec-write context: a stale marker (other session or past the TTL) is ignored
+ok 92 dec-write context --clear runs only from the operator command
+ok 93 dec-write confirm: refused under a live-run signal; the PRD Status line alone does not block it
+ok 94 dec-write: CI, GITHUB_ACTIONS and LOA_HOOK_CONTEXT=1 make a live-ledger write exit 1; --file fixtures still run
+ok 95 dec-write: under CI, GITHUB_ACTIONS or LOA_HOOK_CONTEXT, --file naming the live ledger or a pending file (relative or absolute) is refused; a temp fixture is allowed
+ok 96 dec-write: in a linked worktree, --file naming a live ledger is refused (worktrees write the pending file)
+ok 97 dec-write: the live ledger in the main checkout gets DEC ids; --pending writes the sprint pending file
+ok 98 dec-write: a linked worktree writes PEND rows to the pending file; import in the main checkout allocates ids, rewrites refs and deletes the file
+ok 99 dec-write import: --rewrite targets outside the project, with '..', symlinks or missing files are refused before any write
+ok 100 dec-write: a held flock makes a second writer exit 1 and leaves the file intact
+ok 101 dec-write: without flock the mkdir lock refuses a live holder and breaks a stale one
+ok 102 dec-write: with flock absent from PATH the mkdir lock serialises writers
+ok 103 dec-write preflight: a missing jq or a non-v4 yq fails closed; a missing br does not
+ok 104 dec-write: the 160-character summary limit counts characters, not bytes
+ok 105 dec-write: an unknown flag or command is a usage error (exit 2)
+ok 106 dec-write: the hostile-string corpus round-trips byte-equal against the sanitised input
+ok 107 dec-write list: tsv, md (Voice column, confirm line) and json, filtered by status, voice and cycle
+ok 108 dec-write: no skill grants the operator-only operations in allowed-tools
+ok 109 dec-write: /decisions is model-uninvocable and the only command or skill passing --recorded-by decisions-command
+ok 110 dec-write: the ledger is tracked: not ignored by git, any -v match is the negation, and the gitignore-state check is clean
+ok 111 dec-write F-003: with only an autonomous PRD Status line, context is interactive and --why lists the PRD signal as advisory
+ok 112 dec-write F-003: under an autonomous PRD Status line, the operator's confirm --answer-ref records decided_by operator; reject and supersede of decided rows stay operator acts
+ok 113 dec-write F-003: under a live signal the operator ops still refuse or downgrade as before
+ok 114 dec-write F-003: new and decide under an autonomous PRD Status line still land proposed and ignore refs
+ok 115 dec-write F-017: LOA_PROJECT_ROOT points the context at another tree; an invalid one is a usage error
+ok 116 grimoire-index: --json is valid JSON with families + counts + total
+ok 117 grimoire-index: --json is byte-deterministic across two runs
+ok 118 grimoire-index: indexes KF from headings (complete) — KF-009 present even if absent from the Index table
+ok 119 grimoire-index: --validate passes (integrity: every entry has id+path)
+ok 120 grimoire-index: --validate FAILS when generated kf count != ## KF- heading count
+ok 121 grimoire-index: observation entries get a synthesized obs-<hex> surrogate id
+ok 122 grimoire-index: written INDEX.md has no control bytes (sanitization) + a generated sentinel
+ok 123 grimoire-index decisions: --tsv emits one decisions record per row (id, status, summary, path#id, source, voice ninth)
+ok 124 grimoire-index decisions: --json carries the family with voice, and the counts
+ok 125 grimoire-index decisions: INDEX.md has a ## decisions table with ID / Status / Decided by / Summary / Source
+ok 126 grimoire-index decisions: without yq v4 the family is skipped with a stderr note and the index still builds
+ok 127 decision ledger readers: loa-learnings-index.sh and path-lib.sh get_decisions_path resolve the tracked ledger (two-row fixture)
+ok 128 grimoire-index decisions: untrusted row text is cleaned in TSV, JSON and md (tab, newline, ESC, C1, <script>)
+ok 129 GY-1 replay rows are excluded by flag, cwd and burst and counted in the header; the window and bad rows are honoured
+ok 130 GY-2 the rotated segment is read: its real P3 catch is counted and is the guard's last_real_catch
+ok 131 GY-3 scratch-path and prose-class blocks classify as likely false positives; a prose class with a destructive verb is real; a System-Zone block is real whatever its heredoc body
+ok 132 GY-4 last_real_catch and generated_at are day-granular; telemetry counts implement-gate rows; non-writers show n/a
+ok 133 GY-5 no command text, cwd, hostname or model name reaches guards.md, the yield files or the hooks table
+ok 134 GY-6 guards.md is structural: header counts, one table per kind, no timestamp, and identical whatever the audit log holds
+ok 135 GY-7 --check exits 0 after generation, 1 after an origin edit (with the regenerate hint), 0 after a yield-only change
+ok 136 GY-8 --hooks-table writes one row per registration between the markers, including the six hooks the hand table omitted
+ok 137 GY-9 --json prints the yield object (header, totals and one row per guard)
+ok 138 GY-10 a missing audit log is a WARN and an empty yield (exit 0); a missing origin row is exit 5
+ok 139 GY-11 a 10,000-row audit log is joined in under 10 seconds
+ok 140 W1 bug-1002: every template PreToolUse command is wired in live settings.json
+ok 141 W10 bd-hooks-template-sessionstart-parity: every template SessionStart command is wired in live settings.json
+ok 142 W2 bug-1002: zone-write-guard.sh is wired for Write and Edit in BOTH files
+ok 143 W3 bug-1002: no command appears twice under one matcher group (matcher-aware dup check)
+ok 144 W4 bug-1002: every safety/compliance hook script is wired or explicitly parked
+ok 145 W5 bug-1002: lint-invariants is wiring-aware (fails on a synthetic template/live gap)
+ok 146 W6 bug-1002: hooks-reference registrations TABLE matches implement-gate.sh's wiring (wired on Write|Edit|MultiEdit|NotebookEdit, no longer parked)
+ok 147 W7 bug-1002 iter-1: zone-write-guard BLOCKS .claude/ writes via the REAL stdin hook contract
+ok 148 W8 bug-1002 audit: submodule physical prefix .loa/.claude/ classifies as framework (BLOCK)
+ok 149 W9 bug-1002 audit: every hook-wiring settings scope is guarded (incl. Local-scope override)
+ok 150 IG-1 a lead-session payload carrying tool_input.active_skill records active_skill_seen_at and its source
+ok 151 IG-2 the recorder writes once: an existing active_skill_seen_at is kept, other keys are preserved, no temp file is left
+ok 152 IG-3 a teammate role or a subagent payload writes nothing
+ok 153 IG-4 the corpus' records_evidence column holds for every fixture
+ok 154 IG-5 a forged active_skill Write payload does not flip the gate, whatever .run/ claims
+ok 155 IG-6 without the opt-in the gate stays heuristic: every corpus fixture gets its heuristic decision
+ok 156 IG-7 with implement_gate.mode: authoritative the branch passes the payload corpus
+ok 157 IG-8 the authoritative branch falls back to the heuristic on a payload without active_skill (RUNNING allows, absent asks)
+ok 158 IG-9 detect-platform-features.sh: the env var and the probe file no longer set the flag; the evidence is reported, never promoted
+ok 159 IG-10 the /loa evidence line: mode and evidence, read-only
+ok 160 IG-12 authoritative is strictly tighter than heuristic: with RUNNING state a non-implementation claim asks and logs one ask row, each implementation claim one heuristic row
+ok 161 IG-13 control characters in a claimed skill or path are stripped from stderr and the audit row (n21)
+ok 162 IG-14 the /loa evidence line and the refresh never carry Unicode format characters (U+202E, U+200B) and share one shape check
+ok 163 IG-15 the App-Zone check compares canonical paths: a non-canonical spelling of a src/ file asks, a canonically-outside path allows (run-2 finding 1)
+ok 164 IG-16 an unparsable payload and a NotebookEdit payload under src/ ask; a parsed payload without a path allows (run-2 finding 5)
+ok 165 IG-17 an inside-out symlink (src/ itself, or a lib/ file, pointing out of the root) still asks: the logical and the physical form are both tested (run-3 finding 1)
+ok 166 IG-18 a write to one of the gate's own trust inputs asks and leaves one compliance.state_write row; other .run/ and grimoires/ files allow silently (run-3 finding 3)
+ok 167 IG-19 a relative file_path resolves from the payload's cwd when it carries one, else from PROJECT_ROOT (run-3 finding 6)
+ok 168 IG-20 the ask reply is built by jq: the reason is a JSON string whatever it contains (run-3 finding 7)
+ok 169 IG-21 the root is CLAUDE_PROJECT_DIR, else the hook's own location, never the process cwd: from a subdirectory an App-Zone and a trust-input write still ask (MED-001)
+ok 170 IG-22 state.json RUNNING, simstim-state.json implementation and sprint-plan-state.json RUNNING allow only while fresh: older than 24 h, more than 24 h ahead, with no timestamp or an unparsable one, asks (LOW-004, LOW-006)
+ok 171 IG-23 the gate runs on bash 3.2: no bash-4 case-conversion expansion, and on a 3.x bash LIB/x.js still asks (BB-001)
+ok 172 IG-11 the example documents implement_gate: the three modes, the claims modifier, the sanction paths and the override; the default is ask (cycle-129 D-4.1 supersedes the cycle-126 'undocumented' pin)
+ok 173 IG-24 matrix, implement_gate unset: behaves exactly as ask in every cell
+ok 174 IG-25 matrix, mode ask: unsanctioned App-Zone writes ask with one ask row; sanctions allow with their own row; trust inputs ask
+ok 175 IG-26 matrix, mode telemetry: an unsanctioned App-Zone write logs one outside_run row and prints nothing; a non-implementation claim still asks
+ok 176 IG-27 matrix, mode deny: deny only for an unsanctioned App-Zone write with a fresh derived cache; an unknown position asks; trust inputs ask
+ok 177 IG-28 the telemetry row has exactly the documented keys and a control-stripped path of at most 256 bytes; without LOA_AUDIT_REPLAY no replay key
+ok 178 IG-29 the deny reply is a valid PreToolUse deny naming the derived position; the legacy mode: authoritative is ask + claims authoritative
+ok 179 IG-30 --effective-mode reads no stdin and prints the effective mode: unset/unknown → ask, the three modes, the claims modifier
+ok 180 IG-31 the implementing-skill marker is a trust input: a Write-tool write to it asks in every mode, even under a sanction
+ok 181 IG-32 a marker for another skill, without a sprint, or dated in the future does not sanction and logs stale_marker
+ok 182 IG-33 a RUNNING state.json whose derived_at is older than run_mode.stale_hours does not sanction; run_mode.stale_hours narrows the window
+ok 183 #961 K-1: .loa.config.yaml.example contains karpathy_principles block
+ok 184 #961 K-1: example exposes all 7 keys (two as commented, profile-governed lines since cycle-129 FR-9)
+ok 185 #961 K-1: hook defaults to 100 lines when threshold missing
+ok 186 KS-1 the counter resets when the checkpoint task changes
+ok 187 KS-2 with no run in progress the key is the payload's session id, then LOA_SESSION_ID
+ok 188 KS-3 a checkpoint whose task is still open in beads keys on the sprint
+ok 189 KS-4 the summary carries exactly task, lines, threshold, over, updated_at after each write
+ok 190 KS-5 the state directory keeps the 20 most recently written task files
+ok 191 KS-6 the legacy session-long state file is deleted on the first run
+ok 192 KS-7 task names are sanitised to ^[A-Za-z0-9._-]+$ and stay inside the state directory
+ok 193 KS-8 knob off is silent: no state, no summary, no stderr
+ok 194 KS-9 content never reaches state, summary or trajectory
+ok 195 KS-10 a symlinked state directory or task file is not written through
+ok 196 KS-11 malformed or foreign payloads are a silent no-op
+ok 197 #961 K-1: hook exits 0 with no stdin (graceful degradation)
+ok 198 #961 K-1: hook respects surgical_diff_warning:false (no state file written)
+ok 199 #961 K-1: hook accumulates lines across multiple invocations
+ok 200 #961 K-1: hook emits [karpathy-surgical-warn] when threshold exceeded
+ok 201 #961 K-1: hook exits 0 even when warning fires (non-blocking invariant)
+ok 202 #961 K-1 NFR-Sec-1: tool_input.content NEVER appears in state or trajectory
+ok 203 #961 K-2: trajectory file path follows convention
+ok 204 #961 K-2: event has required fields per schema
+ok 205 #961 K-2: schema is valid JSON Schema 2020-12
+ok 206 #961 K-2: events are append-only (multiple warns → multiple events)
+ok 207 TEST-1: generated INDEX.md kf section lists every live ## KF- heading
+ok 208 TEST-2: generated kf rows carry a Symptom + numeric recurrence
+ok 209 TEST-3: --validate PASSES on the real repo (generated == heading count)
+ok 210 TEST-4: --validate FAILS (non-zero) on a planted heading/index mismatch
+ok 211 TEST-5: hook contract — default-OFF silent; enabled loud-but-nonblocking; exit 0 always
+ok 212 TEST-6: generated kf Index is byte-deterministic across two runs
+ok 213 TEST-8: enabled healthy hook routes the table to STDOUT (SessionStart context), not stderr
+ok 214 TEST-7: hook output is control-byte sanitized (untrusted body never interpreted)
+ok 215 decisions surface: prints nothing when the key is off
+ok 216 decisions surface: the test seam is ignored outside bats (production reads the real config, off by default)
+ok 217 decisions surface: healthy table, proposed first then open, inside the L6 fence, closed rows absent
+ok 218 decisions surface: more than 10 rows prints 10 and a count of the rest
+ok 219 decisions surface: nothing pending prints nothing
+ok 220 decisions surface: an unknown schema_version or an unreadable ledger prints one WARNING line and exits 0
+ok 221 decisions surface: a stale unattended marker adds one notice line
+ok 222 decisions surface (negative): control characters, a closing fence tag and instruction-like text are neutralised and capped at 100 chars
+ok 223 decisions surface F-014: enabled but yq v4 or jq missing prints one WARNING naming the tool
+ok 224 decisions surface F-014: without yq the real config is read by the plain-text fallback
+ok 225 decisions surface F-001: a summary with uppercase letters appears verbatim (the clean regex keeps A-Z)
+ok 226 LSA-1 human output carries an Artefacts line naming the four planning artefacts that exist
+ok 227 LSA-2 a NOTES.md at the warn line is flagged with the section-read remedy; small artefacts are not
+ok 228 LSA-3 --json output is unchanged by the Artefacts line (still one valid envelope)
+ok 229 LSG-1 the Guards line carries the register counts and the host yield from the yield file
+ok 230 LSG-2 with no yield file the line keeps the structural counts and prints the regenerate hint
+ok 231 LSG-3 a malformed yield file is treated as missing; a missing register says so
+ok 232 LSP-1 human output: Providers block lists presence, hop and buckets; OPEN carries age and probe timing; no credential value
+ok 233 LSP-4 a key present only in .env.local counts as present (same rule as the preflight) and its value never prints
+ok 234 LSP-2 --json mirrors the block under .providers and carries no credential value
+ok 235 LSP-3 a provider with no breaker state is still listed (credential and hop only)
+ok 236 LSP-5a the anthropic row carries the committed catalog's input bound for the opus target (cycle-126 FR-1.1, cycle-127 FR-3.4)
+ok 237 LSP-5b an uncalibrated entry (fixture catalog): probed by default, observed after a provider verdict below it, never a 429
+ok 238 LSP-5c a same-route calibration (transport api or absent, fixture catalog) is never lowered by an observation
+ok 239 LSP-5d a foreign-transport calibration (claude-headless, fixture catalog) is tightened by an observation below it on this route and says so (cycle-127 r251-1)
+ok 240 LSP-AGY the google hop reads agy: opt-in (disabled; hounfour.headless.agy_opt_in) while the opt-in is off, today's hop text when it is true (cycle-127 FR-1)
+ok 241 LSP-6 (r251-4 S8, audit n11) the opus target reaches yq as a value, never as expression text
+ok 242 LSP-7 (r251-4 S7 parity with routing.ceiling) an implausible observation (below 0.1 × the window) never becomes the displayed bound
+ok 243 LSP-8 (r251-4, sibling of S4) without lib/agy-gate-lib.sh /loa still answers: exit 0, the agy route reads off (fail closed), one WARN in human mode, --json quiet
+ok 244 LSP-COLD (r251-5 U4, audit LOW-004) loa-status --json on a cold workflow-state cache is one valid JSON document
+ok 245 issue-1233: archived cycle is stale even when the parked branch is not an ancestor
+ok 246 issue-1233: human output warns and does not suggest deployment
+ok 247 issue-1233: triage replaces halted resume advice in both output modes
+ok 248 issue-1233: null upstream active_cycle without a matching archived record is not proof
+ok 249 issue-1233: an active matching upstream cycle is not stale
+ok 250 issue-1233: missing cached upstream preserves local status without fetching
+ok 251 issue-1233: malformed cached ledger preserves local status
+ok 252 issue-1233: primary checkout is not labelled a stale worktree
+ok 253 issue-1233: no-stale-check preserves explicit local-snapshot behavior
+ok 254 issue-1233: closed cycle on cached default branch is recognized without touching dirty work
+ok 255 NSG-1 Write that grows NOTES.md at 250 KiB is denied with the remedy; a shrinking Write is allowed
+ok 256 NSG-2 Edit: growing denied, shrinking allowed at 250 KiB
+ok 257 NSG-3 Edit replace_all multiplies the delta by the occurrence count (crossing the line only with replace_all)
+ok 258 NSG-4 MultiEdit sums its edits: net growth denied, net shrink allowed at 250 KiB
+ok 259 NSG-5 other paths, a missing NOTES.md and an unparseable payload exit 0 fast
+ok 260 NSG-6 symlinked path, relative path and a custom LOA_GRIMOIRE_DIR reach the same decision
+ok 261 NSG-7 below 200 KiB a growing Write is allowed (warn line only)
+ok 262 NSG-8 fails open under hook-guard.sh when the hook cannot parse
+ok 263 NSG-9 settings.json wires the hook behind hook-guard.sh in the Write|Edit|MultiEdit|NotebookEdit array
+ok 264 NSG-10 the hook denies with exit 2 and never touches the file
+ok 265 RTC-1 red fails by assertion, green passes, red fails again: exit 0 VERIFIED, red output fenced, verdict last
+ok 266 RTC-2 a decoy that passes at both commits exits 3 DECOY
+ok 267 RTC-3 a --test-file absent at the red commit exits 4 NOT_A_RED before any worktree
+ok 268 RTC-4 a red run that calls a missing command (sh: not found) is NOT_A_RED, exit 4
+ok 269 RTC-5 an allowed bats run: a bats file with a syntax error at red is NOT_A_RED, exit 4
+ok 270 RTC-6 a pytest-style collection error in the red output is NOT_A_RED, exit 4
+ok 271 RTC-7 a green that still fails exits 1 GREEN_FAILS and prints the green output fenced
+ok 272 RTC-8 a run past --timeout yields TIMEOUT, exit 5, and stops the run's children
+ok 273 RTC-9 without timeout/gtimeout on PATH the bash watcher yields TIMEOUT, exit 5
+ok 274 RTC-10 a dependency present only in the live tree is linked by default; --no-link-deps makes it NOT_A_RED
+ok 275 RTC-11 --setup runs in both worktrees before the test; a failing --setup exits 2
+ok 276 RTC-12 red not a strict ancestor of green, or unresolvable, exits 2 and creates nothing
+ok 277 RTC-13 --json prints the documented object
+ok 278 RTC-14 a green that changes only test files WARNs
+ok 279 RTC-15 uncommitted live edits never count, and the live tree is left as it was
+ok 280 RTC-16 an interrupted run (TERM) still removes both worktrees
+ok 281 RTC-17 the micro-sprint template requires the separate red commit; reviewing-code names the script and its trust rules
+ok 282 RTC-18 a silent run prints (no output) inside its fence, never a blank line
+ok 283 RTC-19 shells, env, eval, exec, inline-code interpreters and inline-code flags are refused with exit 2 naming the key
+ok 284 RTC-20 a --setup through a shell is refused with exit 2 before any worktree
+ok 285 RTC-21 a ./ or tests/ script runs only when red_test.allowed_runners lists it; red_test.command matches exactly
+ok 286 RTC-27 a configured red_test.command or red_test.setup cannot bypass the denials (bash -c, python -c, node -e); a listed runner needs no config and no --trust-config
+ok 287 RTC-22 the run's environment is scrubbed: no GH_TOKEN, SSH_AUTH_SOCK or other caller variable; HOME and TMPDIR are per run
+ok 288 RTC-23 --env-pass passes one named variable; credential-shaped and contract names are refused
+ok 289 RTC-24 a stateful decoy (fails once, then passes at red) is DECOY exit 3; a HOME marker cannot carry state
+ok 290 RTC-25 forged markers and a forged verdict in test output stay inside the fence; the real verdict line is last
+ok 291 RTC-26 a run that writes a tag, a hook or the shared git config fails with exit 2 listing the change
+ok 292 repo-map: --json is valid JSON with the expected top-level keys
+ok 293 repo-map: --json is byte-deterministic across two runs
+ok 294 repo-map: --validate passes against the committed REPO-MAP.md
+ok 295 repo-map: --validate FAILS when REPO-MAP.md is tampered (drift detection)
+ok 296 repo-map: PageRank surfaces the more-referenced symbol first (synthetic fixture)
+ok 297 repo-map: same-named symbols in different files collapse into one node (collision)
+ok 298 CK-1 write sets schema_version 2, checkpoint {sprint,task,phase,ts} and last_activity; the rest of the state is untouched; no tmp or lock residue
+ok 299 CK-2 read: closed task → trustworthy checkpoint; open or unknown task → discarded with a logged line and the beads-truth pointer
+ok 300 CK-2b with no br on PATH a task checkpoint is NOT trusted (unverifiable → discarded); a phase-only checkpoint still is
+ok 301 CK-3 a phase-only checkpoint (no task) is trusted without consulting beads; schema 1 / no checkpoint reads as sprint granularity
+ok 302 CK-4 write refuses when there is no run (exit 2) and never replaces a file with unparseable output (exit 3, file intact)
+ok 303 CK-5 concurrent writes serialise under the lock: the file stays valid JSON and holds the last writer
+ok 304 CK-6 usage: bad ids, phases and missing values exit 2
+ok 305 RCD-1 drift fixture (D-5.4): cache RUNNING, three COMPLETED markers with APPROVED trailers, ledger completed → COMPLETE; --write makes the cache say so
+ok 306 RCD-2 a stale marker whose trailers name sprint-1 of another cycle (or whose sprint: line names another sprint) is stale_marker, not counted
+ok 307 RCD-3 legacy feedback (no LOA-VERDICT trailer) yields no verdict: the sprint stays incomplete and the file is named in derivation.legacy_feedback
+ok 308 RCD-4 review and audit APPROVED without a marker is awaiting_marker (counted incomplete); a marker with the ledger row not completed is in_progress
+ok 309 RCD-5 JACKED_OUT is terminal: a cache .state or .status JACKED_OUT, or .completion.merged_sha, stays JACKED_OUT with contradicting files reported as drift
+ok 310 RCD-6 HALTED is sticky: a cache HALTED stays HALTED even when every sprint is complete; a breaker OPEN halts a RUNNING cache
+ok 311 RCD-7 COMPLETE never moves back to RUNNING unless the ledger registers a new incomplete sprint
+ok 312 RCD-8 an incomplete sprint is RUNNING while last_activity is within run_mode.stale_hours (default 12), else INTERRUPTED; the key widens the window
+ok 313 RCD-9 breaker recompute: two -r1 feedback files and a zeroed breaker give cycle_count 2, same_issue 2, no_progress 1; counters are raised, never lowered
+ok 314 RCD-10 three identical changes-required rounds meet the same-issue threshold: the derived breaker trips OPEN (history source derive) and the run derives HALTED
+ok 315 RCD-11 schema tolerance: a file without derived_at, derivation or .status reads fine, gains the fields on --write and keeps its schema_version
+ok 316 RCD-12 run_mode.file_authoritative: false makes --write report-only: the caches stay byte-identical and the report says why
+ok 317 RCD-13 no active cycle or no ledger → exit 4 with a named reason; the cache is untouched
+ok 318 RCD-14 write refreshes the derived cache after its own update; an unparseable cache is reported and never rewritten
+ok 319 RCD-15 impl_commit is the newest non-merge commit since the sprint started that touches a path outside the state set; state-only commits are skipped
+ok 320 RCD-16 the jack-out step in completion-modes.md writes .state (and mirrors .status) on the sprint-plan cache; run-resume derives on drift; the recovery doc reads .state
+ok 321 RCD-17 a ledger row without local_label or timestamps keeps its fields aligned (empty TSV fields do not collapse)
+ok 322 RCD-R1 loa-run-state-surface.sh prints for a derived file exactly what it prints for a hand-written file with the same .state
+ok 323 RCD-R2 run-preflight.sh P6 classifies a derived file as it classifies the same .state by hand (resumable HALTED/INTERRUPTED, in progress RUNNING)
+ok 324 RCD-R3 golden-path.sh: the bug-state detector reads .run/bugs/*/state.json as before, a derived sprint-plan cache beside it changes nothing
+ok 325 RCD-R4 implement-gate.sh over a derived file: derived RUNNING sanctions (one sanctioned_run row); derived COMPLETE under deny is denied; a cache derived 13 h ago is an unknown position
+ok 326 RCD-R5 the /loa Run line reports drift report-only (files say X, cache said Y) and the Gate line prints the effective mode; nothing is written
+ok 327 RCR-1 a CHANGES_REQUIRED review increments cycle_count.current, sets same_issue {count 1, last_hash} to the SKILL's derived hash, exit 0
+ok 328 RCR-2 the same hash again counts up; a different finding set resets same_issue to 1 with the new last_hash
+ok 329 RCR-3 no_progress counts consecutive rounds whose counts are unchanged and resets when they change
+ok 330 RCR-4 a trip at threshold writes state OPEN, appends one history entry, sets .run/state.json HALTED, prints TRIPPED and exits 10
+ok 331 RCR-5 the cycle limit, the no-progress threshold and the timeout trip in that documented order
+ok 332 RCR-6 APPROVED leaves every counter and the run state as they were (exit 0)
+ok 333 RCR-7 an inconsistent APPROVED trailer counts as findings; a legacy file without a trailer hashes its findings section; a missing breaker file is created from the schema defaults
+ok 334 RCR-8 usage: a missing feedback file or gate exits 2 and writes nothing
+ok 335 RSS-1 clean tree, no .run, fresh RUNNING, JACKED_OUT: nothing printed, exit 0
+ok 336 RSS-2 HALTED sprint-plan state prints the resume line with age and /run-resume
+ok 337 RSS-3 RUNNING older than 12h is surfaced as stale with the beads-truth note; INTERRUPTED and state.json HALTED are surfaced too
+ok 338 RSS-4 simstim RUNNING older than 12h suggests /simstim --resume; fresh simstim is silent
+ok 339 RSS-5 session-limit reset in the past prints the resume-available line; in the future prints nothing
+ok 340 RSS-6 malformed JSON and control characters never break the hook: silent or sanitised, exit 0
+ok 341 RSS-7 hook wiring: present in both settings files, behind hook-guard.sh, once per session
+rc=0

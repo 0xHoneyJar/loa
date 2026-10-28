@@ -1,0 +1,15 @@
+VERDICT: APPROVE
+
+Pass 19 review: .claude/hooks/quality/karpathy-surgical-diff-check.sh (diff 16+/5-). Mirrors verified byte-identical to HEAD (old) and the working tree (new).
+
+Findings
+- INFO, :127-131 (payload_sid fast path). Sound by construction. PAYLOAD_SID_JSON comes from jq `tojson`, which always escapes `"`, `\` and control chars (and DEL as \u007f). So a quoted value with no backslash decodes to exactly the bytes between the quotes. Fast path: fixtures 1 bench, 2 UUID, 3 "", 4 missing, 5 null, 6 number (the last three are coerced to "" upstream), 13 "..", 14 ".hidden", 16 300-char, 18 "-". Fallback path: 7 space, 8 \", 9 \\, 10 non-ASCII, 11 \u0000, 12 \n, 15 |, 17 /, 24 raw UTF-8, 25 \u007f. All outputs are identical. The NUL warning text is identical too, with `line N` normalised.
+- INFO, :132-138 (SESSION_JSON fast path). This is correct because a [A-Za-z0-9._-]+ string needs no JSON escaping. Fixture 19 has payload and env both set; the payload id wins, as in HEAD. Fixture 20 env "env id" takes the fallback. Fixture 21 env "env.id-1" takes the fast path. Fixture 22 is invalid UTF-8 in env. It is not matched, so the jq path runs and both versions write U+FFFD. Fixture 23 is a non-ASCII env value. The USER-date fallback (fixtures 3-6) takes the fast path. Parity also holds under LC_ALL=C, which matters for range-matching locales.
+- INFO, :141-145 (head -1 replaced by %%$'\n'*). Under `set -o pipefail` the old rc was max(checkpoint, jq, head). The new rc is max(checkpoint, jq). The two match unless head's SIGPIPE race applies. The old form could fail spuriously if jq hit SIGPIPE on large multi-line output, so the new form is deterministic and at least as correct. Checkpoint fixtures, all identical: task line; sprint-only; two docs (both pick "first"); empty-then-value (both "s2"); valid-then-garbage (jq rc!=0, both fall back to session key "bench"); unparseable; no file; top-level sprint "sp/1" becomes sp_1.
+- LOW (comment wording), :124-126. "the two jq calls run only for any other id" is slightly loose. The encode call keys on SESSION, which can also come from LOA_SESSION_ID or the USER-date fallback, not only the payload id. Behaviour is correct, so this is not blocking.
+- Lever: one technique (skip a jq round-trip for a charset-safe id) at two adjacent micro-sites, plus a fork removal on the same data flow. That is acceptable as one lever.
+
+parity: 33/33 (25 session fixtures + 8 checkpoint fixtures), each run with the real checkpoint and with the checkpoint disabled (so KEY derives from SESSION), plus a 33/33 LC_ALL=C rerun. Compared stdout, stderr, rc, the kstate JSONL with ts normalised, and summary.json with updated_at normalised.
+bats: karpathy-surgical-diff.bats + karpathy-surgical-diff-hook.bats 17/17 ok; bash -n ok.
+hyperfine (-N, warmup 3, 30 runs, postwrite.json): old 81.2 +/- 4.0 ms; new 76.4 +/- 5.5 ms (-5.9%).
+UNVERIFIED: the other karpathy bats suites the orchestrator counted in 35/35 (config-schema, trajectory-event) were not rerun; PS4 spawn counts were not re-traced.

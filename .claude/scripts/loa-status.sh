@@ -421,19 +421,37 @@ _an_audit_chain_summary() {
     )
     local total=7   # 7 primitives in the cycle-098 model
     local valid=0
-    local entry path
+    local entry path existing=()
     for entry in "${logs[@]}"; do
         path="${entry#*:}"
         local full="${PROJECT_ROOT}/${path}"
         if [[ -f "$full" ]]; then
-            if "$AUDIT_ENVELOPE_SCRIPT" verify-chain "$full" >/dev/null 2>&1; then
-                valid=$((valid + 1))
-            fi
+            existing+=("$full")
         else
             # Primitive not yet emitting; counts as "validates" by absence.
             valid=$((valid + 1))
         fi
     done
+
+    # cycle-137 FR-7: ONE verifier process for every existing chain file
+    # (`verify-chains`, one JSON record per path in argument order). Fail-closed:
+    # index k counts only when exactly one record for k echoes the path passed
+    # at k with ok:true; unrecorded, duplicated or malformed records count
+    # invalid, and an exit other than 0/1 or unparsable output counts NONE of
+    # the passed paths (more conservative than the per-call loop only in that
+    # abnormal-exit case).
+    if [[ ${#existing[@]} -gt 0 ]]; then
+        local records rc=0 ok_count=0
+        records="$("$AUDIT_ENVELOPE_SCRIPT" verify-chains "${existing[@]}" 2>/dev/null)" || rc=$?
+        if [[ "$rc" -eq 0 || "$rc" -eq 1 ]]; then
+            ok_count="$(jq -n '$ARGS.positional as $p | [inputs] as $r
+                | [range(0; $p | length) as $k | [$r[] | select(type == "object" and .i == $k)]
+                   | select(length == 1 and .[0].ok == true and .[0].path == $p[$k])] | length' \
+                --args -- "${existing[@]}" <<<"$records" 2>/dev/null)" || ok_count=0
+            [[ "$ok_count" =~ ^[0-9]+$ ]] || ok_count=0
+        fi
+        valid=$((valid + ok_count))
+    fi
 
     # L5 + L7 are not chain-critical, count as validating.
     valid=$((valid + 2))
@@ -818,7 +836,12 @@ if ! { [[ -f "$SCRIPT_DIR/lib/agy-gate-lib.sh" ]] && source "$SCRIPT_DIR/lib/agy
   routes_to_agy() { case "${1:-}" in gemini-headless|*:gemini-headless|gemini-headless:*) return 0 ;; esac; return 1; }
   agy_gate_warn_once() { return 0; }
 fi
+_LOA_STATUS_AGY_OPT=""   # memo of the opt-in read ("" = not read yet, 0 = opted in, 1 = not); primed by get_providers_json
 _agy_opted_in() {  # true only for a YAML boolean true at hounfour.headless.agy_opt_in (no env override)
+  # (the config cannot change mid-run, and each uncached read spawns a yq: the hop and the note of every provider read it
+  # from inside command substitutions, where a first read could not be remembered — so get_providers_json reads it once
+  # before its loop and the subshells inherit the answer)
+  case "$_LOA_STATUS_AGY_OPT" in 0) return 0 ;; 1) return 1 ;; esac
   agy_opted_in "$(_providers_config_file)"
 }
 _AGY_OPT_IN_NOTE="$AGY_OPT_IN_NOTE"
@@ -851,9 +874,32 @@ _anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound th
   # not api/http — same rule as routing.ceiling.is_foreign_transport_calibration)
   # is tightened by an observation below it: basis observed, calibrated true,
   # calibrated_value / calibration_transport / reprobe_suggested carried.
-  local cfg model eff probed cal transport cw store obs=null
+  local cfg model eff probed cal transport cw store obs=null raw line n=0
+  local -a f=()
   cfg=$(_providers_model_config)
   command -v yq >/dev/null 2>&1 && [[ -f "$cfg" ]] || { echo null; return 0; }
+  # cycle-137 FR-3 (SDD § 5.2): ONE yq program prints the six reads as six lines — the alias, then the five
+  # model fields. (r251-4 S8 holds: the model is DATA read from the file and indexes the map as a VALUE,
+  # models[$m] — it is never spliced into the expression text.) The body is PARENTHESISED: in yq a binding
+  # `… as $m | x, y` scopes $m over x only, and an unbound $m in y indexes EVERY model. The `x` sentinel keeps
+  # trailing empty lines through the command substitution. Only a zero exit with exactly six lines takes this
+  # path; an error, a non-string alias (sub refuses it) or any multi-line value runs the six original reads
+  # below, verbatim.
+  # shellcheck disable=SC2016  # (the $a / $m are yq variables, not shell expansions)
+  if raw=$(yq eval -r '(.aliases.opus // "") as $a | ($a | sub("^anthropic:"; "")) as $m | ($a,
+             (.providers.anthropic.models[$m].effective_input_ceiling // ""),
+             (.providers.anthropic.models[$m].probed_ceiling // ""),
+             (.providers.anthropic.models[$m].ceiling_calibration.calibrated_at // ""),
+             (.providers.anthropic.models[$m].ceiling_calibration.transport // ""),
+             (.providers.anthropic.models[$m].context_window // ""))' "$cfg" 2>/dev/null && printf x) \
+     && [[ "$raw" == *$'\n'x ]]; then
+    while IFS= read -r line; do f[n]=$line; n=$((n + 1)); done <<<"${raw%$'\n'x}"
+  fi
+  if (( n == 6 )); then
+    model="${f[0]#anthropic:}"
+    [[ -n "$model" ]] || { echo null; return 0; }
+    eff=${f[1]} probed=${f[2]} cal=${f[3]} transport=${f[4]} cw=${f[5]}
+  else
   model=$(yq eval -r '.aliases.opus // ""' "$cfg" 2>/dev/null); model="${model#anthropic:}"
   [[ -n "$model" ]] || { echo null; return 0; }
   # (r251-4 S8, audit n11: the model reaches yq as a VALUE through strenv — never spliced into the expression text)
@@ -862,6 +908,7 @@ _anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound th
   cal=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].ceiling_calibration.calibrated_at // ""' "$cfg" 2>/dev/null)
   transport=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].ceiling_calibration.transport // ""' "$cfg" 2>/dev/null)
   cw=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].context_window // ""' "$cfg" 2>/dev/null)
+  fi
   [[ "$cw" =~ ^[0-9]+$ ]] || cw=0
   store="${LOA_CHEVAL_CEILING_OBSERVED_PATH:-$PROJECT_ROOT/.run/ceiling-observed.json}"
   if [[ -f "$store" ]]; then
@@ -890,6 +937,7 @@ _anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound th
 }
 get_providers_json() {
   local snap provs p
+  if agy_opted_in "$(_providers_config_file)"; then _LOA_STATUS_AGY_OPT=0; else _LOA_STATUS_AGY_OPT=1; fi
   snap=$(_providers_snapshot)
   provs=$(printf '%s' "$snap" | jq -r '.buckets | keys[]' 2>/dev/null; printf 'anthropic\nopenai\ngoogle\n')
   local out='{}'

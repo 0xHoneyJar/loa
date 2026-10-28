@@ -84,8 +84,9 @@ case "${MODE}" in
   write)
     mkdir -p "${PROJECT_ROOT}/.run"
     TMPM="$(mktemp)"; TMPJ="$(mktemp)"; trap 'rm -f "$TMPM" "$TMPJ"' EXIT
-    gen_md   > "$TMPM"
-    gen_json > "$TMPJ"
+    # One engine run renders both files, so md and json come from the SAME scan.
+    python3 "${ENGINE}" --root "${PROJECT_ROOT}" --scan "${SCAN_SUBDIR}" \
+      --out-md "$TMPM" --out-json "$TMPJ"
     mv "$TMPM" "${OUT_MD}"
     mv "$TMPJ" "${OUT_JSON}"
     sha256_portable "${OUT_MD}" | awk '{print $1}' > "${OUT_CHK}"

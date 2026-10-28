@@ -264,3 +264,86 @@ YAML
   [ "$status" -eq 0 ] || { echo "status=$status stderr=$stderr"; return 1; }
   jq -e '.providers.providers | type == "object"' >/dev/null <<<"$output" || { printf '%s\n' "$output" | head -5 | cat -v; return 1; }
 }
+
+# ---- cycle-137 FR-3 (Task 2.3a, bd-gv5jf): the ceiling read is ONE yq program printing six lines ----
+_lsp9_fn() {  # the two catalog functions, extracted from the script under test (it has no source guard) → $T/fn.sh
+  awk '/^_providers_model_config\(\) *\{/,/^}/' "$STATUS" > "$T/fn.sh"
+  awk '/^_anthropic_ceiling_json\(\) *\{/,/^}/' "$STATUS" >> "$T/fn.sh"
+  grep -q '^_anthropic_ceiling_json' "$T/fn.sh"
+}
+_lsp9_run() {  # $1 catalog [$2 PATH] → stdout the ceiling JSON; xtrace (PS4='+') of the call → $T/trace
+  env PATH="${2:-$PATH}" PS4='+' BATS_VERSION="${BATS_VERSION:-1}" LOA_STATUS_MODEL_CONFIG="$1" \
+      LOA_CHEVAL_CEILING_OBSERVED_PATH="$T/none.json" PROJECT_ROOT="$T" \
+      "$BASH" -c 'source "$1"; set -x; _anthropic_ceiling_json' _ "$T/fn.sh" 2>"$T/trace"
+}
+_lsp9_yq_count() { grep -cE '^\++ *(M=[^ ]* )?yq eval' "$T/trace" || true; }
+_lsp9_shim() {  # a yq on PATH that refuses the six-line program (forces the verbatim six-read fallback = the original code)
+  mkdir -p "$T/shim"
+  local real; real=$(command -v yq)
+  printf '#!/usr/bin/env bash\ncase "$*" in *" as \\$m "*) exit 1 ;; esac\nexec %q "$@"\n' "$real" > "$T/shim/yq"
+  chmod +x "$T/shim/yq"
+}
+_lsp9_case() {  # $1 name, catalog body on stdin → $T/c-$1.yaml
+  cat > "$T/c-$1.yaml"
+}
+_lsp9_decoys() {  # $1 catalog: append decoy models before and after the target (every field differs from it), so a
+  # lookup that is not bound to the target model prints extra lines or the wrong values
+  yq -i '.providers.anthropic.models = ({"aa-decoy": {"context_window": 11, "effective_input_ceiling": 12, "probed_ceiling": 13,
+           "ceiling_calibration": {"calibrated_at": "2001-01-01T00:00:00Z", "transport": "decoy-a"}}}
+         + (.providers.anthropic.models // {})
+         + {"zz-decoy": {"context_window": 21, "effective_input_ceiling": 22, "probed_ceiling": 23,
+           "ceiling_calibration": {"calibrated_at": "2002-02-02T00:00:00Z", "transport": "decoy-z"}}})' "$1"
+}
+
+@test "LSP-9a (cycle-137 FR-3) a plain catalog takes the fast path: ONE yq call in the function's trace, no per-field read" {
+  _lsp9_fn
+  _lsp5_catalog "$T/catalog.yaml" "2026-10-07T09:29:07Z" "claude-headless"; _lsp9_decoys "$T/catalog.yaml"
+  out=$(_lsp9_run "$T/catalog.yaml")
+  [ "$(_lsp9_yq_count)" = 1 ] || { echo "yq calls: $(_lsp9_yq_count)"; grep 'yq' "$T/trace"; return 1; }
+  ! grep -q 'strenv(M)' "$T/trace" || { grep 'strenv' "$T/trace"; return 1; }
+  jq -e '.basis == "calibrated" and .value == 920000 and .model == "claude-fixture-1" and .calibration_transport == "claude-headless"' <<<"$out" >/dev/null || { echo "$out"; return 1; }
+}
+
+@test "LSP-9b (cycle-137 FR-3) the six-line read and the original six reads give the same JSON over the catalog matrix" {
+  _lsp9_fn; _lsp9_shim
+  printf 'providers:\n  anthropic:\n    models:\n      m1:\n        context_window: 5\n' | _lsp9_case alias-absent
+  printf 'aliases:\n  opus: "anthropic:m1"\nproviders:\n  anthropic:\n    models:\n      m1:\n        context_window: 1000000\n' | _lsp9_case no-ceiling
+  _lsp5_catalog "$T/c-all-five.yaml" "2026-10-07T09:29:07Z" "claude-headless"
+  printf 'aliases:\n  opus: "anthropic:m1"\nproviders:\n  anthropic:\n    models:\n      m1:\n        context_window: null\n        effective_input_ceiling: null\n        probed_ceiling: null\n        ceiling_calibration:\n          calibrated_at: null\n          transport: null\n' | _lsp9_case nulls
+  printf 'aliases:\n  opus: "anthropic:m1"\nproviders:\n  anthropic:\n    models:\n      m1:\n        context_window: false\n        effective_input_ceiling: false\n        probed_ceiling: 7\n        ceiling_calibration:\n          calibrated_at: false\n          transport: false\n' | _lsp9_case falses
+  printf 'aliases:\n  opus: "anthropic:m1"\nproviders:\n  anthropic:\n    models:\n      m1:\n        effective_input_ceiling: 300\n        probed_ceiling: 300\n        ceiling_calibration:\n          calibrated_at: "2026-01-01T00:00:00Z"\n          transport: api\n        context_window: ""\n' | _lsp9_case empty-last
+  printf 'aliases:\n  opus: "anthropic:m1"\nproviders:\n  anthropic:\n    models:\n      m1:\n        effective_input_ceiling: 300\n        ceiling_calibration:\n          calibrated_at: "2026-01-01T00:00:00Z"\n          transport: "claude-\\nheadless"\n' | _lsp9_case newline
+  printf 'aliases:\n  opus: "anthropic:m1"\nproviders: [unclosed\n  anthropic: {\n' | _lsp9_case malformed
+  printf 'aliases:\n  opus: "anthropic:m1"\nproviders:\n  anthropic:\n    models:\n      m1:\n        effective_input_ceiling: {a: 1}\n        probed_ceiling: {a: 1, b: 2}\n' | _lsp9_case map
+  printf 'aliases:\n  opus: {x: 1}\n' | _lsp9_case alias-map
+  printf 'aliases:\n  opus: "anthropic:"\n' | _lsp9_case alias-empty-model
+  printf 'aliases:\n  opus: "anthropic:m1"\nproviders:\n  anthropic:\n    models:\n      m1:\n        effective_input_ceiling: &x 5\n        probed_ceiling: *x\n        context_window: *x\n' | _lsp9_case anchors
+  local c new old
+  for c in no-ceiling all-five nulls falses empty-last newline map anchors; do
+    cp "$T/c-$c.yaml" "$T/c-$c-decoys.yaml"; _lsp9_decoys "$T/c-$c-decoys.yaml"
+  done
+  for c in alias-absent no-ceiling all-five nulls falses empty-last newline malformed map alias-map alias-empty-model anchors \
+           no-ceiling-decoys all-five-decoys nulls-decoys falses-decoys empty-last-decoys newline-decoys map-decoys anchors-decoys; do
+    new=$(_lsp9_run "$T/c-$c.yaml")
+    old=$(_lsp9_run "$T/c-$c.yaml" "$T/shim:$PATH")
+    [ "$new" = "$old" ] || { echo "case $c: new=$new old=$old"; return 1; }
+  done
+  # the cases whose answer is fixed whatever the path
+  for c in alias-absent malformed alias-empty-model; do [ "$(_lsp9_run "$T/c-$c.yaml")" = null ] || { echo "case $c not null"; return 1; }; done
+}
+
+@test "LSP-9d (cycle-137 FR-3) an embedded newline in a field is not six lines: the verbatim six-read fallback runs" {
+  _lsp9_fn
+  printf 'aliases:\n  opus: "anthropic:m1"\nproviders:\n  anthropic:\n    models:\n      m1:\n        effective_input_ceiling: 300\n        ceiling_calibration:\n          calibrated_at: "2026-01-01T00:00:00Z"\n          transport: "claude-\\nheadless"\n' | _lsp9_case newline
+  out=$(_lsp9_run "$T/c-newline.yaml")
+  [ "$(_lsp9_yq_count)" = 7 ] || { echo "newline case yq calls: $(_lsp9_yq_count)"; return 1; }
+  jq -e '.basis == "calibrated" and .calibration_transport == "claude-\nheadless"' <<<"$out" >/dev/null || { echo "$out"; return 1; }
+}
+
+@test "LSP-9c (cycle-137 FR-3) without yq on PATH the ceiling is null (no read attempted)" {
+  _lsp9_fn
+  _lsp5_catalog "$T/catalog.yaml" "" ""
+  mkdir -p "$T/nobin"; ln -s "$(command -v jq)" "$T/nobin/jq"
+  [ "$(_lsp9_run "$T/catalog.yaml" "$T/nobin")" = null ]
+  [ "$(_lsp9_yq_count)" = 0 ]
+}

@@ -166,3 +166,489 @@ _need_yq4() { [[ "$(yq --version 2>&1)" == *mikefarah*"version v4."* ]] || skip 
     [[ "$out" != *$'\xc2\x85'* ]]
   done
 }
+
+# ---- cycle-137 FR-2 (bd-atk7q): KF shape-C field lines and the H2 reset (sdd § 5.1, D-2.1, D-2.2) ----
+# The fixture is the one kf-surface.bats uses for the hook side. The generator is copied into a REAL
+# x/y/ dir beside compat-lib.sh, so PROJECT_ROOT is the fixture root.
+_kf_shapes_project() {
+  local dir="$1"
+  mkdir -p "$dir/grimoires/loa" "$dir/x/y"
+  cp "$GEN" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$dir/x/y/"
+  cat > "$dir/grimoires/loa/known-failures.md" <<'EOF'
+# Known Failures
+
+## Schema
+
+**Symptom**: schema-level symptom attaches to nothing
+
+## KF-001: shape C symptom
+**Status**: OPEN
+**Symptom (short)**: s
+**Recurrence count (approx)**: 4
+
+## KF-002: shape B still parsed
+**Status**: OPEN
+**Symptom (short):** s
+**Recurrence count**: 2
+
+## KF-003: symptomatic decoy
+**Status**: OPEN
+**Symptomatic**: x
+**Symptom**: real
+**Recurrence count**: 1
+
+## KF-004: status decoy after plain status
+**Status**: A
+**Status (original)**: B
+**Symptom**: four
+**Recurrence count**: 1
+
+## KF-005: only a qualified status
+**Status (original)**: B
+**Symptom**: five
+**Recurrence count**: 1
+
+## KF-006: entry before a non-numeric heading
+**Status**: OPEN
+**Recurrence count**: 6
+
+## KF-abc: non-numeric heading
+**Symptom**: x
+**Status**: from-abc
+
+## KF-007: entry before the index heading
+**Status**: OPEN
+
+## Index
+
+**Symptom**: index-level symptom
+**Recurrence count**: 99
+
+## KF-008: list-marker shape C
+- **Symptom (list)**: listed
+- **Recurrence count (est.)**: 8
+- **Status**: OPEN
+EOF
+}
+# _kf_field <id> <field#> — one TSV field of a kf row from $output
+_kf_field() { printf '%s\n' "$output" | awk -F'\t' -v id="$1" -v n="$2" '$1 == "kf" && $2 == id { print $n }'; }
+
+_kf_shapes_tsv() {
+  local dir="$BATS_TEST_TMPDIR/kfshapes"; _kf_shapes_project "$dir"
+  output="$(bash "$dir/x/y/grimoire-index.sh" --tsv 2>"$BATS_TEST_TMPDIR/gi.err")"
+  GI_ERR="$(cat "$BATS_TEST_TMPDIR/gi.err")"
+}
+
+@test "grimoire-index FR-2: shape C **Symptom (short)**: s is the kf symptom (TSV field 7)" {
+  _kf_shapes_tsv
+  [ "$(_kf_field KF-001 7)" = "s" ] || { echo "got: $(_kf_field KF-001 7)" >&2; false; }
+}
+
+@test "grimoire-index FR-2: shape B **Symptom (short):** s is still parsed" {
+  _kf_shapes_tsv
+  [ "$(_kf_field KF-002 7)" = "s" ]
+}
+
+@test "grimoire-index FR-2: **Symptomatic**: is not a Symptom field" {
+  _kf_shapes_tsv
+  [ "$(_kf_field KF-003 7)" = "real" ]
+}
+
+@test "grimoire-index FR-2: a ## KF-abc: heading resets the entry silently (no row, previous entry untouched)" {
+  _kf_shapes_tsv
+  [ -z "$(_kf_field KF-abc 2)" ]
+  printf '%s\n' "$output" | awk -F'\t' '$1 == "kf" && ($7 == "x" || $3 == "from-abc") { bad = 1 } END { exit bad }' \
+    || { echo "a KF-abc field attached to an entry:" >&2; printf '%s\n' "$output" | grep '^kf' >&2; false; }
+  # no stderr line names the non-numeric heading (KF-006 has no symptom, so its own WARN may appear)
+  [[ "$GI_ERR" != *"KF-abc"* ]]
+}
+
+@test "grimoire-index FR-2: fields under ## Index / ## Schema headings attach to no entry" {
+  _kf_shapes_tsv
+  [[ "$output" != *"index-level"* && "$output" != *"schema-level"* ]]
+  [ "$(_kf_field KF-007 8)" != "99" ] && [ "$(_kf_field KF-007 7)" != "99" ]
+}
+
+@test "grimoire-index FR-2: **Status**: A then **Status (original)**: B keeps status A; a lone qualified Status is not a status" {
+  _kf_shapes_tsv
+  [ "$(_kf_field KF-004 3)" = "A" ]
+  # KF-005 has no plain Status: the empty status collapses its tab (pre-existing rd() behaviour), so the
+  # title moves into field 3 — the point is that B never becomes the status.
+  [ "$(_kf_field KF-005 3)" = "only a qualified status" ]
+  [[ "$(printf '%s\n' "$output" | grep '^kf' | cut -f3)" != *B* ]]
+}
+
+@test "grimoire-index FR-2: shape C **Recurrence count (approx)**: 4 gives recurrence 4 (list-marker form too)" {
+  _kf_shapes_tsv
+  [ "$(_kf_field KF-001 8)" = "4" ] || { echo "got: $(_kf_field KF-001 8)" >&2; false; }
+  [ "$(_kf_field KF-008 7)" = "listed" ] && [ "$(_kf_field KF-008 8)" = "8" ]
+}
+
+# ---- cycle-137 FR-5 (bd-1mfm7): the decisions-family cache and the write-mode jq (sdd § 3, § 5.5) ----
+# A fixture grimoire under BATS_TEST_TMPDIR with the generator in a REAL x/y/ dir beside compat-lib.sh
+# (PROJECT_ROOT = the fixture root); .run is 0700 (this suite may run under umask 002, which would make
+# it group-writable and so outside the cache's trust boundary). CI / GITHUB_ACTIONS / the opt-out are
+# removed from the environment of every run unless a test sets them.
+_cache_project() {
+  local dir="$1" i
+  mkdir -p "$dir/grimoires/loa" "$dir/x/y" "$dir/.run"; chmod 700 "$dir/.run"
+  cp "$GEN" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$dir/x/y/"
+  {
+    printf 'schema_version: 1\ndecisions:\n'
+    for i in 1 2 3; do
+      printf '  - id: "DEC-%04d"\n    status: open\n    summary: "fixture decision %d"\n    source: "prd.md#fr-%d"\n    proposed_by: agent\n' "$i" "$i" "$i"
+    done
+  } > "$dir/grimoires/loa/decisions.yaml"
+  CP="$dir"; GIX="$dir/x/y/grimoire-index.sh"; DEC="$dir/grimoires/loa/decisions.yaml"
+  CDIR="$dir/.run/perf-cache"; CACHE="$CDIR/grimoire-index-decisions.v1.tsv"
+}
+_gi() { env -u CI -u GITHUB_ACTIONS -u LOA_GRIMOIRE_INDEX_NO_CACHE bash "$GIX" "$@"; }
+# _gi_trace <trace-file> <args...>: _gi under xtrace on a dedicated descriptor (a plain 2>trace loses the
+# trace lines of commands whose stderr is redirected, such as the yq parse).
+_gi_trace() {
+  local t="$1"; shift
+  ( exec 7>"$t"; env -u CI -u GITHUB_ACTIONS -u LOA_GRIMOIRE_INDEX_NO_CACHE PS4='+' BASH_XTRACEFD=7 bash -x "$GIX" "$@" )
+}
+_parsed_by_yq() { grep -qE '^\++ ?yq -o=json' "$1"; }
+_sha() { ( source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" && sha256_portable < "$1" | cut -d' ' -f1 ); }
+_expected_key() {   # _expected_key <rows>
+  local yv jv
+  yv="$(yq --version 2>&1 | sed -E 's/.*version v([0-9]+)\.([0-9]+).*/\1.\2/')"
+  jv="$(jq --version | sed -E 's/^jq-([0-9]+)\.([0-9]+).*/\1.\2/')"
+  printf 'v1:%s:%s:%s:%s' "$(_sha "$DEC")" "$yv" "$jv" "$1"
+}
+_rewrite() { local t; t="$(mktemp "$1.edit.XXXXXX")"; awk "$2" "$1" > "$t" && mv -f "$t" "$1"; }
+# _planted: warm the cache, then turn it into a VALID cache whose first row says PLANTED (right key,
+# right count, clean alphabet), so a run that reads it prints PLANTED. Saves its bytes in PLANTED_COPY.
+_planted() {
+  _gi --tsv >/dev/null
+  [ -f "$CACHE" ]
+  _rewrite "$CACHE" '{ sub(/fixture decision 1/, "PLANTED decision 1") } 1'
+  PLANTED_COPY="$BATS_TEST_TMPDIR/planted.copy"; cp "$CACHE" "$PLANTED_COPY"
+}
+_cold_tsv() { LOA_GRIMOIRE_INDEX_NO_CACHE=1 bash "$GIX" --tsv; }
+
+@test "decisions cache: a warm run serves the rows without the yq parse (trace) and prints the cold output" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  local cold warm; cold="$(_cold_tsv)"
+  [ "$(_gi --tsv)" = "$cold" ]
+  [ -f "$CACHE" ] && [ ! -L "$CACHE" ]
+  [ "$(head -1 "$CACHE")" = "$(_expected_key 3)" ] || { echo "key: $(head -1 "$CACHE") want $(_expected_key 3)" >&2; false; }
+  [ "$(stat -c '%a' "$CACHE" 2>/dev/null || stat -f '%Lp' "$CACHE")" = "600" ]
+  warm="$(_gi_trace "$BATS_TEST_TMPDIR/t" --tsv)"
+  [ "$warm" = "$cold" ]
+  if _parsed_by_yq "$BATS_TEST_TMPDIR/t"; then echo "the warm run still parsed decisions.yaml with yq" >&2; false; fi
+  grep -qE '^\++ ?yq --version' "$BATS_TEST_TMPDIR/t"   # the yq v4 gate still runs first
+  [ "$(_gi --json)" = "$(LOA_GRIMOIRE_INDEX_NO_CACHE=1 bash "$GIX" --json)" ]
+}
+
+@test "decisions cache: a miss (no cache file) rebuilds it byte-identically" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  _gi --tsv >/dev/null; local good; good="$(cat "$CACHE")"
+  rm -f "$CACHE"
+  [ "$(_gi_trace "$BATS_TEST_TMPDIR/t" --tsv)" = "$(_cold_tsv)" ]
+  _parsed_by_yq "$BATS_TEST_TMPDIR/t"
+  [ "$(cat "$CACHE")" = "$good" ]
+}
+
+@test "decisions cache: a content change invalidates (the edited row appears, the key follows the bytes)" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  _gi --tsv >/dev/null; [ -f "$CACHE" ]
+  _rewrite "$DEC" '{ sub(/fixture decision 2/, "edited decision 2") } 1'
+  local out; out="$(_gi_trace "$BATS_TEST_TMPDIR/t" --tsv)"
+  _parsed_by_yq "$BATS_TEST_TMPDIR/t"
+  [[ "$out" == *$'\tedited decision 2\t'* && "$out" != *"fixture decision 2"* ]]
+  [ "$out" = "$(_cold_tsv)" ]
+  [ "$(head -1 "$CACHE")" = "$(_expected_key 3)" ]
+  grep -q 'edited decision 2' "$CACHE"
+}
+
+# _assert_repaired <awk-mutation> — warm, damage the cache with the mutation, then: the run is a miss
+# (yq parse in the trace), its output equals the cold output, and the cache is rewritten valid.
+_assert_repaired() {
+  _gi --tsv >/dev/null; cp "$CACHE" "$BATS_TEST_TMPDIR/good"
+  _rewrite "$CACHE" "$1"
+  if cmp -s "$CACHE" "$BATS_TEST_TMPDIR/good"; then echo "the mutation changed nothing" >&2; false; fi
+  [ "$(_gi_trace "$BATS_TEST_TMPDIR/t" --tsv)" = "$(_cold_tsv)" ]
+  _parsed_by_yq "$BATS_TEST_TMPDIR/t" || { echo "the damaged cache was served" >&2; false; }
+  cmp "$CACHE" "$BATS_TEST_TMPDIR/good"
+}
+
+@test "decisions cache: a truncated cache (last row removed) is a miss and is repaired" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  _assert_repaired 'NR > 1 { if (prev != "") print prev; prev = $0; next } { print }'
+}
+
+@test "decisions cache: an altered row (< byte, control byte, dropped field, blank line) is a miss" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  _assert_repaired '{ sub(/fixture decision 2/, "fixture <decision> 2") } 1'
+  _assert_repaired '{ sub(/fixture decision 2/, "fixture \001 decision 2") } 1'
+  _assert_repaired 'NR == 3 { sub(/\tprd\.md#fr-2/, "") } 1'
+  _assert_repaired '{ print } END { print "" }'
+}
+
+@test "decisions cache: a wrong key is a miss (sha, yq/jq version and prefix all bind)" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  _assert_repaired 'NR == 1 { sub(/^v1:./, "v1:z") } 1'
+  _assert_repaired 'NR == 1 { sub(/^v1:/, "v0:") } 1'
+  _assert_repaired 'NR == 1 { n = split($0, a, ":"); a[3] = "3.1"; s = a[1]; for (i = 2; i <= n; i++) s = s ":" a[i]; print s; next } 1'
+}
+
+@test "decisions cache: a wrong row count in the key line is a miss" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  _assert_repaired 'NR == 1 { sub(/:3$/, ":4") } 1'
+  _assert_repaired 'NR == 1 { sub(/:3$/, ":03") } 1'
+}
+
+@test "decisions cache: a planted valid cache IS served under the trust boundary (the negative tests below are not vacuous)" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"; _planted
+  [[ "$(_gi --tsv)" == *"PLANTED decision 1"* ]]
+}
+
+# _assert_not_used <cache-file-to-compare> [env...] — the run neither reads (no PLANTED) nor writes (the
+# planted bytes are unchanged and no other file appears beside them).
+_assert_not_used() {
+  local f="$1"; shift
+  local before; before="$(ls -A "$(dirname "$f")")"
+  local out; out="$(env -u CI -u GITHUB_ACTIONS -u LOA_GRIMOIRE_INDEX_NO_CACHE "$@" bash "$GIX" --tsv 2>"$BATS_TEST_TMPDIR/err")"
+  [[ "$out" != *PLANTED* ]] || { echo "the cache was read" >&2; false; }
+  [ "$out" = "$(_cold_tsv)" ]
+  cmp "$f" "$PLANTED_COPY" || { echo "the cache was written" >&2; false; }
+  [ "$(ls -A "$(dirname "$f")")" = "$before" ]
+}
+
+@test "decisions cache: a symlinked .run/perf-cache directory is neither read nor written" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"; _planted
+  mkdir -p "$BATS_TEST_TMPDIR/elsewhere"; mv "$CDIR"/* "$BATS_TEST_TMPDIR/elsewhere/"; rmdir "$CDIR"
+  ln -s "$BATS_TEST_TMPDIR/elsewhere" "$CDIR"
+  _assert_not_used "$BATS_TEST_TMPDIR/elsewhere/grimoire-index-decisions.v1.tsv"
+  [ -L "$CDIR" ]
+}
+
+@test "decisions cache: a symlinked cache file is neither read nor written (the cache path is never followed)" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"; _planted
+  mkdir -p "$BATS_TEST_TMPDIR/tgt"
+  mv "$CACHE" "$BATS_TEST_TMPDIR/tgt/target.tsv"; ln -s "$BATS_TEST_TMPDIR/tgt/target.tsv" "$CACHE"
+  _assert_not_used "$BATS_TEST_TMPDIR/tgt/target.tsv"
+  [ -L "$CACHE" ] && [ "$(readlink "$CACHE")" = "$BATS_TEST_TMPDIR/tgt/target.tsv" ]
+  [ "$(ls -A "$CDIR")" = "grimoire-index-decisions.v1.tsv" ]
+}
+
+@test "decisions cache: symlinks pre-planted at temp-like names beside the cache are never followed" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  mkdir -p "$CDIR"; chmod 700 "$CDIR"
+  printf 'victim\n' > "$BATS_TEST_TMPDIR/victim"
+  local s
+  for s in AAAAAA XXXXXX 000000 "$$" tmp; do ln -s "$BATS_TEST_TMPDIR/victim" "$CACHE.$s"; done
+  [ "$(_gi --tsv)" = "$(_cold_tsv)" ]
+  [ -f "$CACHE" ] && [ ! -L "$CACHE" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/victim")" = "victim" ]
+  for s in AAAAAA XXXXXX 000000 "$$" tmp; do [ -L "$CACHE.$s" ]; done
+  [ "$(ls -A "$CDIR" | wc -l | tr -d ' ')" -eq 6 ]   # the five planted links and the cache: no temp left
+}
+
+@test "decisions cache: a read-only .run gives the cold output with no stderr noise and writes nothing" {
+  _need_yq4; [ "$(id -u)" -ne 0 ] || skip "root ignores directory permissions"
+  _cache_project "$BATS_TEST_TMPDIR/c"
+  local cold cold_err; cold="$(_cold_tsv 2>"$BATS_TEST_TMPDIR/cold.err")"
+  chmod 500 "$CP/.run"
+  local out; out="$(_gi --tsv 2>"$BATS_TEST_TMPDIR/err")"; local rc=$?
+  chmod 700 "$CP/.run"
+  [ "$rc" -eq 0 ] && [ "$out" = "$cold" ]
+  cmp "$BATS_TEST_TMPDIR/err" "$BATS_TEST_TMPDIR/cold.err"
+  [ ! -e "$CDIR" ]
+}
+
+@test "decisions cache: a group- or world-writable .run or perf-cache directory that cannot be tightened is neither read nor written" {
+  # (lead follow-up, D-5.3: a uid-owned directory IS tightened first — next test; here chmod is shimmed to
+  # fail, so the directory stays group-writable and outside the boundary)
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"; _planted
+  local shim="$BATS_TEST_TMPDIR/chmodshim"; mkdir -p "$shim"
+  printf '#!/bin/sh\nexit 1\n' > "$shim/chmod"; chmod +x "$shim/chmod"
+  /bin/chmod 770 "$CDIR"; _assert_not_used "$CACHE" PATH="$shim:$PATH"
+  /bin/chmod 707 "$CDIR"; _assert_not_used "$CACHE" PATH="$shim:$PATH"
+  /bin/chmod 700 "$CDIR"; /bin/chmod 770 "$CP/.run"; _assert_not_used "$CACHE" PATH="$shim:$PATH"
+  /bin/chmod 700 "$CP/.run"
+}
+
+@test "decisions cache: a uid-owned group-writable .run or perf-cache directory is tightened (chmod go-w) and then used (lead follow-up, D-5.3)" {
+  # zone-write-guard creates .run/perf-cache under the user's umask (775 under umask 002), which would
+  # leave the decisions cache inert on every such host; a directory we own is tightened, not refused.
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  mkdir -p "$CDIR"; chmod 775 "$CDIR"; chmod 775 "$CP/.run"
+  _gi --tsv >/dev/null
+  [ -f "$CACHE" ] || { echo "no cache written after tightening" >&2; ls -la "$CP/.run" "$CDIR" >&2; false; }
+  [ "$(stat -c %a "$CP/.run")" = "755" ] && [ "$(stat -c %a "$CDIR")" = "755" ]
+  local tr="$BATS_TEST_TMPDIR/trace.warm"; _gi_trace "$tr" --tsv >/dev/null
+  ! _parsed_by_yq "$tr" || { echo "warm run still parsed with yq (cache not used)" >&2; false; }
+}
+
+@test "decisions cache: a directory owned by another uid (stat reports it) is neither read nor written" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"; _planted
+  local shim="$BATS_TEST_TMPDIR/statshim"; mkdir -p "$shim"
+  printf '#!/bin/sh\necho "%s 700"\n' "$(( $(id -u) + 1 ))" > "$shim/stat"; chmod +x "$shim/stat"
+  _assert_not_used "$CACHE" PATH="$shim:$PATH"
+  printf '#!/bin/sh\nexit 1\n' > "$shim/stat"   # stat failing everywhere: no cache either
+  _assert_not_used "$CACHE" PATH="$shim:$PATH"
+}
+
+@test "decisions cache: a FIFO planted at the cache path neither blocks nor is read; it is replaced by a fresh regular cache (audit DISS-C-006)" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  mkdir -p "$CDIR"; chmod 700 "$CDIR"; mkfifo "$CACHE"
+  local out rc=0
+  out="$(timeout 60 env -u CI -u GITHUB_ACTIONS -u LOA_GRIMOIRE_INDEX_NO_CACHE bash "$GIX" --tsv 2>"$BATS_TEST_TMPDIR/err")" || rc=$?
+  [ "$rc" -eq 0 ] || { echo "run 1 exit $rc (124 = blocked on the FIFO); stderr: $(cat "$BATS_TEST_TMPDIR/err")"; return 1; }
+  [ "$out" = "$(_cold_tsv)" ]
+  [ -f "$CACHE" ] && [ ! -p "$CACHE" ] || { echo "the FIFO was not replaced by a regular cache file"; return 1; }
+  [ "$(_gi --tsv)" = "$out" ]
+}
+
+@test "decisions cache: a hard link planted at the cache path is never written through — the linked file keeps its bytes and loses the link" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  mkdir -p "$CDIR"; chmod 700 "$CDIR"
+  printf 'victim\n' > "$BATS_TEST_TMPDIR/victim"; ln "$BATS_TEST_TMPDIR/victim" "$CACHE"
+  [ "$(_gi --tsv)" = "$(_cold_tsv)" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/victim")" = "victim" ] || { echo "the hard-linked file was overwritten"; return 1; }
+  local links; links="$(stat -c %h "$BATS_TEST_TMPDIR/victim" 2>/dev/null || stat -f %l "$BATS_TEST_TMPDIR/victim")"
+  [ "$links" = 1 ] || { echo "the victim still shares its inode with the cache (links=$links)"; return 1; }
+  [ "$(_gi --tsv)" = "$(_cold_tsv)" ]
+}
+
+@test "decisions cache: LOA_GRIMOIRE_INDEX_NO_CACHE=1 disables read and write" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"; _planted
+  _assert_not_used "$CACHE" LOA_GRIMOIRE_INDEX_NO_CACHE=1
+  rm -rf "$CDIR"
+  LOA_GRIMOIRE_INDEX_NO_CACHE=1 bash "$GIX" --tsv >/dev/null
+  [ ! -e "$CDIR" ]
+}
+
+@test "decisions cache: CI or GITHUB_ACTIONS in the environment disables read and write" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"; _planted
+  _assert_not_used "$CACHE" CI=true
+  _assert_not_used "$CACHE" GITHUB_ACTIONS=true
+  _assert_not_used "$CACHE" CI=
+  rm -rf "$CDIR"
+  env -u GITHUB_ACTIONS CI=1 bash "$GIX" --tsv >/dev/null
+  [ ! -e "$CDIR" ]
+}
+
+@test "decisions cache: without yq v4 the skip NOTE is printed and the cache is never read or written" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"; _planted
+  local shim="$BATS_TEST_TMPDIR/yqshim"; mkdir -p "$shim"
+  printf '#!/bin/sh\necho "yq 3.4.1"\n' > "$shim/yq"; chmod +x "$shim/yq"
+  local out; out="$(env -u CI -u GITHUB_ACTIONS PATH="$shim:$PATH" bash "$GIX" --tsv 2>"$BATS_TEST_TMPDIR/err")"
+  grep -q 'decisions family skipped (needs Mike Farah yq v4)' "$BATS_TEST_TMPDIR/err"
+  [[ "$out" != *decisions* ]]
+  cmp "$CACHE" "$PLANTED_COPY"
+}
+
+@test "decisions cache: an unparsable ledger keeps its NOTE and caches nothing" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  printf 'schema_version: 1\ndecisions:\n  - id: "DEC-0001\n   bad: [\n' > "$DEC"
+  local td="$BATS_TEST_TMPDIR/tmpd"; mkdir -p "$td"
+  TMPDIR="$td" _gi --tsv 2>"$BATS_TEST_TMPDIR/err" >/dev/null
+  grep -q 'decisions family skipped (grimoires/loa/decisions.yaml does not parse)' "$BATS_TEST_TMPDIR/err"
+  [ ! -e "$CACHE" ]
+  [ -z "$(ls -A "$td")" ]   # the snapshot was removed
+}
+
+@test "decisions cache: two concurrent writers leave a valid cache and both print the cold output" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  local cold; cold="$(_cold_tsv)"
+  _gi --tsv > "$BATS_TEST_TMPDIR/o1" & _gi --tsv > "$BATS_TEST_TMPDIR/o2" & wait
+  [ "$(cat "$BATS_TEST_TMPDIR/o1")" = "$cold" ] && [ "$(cat "$BATS_TEST_TMPDIR/o2")" = "$cold" ]
+  [ "$(head -1 "$CACHE")" = "$(_expected_key 3)" ]
+  [ "$(ls -A "$CDIR")" = "grimoire-index-decisions.v1.tsv" ]   # no temp left behind
+  [ "$(_gi_trace "$BATS_TEST_TMPDIR/t" --tsv)" = "$cold" ]
+  if _parsed_by_yq "$BATS_TEST_TMPDIR/t"; then echo "the concurrent writers left an invalid cache" >&2; false; fi
+}
+
+@test "decisions cache: key and rows come from one snapshot (a rewrite racing the runs never pairs a key with other rows)" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  local a="$BATS_TEST_TMPDIR/A.yaml" b="$BATS_TEST_TMPDIR/B.yaml" ra rb sa sb i
+  cp "$DEC" "$a"; { cat "$a"; printf '  - id: "DEC-0004"\n    status: open\n    summary: "fourth"\n    proposed_by: agent\n'; } > "$b"
+  sa="$(_sha "$a")"; sb="$(_sha "$b")"
+  cp "$a" "$DEC"; ra="$(_cold_tsv | grep '^decisions')"
+  cp "$b" "$DEC"; rb="$(_cold_tsv | grep '^decisions')"
+  ( for i in $(seq 1 400); do cp "$a" "$DEC.n"; mv -f "$DEC.n" "$DEC"; cp "$b" "$DEC.n"; mv -f "$DEC.n" "$DEC"; done ) &
+  local racer=$! out rows sum
+  for i in 1 2 3 4 5 6 7 8; do
+    rm -f "$CACHE"
+    out="$(_gi --tsv | grep '^decisions')"
+    [ "$out" = "$ra" ] || [ "$out" = "$rb" ]
+    if [ -f "$CACHE" ]; then
+      sum="$(head -1 "$CACHE" | cut -d: -f2)"; rows="$(tail -n +2 "$CACHE")"
+      if [ "$sum" = "$sa" ]; then [ "$rows" = "$ra" ]; elif [ "$sum" = "$sb" ]; then [ "$rows" = "$rb" ]; else echo "key $sum matches neither content" >&2; false; fi
+    fi
+  done
+  kill "$racer" 2>/dev/null || true; wait "$racer" 2>/dev/null || true
+}
+
+@test "grimoire-index write mode: bad count and total come from ONE root-preserving jq (valid index)" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  local total; total="$(_gi --json | jq -r '.total')"
+  _gi_trace "$BATS_TEST_TMPDIR/t" 2>"$BATS_TEST_TMPDIR/err"; local rc=$?
+  [ "$rc" -eq 0 ]
+  [ "$(grep -cF "jq -r '. as \$root" "$BATS_TEST_TMPDIR/t")" -eq 1 ]
+  [ "$(grep -cE "^\++ ?jq -r (\.total|'\.total')$" "$BATS_TEST_TMPDIR/t")" -eq 0 ]
+  grep -qF "($total entries)" "$BATS_TEST_TMPDIR/err"
+  [ -f "$CP/grimoires/loa/INDEX.md" ] && [ -f "$CP/.run/grimoire-index.json" ]
+}
+
+# No emitter can produce an empty id today (rd() trims, san() never empties an id-shaped field), so a jq
+# shim injects one record with an empty id into the JSON the write-mode check reads: today's refusal.
+_jq_shim() {   # _jq_shim <dir> <mode: inject|fail|three>
+  local real; real="$(command -v jq)"; mkdir -p "$1"
+  {
+    printf '#!/bin/sh\n'
+    printf 'case "$*" in *"(.id|length)==0"*)\n'
+    case "$2" in
+      inject) printf '  "%s" -c %s | "%s" "$@"; exit $? ;;\n' "$real" "'.families.kf += [{\"family\":\"kf\",\"id\":\"\",\"path\":\"p\"}]'" "$real" ;;
+      fail)   printf '  cat >/dev/null; echo "jq: error (shim)" >&2; exit 5 ;;\n' ;;
+      three)  printf '  cat >/dev/null; printf "0\\n3\\nextra\\n"; exit 0 ;;\n' ;;
+    esac
+    printf 'esac\nexec "%s" "$@"\n' "$real"
+  } > "$1/jq"
+  chmod +x "$1/jq"
+}
+
+@test "grimoire-index write mode: an index with an empty-id record is refused (exit 1, count 1, nothing written)" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  _jq_shim "$BATS_TEST_TMPDIR/jqshim" inject
+  run env PATH="$BATS_TEST_TMPDIR/jqshim:$PATH" bash "$GIX"
+  [ "$status" -eq 1 ]
+  [[ "$output" == *"::error::[GRIMOIRE-INDEX] refusing to write — 1 malformed records (id/path/family)."* ]]
+  [ ! -e "$CP/grimoires/loa/INDEX.md" ] && [ ! -e "$CP/.run/grimoire-index.json" ]
+}
+
+@test "grimoire-index write mode: a failing check jq or a third output line refuses the write (exit 1, nothing written)" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  local m
+  for m in fail three; do
+    _jq_shim "$BATS_TEST_TMPDIR/jqshim-$m" "$m"
+    run env PATH="$BATS_TEST_TMPDIR/jqshim-$m:$PATH" bash "$GIX"
+    [ "$status" -eq 1 ] || { echo "$m: status $status: $output" >&2; false; }
+    [[ "$output" == *"refusing to write — ? malformed records"* ]]
+    [ ! -e "$CP/grimoires/loa/INDEX.md" ] && [ ! -e "$CP/.run/grimoire-index.json" ]
+  done
+}
+
+@test "grimoire-index --help is byte-identical (lines 2-30 of the script are its text)" {
+  bash "$GEN" --help > "$BATS_TEST_TMPDIR/help"   # raw bytes (run would strip the trailing blank line)
+  [ "$(_sha "$BATS_TEST_TMPDIR/help")" = "8b426d68a5a71d913bebd23a3d4da3fa25e4798cb70a0ea595b3d1025d768430" ]
+}
+
+# The cache-key prefix is bound to the jq program that renders the rows: each (prefix, sha256 of the
+# GI_DEC_JQ literal) pair is pinned here. Editing the program without bumping GI_DEC_KEY_PREFIX (and adding
+# its pair below) fails this test, so an old cache can never be served for a new sanitiser.
+@test "decisions cache: the v1 key prefix is pinned to the jq sanitiser program it caches" {
+  local pins="v1 d0adf792be96da8cedfc713346da2d956d8fe6347aa287387b9e4c73514c5cd7" prefix lit sum
+  prefix="$(sed -nE 's/^GI_DEC_KEY_PREFIX="([^"]+)"$/\1/p' "$GEN")"
+  [ -n "$prefix" ]
+  lit="$(awk '/^GI_DEC_JQ=\047/ { p = 1; print; next } p { print } p && /\047$/ { exit }' "$GEN")"
+  [[ "$lit" == *'def s:'* ]]
+  sum="$(printf '%s\n' "$lit" | ( source "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" && sha256_portable | cut -d' ' -f1 ))"
+  [[ $'\n'"$pins"$'\n' == *$'\n'"$prefix $sum"$'\n'* ]] || { echo "GI_DEC_JQ (sha256 $sum) is not pinned for prefix $prefix: bump GI_DEC_KEY_PREFIX and add the pair" >&2; false; }
+  # the emitted key really uses the prefix constant
+  grep -qF 'key="${GI_DEC_KEY_PREFIX}:' "$GEN"
+}

@@ -7,6 +7,7 @@ Same interface contract as the bash version:
 
     audit_emit(primitive_id, event_type, payload, log_path)
     audit_verify_chain(log_path) -> tuple[bool, str]
+    audit_verify_chains(paths) -> list[dict]   (cycle-137 FR-7: one process, N chains)
     audit_seal_chain(primitive_id, log_path)
     audit_trust_store_verify(trust_store_path) -> tuple[bool, str]  (Sprint 1B)
 
@@ -35,7 +36,7 @@ import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Sequence, Tuple, Union
 
 from loa_cheval.jcs import canonicalize as jcs_canonicalize
 
@@ -689,6 +690,48 @@ def audit_verify_chain(log_path: PathLike, *, verify_for_merge: bool = False) ->
     return True, f"OK {count} entries"
 
 
+def audit_verify_chains(
+    paths: Sequence[PathLike], *, verify_for_merge: bool = False
+) -> list:
+    """
+    Verify several chains in ONE process (cycle-137 FR-7, SDD § 5.7).
+
+    For each path, in order, calls the unchanged ``audit_verify_chain(path,
+    verify_for_merge=...)`` inside its own ``try/except Exception``: one
+    path's exception becomes that path's record and the next path still runs.
+    Returns one record per input path, in argument order:
+
+        {"i": <0-based index>, "path": str(path), "ok": bool,
+         "error": None when ok, else the verifier message;
+                  "missing" for a path that does not exist;
+                  "<ExceptionType>: <message>" for an exception}
+
+    Snapshot semantics (the TOCTOU argument): every call runs
+    ``_check_trust_store`` again. Its in-process ``_TRUST_STORE_CACHE`` is
+    keyed by the store path and the sha256 of the store and pinned-root bytes,
+    so the store is re-authenticated through the subprocess snapshot whenever
+    it changed since the previous path, and reused only for identical bytes.
+    N paths in one process are therefore equivalent to N sequential in-process
+    calls (and to N fresh processes): a store that becomes INVALID or
+    disappears between paths fails every later path while earlier records
+    stand. Proven by tests/unit/test_audit_verify_chains.py.
+    """
+    records = []
+    for i, path in enumerate(paths):
+        try:
+            ok, message = audit_verify_chain(path, verify_for_merge=verify_for_merge)
+        except Exception as exc:  # noqa: BLE001 - isolate this path, keep going
+            ok, message = False, f"{type(exc).__name__}: {exc}"
+        else:
+            if not ok and message == f"file not found: {Path(path)}":
+                message = "missing"
+        records.append({
+            "i": i, "path": str(path), "ok": bool(ok),
+            "error": None if ok else message,
+        })
+    return records
+
+
 def audit_trust_store_verify(
     trust_store_path: Optional[PathLike] = None,
 ) -> Tuple[bool, str]:
@@ -742,6 +785,7 @@ def audit_seal_chain(primitive_id: str, log_path: PathLike) -> None:
 __all__ = [
     "audit_emit",
     "audit_verify_chain",
+    "audit_verify_chains",
     "audit_seal_chain",
     "audit_trust_store_verify",
     "DEFAULT_SCHEMA_VERSION",

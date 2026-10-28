@@ -46,8 +46,21 @@ _secs() { local e; e=$(date -u -d "$1" +%s 2>/dev/null) || { echo -1; return; };
 surface() {  # file label state-jq ts-jq resume-command
   local f="$RUN_DIR/$1" label="$2" st ts
   [[ -f "$f" ]] || return 0
-  jq -e . "$f" >/dev/null 2>&1 || return 0
-  st=$(jq -r "$3 // empty" "$f" 2>/dev/null); ts=$(jq -r "$4 // empty" "$f" 2>/dev/null)
+  # Fast path: ONE jq validates and extracts both fields when the file is a
+  # single JSON object whose state/timestamp are each absent or a plain string
+  # without control bytes. Anything else (unparsable, empty, multi-document,
+  # non-object, non-string value, jq error) falls through to the exact
+  # three-jq sequence below, so degraded-path behaviour is unchanged.
+  local fast
+  if fast=$(jq -rs "if length == 1 and (.[0] | type) == \"object\" then
+      (.[0] | [[($3 // empty)], [($4 // empty)]]) as \$v
+      | if (\$v | all(.[]; length <= 1 and all(.[]; type == \"string\" and (test(\"[\\u0000-\\u001f\\u007f]\") | not)))) then (\$v[0][0] // \"\"), (\$v[1][0] // \"\") else error(\"slow\") end
+    else error(\"slow\") end" "$f" 2>/dev/null); then
+    { IFS= read -r st; IFS= read -r ts; } <<<"$fast"
+  else
+    jq -e . "$f" >/dev/null 2>&1 || return 0
+    st=$(jq -r "$3 // empty" "$f" 2>/dev/null); ts=$(jq -r "$4 // empty" "$f" 2>/dev/null)
+  fi
   st=$(_san "$st")
   case "$st" in
     HALTED|INTERRUPTED) echo "Run: $label $st ($(_age "$ts") ago) → $5" ;;

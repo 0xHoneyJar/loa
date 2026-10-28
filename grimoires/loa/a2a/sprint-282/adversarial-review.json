@@ -1,0 +1,196 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "authz",
+      "anchor": ".claude/scripts/lib/agy-gate-lib.sh:_agy_opt_in_node_memo",
+      "anchor_type": "function",
+      "anchor_line": 242,
+      "scope": "diff",
+      "description": "The new freshness guard checks only mtime, although the cached result also includes the configuration's permission trust decision. Under whole-second stat, permission changes can still leave a cached opt-in valid indefinitely.",
+      "failure_mode": "An aged config containing `agy_opt_in: true` is chmod'ed to 0600 during second S and read during S. Because its mtime is old, this guard permits caching. If it is then chmod'ed to 0666 during S, its whole-second ctime remains S and every memo key component is unchanged. Subsequent calls return cached `bool true`, bypassing the rule that world-writable configurations must read off.",
+      "suggested_fix": "Extract and validate the ctime second too, and bypass memoization whenever either mtime or ctime is greater than or equal to now. Add a whole-second-stat regression covering an aged config whose permissions change twice within one second.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "failure_scenario": "An aged config containing `agy_opt_in: true` is chmod'ed to 0600 during second S and read during S. Because its mtime is old, this guard permits caching. If it is then chmod'ed to 0666 during S, its whole-second ctime remains S and every memo key component is unchanged. Subsequent calls return cached `bool true`, bypassing the rule that world-writable configurations must read off.",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "concurrency",
+      "anchor": "tests/unit/agy-gate-conformance.bats:AGC-33",
+      "anchor_type": "hunk",
+      "anchor_line": 705,
+      "anchor_line_end": 724,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The stat shim recomputes the fake mtime/ctime from a live `date +%s` on every invocation (`now=$(( $(date +%s) - ${SHIM_AGE:-0} ))`). In part 2 the memo key stored by the first agy_opted_in carries `S-60` for both time fields, where S is the second at which that shim ran. The second agy_opted_in runs only after the full uncached node read: cat, `yq --version` plus four yq evals (or a python3 start with the yaml import), the permission stat routed through the shim (a bash start plus exec), and on a umask-002 host three getent calls and ls. That gap is on the order of 100-300 ms. If the wall clock crosses a second boundary inside it, the second shim call prints `S+1-60`, the key differs, the memo misses, the node is read again, and the `= 1` assertion fails. Part 1 is immune because every ordering there yields two reads; part 2 is not. The fixture also hard-codes `/usr/bin/stat` with GNU `-c`, so on a non-usrmerge or BSD host the identity stat fails, `st` is empty, every call is uncached and part 2 fails deterministically.",
+      "failure_mode": "Intermittent CI failure of AGC-33 with \"node reads for an aged file: 2 (expected 1)\" whenever the second ticks between the two agy_opted_in calls; the per-run failure probability is roughly the gap length in seconds (several percent to tens of percent).",
+      "suggested_fix": "Freeze the aged stamp once in the test rather than per stat call: `export SHIM_MTIME=$(( $(date +%s) - 60 ))` before the two calls and have the shim print `${SHIM_MTIME:-$(date +%s)}` for both time fields (or stamp the real file with `touch -d @$((now-60))` and let the shim print the real `%Y`). Resolve the real stat once with `real=$(type -P stat)` before prepending the shim to PATH and use it inside the shim instead of `/usr/bin/stat`.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "failure_scenario": "Intermittent CI failure of AGC-33 with \"node reads for an aged file: 2 (expected 1)\" whenever the second ticks between the two agy_opted_in calls; the per-run failure probability is roughly the gap length in seconds (several percent to tens of percent).",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/lib/agy-gate-lib.sh:_agy_opt_in_node_memo",
+      "anchor_type": "line",
+      "anchor_line": 241,
+      "anchor_line_end": 243,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The rule treats only `mtime second >= now` as \"current\", which assumes one-second stamp granularity and an inode clock in step with the shell's clock. Two concrete cases stamp a write made in the current wall-clock second as the previous one: (a) vfat/FAT rounds mtime down to an even second, so a write at odd second S+1 is stamped S, the memo engages at S+1, and a same-size rewrite at S+1 is stamped S again, reproducing the r1 DISS-001 window; (b) Linux stamps inodes from the coarse tick clock, which lags CLOCK_REALTIME by up to one jiffy (1-10 ms), so a write in the first milliseconds of S+1 carries mtime S while EPOCHSECONDS already reads S+1. Both are closed by also treating the previous second as not yet memoisable.",
+      "failure_mode": "With whole-second stat on such a filesystem (or inside the tick lag), a revoked `agy_opt_in: true` rewritten to a same-length value within the same stamp stays memoised as on for the rest of the shell.",
+      "suggested_fix": "Use `(( now - mt <= 1 ))` (equivalently `\"$mt\" -ge $(( now - 1 ))`) as the bypass test, and state in the comment that the rule assumes stamp granularity of at most two seconds. Cost: one extra second of uncached reads after a write. AGC-27, AGC-33 (SHIM_AGE=60) and the suggested AGC-28 ageing are unaffected.",
+      "anchor_status": "valid",
+      "failure_scenario": "With whole-second stat on such a filesystem (or inside the tick lag), a revoked `agy_opt_in: true` rewritten to a same-length value within the same stamp stays memoised as on for the rest of the shell.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/lib/agy-gate-lib.sh:_agy_opt_in_node_memo",
+      "anchor_type": "line",
+      "anchor_line": 237,
+      "anchor_line_end": 239,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "EPOCHSECONDS is a dynamic variable only on bash >= 5, where an inherited environment value cannot override it and assignments are ignored. On bash 4.2 through 4.4, where `printf '%(%s)T' -1` is available and correct, EPOCHSECONDS is an ordinary variable: a value inherited from the environment (a bash 5 parent that exported it, or any ambient setting) is non-empty and wins the first branch. The lib's stated stance is that nothing gate-relevant is seeded from the environment (the memo and said-once flags are reset at load for that reason).",
+      "failure_mode": "A stale past value makes every file look modified in the current second or later, so the memo never engages (slow but safe). A future value makes every file look aged, reopening the whole-second same-size window on BSD-style stat. A non-numeric value forces the uncached read on every call.",
+      "suggested_fix": "Order the clock sources as `printf '%(%s)T' -1` first (bash 4.2+, a builtin), then EPOCHSECONDS only when `(( ${BASH_VERSINFO[0]:-0} >= 5 ))`, then `date +%s`; or simply gate the EPOCHSECONDS branch on bash >= 5.",
+      "anchor_status": "valid",
+      "failure_scenario": "A stale past value makes every file look modified in the current second or later, so the memo never engages (slow but safe). A future value makes every file look aged, reopening the whole-second same-size window on BSD-style stat. A non-numeric value forces the uncached read on every call.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/lib/agy-gate-lib.sh:_agy_opt_in_node_memo",
+      "anchor_type": "line",
+      "anchor_line": 231,
+      "anchor_line_end": 235,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The new comment names only the ahead case (\"or later: clock skew\" -> never memoised). The behind case is not stated: a remote filesystem whose server clock lags the host (NFS, SMB) stamps a just-written file with mtime < now, so the memo engages immediately and the whole-second same-size rewrite window from r1 DISS-001 is open there for the duration of the lag. The residual is acceptable as a correctness-over-speed trade, but an operator reading the function comment would conclude the window is closed everywhere.",
+      "failure_mode": "Operator misunderstanding on hosts with a lagging filesystem server clock: a same-size revocation within the lag can read as still on for the shell, contrary to what the comment promises.",
+      "suggested_fix": "Add one sentence to the comment: \"A filesystem whose clock runs behind the host's (a remote server) stamps a fresh write as already past; the whole-second window is open there for the length of the lag.\"",
+      "anchor_status": "valid",
+      "failure_scenario": "Operator misunderstanding on hosts with a lagging filesystem server clock: a same-size revocation within the lag can read as still on for the shell, contrary to what the comment promises.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-005",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/agy-gate-conformance.bats:AGC-28",
+      "anchor_type": "function",
+      "anchor_line": 692,
+      "anchor_line_end": 693,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/lib/agy-gate-lib.sh:_agy_opt_in_node_memo",
+      "cross_file_justification": "The round-2 change to _agy_opt_in_node_memo makes any file with mtime >= now bypass the memo before the key is compared. AGC-28 was not modified in this diff, but its first half stamps the fixture at `@$t`, `@$((t+1))`, `@$((t+2))` with t the current second, so the lib change alters what the test exercises.",
+      "description": "AGC-28's first half now takes the current-second bypass on every call: all three stamps are at or after now, so the node is read uncached three times regardless of whether mtime is part of the memo key. The three-reads assertion therefore passes for a different reason than it was written for. AGC-27 was aged by 60 s in this diff precisely to keep its claim meaningful; AGC-28 was left as is.",
+      "failure_mode": "Loss of coverage of the mtime component of the memo key: a regression that dropped mtime from the key (or broke the key comparison) would still pass AGC-28's first half.",
+      "suggested_fix": "Age the base stamp, e.g. `t=$(( $(date +%s) - 60 ))`, so the three stamps are in the past and the three reads come from key misses; optionally add a fourth call without a re-touch and assert the count stays at 3 to pin the hit.",
+      "anchor_status": "valid",
+      "failure_scenario": "Loss of coverage of the mtime component of the memo key: a regression that dropped mtime from the key (or broke the key comparison) would still pass AGC-28's first half.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-282",
+    "timestamp": "2026-10-28T06:05:07Z",
+    "tokens_input": 72256,
+    "tokens_output": 36640,
+    "cost_usd": 0,
+    "latency_ms": 56067,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-282/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-282/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "28502922f53f3c29454311d53a0324ce878fc3a5db4a83e80c00b472eb980857",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}
