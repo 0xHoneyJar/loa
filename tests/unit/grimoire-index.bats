@@ -166,3 +166,120 @@ _need_yq4() { [[ "$(yq --version 2>&1)" == *mikefarah*"version v4."* ]] || skip 
     [[ "$out" != *$'\xc2\x85'* ]]
   done
 }
+
+# ---- cycle-137 FR-2 (bd-atk7q): KF shape-C field lines and the H2 reset (sdd § 5.1, D-2.1, D-2.2) ----
+# The fixture is the one kf-surface.bats uses for the hook side. The generator is copied into a REAL
+# x/y/ dir beside compat-lib.sh, so PROJECT_ROOT is the fixture root.
+_kf_shapes_project() {
+  local dir="$1"
+  mkdir -p "$dir/grimoires/loa" "$dir/x/y"
+  cp "$GEN" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$dir/x/y/"
+  cat > "$dir/grimoires/loa/known-failures.md" <<'EOF'
+# Known Failures
+
+## Schema
+
+**Symptom**: schema-level symptom attaches to nothing
+
+## KF-001: shape C symptom
+**Status**: OPEN
+**Symptom (short)**: s
+**Recurrence count (approx)**: 4
+
+## KF-002: shape B still parsed
+**Status**: OPEN
+**Symptom (short):** s
+**Recurrence count**: 2
+
+## KF-003: symptomatic decoy
+**Status**: OPEN
+**Symptomatic**: x
+**Symptom**: real
+**Recurrence count**: 1
+
+## KF-004: status decoy after plain status
+**Status**: A
+**Status (original)**: B
+**Symptom**: four
+**Recurrence count**: 1
+
+## KF-005: only a qualified status
+**Status (original)**: B
+**Symptom**: five
+**Recurrence count**: 1
+
+## KF-006: entry before a non-numeric heading
+**Status**: OPEN
+**Recurrence count**: 6
+
+## KF-abc: non-numeric heading
+**Symptom**: x
+**Status**: from-abc
+
+## KF-007: entry before the index heading
+**Status**: OPEN
+
+## Index
+
+**Symptom**: index-level symptom
+**Recurrence count**: 99
+
+## KF-008: list-marker shape C
+- **Symptom (list)**: listed
+- **Recurrence count (est.)**: 8
+- **Status**: OPEN
+EOF
+}
+# _kf_field <id> <field#> — one TSV field of a kf row from $output
+_kf_field() { printf '%s\n' "$output" | awk -F'\t' -v id="$1" -v n="$2" '$1 == "kf" && $2 == id { print $n }'; }
+
+_kf_shapes_tsv() {
+  local dir="$BATS_TEST_TMPDIR/kfshapes"; _kf_shapes_project "$dir"
+  output="$(bash "$dir/x/y/grimoire-index.sh" --tsv 2>"$BATS_TEST_TMPDIR/gi.err")"
+  GI_ERR="$(cat "$BATS_TEST_TMPDIR/gi.err")"
+}
+
+@test "grimoire-index FR-2: shape C **Symptom (short)**: s is the kf symptom (TSV field 7)" {
+  _kf_shapes_tsv
+  [ "$(_kf_field KF-001 7)" = "s" ] || { echo "got: $(_kf_field KF-001 7)" >&2; false; }
+}
+
+@test "grimoire-index FR-2: shape B **Symptom (short):** s is still parsed" {
+  _kf_shapes_tsv
+  [ "$(_kf_field KF-002 7)" = "s" ]
+}
+
+@test "grimoire-index FR-2: **Symptomatic**: is not a Symptom field" {
+  _kf_shapes_tsv
+  [ "$(_kf_field KF-003 7)" = "real" ]
+}
+
+@test "grimoire-index FR-2: a ## KF-abc: heading resets the entry silently (no row, previous entry untouched)" {
+  _kf_shapes_tsv
+  [ -z "$(_kf_field KF-abc 2)" ]
+  printf '%s\n' "$output" | awk -F'\t' '$1 == "kf" && ($7 == "x" || $3 == "from-abc") { bad = 1 } END { exit bad }' \
+    || { echo "a KF-abc field attached to an entry:" >&2; printf '%s\n' "$output" | grep '^kf' >&2; false; }
+  # no stderr line names the non-numeric heading (KF-006 has no symptom, so its own WARN may appear)
+  [[ "$GI_ERR" != *"KF-abc"* ]]
+}
+
+@test "grimoire-index FR-2: fields under ## Index / ## Schema headings attach to no entry" {
+  _kf_shapes_tsv
+  [[ "$output" != *"index-level"* && "$output" != *"schema-level"* ]]
+  [ "$(_kf_field KF-007 8)" != "99" ] && [ "$(_kf_field KF-007 7)" != "99" ]
+}
+
+@test "grimoire-index FR-2: **Status**: A then **Status (original)**: B keeps status A; a lone qualified Status is not a status" {
+  _kf_shapes_tsv
+  [ "$(_kf_field KF-004 3)" = "A" ]
+  # KF-005 has no plain Status: the empty status collapses its tab (pre-existing rd() behaviour), so the
+  # title moves into field 3 — the point is that B never becomes the status.
+  [ "$(_kf_field KF-005 3)" = "only a qualified status" ]
+  [[ "$(printf '%s\n' "$output" | grep '^kf' | cut -f3)" != *B* ]]
+}
+
+@test "grimoire-index FR-2: shape C **Recurrence count (approx)**: 4 gives recurrence 4 (list-marker form too)" {
+  _kf_shapes_tsv
+  [ "$(_kf_field KF-001 8)" = "4" ] || { echo "got: $(_kf_field KF-001 8)" >&2; false; }
+  [ "$(_kf_field KF-008 7)" = "listed" ] && [ "$(_kf_field KF-008 8)" = "8" ]
+}
