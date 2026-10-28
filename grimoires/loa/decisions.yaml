@@ -39884,3 +39884,43 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1129"
+    created_at: "2026-10-28T05:04:30Z"
+    updated_at: "2026-10-28T05:04:30Z"
+    phase: "implementation"
+    category: "security"
+    summary: "verify-chains judgment calls: 'missing' text for an absent path; loa-status counts none on an abnormal exit; wrapper re-validates records; jq ≥ 1.6."
+    decision: "J-1 the function's 'file not found' maps to the SDD text 'missing'; J-2 an exit other than 0/1 or unparsable output counts none of the passed paths (stricter than per-record); J-3 the shell wrapper validates the Python records with one jq (~5 ms) so a mid-batch crash still yields N records; J-4 stdout uses surrogateescape so a non-UTF-8 path cannot crash the batch; J-5 jq 1.6+ ($ARGS, --args) is required, already used by four scripts."
+    rationale: "Fail-closed by construction at both layers (PRD FR-7, Flatline B1/B2); the SDD text is the contract for the missing case; the abnormal-exit rule only fires on exit 2 or a killed wrapper."
+    alternatives_considered:
+      - option: "count unrecorded paths individually on an abnormal exit"
+        rejected_because: "an exit-2 wrapper printed nothing, so there is nothing per path to trust"
+      - option: "trust the Python records without the jq re-validation"
+        rejected_because: "a crash mid-batch would leave fewer records than paths with no marker"
+    consequences:
+      positive:
+        - "two fail-closed layers"
+        - "non-UTF-8 paths safe"
+      negative:
+        - "one jq spawn (~5 ms) per verify-chains call"
+        - "jq older than 1.6 makes the wrapper exit 2 (fail-closed)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "41b0dc18"
+    source: "grimoires/loa/a2a/sprint-282/reports/d.md § Judgment calls"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T05:04:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "bf96f91cb"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
