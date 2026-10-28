@@ -5,19 +5,33 @@
 #
 # WHY: the 2026-07 optimisation loop's gains partly regressed because nothing
 # guarded process counts, and wall-clock tests are flaky in CI. This guards the
-# SPAWN PROXY instead: each target runs under `PS4='+' bash -x` against a FIXED
-# fixture and the trace lines are counted. For a fixed code path and fixture the
-# count is deterministic (verified: three runs per target gave identical counts
-# before any budget below was set). Two numbers per target:
-#   * total trace lines  <= measured + 10% headroom
-#   * trace lines that invoke an external tool (jq yq awk sed tr cut grep
-#     realpath stat date)  <= measured + 2
+# SPAWN PROXY instead: each target runs under `bash -x` against a FIXED fixture
+# and the trace lines are counted. The trace goes to a dedicated descriptor
+# (BASH_XTRACEFD, inherited by the target) with SHELLOPTS=xtrace exported, so it
+# ALSO sees commands inside functions and sourced libs whose stderr is redirected
+# (`source lib 2>/dev/null`, `v="$(loa_knob … 2>/dev/null)"`) and inside child
+# bash shells (`$(bash "$CHECKPOINT" read --json 2>/dev/null | jq …)`) — a plain
+# `bash -x 2>trace` lost all of those (sprint-281 review, DISS-C-003; test (g)
+# pins it). Not seen: the internals of non-bash children (python, jq). For a
+# fixed code path and fixture the count is deterministic (verified: three runs
+# per target gave identical counts before any budget below was set). Two numbers
+# per target:
+#   * total trace lines  <= measured + 10% headroom (at least +3)
+#   * trace lines that invoke an external tool (jq yq awk/gawk/mawk/nawk/busybox
+#     sed/gsed tr cut grep realpath stat date and their g-prefixed GNU names)
+#     <= measured + 2
 #
 # If a budget trips, the failure message prints both counts. If the change is
 # intended, update the budget in the same commit and say why.
 #
 # Fixtures are built in each test from heredocs under BATS_TEST_TMPDIR. The live
-# grimoire, .run and config are never read.
+# grimoire and .run are never read; configs are fixture copies or absent
+# (implement-gate honours PROJECT_ROOT and reads "$PROJECT_ROOT/.loa.config.yaml"
+# — absent in the fixture, so defaults apply; notes-size-guard reads no config;
+# run-mode-stop-guard reads LOA_PUSH_CONFIG). _trace asserts the live config path
+# never appears in the trace. Measured on bash 5.2 / mawk 1.3.4 / jq 1.7 /
+# mikefarah yq 4.44 (CI pins its own; the +10 % and +2 headroom absorb a
+# different toolchain's small differences, a larger one is a budget review).
 # =============================================================================
 
 setup() {
@@ -31,21 +45,34 @@ setup() {
 }
 
 # External tools whose trace lines count as process spawns (a leading VAR=value
-# assignment list and an absolute path prefix are tolerated).
-EXT_RE='^\++ ?([A-Za-z_][A-Za-z0-9_]*=[^ ]* )*(/[^ ]*/)?(jq|yq|awk|sed|tr|cut|grep|realpath|stat|date)( |$)'
+# assignment list and an absolute path prefix are tolerated; GNU g-prefixed names
+# and the awk variants count too, so a Homebrew/BSD host cannot make EXT vacuous).
+EXT_RE='^\++ ?([A-Za-z_][A-Za-z0-9_]*=[^ ]* )*(/[^ ]*/)?(jq|yq|g?awk|mawk|nawk|busybox|g?sed|tr|cut|grep|g?realpath|g?readlink|g?stat|g?date)( |$)'
 
 # _trace <stdin-file> <cwd> [VAR=value ...] -- <args to bash -x ...>
 # Runs the target under bash -x with PS4='+' from <cwd> with the given extra
-# environment. Sets TRACE_FILE, TOTAL (trace lines) and EXT (external-tool lines).
+# environment. The trace is written to an inherited descriptor (BASH_XTRACEFD),
+# not stderr, and SHELLOPTS=xtrace makes child bash shells trace into it too;
+# the target's own stderr goes to TRACE_FILE.stderr. Sets TRACE_FILE, TOTAL
+# (trace lines) and EXT (external-tool lines), and fails the test if the live
+# repository config path shows up in the trace (the fixtures must stand alone).
 _trace() {
   local in="$1" cwd="$2"; shift 2
   local envs=()
   while [[ "$1" != "--" ]]; do envs+=("$1"); shift; done
   shift
   TRACE_FILE="$W/trace.$$.$RANDOM"
-  ( cd "$cwd" && env ${envs[@]+"${envs[@]}"} PS4='+' bash -x "$@" <"$in" >/dev/null 2>"$TRACE_FILE" ) || true
+  local xfd
+  exec {xfd}>"$TRACE_FILE"
+  ( cd "$cwd" && env ${envs[@]+"${envs[@]}"} PS4='+' BASH_XTRACEFD="$xfd" SHELLOPTS=xtrace \
+      bash -x "$@" <"$in" >/dev/null 2>"$TRACE_FILE.stderr" ) || true
+  exec {xfd}>&-
   TOTAL="$(grep -c '^+' "$TRACE_FILE" || true)"
   EXT="$(grep -cE "$EXT_RE" "$TRACE_FILE" || true)"
+  if grep -qF -- "$PROJECT_ROOT/.loa.config.yaml" "$TRACE_FILE"; then
+    echo "the trace reads the live repository config ($PROJECT_ROOT/.loa.config.yaml); point the target at a fixture config" >&2
+    return 1
+  fi
 }
 
 # _check_budget <label> <measured-total> <measured-ext>
@@ -53,12 +80,13 @@ _trace() {
 # PERF_SPAWN_BUDGET_PRINT=1 prints the live counts (used to set the budgets).
 _check_budget() {
   local label="$1" mt="$2" me="$3"
-  local tb=$(( mt + mt / 10 )) eb=$(( me + 2 ))
+  local hr=$(( mt / 10 )); (( hr < 3 )) && hr=3   # +10 %, never less than +3 lines on a small budget
+  local tb=$(( mt + hr )) eb=$(( me + 2 ))
   [[ -z "${PERF_SPAWN_BUDGET_PRINT:-}" ]] || echo "SPAWNCOUNT ${label} total=${TOTAL} ext=${EXT}" >&3
   if (( TOTAL > tb || EXT > eb )); then
     {
       echo "SPAWN BUDGET EXCEEDED for ${label}:"
-      echo "  trace lines          : ${TOTAL} (measured ${mt}, budget ${tb} = +10%)"
+      echo "  trace lines          : ${TOTAL} (measured ${mt}, budget ${tb} = +10%, min +3)"
       echo "  external-tool lines  : ${EXT} (measured ${me}, budget ${eb} = +2)"
       echo "  trace file           : ${TRACE_FILE}"
       echo "  If this is an intended change, update the budget in the same commit and say why."
@@ -135,7 +163,7 @@ _check_budget() {
     -- "$PROJECT_ROOT/.claude/hooks/compliance/implement-gate.sh"
   # Sanity: the fixture must reach the path-classification stage (not an early exit).
   grep -q '^+canonical_root=' "$TRACE_FILE"
-  _check_budget "implement-gate" 113 5   # measured: 113 trace lines, 5 external-tool lines
+  _check_budget "implement-gate" 127 5   # measured: 127 trace lines, 5 external-tool lines (was 113/5 under the stderr-only tracer; the dedicated descriptor now sees 14 bash-internal lines inside stderr-redirected blocks — no new tool spawn; sprint-281 review DISS-C-003)
 }
 
 # --- (d) notes-size-guard.sh: a non-NOTES Write payload.
