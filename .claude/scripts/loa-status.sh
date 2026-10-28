@@ -856,9 +856,32 @@ _anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound th
   # not api/http — same rule as routing.ceiling.is_foreign_transport_calibration)
   # is tightened by an observation below it: basis observed, calibrated true,
   # calibrated_value / calibration_transport / reprobe_suggested carried.
-  local cfg model eff probed cal transport cw store obs=null
+  local cfg model eff probed cal transport cw store obs=null raw line n=0
+  local -a f=()
   cfg=$(_providers_model_config)
   command -v yq >/dev/null 2>&1 && [[ -f "$cfg" ]] || { echo null; return 0; }
+  # cycle-137 FR-3 (SDD § 5.2): ONE yq program prints the six reads as six lines — the alias, then the five
+  # model fields. (r251-4 S8 holds: the model is DATA read from the file and indexes the map as a VALUE,
+  # models[$m] — it is never spliced into the expression text.) The body is PARENTHESISED: in yq a binding
+  # `… as $m | x, y` scopes $m over x only, and an unbound $m in y indexes EVERY model. The `x` sentinel keeps
+  # trailing empty lines through the command substitution. Only a zero exit with exactly six lines takes this
+  # path; an error, a non-string alias (sub refuses it) or any multi-line value runs the six original reads
+  # below, verbatim.
+  # shellcheck disable=SC2016  # (the $a / $m are yq variables, not shell expansions)
+  if raw=$(yq eval -r '(.aliases.opus // "") as $a | ($a | sub("^anthropic:"; "")) as $m | ($a,
+             (.providers.anthropic.models[$m].effective_input_ceiling // ""),
+             (.providers.anthropic.models[$m].probed_ceiling // ""),
+             (.providers.anthropic.models[$m].ceiling_calibration.calibrated_at // ""),
+             (.providers.anthropic.models[$m].ceiling_calibration.transport // ""),
+             (.providers.anthropic.models[$m].context_window // ""))' "$cfg" 2>/dev/null && printf x) \
+     && [[ "$raw" == *$'\n'x ]]; then
+    while IFS= read -r line; do f[n]=$line; n=$((n + 1)); done <<<"${raw%$'\n'x}"
+  fi
+  if (( n == 6 )); then
+    model="${f[0]#anthropic:}"
+    [[ -n "$model" ]] || { echo null; return 0; }
+    eff=${f[1]} probed=${f[2]} cal=${f[3]} transport=${f[4]} cw=${f[5]}
+  else
   model=$(yq eval -r '.aliases.opus // ""' "$cfg" 2>/dev/null); model="${model#anthropic:}"
   [[ -n "$model" ]] || { echo null; return 0; }
   # (r251-4 S8, audit n11: the model reaches yq as a VALUE through strenv — never spliced into the expression text)
@@ -867,6 +890,7 @@ _anthropic_ceiling_json() {  # cycle-126 FR-1.1 (SDD D-1.1b): the input bound th
   cal=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].ceiling_calibration.calibrated_at // ""' "$cfg" 2>/dev/null)
   transport=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].ceiling_calibration.transport // ""' "$cfg" 2>/dev/null)
   cw=$(M="$model" yq eval -r '.providers.anthropic.models[strenv(M)].context_window // ""' "$cfg" 2>/dev/null)
+  fi
   [[ "$cw" =~ ^[0-9]+$ ]] || cw=0
   store="${LOA_CHEVAL_CEILING_OBSERVED_PATH:-$PROJECT_ROOT/.run/ceiling-observed.json}"
   if [[ -f "$store" ]]; then

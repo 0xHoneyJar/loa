@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-28T04:04:04Z",
+  "generated": "2026-10-28T04:11:57Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1215,7 +1215,7 @@
     ".claude/scripts/loa-learnings-index.sh": "946a17b59146614c8c8e233fb77daffc0b2f45c6cc52133f270f1468475c3853",
     ".claude/scripts/loa-migrate-model-config.py": "ddbbee30bea5f37bed78fe6a651b41ed9020e08a54b990742cd0d64dbffedc3b",
     ".claude/scripts/loa-setup-check.sh": "2872f31e1f9a54f29e255d7ee0cae20dba56351c6ef2fe9954d98d7b7b5086a3",
-    ".claude/scripts/loa-status.sh": "9cf4c2a473a13c655d32b1fb7b29008ba685a671b51156510e092d1a8b52aba5",
+    ".claude/scripts/loa-status.sh": "4a5e38371699f64f548d5caf8be44d3b218dee645afaf22246829576a8918246",
     ".claude/scripts/loa-substrate-doctor.sh": "601f9aff35afe80d2a01d1a6be4676bf8757d233f28a0b369e44bb0a107973d1",
     ".claude/scripts/loa-substrate-health.sh": "e243e02e2b8d05bca0ca6ec3809da229922f0c160a3693535fe36e9243534c23",
     ".claude/scripts/loa-substrate-recalibrate.sh": "1bc6599f46d1b8cbd5ae2507e98b91d776e9cf0c74dbf53e56463c18d9f99814",
