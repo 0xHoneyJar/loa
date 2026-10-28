@@ -212,8 +212,9 @@ _agy_opt_in_node_memo() {  # <config> → sets _AGY_NODE_MEMO_VAL to _agy_opt_in
   # TARGET is what the reader opens) and its PATH (the yq / python3 flavour picks the reader). A rewrite, a replacement, a
   # chmod / chown (ctime) or a path switch is a miss. When the stat fails (a missing file, or a stat that cannot answer)
   # the memo is cleared and the original read runs uncached — a missing file reads as absent there, as today.
-  # GNU stat carries nanosecond mtime / ctime; BSD stat here is whole seconds (a same-size rewrite within one second
-  # is not seen there). The memo lives only in the calling shell: a $(...) caller cannot populate it.)
+  # GNU stat carries nanosecond mtime / ctime; BSD stat here is whole seconds — the current-second rule below keeps a
+  # same-size rewrite or a chmod within one second from being served stale. The memo lives only in the calling shell:
+  # a $(...) caller cannot populate it.)
   local cfg="${1:-}" st="" id
   if [[ -z "$_AGY_STAT_STYLE" ]]; then
     if declare -F _compat_need_stat_style >/dev/null 2>&1; then
@@ -228,17 +229,22 @@ _agy_opt_in_node_memo() {  # <config> → sets _AGY_NODE_MEMO_VAL to _agy_opt_in
     fi
   fi
   if [[ -z "$st" ]]; then _AGY_NODE_MEMO_KEY=""; _AGY_NODE_MEMO_VAL=$(_agy_opt_in_node "$cfg"); return 0; fi
-  # A file modified in the CURRENT second (or later: clock skew) is never memoised (cycle-137 Sprint 282 review r1
-  # DISS-001): with whole-second stat — the BSD branch, or a 1 s filesystem under GNU — a same-size rewrite within that
-  # second keeps every key component, so a revoked `agy_opt_in: true` could read as still on for the rest of the shell.
-  # Once the clock has moved past the file's mtime second, a later rewrite changes mtime and misses as before. The
-  # current second comes from the shell (bash 5 EPOCHSECONDS, bash 4.2+ printf %(%s)T), else one `date` fork (bash 3.2).
-  local mt now; mt="${st#*:*:*:}"; mt="${mt%%:*}"; mt="${mt%%.*}"
-  if [[ -n "${EPOCHSECONDS:-}" ]]; then now="$EPOCHSECONDS"
-  elif now=$(printf '%(%s)T' -1 2>/dev/null) && [[ "$now" =~ ^[0-9]+$ ]]; then :
+  # A file whose mtime OR ctime is within one second of the clock (or later: clock skew) is never memoised (cycle-137
+  # Sprint 282 review r1 DISS-001, r2 DISS-001/C-002): with whole-second stat — the BSD branch, or a 1 s filesystem
+  # under GNU — a same-size rewrite within one second keeps every key component, so a revoked `agy_opt_in: true` could
+  # read as still on for the rest of the shell; a chmod within that second (ctime) could keep a now world-writable
+  # config memoised as on although the permission rule reads it off. The one-second margin covers a kernel stamp
+  # (coarse clock) lagging the shell's clock at a second boundary; it assumes stamp granularity of at most two seconds.
+  # Once the clock has moved past that window, a later rewrite or chmod changes the stamp and misses as before. The
+  # clock is `printf %(%s)T` (a bash 4.2+ builtin — never EPOCHSECONDS, a plain, inheritable variable on bash < 5),
+  # else one `date` fork (bash 3.2). Residual: a filesystem whose clock runs behind the host's (a remote server) stamps
+  # a fresh write as already past; the whole-second window is open there for the length of the lag.
+  local mt ct now rest; rest="${st#*:*:*:}"; mt="${rest%%:*}"; mt="${mt%%.*}"; ct="${rest#*:}"; ct="${ct%%.*}"
+  if now=$(builtin printf '%(%s)T' -1 2>/dev/null) && [[ "$now" =~ ^[0-9]+$ ]]; then :
   else now=$(date +%s 2>/dev/null) || now=""
   fi
-  if [[ ! "$mt" =~ ^[0-9]+$ || ! "$now" =~ ^[0-9]+$ || "$mt" -ge "$now" ]]; then
+  if [[ ! "$mt" =~ ^[0-9]+$ || ! "$ct" =~ ^[0-9]+$ || ! "$now" =~ ^[0-9]+$ ]] ||
+     (( mt >= now - 1 || ct >= now - 1 )); then
     _AGY_NODE_MEMO_KEY=""; _AGY_NODE_MEMO_VAL=$(_agy_opt_in_node "$cfg"); return 0
   fi
   id="$cfg|$st|$PATH"

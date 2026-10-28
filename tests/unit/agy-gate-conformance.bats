@@ -657,15 +657,21 @@ _agc27_ns_mtime() {  # 0 when a fresh write in this directory keeps a sub-second
     t=$(stat -c '%.9Y' -- "$p" 2>/dev/null) || return 1
     [[ "$t" == *.* && "${t#*.}" != 000000000 ]]
 }
+_agc_settle() {  # <file>: wait until the clock is two seconds past the file's ctime — a touch or chmod stamps ctime NOW, and
+    # the lib never memoises a file whose mtime or ctime is within one second of the clock (review r2); GNU stat, else sleep 2
+    local c; c=$(stat -c %Z -- "$1" 2>/dev/null) || { sleep 2; return 0; }
+    [[ "$c" =~ ^[0-9]+$ ]] || { sleep 2; return 0; }
+    while (( $(date +%s) < c + 2 )); do sleep 0.1; done
+}
 
 @test "AGC-27 (cycle-137 FR-3) the node is read ONCE per shell for an unchanged config: two agy_opted_in calls, and agy_gate_warn_once + agy_opted_in" {
     _agc27_count
     _cfg cli-only true
-    touch -d "@$(( $(date +%s) - 60 ))" "$CFG"   # an aged config: a file modified in the CURRENT second is never memoised (review r1 DISS-001)
+    touch -d "@$(( $(date +%s) - 60 ))" "$CFG"; _agc_settle "$CFG"   # an aged, settled config: a file modified within a second of the clock is never memoised (review r1 DISS-001, r2)
     agy_opted_in "$CFG" || { echo "first call read off"; return 1; }
     agy_opted_in "$CFG" || { echo "memo hit read off"; return 1; }
     [ "$(_agc27_calls)" = 1 ] || { echo "node reads: $(_agc27_calls)"; return 1; }
-    _cfg cli-only '"true"'; touch -d "@$(( $(date +%s) - 60 ))" "$CFG"; : > "$BATS_TEST_TMPDIR/node-calls"   # aged again (same rule)
+    _cfg cli-only '"true"'; touch -d "@$(( $(date +%s) - 60 ))" "$CFG"; _agc_settle "$CFG"; : > "$BATS_TEST_TMPDIR/node-calls"   # aged and settled again (same rule)
     run --separate-stderr agy_gate_warn_once "$CFG"   # (run: a subshell — the warn and its own agy_opted_in share one memo there)
     [ "$status" -eq 0 ]
     [ "$(_agc27_calls)" = 1 ] || { echo "node reads in warn_once: $(_agc27_calls)"; return 1; }
@@ -682,8 +688,11 @@ _agc27_ns_mtime() {  # 0 when a fresh write in this directory keeps a sub-second
     _cfg cli-only 'true '; touch -d "@$(( t + 2 ))" "$CFG"
     agy_opted_in "$CFG" || { echo "stale memo: true read as false"; return 1; }
     [ "$(_agc27_calls)" = 3 ] || { echo "node reads: $(_agc27_calls) (expected 3 misses)"; return 1; }
+    _agc_settle "$CFG"   # the last touch stamped ctime now; settle, then one read populates the memo and the next is the hit
+    agy_opted_in "$CFG" || { echo "settled read off"; return 1; }
+    [ "$(_agc27_calls)" = 4 ] || { echo "node reads after settling: $(_agc27_calls) (expected 4)"; return 1; }
     agy_opted_in "$CFG" || { echo "memo hit read off"; return 1; }   # no re-touch: served from the memo
-    [ "$(_agc27_calls)" = 3 ] || { echo "node reads after the hit: $(_agc27_calls) (expected still 3)"; return 1; }
+    [ "$(_agc27_calls)" = 4 ] || { echo "node reads after the hit: $(_agc27_calls) (expected still 4)"; return 1; }
     if ! _agc27_ns_mtime; then skip "this filesystem keeps 1 s mtimes: the same-second rewrite case is not decidable here"; fi
     # (no touch: two plain writes back to back, normally inside one second — only the sub-second mtime/ctime tells them apart)
     _cfg cli-only false
@@ -755,6 +764,25 @@ EOF
     ! agy_opted_in "$CFG" || { echo "stale memo: false read as true with a one-second-old stamp"; return 1; }
     [ "$(_agc27_calls)" = 2 ] || { echo "node reads: $(_agc27_calls) (expected 2: a stamp within one second of the clock is never memoised)"; return 1; }
     unset SHIM_AGE
+}
+
+@test "AGC-36 (cycle-137 review r2) with frozen AGED stamps each key component is a miss on its own: a changed mtime, a changed ctime, a changed size — and an unchanged key is a hit" {
+    _agc27_count
+    _agc33_shim
+    local t0; t0=$(( $(date +%s) - 120 ))
+    export SHIM_MTIME=$t0 SHIM_CTIME=$t0
+    _cfg cli-only 'true '
+    agy_opted_in "$CFG" || { echo "true read off"; return 1; }
+    agy_opted_in "$CFG" || { echo "hit read off"; return 1; }
+    [ "$(_agc27_calls)" = 1 ] || { echo "node reads for an unchanged key: $(_agc27_calls) (expected 1)"; return 1; }
+    _cfg cli-only false; export SHIM_MTIME=$(( t0 + 1 ))              # same size, mtime moved by one aged second
+    ! agy_opted_in "$CFG" || { echo "mtime change not a miss"; return 1; }
+    _cfg cli-only 'true '; export SHIM_CTIME=$(( t0 + 1 ))             # same size, same mtime, ctime moved (a chmod)
+    agy_opted_in "$CFG" || { echo "ctime change not a miss"; return 1; }
+    _cfg cli-only 'false '                                             # size changed, stamps unchanged
+    ! agy_opted_in "$CFG" || { echo "size change not a miss"; return 1; }
+    [ "$(_agc27_calls)" = 4 ] || { echo "node reads: $(_agc27_calls) (expected 4: one hit, three misses)"; return 1; }
+    unset SHIM_MTIME SHIM_CTIME
 }
 
 @test "AGC-29 (cycle-137 FR-3) a miss after mv replacement (new inode, same size and mtime), after deletion, and after switching the config path" {
