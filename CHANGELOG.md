@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_(nothing yet — rc.9 was cut on 2026-10-28)_
+
+## [2.0.0-rc.9] — 2026-10-28 — Performance follow-ups (release candidate)
+
+> Performance follow-ups on rc.8: the 22-pass extreme-software-optimization loop lands through the formal gates (20 commits, every pass byte-identical old-versus-new and reviewed; repo-map 4.66 → 1.22 s, grimoire-index 1.82 → 0.83 s, the SessionStart known-failures hook 488 → 15 ms, the Write/Edit PreToolUse chain ≈ 78 → 62 ms, the Stop guard 24 → 14 ms), guarded by a deterministic spawn-budget test; its six follow-ups land as well (the KF parsers read the `**Symptom (qualifier)**:` shape and reset on every heading; grimoire-index caches the decisions family behind a uid-owned trust boundary — 826 → 196 ms warm on the live tree; loa-status reads its catalog fields with one yq and the agy opt-in node once per process; the karpathy hook resolves its threshold knob from the profile cache without yq; `audit-envelope.sh verify-chains` verifies every chain file in one Python process, fail-closed; the fence-corpus test replays its corpus once and the companion test's reaped holds are bounded under a negative control); and the post-rc.8 fixes that waited under `[Unreleased]` (cycle-134 post-ship fixes, cycle-135 review-coverage follow-ups, cycle-136 Bridgebuilder and scaffold follow-ups, the SessionStart hook-visibility repair). Release notes: `grimoires/loa/reports/release-notes-2.0.0-rc.9.md`. Still a pre-release; `2.0.0` is promoted on the rc.1 exit criteria.
+
 ### Changed (cycle-137 "performance follow-ups", Sprint 282 — the loop's six follow-up beads)
 
 - **KF parsers** (`loa-kf-surface.sh`, `grimoire-index.sh`): a `**Symptom (qualifier)**:` or `**Recurrence count (qualifier)**:` field line is now recognised; `Status` keeps its two shapes, so a historical `**Status (original)**:` never becomes an entry's status. Every `## ` heading now closes the current entry, so fields under `## Index`, `## Schema` or a non-numeric `## KF-abc:` heading no longer attach to the previous entry. A drift test pins the two parsers' field and heading rules line for line, and both run byte-identically under mawk and busybox awk (bd-atk7q).
