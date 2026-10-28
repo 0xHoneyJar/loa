@@ -643,3 +643,113 @@ ROWS
     run --separate-stderr bash -c 'source "$1"; agy_gate_warn_once "$2"' _ "$LIB" "$CFG"
     ! grep -q 'cannot be read' <<<"$stderr" || { echo "null headless warned: $stderr"; return 1; }
 }
+
+# ---- cycle-137 FR-3 (Task 2.3b, bd-gv5jf): the opt-in node read is memoised in the calling shell, keyed on the file's identity ----
+_agc27_count() {  # source the lib, wrap the node reader so each real read appends a line to $BATS_TEST_TMPDIR/node-calls
+    source "$LIB"
+    : > "$BATS_TEST_TMPDIR/node-calls"
+    eval "$(declare -f _agy_opt_in_node | sed '1s/^_agy_opt_in_node/_agc27_orig_node/')"
+    _agy_opt_in_node() { echo x >> "$BATS_TEST_TMPDIR/node-calls"; _agc27_orig_node "$@"; }
+}
+_agc27_calls() { wc -l < "$BATS_TEST_TMPDIR/node-calls" | tr -d ' '; }
+_agc27_ns_mtime() {  # 0 when a fresh write in this directory keeps a sub-second mtime (GNU stat), else 1
+    local p="$BATS_TEST_TMPDIR/ns-probe" t; printf x > "$p"
+    t=$(stat -c '%.9Y' -- "$p" 2>/dev/null) || return 1
+    [[ "$t" == *.* && "${t#*.}" != 000000000 ]]
+}
+
+@test "AGC-27 (cycle-137 FR-3) the node is read ONCE per shell for an unchanged config: two agy_opted_in calls, and agy_gate_warn_once + agy_opted_in" {
+    _agc27_count
+    _cfg cli-only true
+    agy_opted_in "$CFG" || { echo "first call read off"; return 1; }
+    agy_opted_in "$CFG" || { echo "memo hit read off"; return 1; }
+    [ "$(_agc27_calls)" = 1 ] || { echo "node reads: $(_agc27_calls)"; return 1; }
+    _cfg cli-only '"true"'; : > "$BATS_TEST_TMPDIR/node-calls"
+    run --separate-stderr agy_gate_warn_once "$CFG"   # (run: a subshell — the warn and its own agy_opted_in share one memo there)
+    [ "$status" -eq 0 ]
+    [ "$(_agc27_calls)" = 1 ] || { echo "node reads in warn_once: $(_agc27_calls)"; return 1; }
+}
+
+@test "AGC-28 (cycle-137 FR-3) a same-length in-place rewrite is a miss: with a distinct mtime, and twice within one second" {
+    _agc27_count
+    _cfg cli-only 'true '   # (same length as `false`; the trailing space is not part of the scalar)
+    local t; t=$(date +%s)
+    touch -d "@$t" "$CFG"
+    agy_opted_in "$CFG" || { echo "true read off"; return 1; }
+    _cfg cli-only false; touch -d "@$(( t + 1 ))" "$CFG"
+    ! agy_opted_in "$CFG" || { echo "stale memo: false read as true"; return 1; }
+    _cfg cli-only 'true '; touch -d "@$(( t + 2 ))" "$CFG"
+    agy_opted_in "$CFG" || { echo "stale memo: true read as false"; return 1; }
+    [ "$(_agc27_calls)" = 3 ]
+    if ! _agc27_ns_mtime; then skip "this filesystem keeps 1 s mtimes: the same-second rewrite case is not decidable here"; fi
+    # (no touch: two plain writes back to back, normally inside one second — only the sub-second mtime/ctime tells them apart)
+    _cfg cli-only false
+    ! agy_opted_in "$CFG" || { echo "rewrite to false not seen"; return 1; }
+    _cfg cli-only 'true '
+    agy_opted_in "$CFG" || { echo "same-second rewrite to true not seen"; return 1; }
+    _cfg cli-only false
+    ! agy_opted_in "$CFG" || { echo "same-second rewrite to false not seen"; return 1; }
+}
+
+@test "AGC-29 (cycle-137 FR-3) a miss after mv replacement (new inode, same size and mtime), after deletion, and after switching the config path" {
+    _agc27_count
+    _cfg cli-only 'true '
+    agy_opted_in "$CFG" || { echo "true read off"; return 1; }
+    printf 'hounfour:\n  headless:\n    mode: cli-only\n    agy_opt_in: false\n' > "$BATS_TEST_TMPDIR/next.yaml"
+    touch -r "$CFG" "$BATS_TEST_TMPDIR/next.yaml"
+    [ "$(wc -c < "$CFG")" = "$(wc -c < "$BATS_TEST_TMPDIR/next.yaml")" ]
+    mv -f "$BATS_TEST_TMPDIR/next.yaml" "$CFG"
+    ! agy_opted_in "$CFG" || { echo "stale memo after mv"; return 1; }
+    _cfg cli-only true; agy_opted_in "$CFG"
+    rm -f "$CFG"
+    run --separate-stderr agy_opted_in "$CFG"
+    [ "$status" -eq 1 ] && [ -z "$stderr" ] || { echo "deleted: status=$status stderr=$stderr"; return 1; }
+    agy_opted_in "$CFG" && { echo "deleted config opted in"; return 1; }
+    [ -z "$_AGY_NODE_MEMO_VAL" ] && [ -z "$_AGY_NODE_MEMO_KEY" ] || { echo "stale memo kept for a deleted config: $_AGY_NODE_MEMO_VAL"; return 1; }
+    _cfg cli-only true
+    printf 'hounfour:\n  headless:\n    agy_opt_in: false\n' > "$BATS_TEST_TMPDIR/other.yaml"
+    agy_opted_in "$CFG" || { echo "true read off"; return 1; }
+    ! agy_opted_in "$BATS_TEST_TMPDIR/other.yaml" || { echo "path switch returned the other config's value"; return 1; }
+    agy_opted_in "$CFG" || { echo "switch back read off"; return 1; }
+}
+
+@test "AGC-30 (cycle-137 FR-3) a \$(agy_opted_in …) caller gets the right answer (the memo lives only in the calling shell)" {
+    source "$LIB"
+    _cfg cli-only true
+    agy_opted_in "$CFG"
+    _cfg cli-only false; touch -d "@$(( $(date +%s) + 5 ))" "$CFG"
+    [ "$(agy_opted_in "$CFG"; echo $?)" = 1 ]
+    _cfg cli-only true; touch -d "@$(( $(date +%s) + 9 ))" "$CFG"
+    [ "$(agy_opted_in "$CFG"; echo $?)" = 0 ]
+}
+
+@test "AGC-31 (cycle-137 FR-3) the memo is never seeded from the environment: a forged key + value for a false config reads off" {
+    _cfg cli-only false
+    local st; st=$(stat -L -c '%d:%i:%s:%.9Y:%.9Z' -- "$CFG" 2>/dev/null) || skip "GNU stat needed to forge the key"
+    run --separate-stderr env _AGY_NODE_MEMO_KEY="$CFG|$st" _AGY_NODE_MEMO_VAL="bool true" _AGY_STAT_STYLE=bsd \
+        bash -c 'source "$1"; agy_opted_in "$2"' _ "$LIB" "$CFG"
+    [ "$status" -eq 1 ] || { echo "a forged memo opted in: status=$status stderr=$stderr"; return 1; }
+}
+
+@test "AGC-32 (cycle-137 FR-3) agy_gate_warn_once prints today's texts: untrusted, ancestor (int, alias), bool True, a string, and the availability WARN" {
+    local avail="WARN: the agy route is available here (a Google/Gemini key is set) but not planned: hounfour.headless.agy_opt_in is not true — opt in only knowingly (the prompt travels on the CLI's argv, readable by local users; the CLI must be OAuth-authed)"
+    local c want got
+    printf 'hounfour:\n  headless:\n    mode: cli-only\n    agy_opt_in: true\n' > "$BATS_TEST_TMPDIR/untrusted.yaml"; chmod 666 "$BATS_TEST_TMPDIR/untrusted.yaml"
+    printf 'hounfour:\n  headless: 5\n' > "$BATS_TEST_TMPDIR/ancestor.yaml"
+    printf 'base: &b {headless: {agy_opt_in: true}}\nhounfour: *b\n' > "$BATS_TEST_TMPDIR/ancestor-alias.yaml"
+    printf 'hounfour:\n  headless:\n    agy_opt_in: True\n' > "$BATS_TEST_TMPDIR/boolTrue.yaml"
+    printf 'hounfour:\n  headless:\n    agy_opt_in: "true"\n' > "$BATS_TEST_TMPDIR/str.yaml"
+    printf 'hounfour:\n  headless:\n    mode: cli-only\n' > "$BATS_TEST_TMPDIR/absent.yaml"
+    for c in untrusted ancestor ancestor-alias boolTrue str absent; do
+        case "$c" in
+            untrusted) want="WARN: hounfour.headless.agy_opt_in: $BATS_TEST_TMPDIR/untrusted.yaml is world-writable (mode 0666) — a config others can write never opts in (own it and \`chmod go-w\` it); the agy route stays off" ;;
+            ancestor) want="WARN: hounfour.headless is not a mapping (int) — hounfour.headless.agy_opt_in cannot be read through an alias or merge node (write the mapping inline); the agy route stays off"$'\n'"$avail" ;;
+            ancestor-alias) want="WARN: hounfour is a YAML alias — hounfour.headless.agy_opt_in cannot be read through an alias or merge node (write the mapping inline); the agy route stays off"$'\n'"$avail" ;;
+            boolTrue) want="WARN: hounfour.headless.agy_opt_in is True, a boolean spelled other than true/false — only \`agy_opt_in: true\` opts in (the lowercase scalar); the agy route stays off"$'\n'"$avail" ;;
+            str) want="WARN: hounfour.headless.agy_opt_in is present but not a YAML boolean (str) — only \`agy_opt_in: true\` opts in (expected true or false); the agy route stays off"$'\n'"$avail" ;;
+            absent) want="$avail" ;;
+        esac
+        got=$(env GOOGLE_API_KEY=x AGY_HEADLESS_BIN=no-such-agy bash -c 'source "$1"; agy_gate_warn_once "$2"; echo "rc=$?" >&2; agy_gate_warn_once "$2"' _ "$LIB" "$BATS_TEST_TMPDIR/$c.yaml" 2>&1 >/dev/null)
+        [ "$got" = "$want"$'\n'"rc=0" ] || { printf 'case %s\n--- got\n%s\n--- want\n%s\n' "$c" "$got" "$want"$'\n'"rc=0"; return 1; }
+    done
+}
