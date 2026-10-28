@@ -230,3 +230,25 @@ EOF
   echo "EXT=${EXT} TOTAL=${TOTAL}" >&2
   [[ "$EXT" -eq 4 ]]
 }
+
+# --- (h) the tracer's environment: the traced target must run under an explicit,
+# allowlisted environment, not the developer's or CI runner's ambient one — an
+# ambient LOA_* override could point a hook at live state (making a budget
+# nondeterministic) and any ambient value a hook expands lands in the trace file,
+# whose path is printed on failure (sprint-281 audit, DISS-C-001).
+@test "spawn budget tracer: the ambient environment does not reach the traced target or its trace" {
+  cat >"$W/canary.sh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "${LOA_SPAWN_BUDGET_CANARY:-unset}" >/dev/null
+EOF
+  : >"$W/empty"
+  export LOA_SPAWN_BUDGET_CANARY="canary-$$-$RANDOM"
+  _trace "$W/empty" "$W" -- "$W/canary.sh"
+  unset LOA_SPAWN_BUDGET_CANARY
+  # (a bare `! grep` never fails a bats test — errexit ignores negated commands — so test the status explicitly)
+  if grep -q 'canary-' "$TRACE_FILE"; then
+    echo "the ambient LOA_SPAWN_BUDGET_CANARY reached the traced target and its trace:" >&2; cat "$TRACE_FILE" >&2
+    return 1
+  fi
+  grep -qF "printf '%s\\n' unset" "$TRACE_FILE"
+}
