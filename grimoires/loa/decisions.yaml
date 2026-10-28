@@ -40276,3 +40276,80 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1139"
+    created_at: "2026-10-28T08:24:28Z"
+    updated_at: "2026-10-28T08:24:28Z"
+    phase: "operations"
+    category: "process"
+    summary: "cycle-137 ship: Bridgebuilder degraded in both rounds (anthropic voice timed out under host load); no blocking finding open → proceed to merge"
+    decision: "Both Bridgebuilder rounds on PR #1309 (codex-headless primary, excludes for generated/planning files; round 2 --force-full-review) ended COMMENT with verdict quality DEGRADED 1/2: the openai voice completed each time, the anthropic/claude-headless voice failed with PROVIDER_UNAVAILABLE (claude -p timeout, KF-037 class) while three runaway zsh processes of other sessions held ~3 cores. Six findings in total, none blocking: R001 refuted (jq `as` binding), R002 waived → bd-3qed8, R-001 waived → the Sprint 281 MED-001 portability beads, R-002 waived → a new bead for the sentinel class, two PRAISE. The plan's degraded exit applies (class S only when no blocking finding is open)."
+    rationale: "The fallback chain (retry, then BRIDGEBUILDER_MODEL=claude-headless) would route the primary through the very provider that is timing out on this host; the openai voice reviewed the full diff twice with consistent, triaged results; every finding has evidence or a bead."
+    alternatives_considered:
+      - option: "A third round after the host quiets"
+        rejected_because: "the plan caps Bridgebuilder at two rounds and the load source is outside the lead's control"
+      - option: "BRIDGEBUILDER_MODEL=claude-headless as primary"
+        rejected_because: "the anthropic headless route is the one failing; it would degrade to zero voices"
+    consequences:
+      positive:
+        - "two full openai reviews with zero blockers"
+        - "every finding carries a terminal-rule disposition on the PR"
+      negative:
+        - "no anthropic voice on this PR (recorded; KF-037 recurrence)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "run-mode/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "3215c141"
+    source: "grimoires/loa/sprint.md 1.1 § Ship S-2 and the bounded-loop exits; ~/.cache/loa/cycle-137/logs/bb-1309-r1.log, bb-1309-r2.log; PR #1309 triage comments"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T08:24:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:run-mode"
+        evidence: "PR #1309 comments (round 1 and round 2 triage); logs bb-1309-r1.log, bb-1309-r2.log"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1140"
+    created_at: "2026-10-28T08:24:34Z"
+    updated_at: "2026-10-28T08:24:34Z"
+    phase: "operations"
+    category: "process"
+    summary: "cycle-137 ship: final-head re-baseline ran under load 6–8 from other sessions; recorded with the caveat, FR-3 stays the same-session paired A/B"
+    decision: "The e2e table records the loaded re-baseline (repo-map-gen 1064 ms, grimoire-index 259 ms, kf-surface 20 ms, karpathy 60 ms, stop guard 17 ms hold their gains; loa-status 2441 ms is load-inflated) with the host state named; the PRD's protocol number for FR-3 is the same-session paired A/B (old mirror 1124 ms vs new 1020 ms, −104 ms). An idle re-run is attempted before the archive if the peers go quiet; otherwise the table stands as recorded."
+    rationale: "The PRD protocol binds every number to old and new mirrors measured in the same session under the same host state, which the lead did; the absolute re-baseline against the 2026-10-27 baseline is informational and cannot be made idle while three foreign shells spin at 99 % CPU."
+    alternatives_considered:
+      - option: "Kill the runaway shells to get an idle host"
+        rejected_because: "they belong to other interactive sessions of the operator; not the lead's call"
+      - option: "Wait for an idle host before shipping"
+        rejected_because: "no bound on the wait; the release does not depend on the absolute number"
+    consequences:
+      positive:
+        - "every claimed gain is backed by a same-session paired measurement"
+      negative:
+        - "the final-head absolute table is noisier than the loop's 2026-10-27 baseline"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "run-mode/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "3215c141"
+    source: "grimoires/loa/a2a/sprint-282/e2e.md § Measurements; evidence/probes/rebaseline-final.tsv; grimoires/loa/prd.md § Non-Functional Requirements → Performance"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T08:24:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:run-mode"
+        evidence: "rebaseline-final.tsv (load 6–8); rebaseline-55f82c534.tsv (load 5–6); NOTES 2026-10-28 ship entry (ps -C zsh)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

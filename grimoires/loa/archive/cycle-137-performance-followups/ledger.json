@@ -1,0 +1,3317 @@
+{
+  "schema_version": 1,
+  "active_cycle": "cycle-137-performance-followups",
+  "cycles": [
+    {
+      "id": "cycle-036",
+      "label": "Quick-Win User Experience Fixes",
+      "status": "archived",
+      "created": "2026-02-24T00:00:00Z",
+      "archived": "2026-02-24T08:40:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-24-cycle-036-quick-win-ux",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 52,
+          "label": "All Quick Wins",
+          "status": "completed"
+        },
+        {
+          "local_id": 2,
+          "global_id": 53,
+          "label": "Bridgebuilder Findings — Excellence Hardening",
+          "status": "completed"
+        },
+        {
+          "local_id": 3,
+          "global_id": 54,
+          "label": "CI Hardening — Bridge Iteration 2",
+          "status": "completed"
+        },
+        {
+          "local_id": 4,
+          "global_id": 55,
+          "label": "CI Integrity — Bridge Iteration 3",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-037",
+      "label": "Bridgebuilder Deep Review — Architectural Fixes",
+      "status": "archived",
+      "created": "2026-02-24T08:40:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 56,
+          "label": "All Architectural Fixes",
+          "status": "completed"
+        }
+      ],
+      "archived": "2026-02-24T21:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-24-bridgebuilder-architectural-fixes"
+    },
+    {
+      "id": "cycle-038",
+      "label": "Organizational Memory Sovereignty — Three-Zone State Architecture",
+      "status": "archived",
+      "created": "2026-02-24T21:00:00Z",
+      "archived": "2026-02-25T12:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-25-organizational-memory-sovereignty",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 57,
+          "label": "State-Dir Resolution Foundation",
+          "status": "completed"
+        },
+        {
+          "local_id": 2,
+          "global_id": 58,
+          "label": "Migration Script + Mount Integration",
+          "status": "completed"
+        },
+        {
+          "local_id": 3,
+          "global_id": 59,
+          "label": "Redaction Pipeline",
+          "status": "completed"
+        },
+        {
+          "local_id": 4,
+          "global_id": 60,
+          "label": "Trajectory Archive + Import",
+          "status": "completed"
+        },
+        {
+          "local_id": 5,
+          "global_id": 61,
+          "label": "Memory Pipeline Activation",
+          "status": "completed"
+        },
+        {
+          "local_id": 6,
+          "global_id": 62,
+          "label": "Federated Learning Exchange",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-039",
+      "label": "Two-Pass Bridge Review — Decouple Convergence from Enrichment",
+      "status": "archived",
+      "created": "2026-02-25T12:30:00Z",
+      "archived": "2026-02-26T00:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-26-two-pass-bridge-review",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 63,
+          "label": "Two-Pass Bridge Review Pipeline",
+          "status": "completed"
+        },
+        {
+          "local_id": 2,
+          "global_id": 64,
+          "label": "Excellence Hardening — Bridge Iteration 2",
+          "status": "completed"
+        },
+        {
+          "local_id": 3,
+          "global_id": 65,
+          "label": "Final Polish — Bridge Iteration 3",
+          "status": "completed"
+        },
+        {
+          "local_id": 4,
+          "global_id": 66,
+          "label": "Metacognition — Confidence-Weighted Enrichment",
+          "status": "completed"
+        },
+        {
+          "local_id": 5,
+          "global_id": 67,
+          "label": "Persona Provenance + Review Pluralism Foundation",
+          "status": "completed"
+        },
+        {
+          "local_id": 6,
+          "global_id": 68,
+          "label": "Ecosystem Context Integration — Pass 0 Prototype",
+          "status": "completed"
+        },
+        {
+          "local_id": 7,
+          "global_id": 69,
+          "label": "Enrichment Pipeline Ergonomics — Schema-First Architecture",
+          "status": "completed"
+        },
+        {
+          "local_id": 8,
+          "global_id": 70,
+          "label": "Pass 1 Convergence Cache — Cost Intelligence",
+          "status": "completed"
+        },
+        {
+          "local_id": 9,
+          "global_id": 71,
+          "label": "Dynamic Ecosystem Context — From Static Hints to Living Memory",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-040",
+      "label": "Multi-Model Adversarial Review Upgrade — GPT-5.3-Codex + Gemini Tertiary",
+      "status": "archived",
+      "created": "2026-02-26T00:00:00Z",
+      "archived": "2026-02-26T14:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-26-multi-model-adversarial-review",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 72,
+          "label": "GPT-5.3-Codex Primary + Gemini Tertiary + Iteration Cap",
+          "status": "completed"
+        },
+        {
+          "local_id": 2,
+          "global_id": 73,
+          "label": "Bug Fix — Scoring Engine 3-Model Tertiary Cross-Scoring",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-041",
+      "label": "Vision-Aware Planning — Creative Agency for AI Peers",
+      "status": "archived",
+      "created": "2026-02-26T14:00:00Z",
+      "archived": "2026-02-26T18:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-26-vision-aware-planning",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 74,
+          "label": "Foundation — Schema, Library, Query, Shadow Mode",
+          "status": "completed"
+        },
+        {
+          "local_id": 2,
+          "global_id": 75,
+          "label": "Active Presentation",
+          "status": "completed"
+        },
+        {
+          "local_id": 3,
+          "global_id": 76,
+          "label": "Creative Agency (Experimental)",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-042",
+      "label": "Vision Activation — From Infrastructure to Living Memory",
+      "status": "archived",
+      "created": "2026-02-26T18:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 77,
+          "label": "Seed & Activate",
+          "status": "completed"
+        },
+        {
+          "local_id": 2,
+          "global_id": 78,
+          "label": "Security Hardening",
+          "status": "completed"
+        },
+        {
+          "local_id": 3,
+          "global_id": 79,
+          "label": "Pipeline Wiring",
+          "status": "completed"
+        },
+        {
+          "local_id": 4,
+          "global_id": 80,
+          "label": "Excellence Hardening — Bridgebuilder Findings",
+          "status": "completed"
+        }
+      ],
+      "archived": "2026-02-26T07:04:05Z",
+      "archive_path": "grimoires/loa/archive/2026-02-26-cycle-042-vision-activation"
+    },
+    {
+      "id": "cycle-043",
+      "label": "DNS Authority Migration & Agent Economy Domain Architecture",
+      "status": "archived",
+      "created": "2026-02-27T00:00:00Z",
+      "archived": "2026-02-28T00:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-27-cycle-043-dns-migration",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 81,
+          "label": "Terraform DNS Module + Record Replication",
+          "status": "planned"
+        },
+        {
+          "local_id": 2,
+          "global_id": 82,
+          "label": "Pre-Migration Validation + NS Cutover Support",
+          "status": "planned"
+        },
+        {
+          "local_id": 3,
+          "global_id": 83,
+          "label": "Post-Migration Hardening + Agent Economy",
+          "status": "planned"
+        }
+      ]
+    },
+    {
+      "id": "cycle-044",
+      "label": "Bridgebuilder Design Review — Pre-Implementation Architectural Intelligence",
+      "status": "archived",
+      "created": "2026-02-28T00:00:00Z",
+      "archived": "2026-02-28T07:00:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-28-cycle-044-bridgebuilder-design-review",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 84,
+          "label": "Core Phase Integration",
+          "status": "completed"
+        },
+        {
+          "local_id": 2,
+          "global_id": 85,
+          "label": "HITL Interaction + Vision Capture",
+          "status": "completed"
+        },
+        {
+          "local_id": 3,
+          "global_id": 86,
+          "label": "Hardening + Validation",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-045",
+      "label": "Review Pipeline Hardening — Gemini Activation, Orchestrator Wiring, Red Team Post-Implementation",
+      "status": "archived",
+      "created": "2026-02-28T03:00:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 87,
+          "label": "Gemini Verification + State Schema",
+          "status": "planned"
+        },
+        {
+          "local_id": 2,
+          "global_id": 88,
+          "label": "Red Team Code-vs-Design",
+          "status": "planned"
+        },
+        {
+          "local_id": 3,
+          "global_id": 89,
+          "label": "Observability + Hardening",
+          "status": "planned"
+        }
+      ],
+      "archived": "2026-02-28T04:30:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-28-cycle-045-review-pipeline-hardening"
+    },
+    {
+      "id": "cycle-046",
+      "label": "Bridgebuilder Constellation — From Pipeline to Deliberation",
+      "status": "archived",
+      "created": "2026-02-28T04:30:00Z",
+      "archived": "2026-02-28T06:30:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-28-cycle-046-bridgebuilder-constellation",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 90,
+          "label": "Code Quality Polish",
+          "status": "completed"
+        },
+        {
+          "local_id": 2,
+          "global_id": 91,
+          "label": "Deliberative Council — Prior Findings Integration",
+          "status": "completed"
+        },
+        {
+          "local_id": 3,
+          "global_id": 92,
+          "label": "Pipeline Self-Review",
+          "status": "completed"
+        },
+        {
+          "local_id": 4,
+          "global_id": 93,
+          "label": "Governance Lore + Compliance Generalization",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "cycle-047",
+      "label": "Compassionate Excellence — Bridgebuilder Deep Review Integration",
+      "status": "archived",
+      "created": "2026-02-28T06:30:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 94,
+          "label": "Verification + Defensive Hardening",
+          "status": "planned"
+        },
+        {
+          "local_id": 2,
+          "global_id": 95,
+          "label": "Constitutional Architecture",
+          "status": "planned"
+        },
+        {
+          "local_id": 3,
+          "global_id": 96,
+          "label": "Shared Library Extraction",
+          "status": "planned"
+        },
+        {
+          "local_id": 4,
+          "global_id": 97,
+          "label": "Adaptive Intelligence + Ecosystem Design",
+          "status": "planned"
+        }
+      ],
+      "archived": "2026-02-28T08:50:00Z",
+      "archive_path": "grimoires/loa/archive/2026-02-28-compassionate-excellence"
+    },
+    {
+      "id": "cycle-048",
+      "label": "Community Feedback — Review Pipeline Hardening",
+      "status": "active",
+      "created": "2026-02-28T08:50:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 98,
+          "label": "Foundation — Curl Guard, Error Surfacing, YAML Regex",
+          "status": "planned"
+        },
+        {
+          "local_id": 2,
+          "global_id": 99,
+          "label": "Verdict Centralization & Flatline Readiness",
+          "status": "planned"
+        },
+        {
+          "local_id": 3,
+          "global_id": 100,
+          "label": "Timeout Consolidation & Migration",
+          "status": "planned"
+        },
+        {
+          "local_id": 4,
+          "global_id": 101,
+          "label": "Integration Testing, CI Lint, Protocol Docs",
+          "status": "planned"
+        }
+      ]
+    },
+    {
+      "id": "cycle-bug-20260418-i553-cb632b",
+      "label": "Bug Fix — agent: Plan blocks Write in /architect and /sprint-plan",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/553",
+      "created_at": "2026-04-18T03:47:08Z",
+      "prd": null,
+      "sdd": null,
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 102,
+          "label": "Fix agent-type + write-capability contradiction in planning skills",
+          "status": "planned",
+          "bug_id": "20260418-i553-cb632b",
+          "triage": "grimoires/loa/a2a/bug-20260418-i553-cb632b/triage.md",
+          "sprint_plan": "grimoires/loa/a2a/bug-20260418-i553-cb632b/sprint.md"
+        }
+      ]
+    },
+    {
+      "id": "cycle-bug-20260418-i549-1aaa93",
+      "label": "Bug Fix — Shell Tests 20+ pre-existing failures on main (5 clusters)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/549",
+      "meta_issue": "https://github.com/0xHoneyJar/loa/issues/557",
+      "created_at": "2026-04-18T06:23:23Z",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 105,
+          "label": "Restore green Shell Tests on main (5 clusters)",
+          "status": "planned"
+        }
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-i549-1aaa93/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-i549-1aaa93/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260418-i555-5560f6",
+      "label": "Bug Fix — Silent data loss via git stash -k / git stash pop",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/555",
+      "meta_issue": "https://github.com/0xHoneyJar/loa/issues/557",
+      "created_at": "2026-04-18T07:08:35Z",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 106,
+          "label": "Prevent silent stash-pop data loss in Loa scripts",
+          "status": "planned",
+          "bug_id": "20260418-i555-5560f6"
+        }
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-i555-5560f6/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-i555-5560f6/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260418-i545-e2c781",
+      "label": "Bug Fix — Spiral REVIEW gate fix-loop + quality_gate recovery (#545 + #546)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/545",
+        "https://github.com/0xHoneyJar/loa/issues/546"
+      ],
+      "meta_tracker": "https://github.com/0xHoneyJar/loa/issues/557",
+      "parent_cycle": "cycle-084",
+      "created_at": "2026-04-18T07:41:02Z",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 107,
+          "sprint_id": "sprint-bug-107",
+          "label": "REVIEW fix-loop + quality_gate recovery",
+          "status": "active"
+        }
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-i545-e2c781/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-i545-e2c781/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260418-i548-a2460c",
+      "label": "Bug Fix — vision-011 + cycle-082 deferred gates bundle (#548)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/548",
+      "meta_issue": "https://github.com/0xHoneyJar/loa/issues/557",
+      "cycle": "cycle-087",
+      "tier": 3,
+      "created_at": "2026-04-18T08:08:32Z",
+      "sprints": [
+        "sprint-bug-108"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-i548-a2460c/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-i548-a2460c/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260418-i563-39dbdf",
+      "label": "Bug Fix — tripwire-handler rollback precheck misses untracked-only changes",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/563",
+      "created_at": "2026-04-18T09:32:56Z",
+      "sprints": [
+        "sprint-bug-109"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-i563-39dbdf/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-i563-39dbdf/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260418-i568-740715",
+      "label": "Bug Fix — spiral.task not exported to dispatch subprocess",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/568",
+      "created_at": "2026-04-18T12:01:37Z",
+      "sprints": [
+        "sprint-bug-111"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-i568-740715/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-i568-740715/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260418-i570-83c0b5",
+      "label": "Bug Fix — spiral-harness hardcoded 300s planning timeouts",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/570",
+      "created_at": "2026-04-18T00:00:00Z",
+      "sprints": [
+        "sprint-bug-112"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-i570-83c0b5/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-i570-83c0b5/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260418-i573-cb3351",
+      "label": "Bug Fix — Flatline model allowlist hygiene & graceful degradation (#573+#574)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/573",
+      "source_issues_bundled": [
+        "#573",
+        "#574"
+      ],
+      "parent_tracker": "#557",
+      "created_at": "2026-04-18T12:31:26Z",
+      "sprints": [
+        "sprint-bug-113"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-i573-cb3351/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-i573-cb3351/sprint.md"
+    },
+    {
+      "id": "cycle-093-stabilization",
+      "label": "Loa Stabilization & Model-Currency Architecture",
+      "status": "archived",
+      "created": "2026-04-24T14:30:00Z",
+      "prd": "grimoires/loa/cycles/cycle-093-stabilization/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-093-stabilization/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-093-stabilization/sprint.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 114,
+          "label": "Harness Adversarial Wiring (T1.1)",
+          "status": "merged"
+        },
+        {
+          "local_id": 2,
+          "global_id": 115,
+          "label": "Bridgebuilder Dist + Dissenter Filter (T1.2 + T1.3)",
+          "status": "merged"
+        },
+        {
+          "local_id": "3A",
+          "global_id": 116,
+          "label": "Health-Probe Core — KEYSTONE part 1 (T2.2)",
+          "status": "merged"
+        },
+        {
+          "local_id": "3B",
+          "global_id": 117,
+          "label": "Health-Probe Resilience+CI+Integration+Runbook — KEYSTONE part 2 (T2.2)",
+          "status": "merged"
+        },
+        {
+          "local_id": 4,
+          "global_id": 118,
+          "label": "Model Registry Currency (T2.1 + T2.3 + T3.1) + E2E Gate",
+          "status": "merged"
+        }
+      ],
+      "archived": "2026-04-25T10:17:56Z",
+      "archive_path": "grimoires/loa/archive/2026-04-25-cycle-093-loa-stabilization-shipped",
+      "release_tags": [
+        "v1.102.0",
+        "v1.103.0",
+        "v1.104.0"
+      ]
+    },
+    {
+      "id": "cycle-094-followups",
+      "label": "Cycle-093 follow-ups + technical debt cleanup",
+      "status": "active",
+      "created": "2026-04-25T10:23:06Z",
+      "prd": "grimoires/loa/cycles/cycle-094-followups/prd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-094-followups/sprint.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 119,
+          "label": "Probe + portability hardening (G1-G4)",
+          "status": "planned"
+        },
+        {
+          "local_id": 2,
+          "global_id": 120,
+          "label": "Test infra + filter + SSOT close-out (G5-G7)",
+          "status": "planned"
+        }
+      ]
+    },
+    {
+      "id": "cycle-bug-20260428-i637-20ddd6",
+      "label": "Bug Fix — bridgebuilder-dist-smoke CI lane fails because workflow does not run npm ci (#637)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/637",
+      "created_at": "2026-04-28T10:24:06Z",
+      "sprints": [
+        "sprint-bug-121"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260428-i637-20ddd6/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260428-i637-20ddd6/sprint.md"
+    },
+    {
+      "id": "cycle-095-model-currency",
+      "label": "Model Currency — gpt-5.5 + Haiku 4.5 + Gemini 3 + cost guardrails",
+      "status": "archived",
+      "created": "2026-04-29T20:30:00Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprint_plan": "grimoires/loa/sprint.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 124,
+          "label": "Routing Infrastructure + Response Normalization + Kill-Switch",
+          "status": "completed"
+        },
+        {
+          "local_id": 2,
+          "global_id": 125,
+          "label": "Alias Flips + New Tiers + Cost Guardrails + Immutable Self-Map + Fallback Chain",
+          "status": "planned"
+        },
+        {
+          "local_id": 3,
+          "global_id": 126,
+          "label": "prefer_pro_models Activation + override_user_aliases Opt-In + Dry-Run Full Activation (post-soak)",
+          "status": "planned"
+        }
+      ],
+      "archived": "2026-05-01T15:35:43Z",
+      "archive_path": "grimoires/loa/archive/2026-05-02-cycle-095-model-currency"
+    },
+    {
+      "id": "cycle-096-aws-bedrock",
+      "label": "AWS Bedrock Provider + Provider-Plugin Hardening (issue #652)",
+      "status": "archived",
+      "created": "2026-05-01T15:36:04Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 127,
+          "label": "Bedrock v1 Functional + Centralized Parser",
+          "status": "completed",
+          "started": "2026-05-02T04:36:39Z",
+          "branch": "feat/cycle-096-aws-bedrock",
+          "completed": "2026-05-02T04:59:34Z"
+        },
+        {
+          "local_id": 2,
+          "global_id": 128,
+          "label": "Plugin Guide + IR Runbook + Health Probe + Recurring Smoke + E2E (Final)",
+          "status": "completed",
+          "started": "2026-05-02T05:05:22Z",
+          "branch": "feat/cycle-096-aws-bedrock",
+          "completed": "2026-05-02T05:24:01Z"
+        }
+      ],
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/652",
+      "archived": "2026-05-02T06:11:32Z",
+      "archive_path": "grimoires/loa/archive/2026-05-02-cycle-096-aws-bedrock"
+    },
+    {
+      "id": "cycle-bug-20260502-i669-55150d",
+      "label": "Bug Fix — post-merge automation: orchestrator scripts ship without an invoking workflow template",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/669",
+      "created_at": "2026-05-02T08:46:16Z",
+      "prd": null,
+      "sdd": null,
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 130,
+          "label": "post-merge workflow scaffold gap on downstream installs",
+          "status": "planned",
+          "bug_id": "20260502-i669-55150d",
+          "triage": "grimoires/loa/a2a/bug-20260502-i669-55150d/triage.md",
+          "sprint_plan": "grimoires/loa/a2a/bug-20260502-i669-55150d/sprint.md"
+        }
+      ]
+    },
+    {
+      "id": "cycle-098-agent-network",
+      "label": "Agent-Network Operation Primitives (L1-L7) — operator-absent network operation",
+      "status": "archived",
+      "created": "2026-05-03T03:02:37.318627Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprint_plan": "grimoires/loa/sprint.md",
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/653",
+        "https://github.com/0xHoneyJar/loa/issues/654",
+        "https://github.com/0xHoneyJar/loa/issues/655",
+        "https://github.com/0xHoneyJar/loa/issues/656",
+        "https://github.com/0xHoneyJar/loa/issues/657",
+        "https://github.com/0xHoneyJar/loa/issues/658",
+        "https://github.com/0xHoneyJar/loa/issues/659"
+      ],
+      "merge_commit_planning": "0b81d9c98241775e9a5799ac40806c304467e0cb",
+      "merge_pr_planning": 678,
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 132,
+          "label": "L1 hitl-jury-panel + Sprint 1 cross-cutting infrastructure",
+          "status": "planned",
+          "primitive": "L1"
+        },
+        {
+          "local_id": 2,
+          "global_id": 133,
+          "label": "L2 cost-budget-enforcer + reconciliation cron + daily snapshot",
+          "status": "planned",
+          "primitive": "L2"
+        },
+        {
+          "local_id": 3,
+          "global_id": 134,
+          "label": "L3 scheduled-cycle-template",
+          "status": "planned",
+          "primitive": "L3"
+        },
+        {
+          "local_id": 4,
+          "global_id": 135,
+          "label": "L4 graduated-trust + hash-chain integrity + recovery",
+          "status": "planned",
+          "primitive": "L4"
+        },
+        {
+          "local_id": "4.5",
+          "global_id": null,
+          "label": "Sprint 4.5 buffer (per SKP-001 mitigation)",
+          "status": "planned",
+          "primitive": "buffer"
+        },
+        {
+          "local_id": 5,
+          "global_id": 136,
+          "label": "L5 cross-repo-status-reader",
+          "status": "planned",
+          "primitive": "L5"
+        },
+        {
+          "local_id": 6,
+          "global_id": 137,
+          "label": "L6 structured-handoff (same-machine only)",
+          "status": "planned",
+          "primitive": "L6"
+        },
+        {
+          "local_id": 7,
+          "global_id": 138,
+          "label": "L7 soul-identity-doc + cycle-wide integration tests + adversarial corpus",
+          "status": "planned",
+          "primitive": "L7"
+        }
+      ],
+      "shipped_at": "2026-05-04",
+      "ship_note": "COMPLETE — L1-L7 all SHIPPED on main. Sprint timeline: Sprint 1 (#693, L1+cross-cutting), 1.5 (#697 hardening), 2 (#705, L2 cost-budget), 3 (#712, L3 scheduled-cycle), H1+H2 (#716, #717 signed-mode + observer), /bug #711 (#718 gpt-review hook), 4 (#764, L4 graduated-trust), 5 (#767, L5 cross-repo-status), 6 (#771, L6 structured-handoff), 7 (#775, L7 soul-identity-doc) + follow-up #778 (L6 inheritance: strict test-mode gate + hook wiring). Cycle-098 cumulative tests on main: 760+. See archive at grimoires/loa/archive/2026-05-08-cycle-098-agent-network-l1-l7-complete/.",
+      "archived": "2026-05-07T19:11:07Z",
+      "archive_path": "grimoires/loa/archive/2026-05-08-cycle-098-agent-network-l1-l7-complete"
+    },
+    {
+      "id": "cycle-bug-20260503-i674-84adf8",
+      "label": "Bug Fix — post-merge + post-PR pipeline reliability bundle (#674, #634, #633, #676)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/674",
+      "source_issue_bundle": [
+        "https://github.com/0xHoneyJar/loa/issues/674",
+        "https://github.com/0xHoneyJar/loa/issues/634",
+        "https://github.com/0xHoneyJar/loa/issues/633",
+        "https://github.com/0xHoneyJar/loa/issues/676"
+      ],
+      "created_at": "2026-05-03T13:48:16Z",
+      "sprints": [
+        "sprint-bug-140"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260503-i674-84adf8/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260503-i674-84adf8/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260504-i636-cb9b6d",
+      "label": "Bug Fix — T2+T3 hardening bundle (#636+#681+#687+#691+#692)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issues": [
+        636,
+        681,
+        687,
+        691,
+        692
+      ],
+      "created_at": "2026-05-03T15:07:52Z",
+      "sprints": [
+        "sprint-bug-141"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260504-i636-cb9b6d/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260504-i636-cb9b6d/sprint.md"
+    },
+    {
+      "id": "cycle-099-model-registry",
+      "label": "Model Registry Consolidation + Per-Skill Granularity",
+      "status": "closed",
+      "created": "2026-05-04T15:02:58Z",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprint_plan": "grimoires/loa/sprint.md",
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/710"
+      ],
+      "predecessor_cycle": "cycle-095-model-currency",
+      "cycle_folder": "grimoires/loa/cycles/cycle-099-model-registry/",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 139,
+          "label": "SoT extension foundation + drift gate + cross-cutting (T1.11..T1.15)",
+          "status": "planned"
+        },
+        {
+          "local_id": 2,
+          "global_id": 140,
+          "label": "Config extension (model_aliases_extra) + per-skill granularity (skill_models)",
+          "status": "planned"
+        },
+        {
+          "local_id": 3,
+          "global_id": 141,
+          "label": "Personas + docs migration + DD-1 Option B model-permissions",
+          "status": "planned"
+        },
+        {
+          "local_id": 4,
+          "global_id": 142,
+          "label": "Legacy adapter sunset (gated at T4.4)",
+          "status": "planned"
+        }
+      ],
+      "deferred_decisions_resolved": [
+        "DD-1 (Option B merge into model-config.yaml)",
+        "DD-2 (top-level)",
+        "DD-3 (partial-merge override)",
+        "DD-4 (Python startup hook)",
+        "DD-5 (schema follows DD-4)",
+        "DD-6 (bats + bash property gen)"
+      ],
+      "flatline_passes": {
+        "prd": 3,
+        "sdd": 3,
+        "sprint": 1,
+        "kaironic_stop_at": "all 3 artifacts (PRD pass #3, SDD pass #3, Sprint pass #1)",
+        "total_findings_integrated": 65
+      },
+      "estimates": {
+        "tests": 160,
+        "cost_usd_low": 200,
+        "cost_usd_high": 300,
+        "wall_clock_weeks_low": 5,
+        "wall_clock_weeks_high": 6
+      },
+      "closed_at": "2026-05-08T16:10:31Z",
+      "successor_cycle": "cycle-102-model-stability",
+      "closure_note": "Subsumed by cycle-102 (Loa Model-Integration FAANG-Grade Stabilization). Endgame deliverables (#710 SoT + extension mechanism + adapter retirement) carry forward to cycle-102 sprints 2-4."
+    },
+    {
+      "id": "cycle-bug-20260507-i774-e898cd",
+      "label": "Bug Fix — Flatline orchestrator drops 3-of-6 model calls on 38KB docs",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/774",
+      "created_at": "2026-05-07T20:15:02Z",
+      "sprints": [
+        "sprint-bug-142"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260507-i774-e898cd/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260507-i774-e898cd/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260508-i789-e3f89e",
+      "label": "Bug Fix — Coupled model-stability rollback restoration (#787 + #789)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issues": [
+        787,
+        789
+      ],
+      "rolled_back_commit": "cd4abc1f",
+      "created_at": "2026-05-08T00:00:00Z",
+      "sprints": [
+        "sprint-bug-143"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260508-i789-e3f89e/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260508-i789-e3f89e/sprint.md"
+    },
+    {
+      "id": "cycle-102-model-stability",
+      "label": "Loa Model-Integration FAANG-Grade Stabilization",
+      "status": "archived",
+      "created": "2026-05-08T16:10:31Z",
+      "prd": "grimoires/loa/cycles/cycle-102-model-stability/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-102-model-stability/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-102-model-stability/sprint.md",
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/710",
+        "https://github.com/0xHoneyJar/loa/issues/789",
+        "https://github.com/0xHoneyJar/loa/issues/780",
+        "https://github.com/0xHoneyJar/loa/issues/746",
+        "https://github.com/0xHoneyJar/loa/issues/757"
+      ],
+      "predecessor_cycle": "cycle-099-model-registry",
+      "cycle_folder": "grimoires/loa/cycles/cycle-102-model-stability/",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 143,
+          "label": "Anti-silent-degradation (typed errors + probe gate + operator-visible header)",
+          "status": "pending",
+          "scope": "LARGE",
+          "tasks": 10
+        },
+        {
+          "local_id": 2,
+          "global_id": 144,
+          "label": "Capability-class registry + extension mechanism",
+          "status": "pending",
+          "scope": "LARGE",
+          "tasks": 9
+        },
+        {
+          "local_id": 3,
+          "global_id": 145,
+          "label": "Graceful fallback contract + drift CI",
+          "status": "pending",
+          "scope": "MEDIUM",
+          "tasks": 6
+        },
+        {
+          "local_id": 4,
+          "global_id": 146,
+          "label": "Adapter unification + retirement",
+          "status": "pending",
+          "scope": "LARGE",
+          "tasks": 10
+        },
+        {
+          "local_id": 5,
+          "global_id": 147,
+          "label": "Rollback discipline + smoke fleet + E2E goal validation",
+          "status": "pending",
+          "scope": "MEDIUM",
+          "tasks": 6
+        }
+      ],
+      "thesis": "Silent degradation is the bug. Every model failure must be (typed → operator-visible → graceful-fallback-with-WARN). Rollback is a workaround with a deadline.",
+      "vision_source": "grimoires/loa/visions/entries/vision-019.md",
+      "archived": "2026-05-11T09:12:26Z",
+      "archive_path": "grimoires/loa/cycles/cycle-102-model-stability/"
+    },
+    {
+      "id": "cycle-103-provider-unification",
+      "label": "Provider Boundary Unification — collapse 3 HTTP boundaries to cheval substrate",
+      "status": "archived",
+      "created": "2026-05-11T09:12:26Z",
+      "prd": "grimoires/loa/cycles/cycle-103-provider-unification/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-103-provider-unification/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-103-provider-unification/sprint.md",
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/843",
+        "https://github.com/0xHoneyJar/loa/issues/823",
+        "https://github.com/0xHoneyJar/loa/issues/845"
+      ],
+      "predecessor_cycle": "cycle-102-model-stability",
+      "cycle_folder": "grimoires/loa/cycles/cycle-103-provider-unification/",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 148,
+          "label": "Provider Boundary Unification",
+          "status": "completed",
+          "scope": "LARGE",
+          "tasks": 12
+        },
+        {
+          "local_id": 2,
+          "global_id": 149,
+          "label": "KF-002 Layer 2 Structural",
+          "status": "completed",
+          "scope": "SMALL",
+          "tasks": 3
+        },
+        {
+          "local_id": 3,
+          "global_id": 150,
+          "label": "Sprint 4A Carry-Forwards Consolidation",
+          "status": "completed",
+          "scope": "LARGE",
+          "tasks": 9
+        }
+      ]
+    },
+    {
+      "id": "cycle-104-multi-model-stabilization",
+      "label": "Multi-Model Stabilization — Within-Company Fallback + Headless Opt-In + BB Internal Dispatcher Unification",
+      "status": "active",
+      "created": "2026-05-12T00:59:16Z",
+      "prd": "grimoires/loa/cycles/cycle-104-multi-model-stabilization/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-104-multi-model-stabilization/sdd.md",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 151,
+          "label": "Framework Archival Hygiene + BB Dist Drift Gate",
+          "status": "completed",
+          "completed": "2026-05-12T02:09:00Z",
+          "pr": 849,
+          "branch": "feature/cycle-104-sprint-1-archive-hygiene"
+        },
+        {
+          "local_id": 2,
+          "global_id": 152,
+          "label": "Within-Company Fallback Chains + Headless Opt-In + code_review Revert",
+          "status": "pending"
+        },
+        {
+          "local_id": 3,
+          "global_id": 153,
+          "label": "BB Cheval-Routing Verification + Drift-Gate Extension + KF-008 Substrate Replay",
+          "status": "pending"
+        }
+      ],
+      "issues": [
+        "#847",
+        "#848"
+      ],
+      "predecessor": "cycle-103-provider-unification"
+    },
+    {
+      "id": "cycle-105-beads-recovery",
+      "label": "beads_rust migration recovery (KF-005 closure)",
+      "status": "in-progress",
+      "created": "2026-05-12T06:47:53Z",
+      "prd": "grimoires/loa/cycles/cycle-105-beads-recovery/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-105-beads-recovery/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-105-beads-recovery/sprint.md",
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/661",
+        "https://github.com/Dicklesworthstone/beads_rust/issues/290"
+      ],
+      "predecessor_cycle": "cycle-104-multi-model-stabilization",
+      "cycle_folder": "grimoires/loa/cycles/cycle-105-beads-recovery/",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 154,
+          "label": "Repair tool + bats coverage",
+          "status": "pending",
+          "scope": "MEDIUM",
+          "tasks": 6
+        },
+        {
+          "local_id": 2,
+          "global_id": 155,
+          "label": "CI gate + protocol + KF-005 closure",
+          "status": "pending",
+          "scope": "SMALL",
+          "tasks": 5
+        }
+      ]
+    },
+    {
+      "id": "cycle-106-zone-hygiene",
+      "label": "Framework Template Hygiene — zone boundaries",
+      "status": "in-progress",
+      "created": "2026-05-12T08:10:58Z",
+      "prd": "grimoires/loa/cycles/cycle-106-zone-hygiene/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-106-zone-hygiene/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-106-zone-hygiene/sprint.md",
+      "source_issues": [
+        "https://github.com/0xHoneyJar/loa/issues/818",
+        "https://github.com/0xHoneyJar/loa/issues/736",
+        "https://github.com/0xHoneyJar/loa/issues/817"
+      ],
+      "predecessor_cycle": "cycle-105-beads-recovery",
+      "cycle_folder": "grimoires/loa/cycles/cycle-106-zone-hygiene/",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 156,
+          "label": "Manifest + hook + gitignore migration",
+          "status": "pending",
+          "scope": "MEDIUM",
+          "tasks": 6
+        },
+        {
+          "local_id": 2,
+          "global_id": 157,
+          "label": "/update-loa filter + mount-loa seed + #818 closure",
+          "status": "pending",
+          "scope": "MEDIUM",
+          "tasks": 6
+        }
+      ]
+    },
+    {
+      "id": "cycle-107-multimodel-activation",
+      "label": "Multi-Model Activation + Live Verification",
+      "status": "in-progress",
+      "created": "2026-05-12T12:18:54Z",
+      "prd": "grimoires/loa/cycles/cycle-107-multimodel-activation/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-107-multimodel-activation/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-107-multimodel-activation/sprint.md",
+      "source_issues": [],
+      "predecessor_cycle": "cycle-106-zone-hygiene",
+      "cycle_folder": "grimoires/loa/cycles/cycle-107-multimodel-activation/",
+      "sprints": [
+        {
+          "local_id": 1,
+          "global_id": 158,
+          "label": "Flip + verify + document",
+          "status": "pending",
+          "scope": "SMALL",
+          "tasks": 8
+        }
+      ]
+    },
+    {
+      "id": "cycle-108-advisor-strategy",
+      "label": "Advisor-Strategy Benchmark — Role→Tier Routing for Sustainable Cycles",
+      "status": "completed",
+      "created": "2026-05-13T00:00:00Z",
+      "prd": "grimoires/loa/cycles/cycle-108-advisor-strategy/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-108-advisor-strategy/sdd.md",
+      "sprint": "grimoires/loa/cycles/cycle-108-advisor-strategy/sprint.md",
+      "sprints": []
+    },
+    {
+      "id": "cycle-109-substrate-hardening",
+      "label": "Multi-Model Substrate Hardening — Capability-Aware Dispatch + Verdict-Quality Envelope + Legacy Sunset",
+      "status": "in-progress",
+      "created": "2026-05-13T00:00:00Z",
+      "prd": "grimoires/loa/cycles/cycle-109-substrate-hardening/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-109-substrate-hardening/sdd.md",
+      "sprint": "grimoires/loa/cycles/cycle-109-substrate-hardening/sprint.md",
+      "sprints": [
+        {
+          "id": "sprint-159",
+          "local_id": "sprint-1",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Capability-Aware Substrate Foundation",
+          "fr": "FR-1",
+          "scope": "LARGE",
+          "task_count": 11,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        },
+        {
+          "id": "sprint-160",
+          "local_id": "sprint-2",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Verdict-Quality Envelope + Consumer Contracts",
+          "fr": "FR-2",
+          "scope": "LARGE",
+          "task_count": 10,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        },
+        {
+          "id": "sprint-161",
+          "local_id": "sprint-3",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Legacy Adapter Sunset + Activation Regression Suite",
+          "fr": "FR-3",
+          "scope": "LARGE",
+          "task_count": 11,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        },
+        {
+          "id": "sprint-162",
+          "local_id": "sprint-4",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Hierarchical / Chunked Review",
+          "fr": "FR-4",
+          "scope": "LARGE",
+          "task_count": 10,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        },
+        {
+          "id": "sprint-163",
+          "local_id": "sprint-5",
+          "cycle": "cycle-109-substrate-hardening",
+          "theme": "Carry Items + Substrate Observability + Cycle Close",
+          "fr": "FR-5",
+          "scope": "LARGE",
+          "task_count": 10,
+          "status": "planned",
+          "created": "2026-05-13T05:14:02Z"
+        }
+      ]
+    },
+    {
+      "id": "cycle-bug-20260517-i900-4f7e7a",
+      "label": "Bug Fix — substrate-health hides primary model failures after fallback success",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/900",
+      "created_at": "2026-05-17T05:30:27Z",
+      "sprints": [
+        "sprint-bug-166"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260517-i900-4f7e7a/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260517-i900-4f7e7a/sprint.md"
+    },
+    {
+      "id": "cycle-112-empirical-model-economy",
+      "label": "Empirical Model Economy (Phase A) — roll-up + workload tier map seed",
+      "type": "feature",
+      "status": "archived",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/925",
+      "created_at": "2026-05-17T06:06:23Z",
+      "sprints": [
+        {
+          "id": "sprint-166",
+          "local_id": "sprint-1",
+          "global_id": 166,
+          "cycle": "cycle-112-empirical-model-economy",
+          "theme": "Roll-up Data Layer (FR-1 + FR-2)",
+          "fr": "FR-1, FR-2",
+          "scope": "LARGE",
+          "task_count": 8,
+          "status": "completed",
+          "created": "2026-05-17T06:30:00Z",
+          "completed": "2026-06-01T06:23:24Z"
+        },
+        {
+          "id": "sprint-167",
+          "local_id": "sprint-2",
+          "global_id": 167,
+          "cycle": "cycle-112-empirical-model-economy",
+          "theme": "Config Layer + Drift Gate + Runbook + E2E (FR-3 + FR-4 + FR-5)",
+          "fr": "FR-3, FR-4, FR-5",
+          "scope": "LARGE",
+          "task_count": 7,
+          "status": "completed",
+          "created": "2026-05-17T06:30:00Z",
+          "completed": "2026-06-01T06:23:24Z"
+        }
+      ],
+      "prd": "grimoires/loa/cycles/cycle-112-empirical-model-economy/prd.md",
+      "phase": "A of 3 (Activate → Codify → Optimize)",
+      "sdd": "grimoires/loa/cycles/cycle-112-empirical-model-economy/sdd.md",
+      "sprint_plan": "grimoires/loa/cycles/cycle-112-empirical-model-economy/sprint.md",
+      "archived": "2026-06-01T06:23:24Z",
+      "archive_path": "grimoires/loa/archive/2026-05-17-cycle-112-empirical-model-economy"
+    },
+    {
+      "id": "cycle-113-streaming-recovery-completion",
+      "label": "Streaming-Recovery-Completion",
+      "status": "archived",
+      "created_at": "2026-05-17T09:21:12Z",
+      "prd": "grimoires/loa/cycles/cycle-113-streaming-recovery-completion/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-113-streaming-recovery-completion/sdd.md",
+      "sprints": [
+        {
+          "id": "sprint-168",
+          "local_id": "sprint-1",
+          "global_id": 168,
+          "cycle": "cycle-113-streaming-recovery-completion",
+          "theme": "Chunking audit-pass + Anthropic provider integration + parity fixture scaffolding",
+          "fr": "FR-A-1, FR-A-2, FR-B-1, FR-B-5 (Anthropic slice), FR-B-4 (fixture scaffold)",
+          "scope": "LARGE",
+          "task_count": 9,
+          "status": "completed",
+          "created": "2026-05-17T09:21:12Z",
+          "completed": "2026-06-01T03:34:03Z"
+        },
+        {
+          "id": "sprint-169",
+          "local_id": "sprint-2",
+          "global_id": 169,
+          "cycle": "cycle-113-streaming-recovery-completion",
+          "theme": "OpenAI + Google integration + cross-provider parity test + cycle-109 SDD corrigendum",
+          "fr": "FR-B-2, FR-B-3, FR-B-4, FR-B-5 (OpenAI+Google), FR-C-3",
+          "scope": "LARGE",
+          "task_count": 10,
+          "status": "completed",
+          "created": "2026-05-17T09:21:12Z",
+          "completed": "2026-06-01T03:34:03Z"
+        },
+        {
+          "id": "sprint-170",
+          "local_id": "sprint-3",
+          "global_id": 170,
+          "cycle": "cycle-113-streaming-recovery-completion",
+          "theme": "MODELINV envelope plumbing + model-config defaults + activation regression + KF closure",
+          "fr": "FR-C-1, FR-C-2, FR-C-4, FR-C-5, KF-002 + KF-011 footer updates",
+          "scope": "LARGE",
+          "task_count": 9,
+          "status": "completed",
+          "created": "2026-05-17T09:21:12Z",
+          "completed": "2026-06-01T03:34:03Z"
+        }
+      ],
+      "archived": "2026-06-01T03:35:08Z",
+      "archive_path": "grimoires/loa/archive/2026-06-01-cycle-113-streaming-recovery-completion"
+    },
+    {
+      "id": "cycle-bug-20260520-i888-8a4363",
+      "label": "Bug Fix — cycle-110 auth_type + dispatch_group reject v2/v3 schema validation",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/888",
+      "created_at": "2026-05-20T07:48:00Z",
+      "completed_at": "2026-05-20T08:25:01Z",
+      "merge_pr": "https://github.com/0xHoneyJar/loa/pull/943",
+      "merge_commit": "ae02b505",
+      "sprints": [
+        "sprint-bug-171"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260520-i888-8a4363/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260520-i888-8a4363/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260520-i911-60baf5",
+      "label": "Bug Fix — butterfreezone-gen + 37 scripts: sha256sum not portable to macOS",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/911",
+      "created_at": "2026-05-20T09:15:47Z",
+      "sprints": [
+        "sprint-bug-172"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260520-i911-60baf5/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260520-i911-60baf5/sprint.md"
+    },
+    {
+      "id": "cycle-114-harness-modernization-opus-4.8",
+      "label": "Harness Modernization — Opus 4.8",
+      "status": "in-progress",
+      "created_at": "2026-06-01T03:34:03Z",
+      "prd": "grimoires/loa/cycles/cycle-114-harness-modernization-opus-4.8/prd.md",
+      "sdd": "grimoires/loa/cycles/cycle-114-harness-modernization-opus-4.8/sdd.md",
+      "sprints": [
+        {
+          "id": "sprint-177",
+          "local_id": "sprint-1",
+          "global_id": 177,
+          "cycle": "cycle-114-harness-modernization-opus-4.8",
+          "theme": "Model substrate — Opus 4.8 registry + effort threading + deep-reasoning effort frontmatter",
+          "fr": "FR-1, FR-2, FR-3",
+          "scope": "LARGE",
+          "task_count": 3,
+          "status": "completed",
+          "created": "2026-06-01T04:11:15Z"
+        },
+        {
+          "id": "sprint-178",
+          "local_id": "sprint-2",
+          "global_id": 178,
+          "cycle": "cycle-114-harness-modernization-opus-4.8",
+          "theme": "Gate & safety hardening — disallowed-tools + stop-guard bg-tasks + rm regex + egress doc",
+          "fr": "FR-4, FR-5, FR-6, FR-7",
+          "scope": "LARGE",
+          "task_count": 4,
+          "status": "completed",
+          "created": "2026-06-01T04:11:15Z"
+        },
+        {
+          "id": "sprint-179",
+          "local_id": "sprint-3",
+          "global_id": 179,
+          "cycle": "cycle-114-harness-modernization-opus-4.8",
+          "theme": "Economy, recovery UX & ADR — effort in MODELINV/tier_map + sessionTitle + native-Workflow ADR",
+          "fr": "FR-8, FR-9, FR-10",
+          "scope": "MEDIUM",
+          "task_count": 3,
+          "status": "completed",
+          "created": "2026-06-01T04:11:15Z"
+        },
+        {
+          "id": "sprint-225",
+          "local_id": "sprint-4",
+          "global_id": 225,
+          "cycle": "cycle-114-harness-modernization-opus-4.8",
+          "theme": "Cost telemetry & tiering — per-iteration MODELINV + cache-token telemetry + Haiku tiering + DOWNGRADE wiring",
+          "fr": "FR-11, FR-12, FR-13, FR-14",
+          "scope": "MEDIUM",
+          "task_count": 4,
+          "status": "planned",
+          "created": "2026-06-17T02:28:21Z"
+        }
+      ]
+    },
+    {
+      "id": "cycle-bug-20260610-i992-8fc4da",
+      "label": "Bug Fix — secret-scanning.yml TruffleHog base==HEAD on push/schedule — zero scan coverage on main",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/992",
+      "created_at": "2026-06-10T09:21:02Z",
+      "sprints": [
+        "sprint-bug-187"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i992-8fc4da/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i992-8fc4da/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i886-b5cddf",
+      "label": "Bug Fix — bats-tests.yml runs tests/unit/ without installing Python dependencies",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/886",
+      "created_at": "2026-06-10T10:00:12Z",
+      "sprints": [
+        "sprint-bug-188"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i886-b5cddf/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i886-b5cddf/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i989-e8ab1c",
+      "label": "Bug Fix — Kernel integrity stamp is a hollow PLACEHOLDER — @loa-managed hash verifies nothing",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/989",
+      "created_at": "2026-06-10T12:32:23Z",
+      "sprints": [
+        "sprint-bug-189"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i989-e8ab1c/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i989-e8ab1c/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i991-9c97f1",
+      "label": "Bug Fix — pre-commit beads hook fails in linked git worktrees: br sync runs from worktree CWD",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/991",
+      "created_at": "2026-06-10T12:46:49Z",
+      "sprints": [
+        "sprint-bug-190"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i991-9c97f1/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i991-9c97f1/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i986-b28220",
+      "label": "Bug Fix — post-merge.yml fails on submodule mounts with gitignored .claude symlinks (exit-127/chmod)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/986",
+      "created_at": "2026-06-10T13:44:31Z",
+      "sprints": [
+        "sprint-bug-191"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i986-b28220/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i986-b28220/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i968-d2db26",
+      "label": "Bug Fix — Submodule-mode update path incomplete: /update-loa lacks submodule routing; --reconcile skips the #842 COPY set",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/968",
+      "created_at": "2026-06-10T14:03:45Z",
+      "sprints": [
+        "sprint-bug-192"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i968-d2db26/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i968-d2db26/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i805-732c34",
+      "label": "Bug Fix — bridgebuilder entry.sh crashes module-not-found (zod) on fresh submodule mounts — #805 residual F7",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/805",
+      "created_at": "2026-06-10T14:26:08Z",
+      "sprints": [
+        "sprint-bug-193"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i805-732c34/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i805-732c34/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i984-8b8a94",
+      "label": "Bug Fix — red-team-code-vs-design.sh silently passes quality gate on degraded runs — #984 + #985",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/984",
+      "created_at": "2026-06-11T00:41:32Z",
+      "sprints": [
+        "sprint-bug-194"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i984-8b8a94/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i984-8b8a94/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i809-0cef92",
+      "label": "Bug Fix — adversarial-review status:clean qualifier + stale #774 warning + missing --phase attribution",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/809",
+      "created_at": "2026-06-11T01:02:10Z",
+      "sprints": [
+        "sprint-bug-195"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i809-0cef92/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i809-0cef92/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i982-cc9459",
+      "label": "Bug Fix — cheval headless adapters: process-group kill on completion-path timeout (issue #982)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/982",
+      "created_at": "2026-06-11T01:39:20Z",
+      "sprints": [
+        "sprint-bug-196"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i982-cc9459/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i982-cc9459/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i979-afeb52",
+      "label": "Bug Fix — cheval auth_type/dispatch_group inference for custom .loa.config.yaml headless providers (#979)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/979",
+      "created_at": "2026-06-11T01:43:37Z",
+      "sprints": [
+        "sprint-bug-197"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i979-afeb52/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i979-afeb52/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260611-i978-17e08f",
+      "label": "Bug Fix — flatline: mktemp templates do not expand on BSD/macOS — literal-XXXXXX temp files + cross-run collisions degrade 3-voice review",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/978",
+      "created_at": "2026-06-11T01:50:32Z",
+      "sprints": [
+        "sprint-bug-198"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260611-i978-17e08f/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260611-i978-17e08f/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260612-i1002-bebe8a",
+      "label": "Bug Fix — Framework ships duplicate hook entries + unwired safety/compliance gates",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1002",
+      "created_at": "2026-06-12T03:57:14Z",
+      "sprints": [
+        "sprint-bug-199"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260612-i1002-bebe8a/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260612-i1002-bebe8a/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260612-i1004-850c0b",
+      "label": "Bug Fix — BB skip stamps the reviewed-marker, making bridgebuilder:self-review unreachable without API surgery",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1004",
+      "created_at": "2026-06-12T04:02:41Z",
+      "sprints": [
+        "sprint-bug-200"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260612-i1004-850c0b/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260612-i1004-850c0b/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260612-i1011-50143a",
+      "label": "Bug Fix — port #983 salvage into run_subprocess_pgkill: pre-encode stdin + killpg PermissionError fallback + TimeoutExpired partial output",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1011",
+      "created_at": "2026-06-12T04:05:09Z",
+      "sprints": [
+        "sprint-bug-201"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260612-i1011-50143a/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260612-i1011-50143a/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260612-1fd0bf",
+      "label": "Bug Fix — L7 SOUL.md validator crashes with TypeError on unquoted YAML dates",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": null,
+      "created_at": "2026-06-12T04:10:40Z",
+      "sprints": [
+        "sprint-bug-202"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260612-1fd0bf/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260612-1fd0bf/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260612-i745-731985",
+      "label": "Bug Fix — semver-bump.sh rejects SemVer 2.0 pre-release versions (regex too strict)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/745",
+      "created_at": "2026-06-12T06:31:32Z",
+      "sprints": [
+        "sprint-bug-203"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260612-i745-731985/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260612-i745-731985/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260612-i980-6cfd2b",
+      "label": "Bug Fix — Golden-path silently mis-detects workflow phase when path-lib init fails",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/980",
+      "created_at": "2026-06-12T06:42:26Z",
+      "sprints": [
+        "sprint-bug-204"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260612-i980-6cfd2b/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260612-i980-6cfd2b/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260612-75116b",
+      "label": "Bug Fix — Constructs install falls through to dead registry instead of local GitHub SoT",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa-constructs/issues/253",
+      "created_at": "2026-06-12T20:08:56Z",
+      "sprints": [
+        "sprint-bug-205"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260612-75116b/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260612-75116b/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260612-ca7070",
+      "label": "Bug Fix — find_local_source is slug-blind for configured paths",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": null,
+      "beads": "bd-mjd",
+      "created_at": "2026-06-12T21:17:01Z",
+      "sprints": [
+        "sprint-bug-207"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260612-ca7070/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260612-ca7070/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260613-i1025-9a0abc",
+      "label": "Bug Fix — Output-swallowing jq shape silently converts parse errors into clean gate verdicts (KF-004/KF-015 mechanism)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1025",
+      "created_at": "2026-06-12T23:32:04Z",
+      "sprints": [
+        "sprint-bug-208"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i1025-9a0abc/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1025-9a0abc/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260613-i966-01593f",
+      "label": "Bug Fix — PR #966 cursor-headless adapter config-dead/misdispatched on post-Bundle-E main",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/pull/966",
+      "created_at": "2026-06-13T01:05:00Z",
+      "sprints": [
+        "sprint-bug-209"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i966-01593f/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i966-01593f/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260613-i1025-004d22",
+      "label": "Bug Fix — #1025 sweep leg 2: swallowed-jq sites in post-pr-triage.sh + red-team-retention.sh",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1025",
+      "created_at": "2026-06-13T01:51:48Z",
+      "sprints": [
+        "sprint-bug-210"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i1025-004d22/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1025-004d22/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260613-i937-ddbd73",
+      "label": "Bug Fix — delete dead loa_cheval.chunking package (#937 false-closure)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/937",
+      "created_at": "2026-06-13T03:41:43Z",
+      "sprints": [
+        "sprint-bug-211"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i937-ddbd73/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i937-ddbd73/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260613-i1008-8d489a",
+      "label": "Bug Fix — codex-headless tool-surface / config-allowlist / stderr-redaction hardening",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1008",
+      "created_at": "2026-06-13T07:30:54Z",
+      "sprints": [
+        "sprint-bug-214"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i1008-8d489a/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1008-8d489a/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260613-i1014-a965b4",
+      "label": "Bug Fix — Untrusted PR titles drive authenticated cross-repo gh fetches (cross_repo.auto_detect) (#1014)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1014",
+      "created_at": "2026-06-13T08:32:05Z",
+      "sprints": [
+        "sprint-bug-215"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i1014-a965b4/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1014-a965b4/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260614-i1035-603c39",
+      "label": "Bug Fix — butterfreezone-gen Tier 1 verbatim ## headers inflate validator section census (#1035)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1035",
+      "created_at": "2026-06-14T08:38:21Z",
+      "sprints": [
+        "sprint-bug-219"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260614-i1035-603c39/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260614-i1035-603c39/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260614-i1012-e52467",
+      "label": "Bug Fix — construct-index-gen stderr-swallow sites silently mask malformed packs (#1012)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1012",
+      "created_at": "2026-06-14T09:03:39Z",
+      "sprints": [
+        "sprint-bug-221"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260614-i1012-e52467/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260614-i1012-e52467/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260613-i1038-7bc405",
+      "label": "Bug Fix — Batch hardening: bridge_id charset guard (#1038) + retention audit-log injection (#1039) + cheval preflight-preempt MODELINV emit (#1041)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1038",
+      "created_at": "2026-06-13T10:06:22Z",
+      "sprints": [
+        "sprint-bug-216"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i1038-7bc405/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1038-7bc405/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260617-i1076-f214d0",
+      "label": "Bug Fix — post-pr-orchestrator 4 DX defects on macOS (#1076)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1076",
+      "created_at": "2026-06-16T23:49:50Z",
+      "sprints": [
+        "sprint-bug-223"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260617-i1076-f214d0/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260617-i1076-f214d0/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260617-i1069-8b7a4c",
+      "label": "Bug Fix — butterfreezone-gen 3 residual macOS/BSD defects (#1069)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1069",
+      "created_at": "2026-06-17T00:47:51Z",
+      "sprints": [
+        "sprint-bug-224"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260617-i1069-8b7a4c/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260617-i1069-8b7a4c/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260623-i1102-f309a6",
+      "label": "Bug Fix — Fable readiness: arbiter rationale field + missing stop_reason:refusal fallback (#1102)",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1102",
+      "created_at": "2026-06-23T00:21:08Z",
+      "sprints": [
+        "sprint-bug-226"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260623-i1102-f309a6/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260623-i1102-f309a6/sprint.md"
+    },
+    {
+      "id": "cycle-115-okf-followup-mempalace",
+      "label": "OKF Follow-up — mempalace-comparison residuals (kf-index reframe + dead-recall relabel + audit-positioning)",
+      "status": "completed",
+      "created_at": "2026-06-29T05:50:00Z",
+      "prd": null,
+      "sdd": null,
+      "epic": "bd-okf-followup-mempalace-sjtw",
+      "source_plan": "grimoires/loa/proposals/okf-icm-adoption-cycle-plan-2026-06-28.md",
+      "note": "Tracked residual of OKF epic bd-mnn6 (closed 2026-06-28). No fresh PRD/SDD; grounded in the OKF adoption plan + verified specs. Distinct from cycle-114 (do NOT mislabel under it).",
+      "sprints": [
+        {
+          "id": "sprint-226",
+          "local_id": "sprint-1",
+          "global_id": 226,
+          "cycle": "cycle-115-okf-followup-mempalace",
+          "theme": "OKF follow-up maintenance — kf-index reframe + dead-recall relabel + audit-moat positioning",
+          "fr": "D1, D2, D3",
+          "scope": "MEDIUM",
+          "task_count": 3,
+          "status": "completed",
+          "created": "2026-06-29T05:50:00Z",
+          "beads": [
+            "bd-kf-index-reframe-hbya",
+            "bd-dead-recall-relabel-7hi2",
+            "bd-audit-moat-positioning-sji4"
+          ],
+          "completed_at": "2026-06-29T06:34:52Z"
+        }
+      ]
+    },
+    {
+      "id": "cycle-bug-20260718-i1227-cf7ca4",
+      "label": "Bug Fix — Flatline content-qualified quorum (#1227)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1227",
+      "created_at": "2026-07-19T00:14:49Z",
+      "sprints": [
+        "sprint-bug-227"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260718-i1227-cf7ca4/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260718-i1227-cf7ca4/sprint.md"
+    },
+    {
+      "id": "cycle-121-claude5-context-diet",
+      "label": "Claude-5 Context Diet — verified-SAFE tier of the 2026-07-29 context-engineering audit (dead-weight deletion, shrink-in-place, memory consolidation, skills dedup, always-loaded diet)",
+      "status": "active",
+      "created_at": "2026-07-29T05:18:16Z",
+      "prd": null,
+      "sdd": null,
+      "epic": "bd-cycle121-context-diet-cara",
+      "source_plan": "grimoires/loa/sprint.md",
+      "note": "No fresh PRD/SDD — grounded in the adversarially-verified audit (workflow wf_f9c99bce-302, 41 verdicts). Cycles 116-120 ran unregistered; ledger reconciled at this kickoff. RISKY/KEEP/SAFE_WITH_MECHANISM findings are OUT of scope (see sprint.md Scope Contract).",
+      "sprints": [
+        {
+          "id": "sprint-227",
+          "local_id": "sprint-1",
+          "global_id": 227,
+          "cycle": "cycle-121-claude5-context-diet",
+          "theme": "Dead-weight deletion",
+          "scope": "MEDIUM",
+          "task_count": 5,
+          "status": "completed",
+          "created": "2026-07-29T05:18:16Z",
+          "beads": [
+            "bd-c121-s1-dead-protocols-6y5z",
+            "bd-c121-s1-oldmodel-family-pqm0",
+            "bd-c121-s1-indexyaml-blocks-u91f",
+            "bd-c121-s1-ck-merge-7fuw",
+            "bd-c121-s1-stale-artifacts-z0k4"
+          ],
+          "completed_at": "2026-07-29T07:56:49Z"
+        },
+        {
+          "id": "sprint-228",
+          "local_id": "sprint-2",
+          "global_id": 228,
+          "cycle": "cycle-121-claude5-context-diet",
+          "theme": "Shrink-in-place rewrites",
+          "scope": "MEDIUM",
+          "task_count": 6,
+          "status": "completed",
+          "created": "2026-07-29T05:18:16Z",
+          "beads": [
+            "bd-c121-s2-trc-shrink-3ifv",
+            "bd-c121-s2-karpathy-stub-cz67",
+            "bd-c121-s2-ctxeng-rewrite-r9ka",
+            "bd-c121-s2-structmem-shrink-lk7y",
+            "bd-c121-s2-karpathy-wording-vm53",
+            "bd-c121-s2-protosummary-660w"
+          ],
+          "completed_at": "2026-07-29T07:56:49Z"
+        },
+        {
+          "id": "sprint-229",
+          "local_id": "sprint-3",
+          "global_id": 229,
+          "cycle": "cycle-121-claude5-context-diet",
+          "theme": "Memory consolidation",
+          "scope": "MEDIUM",
+          "task_count": 5,
+          "status": "completed",
+          "created": "2026-07-29T05:18:16Z",
+          "beads": [
+            "bd-c121-s3-memory-delete-yvbo",
+            "bd-c121-s3-cache-junk-2pkd",
+            "bd-c121-s3-notes-kf-o0cv",
+            "bd-c121-s3-kf-signal-bcsl",
+            "bd-c121-s3-bak-staleness-bht0"
+          ],
+          "completed_at": "2026-07-29T07:56:49Z"
+        },
+        {
+          "id": "sprint-230",
+          "local_id": "sprint-4",
+          "global_id": 230,
+          "cycle": "cycle-121-claude5-context-diet",
+          "theme": "Skills dedup + splits",
+          "scope": "MEDIUM",
+          "task_count": 4,
+          "status": "completed",
+          "created": "2026-07-29T05:18:16Z",
+          "beads": [
+            "bd-c121-s4-gen-includes-27iy",
+            "bd-c121-s4-resources-split-8j5t",
+            "bd-c121-s4-filler-4v5c",
+            "bd-c121-s4-frontmatter-dyx9"
+          ],
+          "completed_at": "2026-07-29T07:56:49Z"
+        },
+        {
+          "id": "sprint-231",
+          "local_id": "sprint-5",
+          "global_id": 231,
+          "cycle": "cycle-121-claude5-context-diet",
+          "theme": "Always-loaded diet + E2E",
+          "scope": "MEDIUM",
+          "task_count": 4,
+          "status": "completed",
+          "created": "2026-07-29T05:18:16Z",
+          "beads": [
+            "bd-c121-s5-postpr-hooks-50t2",
+            "bd-c121-s5-merge-m3m5-ih4d",
+            "bd-c121-s5-claudemd-trim-4pb1",
+            "bd-c121-s5-e2e-vvz8"
+          ],
+          "completed_at": "2026-07-29T07:56:49Z"
+        }
+      ]
+    },
+    {
+      "id": "cycle-122-mechanical-floor-extensions",
+      "label": "Mechanical floor extensions — wire parked gate, close fence gaps, pipeline hardening, parity-gated Karpathy trim",
+      "status": "archived",
+      "created_at": "2026-07-29T08:31:36Z",
+      "prd": null,
+      "sdd": null,
+      "epic": null,
+      "source_plan": "grimoires/loa/sprint.md",
+      "note": "Stacked on cycle-121 (PR #1238). Operator delegations recorded in sprint.md Provenance.",
+      "sprints": [
+        {
+          "id": "sprint-232",
+          "local_id": "sprint-1",
+          "global_id": 232,
+          "cycle": "cycle-122-mechanical-floor-extensions",
+          "theme": "Fences",
+          "status": "completed",
+          "created": "2026-07-29T08:31:36Z",
+          "completed_at": "2026-07-29T09:13:04Z"
+        },
+        {
+          "id": "sprint-233",
+          "local_id": "sprint-2",
+          "global_id": 233,
+          "cycle": "cycle-122-mechanical-floor-extensions",
+          "theme": "Pipeline hardening",
+          "status": "completed",
+          "created": "2026-07-29T08:31:36Z",
+          "completed_at": "2026-07-29T09:13:04Z"
+        },
+        {
+          "id": "sprint-234",
+          "local_id": "sprint-3",
+          "global_id": 234,
+          "cycle": "cycle-122-mechanical-floor-extensions",
+          "theme": "Delegated judgment + E2E",
+          "status": "completed",
+          "created": "2026-07-29T08:31:36Z",
+          "completed_at": "2026-07-29T09:13:04Z"
+        }
+      ],
+      "archived": "2026-09-17T01:06:15Z",
+      "archive_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/archive/2026-09-17-cycle-122-mechanical-floor-extensions"
+    },
+    {
+      "id": "cycle-124-model-generation-floor",
+      "label": "Model-generation floor — bring the framework's own use of Claude to the Opus 5 / Sonnet 5 / Fable 5.1 generation (framework-review-2026-09-17 §9 items 1-8 + rec 2/rec 6)",
+      "status": "archived",
+      "created": "2026-09-17T01:06:16Z",
+      "archived": "2026-09-23T03:16:43Z",
+      "archive_path": "grimoires/loa/archive/2026-09-23-cycle-124-model-generation-floor",
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 235,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-09-17T03:59:11Z",
+          "completed": "2026-09-18T22:37:28Z",
+          "epic": "bd-wd1g",
+          "beads": [
+            "bd-wq6o",
+            "bd-s3p7",
+            "bd-5nvw",
+            "bd-uya0",
+            "bd-y0tl",
+            "bd-lcmv",
+            "bd-e9wg",
+            "bd-a7f1",
+            "bd-0j6r",
+            "bd-72r4"
+          ],
+          "theme": "Adapter floor and gate honesty"
+        },
+        {
+          "global_id": 236,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-09-17T03:59:12Z",
+          "completed": "2026-09-19T14:36:06Z",
+          "epic": "bd-2w21",
+          "beads": [
+            "bd-31gy",
+            "bd-xx0z",
+            "bd-r7jd",
+            "bd-zeez",
+            "bd-fyxx",
+            "bd-atr4"
+          ],
+          "theme": "Structured outputs"
+        },
+        {
+          "global_id": 237,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-09-17T03:59:12Z",
+          "completed": "2026-09-22T07:51:00Z",
+          "epic": "bd-nzvc",
+          "beads": [
+            "bd-2gs6",
+            "bd-4ffi",
+            "bd-0h84",
+            "bd-9eo6",
+            "bd-cai2",
+            "bd-ng37",
+            "bd-s67e",
+            "bd-k7dr",
+            "bd-dsbw"
+          ],
+          "theme": "Prompt audit and review recall"
+        },
+        {
+          "global_id": 238,
+          "local_label": "sprint-4",
+          "status": "completed",
+          "created": "2026-09-17T03:59:13Z",
+          "completed": "2026-09-22T09:23:13Z",
+          "epic": "bd-ianm",
+          "beads": [
+            "bd-4q6k",
+            "bd-yml9",
+            "bd-m2ml"
+          ],
+          "theme": "Memory gate"
+        }
+      ],
+      "source_prompt": "grimoires/loa/a2a/prompts/modernization-cycle-2026-09-17.md",
+      "source_review": "grimoires/loa/a2a/framework-review-2026-09-17.md#9",
+      "epic": "bd-wd1g",
+      "sprint_plan": "grimoires/loa/sprint.md"
+    },
+    {
+      "id": "cycle-125-friction-floor",
+      "label": "Friction floor — fence precision, sectioned artefacts, run preflight/resume, provider health, cost accounting (usage-mining 2026-09-23)",
+      "status": "archived",
+      "created": "2026-09-23T03:20:52Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 241,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-09-23T03:35:30Z",
+          "completed": "2026-09-23T04:29:24Z",
+          "epic": "bd-c061",
+          "beads": [
+            "bd-stvh",
+            "bd-ic5v",
+            "bd-la6c",
+            "bd-d901",
+            "bd-evsy",
+            "bd-ygzz",
+            "bd-z9jw"
+          ],
+          "theme": "Fence precision"
+        },
+        {
+          "global_id": 242,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-09-23T03:35:31Z",
+          "completed": "2026-09-23T04:48:17Z",
+          "epic": "bd-ybez",
+          "beads": [
+            "bd-jcb3",
+            "bd-am0z",
+            "bd-ezza",
+            "bd-5ld1",
+            "bd-29h8",
+            "bd-gzjo"
+          ],
+          "theme": "Sectioned artefacts"
+        },
+        {
+          "global_id": 243,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-09-23T03:35:31Z",
+          "completed": "2026-09-23T05:09:57Z",
+          "epic": "bd-2yh1",
+          "beads": [
+            "bd-rq4e",
+            "bd-9d4j",
+            "bd-wcu6",
+            "bd-73wx",
+            "bd-enx0",
+            "bd-4slp"
+          ],
+          "theme": "Run preflight and resume"
+        },
+        {
+          "global_id": 244,
+          "local_label": "sprint-4",
+          "status": "completed",
+          "created": "2026-09-23T03:35:32Z",
+          "completed": "2026-09-23T06:02:22Z",
+          "epic": "bd-bhpk",
+          "beads": [
+            "bd-0wsg",
+            "bd-s0wx",
+            "bd-plz8",
+            "bd-mrna",
+            "bd-gxys",
+            "bd-3yke",
+            "bd-j0qz"
+          ],
+          "theme": "Provider health, cost accounting, docs, E2E"
+        }
+      ],
+      "sprint_plan": "grimoires/loa/sprint.md",
+      "source_prompt": "grimoires/loa/a2a/prompts/cycle-125-friction-floor-2026-09-23.md",
+      "archived_at": "2026-09-24T03:57:54Z",
+      "archive_note": "archived on main at cycle-126 kickoff; the pipeline archive commit lives only on tag v2.0.0-rc.2 (bd-b4ji)"
+    },
+    {
+      "id": "cycle-126-full-size",
+      "label": "Full size — let the 5-family run at its actual size: adapter ceilings and caps, Bridgebuilder registry/model/timeout, companion dissent voice and tolerant schema, context-class discipline and instruction diet, routing/governance residue (model-era audit 2026-09-24)",
+      "status": "archived",
+      "created": "2026-09-24T04:10:47Z",
+      "archived": "2026-10-07T08:21:56Z",
+      "archive_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/archive/2026-10-07-full-size",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 247,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-09-24T04:10:47Z",
+          "epic": "bd-goo5",
+          "beads": [
+            "bd-gyij",
+            "bd-fqip",
+            "bd-y4cs",
+            "bd-1y44",
+            "bd-1s42",
+            "bd-02tj",
+            "bd-ybcq"
+          ],
+          "theme": "Full-size adapters, Bridgebuilder, Flatline",
+          "completed": "2026-09-25T04:31:43Z"
+        },
+        {
+          "global_id": 248,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-09-24T04:10:47Z",
+          "epic": "bd-feka",
+          "beads": [
+            "bd-x662",
+            "bd-e4bn",
+            "bd-wy5n",
+            "bd-o20v",
+            "bd-ms8h",
+            "bd-y5ot"
+          ],
+          "theme": "Two voices, nothing dropped",
+          "completed": "2026-10-05T10:08:34Z"
+        },
+        {
+          "global_id": 249,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-09-24T04:10:47Z",
+          "epic": "bd-7ydj",
+          "beads": [
+            "bd-lp4j",
+            "bd-vywd",
+            "bd-c0o7",
+            "bd-8bxb",
+            "bd-ng1s"
+          ],
+          "theme": "Context discipline and instruction diet",
+          "completed": "2026-10-05T23:06:57Z"
+        },
+        {
+          "global_id": 250,
+          "local_label": "sprint-4",
+          "status": "completed",
+          "created": "2026-09-24T04:10:47Z",
+          "epic": "bd-qgsn",
+          "beads": [
+            "bd-8wjc",
+            "bd-63y9",
+            "bd-a31y",
+            "bd-anji",
+            "bd-e3dm",
+            "bd-z435",
+            "bd-5g44",
+            "bd-l2ho"
+          ],
+          "theme": "Residue, registry, probes, docs, E2E",
+          "completed": "2026-10-07T04:47:07Z"
+        }
+      ],
+      "sprint_plan": "grimoires/loa/sprint.md",
+      "source_prompt": "grimoires/loa/a2a/prompts/cycle-126-full-size-2026-09-24.md"
+    },
+    {
+      "id": "cycle-127-operator-decisions",
+      "label": "Operator decisions — agy opt-in, Opus 5.5 effort default, ceiling probe",
+      "status": "archived",
+      "created": "2026-10-07T08:21:56Z",
+      "archived": "2026-10-12T23:53:15Z",
+      "archive_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/archive/cycle-127-operator-decisions",
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": null,
+      "sprints": [
+        {
+          "global_id": 251,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-07T08:27:55Z",
+          "completed": "2026-10-07T17:52:17Z",
+          "epic": "bd-um3f",
+          "beads": [
+            "bd-4hkd",
+            "bd-n0g6",
+            "bd-bfx9",
+            "bd-xf70",
+            "bd-f5w1",
+            "bd-mpf2"
+          ],
+          "theme": "agy opt-in, Opus 5.5 effort default, ceiling probe"
+        }
+      ]
+    },
+    {
+      "id": "cycle-128-decision-surfaces",
+      "label": "Decision surfaces — rounds and fact/decision split, decision ledger, /chart decision map, prototype tickets, glossary, seams and red-test check, operator-only command flag",
+      "status": "archived",
+      "created": "2026-10-12T23:58:21Z",
+      "archived": "2026-10-13T21:27:38Z",
+      "archive_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/archive/cycle-128-decision-surfaces",
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": null,
+      "sprints": [
+        {
+          "global_id": 252,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-12T23:58:21Z",
+          "completed": "2026-10-13T03:37:56Z",
+          "theme": "Rounds, fact/decision attribution, decision ledger, operator-only commands",
+          "epic": "bd-23qq",
+          "beads": [
+            "bd-tm46",
+            "bd-wepc",
+            "bd-te78",
+            "bd-g1dm",
+            "bd-cw24",
+            "bd-izux",
+            "bd-e8gm",
+            "bd-wu7v",
+            "bd-r55h",
+            "bd-zncg"
+          ],
+          "started": "2026-10-13T01:01:49Z"
+        },
+        {
+          "global_id": 253,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-10-12T23:58:21Z",
+          "completed": "2026-10-13T06:16:11Z",
+          "theme": "Decision map (/chart) and prototype tickets",
+          "epic": "bd-nmej",
+          "beads": [
+            "bd-tqm6",
+            "bd-kz6i",
+            "bd-axbc",
+            "bd-qwfm",
+            "bd-6dma",
+            "bd-01pk"
+          ],
+          "started": "2026-10-13T03:37:56Z"
+        },
+        {
+          "global_id": 254,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-10-12T23:58:21Z",
+          "completed": "2026-10-13T08:00:29Z",
+          "theme": "Glossary, seams under test, red-test check, E2E",
+          "epic": "bd-9oyc",
+          "beads": [
+            "bd-hafl",
+            "bd-28ud",
+            "bd-twdf",
+            "bd-0b6s",
+            "bd-e9m8",
+            "bd-6j3l",
+            "bd-0icm"
+          ],
+          "started": "2026-10-13T06:16:11Z"
+        }
+      ]
+    },
+    {
+      "id": "cycle-129-earned-guards",
+      "label": "Earned guards and open voices — guard register with origin and yield, pre-registered gate-off control arms, task kinds, prose diet, inert controls retired or repaired, file-authoritative run position, fence heredoc false positives, profile knob, advisory open-weight voices, local_voices posture",
+      "status": "archived",
+      "created": "2026-10-13T21:27:39Z",
+      "archived": "2026-10-14T13:55:49Z",
+      "archive_path": "/home/merlin/Documents/thj/code/loa/grimoires/loa/archive/cycle-129-earned-guards",
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 255,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-13T21:27:39Z",
+          "completed": "2026-10-14T01:15:45Z",
+          "theme": "Guard register and yield, control arms, task kinds, rule path-scoping",
+          "epic": "bd-61r5",
+          "beads": [
+            "bd-qms8b",
+            "bd-9ntm",
+            "bd-jcfq",
+            "bd-sxzs",
+            "bd-tebv",
+            "bd-ovnz",
+            "bd-n8if",
+            "bd-ol5w",
+            "bd-1hv6",
+            "bd-6wcv",
+            "bd-6gcpy",
+            "bd-fjzah"
+          ]
+        },
+        {
+          "global_id": 256,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-10-13T21:27:40Z",
+          "completed": "2026-10-14T05:50:59Z",
+          "theme": "Inert controls retired or repaired, file-authoritative run position, heredoc false positives, profile knob, prose diet",
+          "epic": "bd-hjlv",
+          "beads": [
+            "bd-kw5x3",
+            "bd-j7xkt",
+            "bd-fr2i7",
+            "bd-k9z94",
+            "bd-f59yy",
+            "bd-5t8wm",
+            "bd-9p6o0",
+            "bd-288up",
+            "bd-ont7r",
+            "bd-611m8"
+          ]
+        },
+        {
+          "global_id": 257,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-10-13T21:27:40Z",
+          "completed": "2026-10-14T10:32:34Z",
+          "theme": "Advisory open-weight voices, local_voices posture, Bridgebuilder banner, E2E",
+          "epic": "bd-9m8z",
+          "beads": [
+            "bd-cvb31",
+            "bd-irz7s",
+            "bd-xkbtg",
+            "bd-0piaj",
+            "bd-0luav",
+            "bd-5h8t9",
+            "bd-wl4gd"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "cycle-130-ablation-2.0",
+      "label": "Loa 2.0 component ablation — frozen 16-task suite with hidden tests, nine pre-registered arms (bare Claude Code, full Loa at v2.0.0-rc.5, seven single-component removals), mechanical grader, paired-bootstrap decision rules, prune-to-opt-in and re-verification before the 2.0.0 promotion",
+      "status": "archived",
+      "created": "2026-10-14T13:59:25Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 258,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-14T13:59:25Z",
+          "completed": "2026-10-15T03:23:28Z",
+          "theme": "Mount integrity and harness plumbing",
+          "epic": "bd-g1cg2",
+          "beads": [
+            "bd-20fle",
+            "bd-iniru",
+            "bd-z4mj5",
+            "bd-hprvr",
+            "bd-d2tkl",
+            "bd-tqv4l",
+            "bd-jx6mx",
+            "bd-rpr5a",
+            "bd-91wxm",
+            "bd-dm6x0",
+            "bd-yk5uf",
+            "bd-u89yk",
+            "bd-0dks4"
+          ]
+        },
+        {
+          "global_id": 259,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-10-14T13:59:26Z",
+          "completed": "2026-10-15T07:08:46Z",
+          "theme": "Task suite and grader",
+          "epic": "bd-b9hy5",
+          "beads": [
+            "bd-xmlfg",
+            "bd-bo1na",
+            "bd-6civd",
+            "bd-swzw3",
+            "bd-b727a",
+            "bd-tnd3q",
+            "bd-lwtwi",
+            "bd-bhl22",
+            "bd-r941l",
+            "bd-tqaen"
+          ]
+        },
+        {
+          "global_id": 260,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-10-14T13:59:26Z",
+          "completed": "2026-10-16T23:24:47Z",
+          "theme": "Runs",
+          "epic": "bd-uhgrg",
+          "beads": [
+            "bd-27jw2",
+            "bd-nnt3a",
+            "bd-37emj",
+            "bd-m8a1q",
+            "bd-kjfku",
+            "bd-rjeq1",
+            "bd-2riyg",
+            "bd-khz4a"
+          ]
+        },
+        {
+          "global_id": 261,
+          "local_label": "sprint-4",
+          "status": "completed",
+          "created": "2026-10-14T13:59:27Z",
+          "completed": "2026-10-18T10:36:51Z",
+          "theme": "Suite v2: harder build tasks, per-type caps, re-pre-registration, A0/A1/A4 rerun, reads",
+          "epic": "bd-ykvu4",
+          "beads": [
+            "bd-sigxm",
+            "bd-xlvu2",
+            "bd-nn4yn",
+            "bd-80ewp"
+          ]
+        },
+        {
+          "global_id": 262,
+          "local_label": "sprint-5",
+          "status": "completed",
+          "created": "2026-10-14T13:59:27Z",
+          "completed": "2026-10-18T12:29:50Z",
+          "theme": "Analysis, report, documentation, rc.6",
+          "epic": "bd-u3ns5",
+          "beads": [
+            "bd-4b6dr",
+            "bd-eraro",
+            "bd-r3cui",
+            "bd-9psha",
+            "bd-26vid",
+            "bd-sveja",
+            "bd-0qmri"
+          ]
+        }
+      ],
+      "archived_at": "2026-10-18T14:11:01Z"
+    },
+    {
+      "id": "cycle-131-honest-measurement",
+      "label": "cycle-131 — close the peek, fix the ruler, price the gates (honest review-catch measurement)",
+      "status": "archived",
+      "created": "2026-10-19T05:00:14Z",
+      "archived": "2026-10-20T12:27:38Z",
+      "archive_path": "grimoires/loa/archive/cycle-131-honest-measurement",
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": null,
+      "sprints": [
+        {
+          "global_id": 263,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-19T05:28:16Z",
+          "completed": "2026-10-20T02:13:16Z"
+        },
+        {
+          "global_id": 264,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-10-19T05:28:16Z",
+          "completed": "2026-10-20T09:36:23Z"
+        },
+        {
+          "global_id": 265,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-10-19T05:28:16Z",
+          "completed": "2026-10-20T09:57:49Z"
+        }
+      ],
+      "archived_at": "2026-10-20T12:27:38Z"
+    },
+    {
+      "id": "cycle-132-conclusive-review-catch",
+      "label": "cycle-132 — the conclusive review-catch answer (does the review pipeline catch more real defects per dollar than a bare model at the same dollars, on unseen PRs)",
+      "status": "archived",
+      "created": "2026-10-21T00:48:44Z",
+      "archived": "2026-10-23T16:49:48Z",
+      "archive_path": "grimoires/loa/archive/cycle-132-conclusive-review-catch",
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": null,
+      "sprints": [
+        {
+          "global_id": 269,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-21T02:27:50Z",
+          "completed": "2026-10-21T08:13:56Z"
+        },
+        {
+          "global_id": 270,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-10-21T02:27:51Z",
+          "completed": "2026-10-23T10:00:38Z"
+        },
+        {
+          "global_id": 271,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-10-21T02:27:51Z",
+          "completed": "2026-10-23T15:53:22Z"
+        }
+      ]
+    },
+    {
+      "id": "cycle-133-follow-through",
+      "label": "cycle-133 — the follow-through: every cycle-132 carry-over, every framework defect the cycle exposed, Loa reviewing Loa, the finding contract, external corpus seeding, beads hygiene; release 2.0.0-rc.8",
+      "status": "archived",
+      "created": "2026-10-23T21:25:35Z",
+      "archived": "2026-10-24T16:35:16Z",
+      "archive_path": "grimoires/loa/archive/cycle-133-follow-through",
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 272,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-23T22:15:21Z",
+          "completed": "2026-10-24T04:59:35Z"
+        },
+        {
+          "global_id": 273,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-10-23T22:15:22Z",
+          "completed": "2026-10-24T13:44:44Z"
+        },
+        {
+          "global_id": 274,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-10-23T22:15:22Z",
+          "completed": "2026-10-24T13:09:05Z"
+        },
+        {
+          "global_id": 275,
+          "local_label": "sprint-4",
+          "status": "completed",
+          "created": "2026-10-23T22:15:22Z",
+          "completed": "2026-10-24T14:55:34Z"
+        }
+      ],
+      "archived_at": "2026-10-24T16:25:57Z"
+    },
+    {
+      "id": "cycle-134-post-ship-fixes",
+      "label": "cycle-134 — post-ship fixes: the Bridgebuilder findings on rc.8 (took-effect oracle_closed, sandbox-mount rules, egress pid limit, supervisor identity, seeder blobs, orchestrator exit contract) and the red post-merge run on the ledger push (KF-063)",
+      "status": "archived",
+      "created": "2026-10-25T02:58:27Z",
+      "archived": "2026-10-25T09:43:43Z",
+      "archive_path": "grimoires/loa/archive/cycle-134-post-ship-fixes",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 276,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-25T03:44:27Z",
+          "completed": "2026-10-25T07:32:51Z"
+        }
+      ]
+    },
+    {
+      "id": "cycle-135-review-coverage-followups",
+      "label": "cycle-135 — review-coverage follow-ups: segment-anchored exclusion matching (bd-ow72o), protected paths (bd-i4fyw), content fetch for patch-less added files (bd-w5pd9), housekeeping classifier value (bd-nr5i6), CPU-time test guardrails (bd-oglcu)",
+      "status": "archived",
+      "created": "2026-10-26T04:22:43Z",
+      "archived": "2026-10-26T09:22:12Z",
+      "archive_path": "grimoires/loa/archive/cycle-135-review-coverage-followups",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 279,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-26T04:43:01Z",
+          "completed": "2026-10-26T07:13:13Z"
+        }
+      ]
+    },
+    {
+      "id": "cycle-136-bridgebuilder-followups",
+      "label": "cycle-136 — Bridgebuilder and scaffold follow-ups: scaffold detects the legacy release guard (bd-akkgq), base .reviewignore through the contents API on shallow checkouts (bd-9tt4b), Bridgebuilder contract tidy-up (bd-gyrgq)",
+      "status": "archived",
+      "created": "2026-10-27T00:38:33Z",
+      "archived": "2026-10-27T03:59:55Z",
+      "archive_path": "grimoires/loa/archive/cycle-136-bridgebuilder-followups",
+      "prd": "grimoires/loa/prd.md",
+      "sdd": null,
+      "sprints": [
+        {
+          "global_id": 280,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-27T00:50:36Z",
+          "completed": "2026-10-27T02:40:18Z"
+        }
+      ]
+    },
+    {
+      "id": "cycle-137-performance-followups",
+      "label": "cycle-137 — performance: the 22-pass extreme-software-optimization loop through the formal gates (Sprint 281), its six follow-up beads bd-atk7q bd-gv5jf bd-h5tcn bd-1mfm7 bd-wctli bd-09z1i (Sprint 282), and the v2.0.0-rc.9 release",
+      "status": "active",
+      "created": "2026-10-28T01:42:19Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 281,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-28T02:06:22Z",
+          "completed": "2026-10-28T03:24:38Z"
+        },
+        {
+          "global_id": 282,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-10-28T02:06:22Z",
+          "completed": "2026-10-28T06:59:09Z"
+        }
+      ]
+    }
+  ],
+  "global_sprint_counter": 282,
+  "bugfix_cycles": [
+    {
+      "id": "cycle-bug-20260418-i554-00a529",
+      "label": "Bug Fix - .loa-version.json + CLAUDE.loa.md version markers stale",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/554",
+      "meta_issue": "https://github.com/0xHoneyJar/loa/issues/557",
+      "parent_cycle": "cycle-083",
+      "created_at": "2026-04-18T04:25:32Z",
+      "sprints": [
+        "sprint-bug-103"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-i554-00a529/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-i554-00a529/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260418-i550-3512f6",
+      "label": "Bug Fix - post-merge classifier regex misses cycle PRs",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/550",
+      "meta_issue": "https://github.com/0xHoneyJar/loa/issues/557",
+      "parent_cycle": "cycle-083",
+      "created_at": "2026-04-18T04:30:00Z",
+      "sprints": [
+        "sprint-bug-104"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-i550-3512f6/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-i550-3512f6/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260418-c05b25",
+      "label": "Bug Fix - model-adapter.sh.legacy runtime swap to generated-model-maps.sh (vision-011 activation)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": null,
+      "meta_issue": "https://github.com/0xHoneyJar/loa/issues/557",
+      "parent_cycle": "cycle-087",
+      "created_at": "2026-04-18T09:41:44Z",
+      "sprints": [
+        "sprint-bug-110"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260418-c05b25/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260418-c05b25/sprint.md",
+      "predecessor_pr": "https://github.com/0xHoneyJar/loa/pull/566"
+    },
+    {
+      "id": "cycle-bug-20260428-i641-227a8f",
+      "label": "Bug Fix - cheval Anthropic temperature gate + Google API key allowlist (#641)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/641",
+      "created_at": "2026-04-28T00:00:00Z",
+      "sprints": [
+        "sprint-bug-123"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260428-i641-227a8f/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260428-i641-227a8f/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260502-i668-3b9765",
+      "label": "Bug Fix — Post-merge classifier silently classifies cycle PRs as other (#668)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/668",
+      "created_at": "2026-05-02T00:00:00Z",
+      "sprints": [
+        "sprint-bug-124"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260502-i668-3b9765/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260502-i668-3b9765/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260502-i665-3962d9",
+      "label": "Bug Fix — post-pr Bridgebuilder MEDIUMs auto-triage to log_only without operator visibility (#665)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/665",
+      "created_at": "2026-05-02T00:00:00Z",
+      "sprints": [
+        "sprint-bug-127"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260502-i665-3962d9/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260502-i665-3962d9/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260502-i664-653da7",
+      "label": "Bug Fix — post-pr-state.sh update-phase rejects bridgebuilder_review (#664)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/664",
+      "created_at": "2026-05-02T00:00:00Z",
+      "sprints": [
+        "sprint-bug-125"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260502-i664-653da7/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260502-i664-653da7/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260502-i663-ec337e",
+      "label": "Bug Fix — post-pr-orchestrator passes invalid --phase pr to flatline-orchestrator (#663)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/663",
+      "created_at": "2026-05-02T00:00:00Z",
+      "sprints": [
+        "sprint-bug-126"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260502-i663-ec337e/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260502-i663-ec337e/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260502-i661-cd5f4f",
+      "label": "Bug Fix — Defensive diagnostic for beads_rust 0.2.1 migration error (#661)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/661",
+      "created_at": "2026-05-02T00:00:00Z",
+      "sprints": [
+        "sprint-bug-128"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260502-i661-cd5f4f/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260502-i661-cd5f4f/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260502-i660-dd4514",
+      "label": "Bug Fix — mount-submodule.sh BSD realpath portability + silent reconcile exit (#660)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/660",
+      "created_at": "2026-05-02T00:00:00Z",
+      "sprints": [
+        "sprint-bug-129"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260502-i660-dd4514/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260502-i660-dd4514/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260503-i675-ceb96f",
+      "label": "Bug Fix — model-adapter large-payload hardening (cheval/httpx HTTP/2 disconnect on 137KB+ payloads, Anthropic 60s timeout, #675)",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/675",
+      "created_at": "2026-05-03T00:00:00Z",
+      "sprints": [
+        "sprint-bug-131"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260503-i675-ceb96f/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260503-i675-ceb96f/sprint.md",
+      "completed_at": "2026-05-03T03:02:37.318627Z",
+      "merge_commit": "74272279bfd142e54b16469fc303f3e256c2771c",
+      "merge_pr": 677
+    },
+    {
+      "id": "cycle-bug-20260503-i697-475b02",
+      "label": "Bug Fix — post-merge automation: gt_regen arg mismatch + CHANGELOG cross-scope leak (#697)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/697",
+      "created_at": "2026-05-03T11:41:44Z",
+      "sprints": [
+        "sprint-bug-139"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260503-i697-475b02/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260503-i697-475b02/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260516-i921-e386d6",
+      "label": "Bug Fix — KF-010 root cause: deriveTimeoutMs reasoning-class predicate is OpenAI-only (#921)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/921",
+      "created_at": "2026-05-16T13:52:52Z",
+      "sprints": [
+        "sprint-bug-165"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260516-i921-e386d6/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260516-i921-e386d6/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260520-i894-cdaf96",
+      "label": "Bug Fix — cheval headless CLI env-scrub misses GENAI auth-mode selectors (#894)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/894",
+      "created_at": "2026-05-20T00:00:00Z",
+      "sprints": [
+        "sprint-bug-173"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260520-i894-cdaf96/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260520-i894-cdaf96/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260601-i971-727e7f",
+      "label": "Bug Fix — classify-pr-type.sh rule #2 case-sensitive (Cycle-NNN misroute, #971)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/971",
+      "created_at": "2026-06-01T06:11:21Z",
+      "sprints": [
+        "sprint-bug-177"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260601-i971-727e7f/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260601-i971-727e7f/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260610-i942-0f917b",
+      "label": "Bug Fix — next-bug-sprint-id.sh emits colliding sprint ids (ignores ledger cycles[].sprints, #942)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/942",
+      "created_at": "2026-06-10T08:46:53Z",
+      "sprints": [
+        "sprint-bug-180"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260610-i942-0f917b/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260610-i942-0f917b/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260613-i1043-2ee50c",
+      "label": "Bug Fix — default permission allow-list doesn't encode the Three-Zone Model's State-Zone write-freedom (#1043)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1043",
+      "created_at": "2026-06-13T04:35:40Z",
+      "sprints": [
+        "sprint-bug-212"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i1043-2ee50c/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1043-2ee50c/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260613-i1044-8f8c49",
+      "label": "Bug Fix — State-Zone executable/lifecycle surfaces frictionlessly writable (.run/cron.d, .run/*.sh, grimoires/loa/skills) (#1044)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1044",
+      "created_at": "2026-06-13T05:42:40Z",
+      "sprints": [
+        "sprint-bug-213"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i1044-8f8c49/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1044-8f8c49/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260613-i1014-a965b4",
+      "label": "Bug Fix — Untrusted PR titles drive authenticated cross-repo gh fetches (cross_repo.auto_detect) (#1014)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1014",
+      "created_at": "2026-06-13T08:32:05Z",
+      "sprints": [
+        "sprint-bug-215"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260613-i1014-a965b4/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260613-i1014-a965b4/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260614-i1013-d77590",
+      "label": "Bug Fix — BB isReasoningClass() misses cheval headless aliases; claude-headless SIGTERMs at 300s (KF-010 recurrence) (#1013)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1013",
+      "created_at": "2026-06-14T08:22:42Z",
+      "sprints": [
+        "sprint-bug-218"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260614-i1013-d77590/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260614-i1013-d77590/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260614-i1035-603c39",
+      "label": "Bug Fix — butterfreezone-gen Tier 1 verbatim ## headers inflate validator section census (#1035)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1035",
+      "created_at": "2026-06-14T08:38:21Z",
+      "sprints": [
+        "sprint-bug-219"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260614-i1035-603c39/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260614-i1035-603c39/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260614-i1034-91351c",
+      "label": "Bug Fix — butterfreezone-validate freshness check uses GNU-only date -d (false BSD/macOS staleness WARN) (#1034)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1034",
+      "created_at": "2026-06-14T08:51:46Z",
+      "sprints": [
+        "sprint-bug-220"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260614-i1034-91351c/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260614-i1034-91351c/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260614-i1012-e52467",
+      "label": "Bug Fix — construct-index-gen stderr-swallow sites silently mask malformed packs (#1012)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1012",
+      "created_at": "2026-06-14T09:03:39Z",
+      "sprints": [
+        "sprint-bug-221"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260614-i1012-e52467/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260614-i1012-e52467/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260615-i1064-2e8933",
+      "label": "Bug Fix — next-bug-sprint-id.sh disk-scan misses sprint-bug-N/ layout (#1064)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1064",
+      "created_at": "2026-06-15T03:41:37Z",
+      "sprints": [
+        "sprint-bug-222"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260615-i1064-2e8933/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260615-i1064-2e8933/sprint.md"
+    },
+    {
+      "id": "cycle-bug-20260922-13a3d1",
+      "label": "Bug Fix — Aleph gates block Loa; make Aleph opt-in",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": null,
+      "created_at": "2026-09-22T10:08:57Z",
+      "sprints": [
+        "sprint-bug-239"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260922-13a3d1/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260922-13a3d1/sprint.md",
+      "completed_at": "2026-09-22T10:56:23Z"
+    },
+    {
+      "id": "cycle-bug-20260923-27d899",
+      "label": "Bug Fix — The post-merge pipeline cannot cut a pre-release (rc entry, prerelease flag, README rc check)",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": null,
+      "created_at": "2026-09-22T22:05:03Z",
+      "sprints": [
+        "sprint-bug-240"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260923-27d899/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260923-27d899/sprint.md",
+      "completed_at": "2026-09-22T22:21:43Z"
+    },
+    {
+      "id": "cycle-bug-20260924-57bc88",
+      "label": "Bug Fix — cost-budget enforcer halts permanently on historical unpriced ledger rows (all-time share, no sanctioned re-pricing pass)",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": null,
+      "created_at": "2026-09-24T01:19:11Z",
+      "sprints": [
+        "sprint-bug-245"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260924-57bc88/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260924-57bc88/sprint.md",
+      "bead": "bd-ypbg",
+      "completed_at": "2026-09-24T01:50:51Z"
+    },
+    {
+      "id": "cycle-bug-20260924-1f9d91",
+      "label": "Bug Fix — check-permissions.sh (preflight P2) reads only .claude/settings.json and treats deny entries as allowed",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": null,
+      "created_at": "2026-09-24T01:22:04Z",
+      "sprints": [
+        "sprint-bug-246"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260924-1f9d91/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260924-1f9d91/sprint.md",
+      "bead": "bd-n7v3",
+      "completed_at": "2026-09-24T01:57:49Z"
+    },
+    {
+      "id": "cycle-bug-20261021-ba367a",
+      "label": "Bug Fix — archive-cycle.sh archives the wrong cycle by default, deletes git-tracked archives by default, and never updates the live ledger",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/1263",
+      "created_at": "2026-10-21T00:37:56Z",
+      "sprints": [
+        "sprint-bug-266"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20261021-ba367a/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20261021-ba367a/sprint.md",
+      "bead": "bd-okk61",
+      "completed_at": "2026-10-21T02:07:16Z"
+    },
+    {
+      "id": "cycle-bug-20261021-4439fd",
+      "label": "Bug Fix — post-pr-orchestrator marks a degraded or failed Flatline PR review green; kind:cli prompt-size failure fixed upstream since rc.3 (bd-jm55c)",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": null,
+      "created_at": "2026-10-21T00:42:14Z",
+      "sprints": [
+        "sprint-bug-267"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20261021-4439fd/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20261021-4439fd/sprint.md",
+      "bead": "bd-jm55c",
+      "completed_at": "2026-10-21T02:07:16Z"
+    },
+    {
+      "id": "cycle-bug-20261021-7240bc",
+      "label": "Bug Fix — seed-corpus-from-record.sh --build-manifest regresses the curated multi-site manifests (labels drift, bd-y4pqj)",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": null,
+      "created_at": "2026-10-21T00:42:14Z",
+      "sprints": [
+        "sprint-bug-268"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20261021-7240bc/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20261021-7240bc/sprint.md",
+      "bead": "bd-y4pqj",
+      "completed_at": "2026-10-21T02:11:45Z"
+    },
+    {
+      "id": "cycle-bug-20261025-c47e71",
+      "label": "Bug Fix — classify-pr-type.sh classifies housekeeping merges from a chore/ branch as cycle when the branch name carries the cycle id (archive PRs prepare a spurious release candidate; bd-ahxmh)",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": null,
+      "created_at": "2026-10-25T23:49:57Z",
+      "sprints": [
+        "sprint-bug-277"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20261025-c47e71/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20261025-c47e71/sprint.md",
+      "completed_at": "2026-10-26T00:52:50Z"
+    },
+    {
+      "id": "cycle-bug-20261025-826c6b",
+      "label": "Bug Fix — Bridgebuilder exclusion globs do not match dot-led path segments (Node path.matchesGlob), so excluded fixture trees stay in the review set and the round degrades on file_cap (bd-a8l0c)",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": null,
+      "created_at": "2026-10-25T23:54:00Z",
+      "sprints": [
+        "sprint-bug-278"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20261025-826c6b/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20261025-826c6b/sprint.md",
+      "completed_at": "2026-10-26T00:52:50Z"
+    }
+  ],
+  "bugfixes": [
+    {
+      "id": "cycle-bug-20260428-i640-1cc190",
+      "label": "Bug Fix — /mount writes stale framework_version: 0.6.0 (THIRD recurrence #640)",
+      "type": "bugfix",
+      "status": "active",
+      "source_issue": "https://github.com/0xHoneyJar/loa/issues/640",
+      "created_at": "2026-04-28T00:00:00Z",
+      "sprints": [
+        "sprint-bug-122"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20260428-i640-1cc190/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
+    }
+  ],
+  "next_sprint_number": 283,
+  "last_updated": "2026-10-28T06:59:09Z"
+}

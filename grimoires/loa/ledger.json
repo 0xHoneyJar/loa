@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-137-performance-followups",
+  "active_cycle": null,
   "cycles": [
     {
       "id": "cycle-036",
@@ -2817,10 +2817,10 @@
     {
       "id": "cycle-137-performance-followups",
       "label": "cycle-137 — performance: the 22-pass extreme-software-optimization loop through the formal gates (Sprint 281), its six follow-up beads bd-atk7q bd-gv5jf bd-h5tcn bd-1mfm7 bd-wctli bd-09z1i (Sprint 282), and the v2.0.0-rc.9 release",
-      "status": "active",
+      "status": "archived",
       "created": "2026-10-28T01:42:19Z",
-      "archived": null,
-      "archive_path": null,
+      "archived": "2026-10-28T09:29:32Z",
+      "archive_path": "grimoires/loa/archive/cycle-137-performance-followups",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprints": [
@@ -3313,5 +3313,5 @@
     }
   ],
   "next_sprint_number": 283,
-  "last_updated": "2026-10-28T06:59:09Z"
+  "last_updated": "2026-10-28T09:29:32Z"
 }
