@@ -661,6 +661,7 @@ _agc27_ns_mtime() {  # 0 when a fresh write in this directory keeps a sub-second
 @test "AGC-27 (cycle-137 FR-3) the node is read ONCE per shell for an unchanged config: two agy_opted_in calls, and agy_gate_warn_once + agy_opted_in" {
     _agc27_count
     _cfg cli-only true
+    touch -d "@$(( $(date +%s) - 60 ))" "$CFG"   # an aged config: a file modified in the CURRENT second is never memoised (review r1 DISS-001)
     agy_opted_in "$CFG" || { echo "first call read off"; return 1; }
     agy_opted_in "$CFG" || { echo "memo hit read off"; return 1; }
     [ "$(_agc27_calls)" = 1 ] || { echo "node reads: $(_agc27_calls)"; return 1; }
@@ -689,6 +690,39 @@ _agc27_ns_mtime() {  # 0 when a fresh write in this directory keeps a sub-second
     agy_opted_in "$CFG" || { echo "same-second rewrite to true not seen"; return 1; }
     _cfg cli-only false
     ! agy_opted_in "$CFG" || { echo "same-second rewrite to false not seen"; return 1; }
+}
+
+@test "AGC-33 (cycle-137 review r1 DISS-001) with whole-second stat (the BSD branch) a same-length rewrite within the same second is seen, and an aged file is still memoised" {
+    _agc27_count
+    # a stat shim with BSD argv and whole-second times: mtime = ctime = now - SHIM_AGE (default 0 = the current second)
+    local shim="$BATS_TEST_TMPDIR/statshim"; mkdir -p "$shim"
+    cat > "$shim/stat" <<'EOF'
+#!/usr/bin/env bash
+# the memo's BSD identity read only; every other stat call (the untrusted-config check) goes to the real binary
+if [[ "$1" == "-L" && "$2" == "-f" && "$3" == "%d:%i:%z:%m:%c" ]]; then
+    f=""; for a in "$@"; do f=$a; done
+    sz=$(/usr/bin/stat -L -c %s -- "$f" 2>/dev/null) || exit 1
+    now=$(( $(date +%s) - ${SHIM_AGE:-0} ))
+    printf '%s\n' "7:${sz}:${sz}:${now}:${now}"; exit 0
+fi
+exec /usr/bin/stat "$@"
+EOF
+    chmod +x "$shim/stat"
+    PATH="$shim:$PATH"; _AGY_STAT_STYLE=bsd; _AGY_NODE_MEMO_KEY=""; _AGY_NODE_MEMO_VAL=""
+    # (1) the window: true, then a same-length false in the same second — the second call must read the file again
+    _cfg cli-only 'true '
+    agy_opted_in "$CFG" || { echo "true read off"; return 1; }
+    _cfg cli-only false
+    ! agy_opted_in "$CFG" || { echo "stale memo: false read as true under whole-second stat"; return 1; }
+    [ "$(_agc27_calls)" = 2 ] || { echo "node reads: $(_agc27_calls) (expected 2: no memo for a file modified in the current second)"; return 1; }
+    # (2) an aged file is still memoised: one read for two calls
+    : > "$BATS_TEST_TMPDIR/node-calls"; _AGY_NODE_MEMO_KEY=""; _AGY_NODE_MEMO_VAL=""
+    _cfg cli-only true
+    export SHIM_AGE=60
+    agy_opted_in "$CFG" || { echo "aged true read off"; return 1; }
+    agy_opted_in "$CFG" || { echo "aged memo hit read off"; return 1; }
+    [ "$(_agc27_calls)" = 1 ] || { echo "node reads for an aged file: $(_agc27_calls) (expected 1)"; return 1; }
+    unset SHIM_AGE
 }
 
 @test "AGC-29 (cycle-137 FR-3) a miss after mv replacement (new inode, same size and mtime), after deletion, and after switching the config path" {
