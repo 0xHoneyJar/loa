@@ -1,0 +1,178 @@
+#!/usr/bin/env bats
+# =============================================================================
+# perf-spawn-budget.bats — deterministic regression guard for the hot-path
+# process-spawn counts (extreme-software-optimization loop, 2026-10-27/28).
+#
+# WHY: the 2026-07 optimisation loop's gains partly regressed because nothing
+# guarded process counts, and wall-clock tests are flaky in CI. This guards the
+# SPAWN PROXY instead: each target runs under `PS4='+' bash -x` against a FIXED
+# fixture and the trace lines are counted. For a fixed code path and fixture the
+# count is deterministic (verified: three runs per target gave identical counts
+# before any budget below was set). Two numbers per target:
+#   * total trace lines  <= measured + 10% headroom
+#   * trace lines that invoke an external tool (jq yq awk sed tr cut grep
+#     realpath stat date)  <= measured + 2
+#
+# If a budget trips, the failure message prints both counts. If the change is
+# intended, update the budget in the same commit and say why.
+#
+# Fixtures are built in each test from heredocs under BATS_TEST_TMPDIR. The live
+# grimoire, .run and config are never read.
+# =============================================================================
+
+setup() {
+  BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
+  PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
+  command -v jq >/dev/null 2>&1 || skip "jq not installed"
+  command -v yq >/dev/null 2>&1 || skip "yq not installed"
+  command -v awk >/dev/null 2>&1 || skip "awk not installed"
+  W="$BATS_TEST_TMPDIR/w"
+  mkdir -p "$W"
+}
+
+# External tools whose trace lines count as process spawns (a leading VAR=value
+# assignment list and an absolute path prefix are tolerated).
+EXT_RE='^\++ ?([A-Za-z_][A-Za-z0-9_]*=[^ ]* )*(/[^ ]*/)?(jq|yq|awk|sed|tr|cut|grep|realpath|stat|date)( |$)'
+
+# _trace <stdin-file> <cwd> [VAR=value ...] -- <args to bash -x ...>
+# Runs the target under bash -x with PS4='+' from <cwd> with the given extra
+# environment. Sets TRACE_FILE, TOTAL (trace lines) and EXT (external-tool lines).
+_trace() {
+  local in="$1" cwd="$2"; shift 2
+  local envs=()
+  while [[ "$1" != "--" ]]; do envs+=("$1"); shift; done
+  shift
+  TRACE_FILE="$W/trace.$$.$RANDOM"
+  ( cd "$cwd" && env ${envs[@]+"${envs[@]}"} PS4='+' bash -x "$@" <"$in" >/dev/null 2>"$TRACE_FILE" ) || true
+  TOTAL="$(grep -c '^+' "$TRACE_FILE" || true)"
+  EXT="$(grep -cE "$EXT_RE" "$TRACE_FILE" || true)"
+}
+
+# _check_budget <label> <measured-total> <measured-ext>
+# Budget: total <= measured + 10%, ext <= measured + 2.
+# PERF_SPAWN_BUDGET_PRINT=1 prints the live counts (used to set the budgets).
+_check_budget() {
+  local label="$1" mt="$2" me="$3"
+  local tb=$(( mt + mt / 10 )) eb=$(( me + 2 ))
+  [[ -z "${PERF_SPAWN_BUDGET_PRINT:-}" ]] || echo "SPAWNCOUNT ${label} total=${TOTAL} ext=${EXT}" >&3
+  if (( TOTAL > tb || EXT > eb )); then
+    {
+      echo "SPAWN BUDGET EXCEEDED for ${label}:"
+      echo "  trace lines          : ${TOTAL} (measured ${mt}, budget ${tb} = +10%)"
+      echo "  external-tool lines  : ${EXT} (measured ${me}, budget ${eb} = +2)"
+      echo "  trace file           : ${TRACE_FILE}"
+      echo "  If this is an intended change, update the budget in the same commit and say why."
+    } >&2
+    return 1
+  fi
+  # Floor: a trace far below the measure means the fixture no longer reaches
+  # the target code path and the guard would pass vacuously.
+  if (( TOTAL < mt / 2 )); then
+    echo "SPAWN BUDGET FIXTURE DRIFT for ${label}: ${TOTAL} trace lines is under half of the measured ${mt}; the fixture no longer exercises the target." >&2
+    return 1
+  fi
+}
+
+# --- (a) loa-kf-surface.sh: 5-entry known-failures fixture, SessionStart payload.
+# Measured by ESO pass 22 (after pass 6 single awk and pass 8 lazy compat probes).
+@test "spawn budget: loa-kf-surface.sh on a 5-entry fixture" {
+  local kf="$W/known-failures.md" i
+  {
+    printf '# Known Failures\n\n## Index\n\n| ID | Status |\n|----|--------|\n\n'
+    for i in 1 2 3 4 5; do
+      printf '## KF-%03d: fixture entry %d\n\n**Status**: OPEN\n**Symptom**: compact symptom line for entry %d\n**Recurrence count**: %d\n\n' "$i" "$i" "$i" "$i"
+    done
+  } >"$kf"
+  printf '%s\n' '{"hook_event_name":"SessionStart","source":"startup","session_id":"perf-spawn-budget"}' >"$W/in.json"
+  _trace "$W/in.json" "$W" LOA_KF_SURFACE_TEST_MODE=1 BATS_VERSION=1 LOA_KF_SURFACE_TEST_CONFIG=true \
+    LOA_KNOWN_FAILURES_FILE="$kf" -- "$PROJECT_ROOT/.claude/hooks/loa-kf-surface.sh"
+  # sanity: the fixture really reaches the table (all five rows surface)
+  [[ "$(LOA_KF_SURFACE_TEST_MODE=1 BATS_VERSION=1 LOA_KF_SURFACE_TEST_CONFIG=true LOA_KNOWN_FAILURES_FILE="$kf" bash "$PROJECT_ROOT/.claude/hooks/loa-kf-surface.sh" <"$W/in.json")" == *"KF-005 (rec 5)"* ]]
+  _check_budget "loa-kf-surface" 34 2   # measured: 34 trace lines, 2 external-tool lines
+}
+
+# --- (b) grimoire-index.sh --tsv on a scratch PROJECT_ROOT mirror.
+# Measured by ESO pass 22 (after passes 4, 5 and 8).
+@test "spawn budget: grimoire-index.sh --tsv on a fixture grimoire" {
+  [[ "$(yq --version 2>&1)" == *mikefarah*"version v4."* ]] || skip "Mike Farah yq v4 not installed"
+  local root="$W/root" g="$W/root/grimoires/loa" i
+  mkdir -p "$root/x/y" "$g/lore" "$g/handoffs" "$g/visions/entries" "$root/.run"
+  cp "$PROJECT_ROOT/.claude/scripts/grimoire-index.sh" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$root/x/y/"
+  {
+    printf '# Known Failures\n\n'
+    for i in 1 2 3; do
+      printf '## KF-%03d: fixture entry %d\n\n**Status**: OPEN\n**Symptom**: symptom %d\n**Recurrence count**: %d\n\n' "$i" "$i" "$i" "$i"
+    done
+  } >"$g/known-failures.md"
+  printf 'version: 2\ncategories:\n  - id: patterns\n    entries:\n      - id: alpha\n        status: Active\n      - id: beta\n        status: Active\n' >"$g/lore/index.yaml"
+  printf '# Notes\n\n## First heading\ntext\n## Second heading\ntext\n' >"$g/NOTES.md"
+  {
+    printf '# Handoff Index\n\n| handoff_id | file | from | to | topic | ts_utc | read_by |\n|---|---|---|---|---|---|---|\n'
+    printf '| sha256:%064d | h1.md | a | b | topic-one | 2026-01-01T00:00:00Z |  |\n' 1
+  } >"$g/handoffs/INDEX.md"
+  printf '# Vision: Fixture\n\n**ID**: vision-001\n**Status**: Captured\n' >"$g/visions/entries/vision-001.md"
+  {
+    printf 'schema_version: 1\ndecisions:\n'
+    for i in 1 2 3; do
+      printf '  - id: "DEC-%04d"\n    status: open\n    summary: "fixture decision %d"\n    source: "prd.md#fr-%d"\n    proposed_by: agent\n' "$i" "$i" "$i"
+    done
+  } >"$g/decisions.yaml"
+  : >"$W/empty"
+  _trace "$W/empty" "$W" -- "$root/x/y/grimoire-index.sh" --tsv
+  # sanity: all six families reach the index, so the trace covers every emitter
+  local tsv; tsv="$(bash "$root/x/y/grimoire-index.sh" --tsv)"
+  [[ "$tsv" == *$'decisions\tDEC-0003'* && "$tsv" == *$'vision\tvision-001'* && "$tsv" == *$'lore\tbeta'* && "$tsv" == *$'notes\tL5'* ]]
+  _check_budget "grimoire-index --tsv" 96 11   # measured: 96 trace lines, 11 external-tool lines
+}
+
+# --- (c) implement-gate.sh: Write to a grimoires/ path, no live .run.
+# Measured by ESO pass 22 (after passes 8 and 9).
+@test "spawn budget: implement-gate.sh on a Write payload" {
+  local proj="$W/proj"
+  mkdir -p "$proj/.run" "$proj/grimoires/loa"
+  printf '{"tool_name":"Write","tool_input":{"file_path":"%s/grimoires/loa/notes-x.md","content":"x"},"cwd":"%s"}\n' "$proj" "$proj" >"$W/in.json"
+  _trace "$W/in.json" "$proj" PROJECT_ROOT="$proj" RUN_DIR="$proj/.run" LOA_RUN_DIR="$proj/.run" \
+    -- "$PROJECT_ROOT/.claude/hooks/compliance/implement-gate.sh"
+  # Sanity: the fixture must reach the path-classification stage (not an early exit).
+  grep -q '^+canonical_root=' "$TRACE_FILE"
+  _check_budget "implement-gate" 113 5   # measured: 113 trace lines, 5 external-tool lines
+}
+
+# --- (d) notes-size-guard.sh: a non-NOTES Write payload.
+# Measured by ESO pass 22 (after pass 10: one jq parse).
+@test "spawn budget: notes-size-guard.sh on a non-NOTES Write payload" {
+  local gd="$W/g"; mkdir -p "$gd"
+  printf '{"tool_name":"Write","tool_input":{"file_path":"%s/other.md","content":"x"}}\n' "$W" >"$W/in.json"
+  _trace "$W/in.json" "$W" LOA_GRIMOIRE_DIR="$gd" -- "$PROJECT_ROOT/.claude/hooks/safety/notes-size-guard.sh"
+  # Sanity: the fixture must get past the parse gate to the NOTES.md comparison.
+  grep -q '^+notes=' "$TRACE_FILE"
+  _check_budget "notes-size-guard" 26 3   # measured: 26 trace lines, 3 external-tool lines
+}
+
+# --- (e) compat-lib.sh: sourcing must not fork a capability probe (lazy-probe
+# guarantee from ESO pass 8). The absence assertion is the real invariant.
+# Measured by ESO pass 22.
+@test "spawn budget: sourcing compat-lib.sh forks no capability probe" {
+  : >"$W/empty"
+  _trace "$W/empty" "$W" -- -c 'source "$1"' _ "$PROJECT_ROOT/.claude/scripts/compat-lib.sh"
+  local probes='(^|[^[:alnum:]_-])(uname|sort -V|readlink -f|stat -c)([^[:alnum:]_-]|$)|sed --version|find .*-printf'
+  if grep -nE "$probes" "$TRACE_FILE" >&2; then
+    echo "compat-lib.sh forked a capability probe at source time (lines above). Keep probes lazy (_compat_need_*)." >&2
+    return 1
+  fi
+  _check_budget "compat-lib source" 15 0   # measured: 15 trace lines, 0 external-tool lines
+}
+
+# --- (f) run-mode-stop-guard.sh: HALTED sprint-plan state, push disabled.
+# Measured by ESO pass 22 (after pass 18: one yq for the push config).
+@test "spawn budget: run-mode-stop-guard.sh on a HALTED state with push disabled" {
+  local proj="$W/proj"
+  mkdir -p "$proj/.run"
+  printf '{"state":"HALTED","sprints":{"current":"sprint-1"},"timestamps":{"last_activity":"2026-01-01T00:00:00Z"}}\n' >"$proj/.run/sprint-plan-state.json"
+  printf 'notifications:\n  push_command:\n    enabled: false\n' >"$W/push.yaml"
+  printf '%s\n' '{"hook_event_name":"Stop","session_id":"perf-spawn-budget"}' >"$W/in.json"
+  _trace "$W/in.json" "$proj" LOA_RUN_DIR="$proj/.run" LOA_PUSH_CONFIG="$W/push.yaml" \
+    -- "$PROJECT_ROOT/.claude/hooks/safety/run-mode-stop-guard.sh"
+  grep -q 'push_notify_active\|_push_load_config' "$TRACE_FILE"
+  _check_budget "run-mode-stop-guard" 78 2   # measured: 78 trace lines, 2 external-tool lines
+}

@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (performance loop "extreme-software-optimization" × 22, 2026-10-27/28)
+
+Report: `grimoires/loa/reports/perf/eso-loop-2026-10-27.md`. Every pass was profiled first, kept output byte-identical (golden and old-versus-new mirror checks) and passed an Opus review. Totals: repo-map-gen 4658 → 1219 ms, grimoire-index 1819 → 826 ms, SessionStart kf-surface 488 → 15 ms, Write/Edit PreToolUse chain about 78 → 62 ms, Stop hook 24 → 14 ms.
+
+- **`repo_map.py` / `repo-map-gen.sh`** (passes 1, 2, 3, 20): one engine run emits both the map and the JSON (4.64 → 2.30 s); the PageRank loop reads pre-sorted edge lists (sorted() calls 213,996 → 4,962, 2318 → 1695 ms); a file-to-names index replaces 2.3M membership tests (1748 → 1547 ms); PageRank uses integer-indexed lists (1.564 → 1.141 s). Output is byte-identical, including unrounded floats.
+- **`grimoire-index.sh`** (passes 4, 5): one awk per family replaces about 5 spawns per field (`--tsv` 1459 → 522 ms, trace 7,402 → 1,793 lines); `render_md` is one jq program instead of up to 13 (write mode 833 → 647 ms).
+- **`.claude/hooks/loa-kf-surface.sh`** (pass 6): one awk sanitises and formats every row (about 750 spawns → 1; 478 → 16 ms).
+- **`.claude/scripts/run-checkpoint.sh`** (pass 7): `cmd_read` takes a one-jq fast path for the plain state shape and keeps the original reads as the fallback (7 jq → 1, 54.3 → 39.9 ms).
+- **`.claude/scripts/compat-lib.sh`** (pass 8): the six forking capability probes run on first use (source cost 10.2 → 2.3 ms, implement-gate 31.8 → 22.3 ms); `dx-utils.sh` guards its direct read, and `red-team-retention.sh` and `archetype-resolver.sh` pre-warm for their `$(...)` loops.
+- **`.claude/hooks/compliance/implement-gate.sh`** (pass 9): the payload is parsed by one jq instead of four, with the original calls kept as the fallback (21.7 → 15.3 ms).
+- **`.claude/hooks/safety/notes-size-guard.sh`** (pass 10): the parse gate and the path read share one jq (18.8 → 16.1 ms; 300 KB payload 28.1 → 18.1 ms).
+- **`.claude/hooks/session-start/loa-run-state-surface.sh`** (pass 11): one jq per state file on the plain shape (6 jq → 2, 22.8 → 16.5 ms).
+- **`.claude/scripts/cache-manager.sh`** (pass 13): `get_config` makes one `yq -r` read instead of a type probe plus a read (`get` 66.0 → 56.7 ms, `workflow-state.sh --json` 118.5 → 109.8 ms).
+- **`.claude/scripts/loa-status.sh`** (pass 14): the agy opt-in read is memoised before the provider loop, so its subshells inherit it (671 → 637 ms).
+- **`.claude/scripts/upgrade-health-check.sh`** (pass 16): one yq probe emits the four option flags (the function 127 → 53 ms, hook 223 → 208 ms).
+- **`.claude/adapters/loa_cheval/providers/__init__.py`** (pass 17): the ten provider adapters import on first use through a module `__getattr__` and a plain on-demand registry (`cheval.py --help` 122.5 → 114.7 ms).
+- **`.claude/scripts/lib/push-notify-lib.sh`** (pass 18): `_push_load_config` reads the three nodes with one yq and falls back to the original reads (Stop hook 23.0 → 15.3 ms). `.claude/checksums.json` is refreshed for the touched files.
+- **`.claude/hooks/quality/karpathy-surgical-diff-check.sh`** (pass 19): charset-safe session ids skip the jq encode and decode, and `head -1` becomes a parameter expansion (79.2 → 75.8 ms per Write/Edit).
+- **`tests/unit/loa-decisions-surface.bats`, `dec-write-lib.bats`, `red-test-check.bats`** (pass 21): the "PATH without tool" symlink farms link each directory's candidates with one `ln` (helper call 2.0 → 0.09 s; the three files 111.8 → 77.8 s).
+- **Two passes changed nothing** (12 and 15): `audit-envelope.sh verify-chain` (levers scored 1.0 to 1.5, the trust-store check stays a fail-closed subprocess) and `beads-health.sh --json` (`br doctor` is 76% of the time and part of the `br` contract). The reasoning is in `.skill-loop-progress.md`.
+- **New regression guard** `tests/unit/perf-spawn-budget.bats` (pass 22): counts `bash -x` trace lines and external-tool lines for loa-kf-surface, grimoire-index `--tsv`, implement-gate, notes-size-guard, compat-lib sourcing and run-mode-stop-guard against fixed fixtures, with a budget of measured plus 10% (external tools plus 2). Sourcing compat-lib must fork no `uname`, `sed --version`, `sort -V`, `readlink -f`, `find -printf` or `stat -c`. It is deterministic and runs in under 2 s.
+
 ### Changed (cycle-136 "Bridgebuilder and scaffold follow-ups", Sprint 280)
 
 - **mount scaffold**: re-mounting over an existing `.github/workflows/post-merge.yml` now warns when the `simple-release` job still carries the legacy guard `needs.classify.outputs.pr_type != 'cycle' && needs.classify.outputs.pr_number != ''`. That guard sends cycle-135 `housekeeping` merges to the orchestrator, which refuses them (bd-nr5i6). The warning names the allowlist replacement, and the file is left untouched. Setting `LOA_SCAFFOLD_FIX_RELEASE_GUARD=1` rewrites exactly that one job-level `if:` line to the allowlist guard and prints only a one-line notice. The rewrite keeps indentation, quoting, a trailing comment and line endings. It refuses with a warning for symlinks, `${{ }}`-wrapped, customised, multi-line or continued, or duplicated guards, and for write failures. Detection is one awk pass, needs no yq, and ignores step-level `if:` lines, other jobs, comments and block-scalar bodies. The mount never fails because of this check (bd-akkgq).
