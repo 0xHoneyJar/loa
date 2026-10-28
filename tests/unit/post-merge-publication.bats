@@ -714,7 +714,7 @@ assert_nothing_published() {
 @test "bug-283 r2 (DISS-001): release_body_identical compares a 200 000-byte body (no argv limit) and a 200 000-byte read-back JSON" {
     sed '$d' "$SCRIPT" > "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh"
     local big="$CASE_DIR/big.txt"; head -c 200000 /dev/zero | tr '\0' 'a' > "$big"; printf ' \\u0000 tail\n' >> "$big"
-    jq -n --rawfile b "$big" '{id:81, tag_name:"v1.0.1", name:"v1.0.1", body:($b | gsub("\\\\u0000"; "\\^@")), draft:false, prerelease:false}' > "$CASE_DIR/big-rb.json"
+    jq -n --rawfile b "$big" '{id:81, tag_name:"v1.0.1", name:"v1.0.1", body:($b | rtrimstr("\n") | gsub("\\\\u0000"; "\\^@")), draft:false, prerelease:false}' > "$CASE_DIR/big-rb.json"
     [ "$(wc -c < "$CASE_DIR/big-rb.json")" -gt 131072 ]   # above MAX_ARG_STRLEN: an argv-borne JSON could not be exec'd
     run bash -c 'source "$1"; release_body_identical "$(cat "$2")" "$(cat "$3")"' _ "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh" "$big" "$CASE_DIR/big-rb.json"
     [ "$status" -eq 0 ] || { echo "status=$status output=${output:0:200}"; return 1; }
