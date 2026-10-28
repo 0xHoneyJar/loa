@@ -64,7 +64,20 @@ if [[ "$*" == *"releases/tags/"* ]]; then
 elif [[ "$*" == *"releases/81"* ]]; then
     cat "${GH_LOG}.release"
 elif [[ "$*" == *"--method POST"* && "$*" == *"/releases "* ]]; then
-    jq '. + {id:81}' > "${GH_LOG}.release"
+    if [[ "${GH_BODY_REWRITE:-}" == caret ]]; then
+        # GitHub stores a literal \u00XX escape of a C0 control (00-1F) or DEL (7F) in a release body as caret
+        # notation: \u0000 -> \^@, \u001f -> \^_, \u007f -> \^? (observed publishing v2.0.0-rc.9, KF-064).
+        jq '. + {id:81}' | python3 -I -c '
+import json, re, sys
+r = json.load(sys.stdin)
+def caret(m):
+    v = int(m.group(1), 16)
+    return "\\^" + ("?" if v == 0x7f else chr(v + 64))
+r["body"] = re.sub(r"\\u00([01][0-9a-fA-F]|7[fF])", caret, r.get("body", ""))
+print(json.dumps(r))' > "${GH_LOG}.release"
+    else
+        jq '. + {id:81}' > "${GH_LOG}.release"
+    fi
     cat "${GH_LOG}.release"
 elif [[ "$*" == *"repos/test/repo/issues/7" && "$*" != *"--method POST"* ]]; then
     printf '{"number":7,"url":"https://api.github.com/repos/test/repo/issues/7"}\n'
@@ -614,6 +627,41 @@ assert_nothing_published() {
     [ "$status" -eq 0 ]
     [ "$(remote_git reflog show refs/heads/main | wc -l | tr -d ' ')" = 2 ]
     jq -e '.state == "DONE" and .phases.ledger.result.state == "published" and .phases.notify.result.verified' "$PROJECT_ROOT/.run/post-merge-state.json"
+}
+
+@test "bug-283 (KF-064): a release body quoting a backslash-u control escape survives GitHub's caret rewrite on read-back and publishes DONE" {
+    # the merge carries a commit subject with a literal \u0000-\u001f (cycle-137's sanitiser commit did); the notes quote it
+    git -C "$PROJECT_ROOT" commit --allow-empty -qm 'fix: strip the `\u0000-\u001f` range in the sanitiser'
+    SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+    git -C "$PROJECT_ROOT" push -q "$CASE_DIR/remote" "$SHA:refs/heads/main"
+    generate
+    jq -e '.release_body | contains("\\u0000-\\u001f")' "$CANDIDATE" >/dev/null || { echo "fixture: the candidate body does not quote the escape"; return 1; }
+    export GH_MODE=ok GH_BODY_REWRITE=caret
+    run publish
+    [ "$status" -eq 0 ] || { echo "publish status=$status"; printf '%s\n' "$output" | tail -5; return 1; }
+    jq -e '.state == "DONE" and .phases.release.status == "completed" and .phases.release.result.verified == true and .phases.release.result.id == 81' "$PROJECT_ROOT/.run/post-merge-state.json"
+    [ "$(grep -c -- '--method POST repos/test/repo/releases ' "$GH_LOG")" = 1 ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$(ledger_new)" ]
+    # the stored body really was rewritten (the stub did its job) and the sealed candidate was never touched
+    jq -e '.body | contains("\\^@-\\^_")' "${GH_LOG}.release" >/dev/null
+    [ "$(sha256sum "$CANDIDATE" | cut -d' ' -f1)" = "$DIGEST" ]
+}
+
+@test "bug-283 (KF-064): under the same rewrite, a pre-existing release whose body differs in any other way still fails read-back" {
+    git -C "$PROJECT_ROOT" commit --allow-empty -qm 'fix: strip the `\u0000-\u001f` range in the sanitiser'
+    SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+    git -C "$PROJECT_ROOT" push -q "$CASE_DIR/remote" "$SHA:refs/heads/main"
+    generate
+    export GH_MODE=ok GH_BODY_REWRITE=caret
+    # a release already exists for the tag: the rewritten body PLUS one extra line (another identity)
+    jq -nc --arg tag "$(jq -r .tag "$CANDIDATE")" --arg title "$(jq -r .release_title "$CANDIDATE")" \
+        --arg body "$(jq -r .release_body "$CANDIDATE" | sed 's/\\u0000-\\u001f/\\^@-\\^_/g'; printf '\nappended by someone else')" \
+        '{id:81, tag_name:$tag, name:$title, body:$body, draft:false, prerelease:false}' > "${GH_LOG}.release"
+    run publish
+    [ "$status" -eq 1 ]
+    jq -e '.state == "FAILED" and .phases.release.status == "failed" and .phases.ledger.status == "pending"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    [ "$(grep -c -- '--method POST repos/test/repo/releases ' "$GH_LOG")" = 0 ]
+    [ "$(remote_git rev-parse refs/heads/main)" = "$SHA" ]
 }
 
 @test "c133 v2: mutated notes under the approved digest refuse" {
