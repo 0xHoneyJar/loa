@@ -122,6 +122,44 @@ Copies of the TAP, red-test-check logs, dissent envelopes and probes live under 
 | `~/.cache/loa/cycle-137/spec-dec-r1fix.json` | `7c2f4490237973788c48e23daacb596d2d0d8d221bbf3e0a3cb01378a21a4489` |
 | `~/.cache/loa/cycle-137/spec-dec-r2.json` | `8584447061033857ecbfe3099980d42ce9274ae5420234d2d056c2c1e4ccb96c` |
 
-## Part 2 — the Ship section (appended by S-8)
+## Part 2 — the Ship section (S-1 … S-9)
 
-{PART_2}
+### G-5 — merged with every check green; Bridgebuilder outcome; record and archive
+
+| Step | Result |
+|---|---|
+| S-1 | secret scans clean (assignment-pattern scan over the changed tracked files rc 0; token / private-key grep over the added lines: no hit); branch pushed; **PR #1309** opened from `ship/pr-body.final.md` (title classifies `cycle`) |
+| S-2 | Bridgebuilder round 1 (3215c141f, `codex-headless`, generated/planning files excluded): COMMENT, degraded 1/2 — openai voice done, anthropic/claude-headless `PROVIDER_UNAVAILABLE` (claude -p timeout under host load from three foreign runaway shells; KF-037 recurrence 13); R001 refuted (jq `as` binding), R002 confirmed pre-existing → bd-3qed8, R003 praise. Round 2 (`--force-full-review`): COMMENT, degraded 1/2 again; R-001 BSD byte-vs-char cap → bd-aceil (Sprint 281 MED-001), R-002 sentinel collision → bd-y5fy4, R-003 praise. No blocking finding after two rounds → the plan's degraded exit (class S, DEC-1139). Triage comments on the PR |
+| S-3 | `ship-1-merge.sh 3215c141f`: Template Protection, Validate Framework Files, Lint Markdown, Lint YAML, Shell Tests, Cross-Platform Compatibility all completed/success; 0 check runs pending; 0 not green (46/46 pass); both verdicts bound to the PR head (03f910129 + two `grimoires/`-only commits, D-1.1); admin merge → **a1360dac2efcab4c9e4f6ac6ddea98a4f05b95e9**; `git diff --quiet 3215c141f a1360dac2` identical trees |
+| S-4 | `ship-2-record.sh`: one known hit class accepted (`archive/notes/NOTES-20261028T023108Z.md:316:audit-key-password-assignment`); **record/cycle-137-performance-followups = 5610a68ba** (339 files over a1360dac2 incl. `a2a/sprint-282/` with `evidence/` and `ship/` + `SHA256SUMS`), pushed via run-mode-ice; stage 2 after the archive carries this Part 2 and `publish-summary.md` |
+| S-5 | main runs on a1360dac2: `CI` 40656882541 success; `BATS Tests` 40656882501 success (Shell Tests ≈ 75 min); `Post-Merge Pipeline` 40656882547 success (candidate prepared) — both required runs green before any publish step |
+| S-6 | `publish-summary.md`: candidate `merge_sha` = `target_commit` = a1360dac2; tag `v2.0.0-rc.9`, prerelease true, `pr_type` cycle; printed digest `0467e73bf510965f7281efb391e5c864cb545e6654eaa816fe648f6e8da76430` = lead-recomputed (`sha256_portable` over the fetched bytes) ✓; bundle verified; remotes bound to `https://github.com/0xHoneyJar/loa` |
+
+### G-6 — the release candidate published and identical
+
+| Check | Result |
+|---|---|
+| `post-merge-orchestrator.sh --publish <candidate> --approve-sha256 0467e73b…` from the non-shallow clone `~/.cache/loa/cycle-137/publish-checkout-rc9` | tag phase: `[TAG] Verified v2.0.0-rc.9 at a1360dac2…` (annotated tag object d786a6e30325090384e9680b3f8ae61c73d7db9a pushed); release phase: the release was CREATED (id 426462979) but the read-back `.body == $body` failed because GitHub rewrites a literal `\u0000-\u001f` in the body (a quoted commit subject) to `\^@-\^_` → phase FAILED, publish rc 1, ledger + notify pending; a retry from the approved candidate (runbook path) failed identically — deterministic, not a race. **KF-064**, bug bead bd-0atxs |
+| `git rev-parse v2.0.0-rc.9^{commit}` | a1360dac2efcab4c9e4f6ac6ddea98a4f05b95e9 = the intended release sha ✓ |
+| `git ls-remote --tags origin v2.0.0-rc.9` vs the local tag object | d786a6e30… both ✓ |
+| `git merge-base --is-ancestor v2.0.0-rc.9 origin/main` | ✓ |
+| Release page | https://github.com/0xHoneyJar/loa/releases/tag/v2.0.0-rc.9 — tag `v2.0.0-rc.9`, title `v2.0.0-rc.9`, prerelease true, draft false, 0 assets (the candidate lists none: the asset-digest check is vacuous); notes replaced with `grimoires/loa/reports/release-notes-2.0.0-rc.9.md` via `gh release edit --notes-file` |
+| Tag tree markers | `.loa-version.json` `framework_version` 2.0.0-rc.9 in the tag's tree ✓ |
+| Install smoke test (`git clone --depth 1 --branch v2.0.0-rc.9` into a scratch dir) | clone head a1360dac2…; `check-loa.sh` → All checks passed; `loa-kf-surface.sh` rc 0, 63 entries surfaced ✓ |
+| Ledger archive | the pipeline's `chore(ledger): archive cycle-137-performance-followups` commit was NOT pushed (the ledger phase never ran after the release phase failed; `--ledger-only` refuses without a deferral file); `archive-cycle.sh` performs the same ledger write on the archive branch (S-8) |
+| Spend | `.run/cost-ledger.jsonl` USD 0 (59 rows since 2026-10-27; subscription routes throughout); cap USD 30 untouched |
+
+### S-8 — archive and close
+
+| Step | Result |
+|---|---|
+| Archive | `ship-3-archive.sh` on `chore/cycle-137-archive` from `origin/main`: `archive-cycle.sh --cycle 137 --retention 50` → `grimoires/loa/archive/cycle-137-performance-followups/` (`.archive-meta.json`, CHANGELOG.md, compound/, ledger.json, prd.md, sdd.md, sprint.md; the script's `README.md` pathspec did not exist and the directory was staged whole instead); the live ledger: cycle `archived`, `active_cycle` null — the same ledger write the pipeline's pending ledger phase would have pushed. The commit also carries `known-failures.md` (KF-037 recurrence 13, KF-064 new) and `decisions.yaml` (DEC-1139, DEC-1140) |
+| Archive PR | **#1311** (head dbd79c783; 21 check runs completed, 0 pending, 0 not green — the docs-only paths skip the heavy workflows) → admin merge **684f06f36c0602e6ee9b9dda4ef8b5f09031d086**; Post-Merge Pipeline run 40665194705 on it: Classify Merge success → `housekeeping`, both Prepare Release jobs skipped, 0 artifacts (G-3 live: the housekeeping merge prepared nothing) |
+| Close | `ship-4-close.sh`: `.run/sprint-plan-state.json` and `.run/state.json` → `JACKED_OUT` with the completion block (PR #1309, merged a1360dac2, release `v2.0.0-rc.9`, record 5610a68ba, archive PR #1311 → 684f06f36); parked copies `.run/*.cycle-137.jacked-out.json`; checkout `main` at 684f06f36 |
+| Beads | task beads bd-7e8v2 bd-eakaf bd-acolw bd-2uj7p bd-svmkr bd-3de6b: provisional closes confirmed with the merged and released shas; source beads bd-atk7q bd-1mfm7 bd-gv5jf bd-h5tcn bd-wctli bd-09z1i closed (SHIPPED, task mapping in the reason); bd-93bee closed (gates); bd-qyi0c (this file) and bd-b83ij (ship) closed at S-8. Follow-ups open: bd-0h7kq bd-3qed8 bd-4sikh bd-kdzc3 (281); bd-20bh1 bd-z6gxn bd-aceil bd-rq6gk bd-5v1oa bd-j34zb bd-hyah6 bd-7utms bd-yos4s bd-y5fy4 (282); bd-0atxs (publisher read-back, KF-064) |
+| Record stage 2 | `record-branch.sh --cycle 137 --head a1360dac2 --prev origin/record/cycle-137-performance-followups --stage "stage 2"` after this file, `publish-summary.md` and the PR-head-bound verdict files were final (sha in `index.md`) |
+| Host | three `zsh` processes of other sessions (pts/5, pts/6, pts/7; started 2026-10-23 21:07–21:12) at ~99 % CPU each throughout the day: the load behind the two Bridgebuilder companion timeouts and the loaded re-baseline; left for the operator |
+
+### S-9 — rollback (not exercised)
+
+Written in the sprint plan and `publish-summary.md` before S-7; nothing to roll back: the tag peels to the intended sha, the release flags and title are correct, the notes are the written file.
