@@ -47,6 +47,11 @@
 declare -F agy_opted_in >/dev/null 2>&1 && return 0
 _LOA_AGY_GATE_WARNED=''
 _LOA_AGY_MAPS_WARNED=''
+# (cycle-137 FR-3: the node memo — like the said-once flags, reset at load and never seeded from the environment: a forged
+# key + value would otherwise read as an opt-in)
+_AGY_NODE_MEMO_KEY=''
+_AGY_NODE_MEMO_VAL=''
+_AGY_STAT_STYLE=''
 
 AGY_OPT_IN_KEY="hounfour.headless.agy_opt_in"
 AGY_OPT_IN_NOTE="agy: opt-in (disabled; hounfour.headless.agy_opt_in)"
@@ -200,10 +205,39 @@ print(kind.replace(" ", "_"), text)
 ' 2>/dev/null <<<"$doc" || return 0
 }
 
+_agy_opt_in_node_memo() {  # <config> → sets _AGY_NODE_MEMO_VAL to _agy_opt_in_node's output; returns 0
+  # (cycle-137 FR-3, SDD § 5.3: a planner asks agy_opted_in / agy_gate_warn_once several times per run, and every read is a
+  # cat + yq chain. The read itself stays _agy_opt_in_node, unchanged (subshell, fd 9 opened once — r251-6 V3); this wrapper
+  # keys its result on "<config>|<dev>:<ino>:<size>:<mtime>:<ctime>" of the file the path resolves to (stat -L: a symlink's
+  # TARGET is what the reader opens) and its PATH (the yq / python3 flavour picks the reader). A rewrite, a replacement, a
+  # chmod / chown (ctime) or a path switch is a miss. When the stat fails (a missing file, or a stat that cannot answer)
+  # the memo is cleared and the original read runs uncached — a missing file reads as absent there, as today.
+  # GNU stat carries nanosecond mtime / ctime; BSD stat here is whole seconds (a same-size rewrite within one second
+  # is not seen there). The memo lives only in the calling shell: a $(...) caller cannot populate it.)
+  local cfg="${1:-}" st="" id
+  if [[ -z "$_AGY_STAT_STYLE" ]]; then
+    if declare -F _compat_need_stat_style >/dev/null 2>&1; then
+      _compat_need_stat_style; _AGY_STAT_STYLE="${_COMPAT_STAT_STYLE:-bsd}"
+    elif stat -c '%i' -- / >/dev/null 2>&1; then _AGY_STAT_STYLE=gnu
+    else _AGY_STAT_STYLE=bsd
+    fi
+  fi
+  if [[ -n "$cfg" ]]; then
+    if [[ "$_AGY_STAT_STYLE" == gnu ]]; then st=$(stat -L -c '%d:%i:%s:%.9Y:%.9Z' -- "$cfg" 2>/dev/null) || st=""
+    else st=$(stat -L -f '%d:%i:%z:%m:%c' -- "$cfg" 2>/dev/null) || st=""
+    fi
+  fi
+  if [[ -z "$st" ]]; then _AGY_NODE_MEMO_KEY=""; _AGY_NODE_MEMO_VAL=$(_agy_opt_in_node "$cfg"); return 0; fi
+  id="$cfg|$st|$PATH"
+  [[ "$id" == "$_AGY_NODE_MEMO_KEY" ]] && return 0
+  _AGY_NODE_MEMO_VAL=$(_agy_opt_in_node "$cfg")
+  _AGY_NODE_MEMO_KEY="$id"
+  return 0
+}
+
 agy_opted_in() {
-  local n
-  n=$(_agy_opt_in_node "${1:-}")
-  [[ "$n" == "bool true" ]]
+  _agy_opt_in_node_memo "${1:-}"
+  [[ "$_AGY_NODE_MEMO_VAL" == "bool true" ]]
 }
 
 agy_headless_mode() {
@@ -301,7 +335,7 @@ agy_gate_warn_once() {
   local cfg="${1:-}" t why=""
   [[ -z "$_LOA_AGY_GATE_WARNED" ]] || return 0
   _LOA_AGY_GATE_WARNED=1
-  t=$(_agy_opt_in_node "$cfg")
+  _agy_opt_in_node_memo "$cfg"; t="$_AGY_NODE_MEMO_VAL"
   case "$t" in
     untrusted\ *)   # (r251-5 U1: the one WARN for this config — the availability WARN below would only repeat "off")
       printf 'WARN: %s: %s — a config others can write never opts in (own it and `chmod go-w` it); the agy route stays off\n' "$AGY_OPT_IN_KEY" "${t#untrusted }" >&2

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-28T04:25:34Z",
+  "generated": "2026-10-28T04:29:46Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1131,7 +1131,7 @@
     ".claude/scripts/lib-route-table.sh": "4e5b288ccba866b534bc9364b0e4f35075583d5941c73dc3160b977730218678",
     ".claude/scripts/lib-security.sh": "cd6c6bebf5ac71afd8fb2fd9e30be0dc676cd81011a3e213f8213bca4d855fe6",
     ".claude/scripts/lib/advisor-strategy-resolver.sh": "88610d1666dba6e8b051ab4cf2d3aab81274ab0cad945eb5bbf51f939378ff02",
-    ".claude/scripts/lib/agy-gate-lib.sh": "37221287bb084c2a7a0ceb5a11e256b64686b78fc7375a5ef154c624cc473882",
+    ".claude/scripts/lib/agy-gate-lib.sh": "b8866558d3c64abf9ee78f5dfe35cf7d19f1c0baea865716e286af1f37efac8a",
     ".claude/scripts/lib/aleph-opt-in.sh": "1889f403f5071ea05216c19597276bf34c1191a1cabd76aa306e9a5e195481e8",
     ".claude/scripts/lib/allowlists/loa-anthropic-docs.json": "8c5d09f216fd82d63f7d372a547f0e35d7b6ac4a7ae33a0c92e3cf67d3e0bc26",
     ".claude/scripts/lib/allowlists/loa-github.json": "f525a8b8bc4ecbf97d8e5a50bd1d3d354a4e2b98cc6d6cba6fc664f99d7fc939",
