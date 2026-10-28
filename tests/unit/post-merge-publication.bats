@@ -664,6 +664,51 @@ assert_nothing_published() {
     [ "$(remote_git rev-parse refs/heads/main)" = "$SHA" ]
 }
 
+@test "bug-283 r1 (DISS-001): under the caret rewrite, a pre-existing release whose body differs only by CRLF line endings still fails read-back" {
+    git -C "$PROJECT_ROOT" commit --allow-empty -qm 'fix: strip the `\u0000-\u001f` range in the sanitiser'
+    SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+    git -C "$PROJECT_ROOT" push -q "$CASE_DIR/remote" "$SHA:refs/heads/main"
+    generate
+    export GH_MODE=ok GH_BODY_REWRITE=caret
+    jq -c --arg tag "$(jq -r .tag "$CANDIDATE")" --arg title "$(jq -r .release_title "$CANDIDATE")" \
+        '{id:81, tag_name:$tag, name:$title, body:(.release_body | gsub("\\\\u0000-\\\\u001f"; "\\^@-\\^_") | gsub("\n"; "\r\n")), draft:false, prerelease:false}' "$CANDIDATE" > "${GH_LOG}.release"
+    jq -e '.body | contains("\r\n")' "${GH_LOG}.release" >/dev/null
+    run publish
+    [ "$status" -eq 1 ] || { echo "CRLF body accepted as identical (status=$status)"; return 1; }
+    jq -e '.state == "FAILED" and .phases.release.status == "failed" and .phases.ledger.status == "pending"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    [ "$(remote_git rev-parse refs/heads/main)" = "$SHA" ]
+}
+
+@test "bug-283 r1 (DISS-001/C-002): under the caret rewrite, a pre-existing release whose body has extra trailing newlines still fails read-back" {
+    git -C "$PROJECT_ROOT" commit --allow-empty -qm 'fix: strip the `\u0000-\u001f` range in the sanitiser'
+    SHA="$(git -C "$PROJECT_ROOT" rev-parse HEAD)"
+    git -C "$PROJECT_ROOT" push -q "$CASE_DIR/remote" "$SHA:refs/heads/main"
+    generate
+    export GH_MODE=ok GH_BODY_REWRITE=caret
+    jq -c --arg tag "$(jq -r .tag "$CANDIDATE")" --arg title "$(jq -r .release_title "$CANDIDATE")" \
+        '{id:81, tag_name:$tag, name:$title, body:((.release_body | gsub("\\\\u0000-\\\\u001f"; "\\^@-\\^_")) + "\n\n"), draft:false, prerelease:false}' "$CANDIDATE" > "${GH_LOG}.release"
+    run publish
+    [ "$status" -eq 1 ] || { echo "trailing-newline body accepted as identical (status=$status)"; return 1; }
+    jq -e '.phases.release.status == "failed" and .phases.ledger.status == "pending"' "$PROJECT_ROOT/.run/post-merge-state.json"
+    [ "$(remote_git rev-parse refs/heads/main)" = "$SHA" ]
+}
+
+@test "bug-283 r1 (DISS-C-003): release_body_normalize maps the REAL rc.9 candidate line onto GitHub's stored line, and a caret table" {
+    sed '$d' "$SCRIPT" > "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh"
+    local fx="$ROOT/tests/fixtures/post-merge/rc9-release-body"
+    [ -s "$fx/candidate-line.txt" ] && [ -s "$fx/github-line.txt" ]
+    ! cmp -s "$fx/candidate-line.txt" "$fx/github-line.txt"   # the pair really differs before normalisation
+    run bash -c 'source "$1"; release_body_normalize < "$2"' _ "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh" "$fx/candidate-line.txt"
+    [ "$status" -eq 0 ]
+    [ "$output" = "$(cat "$fx/github-line.txt")" ] || { echo "normalised candidate line != GitHub line"; echo "got:  $output"; echo "want: $(cat "$fx/github-line.txt")"; return 1; }
+    run bash -c 'source "$1"; release_body_normalize < "$2"' _ "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh" "$fx/github-line.txt"
+    [ "$output" = "$(cat "$fx/github-line.txt")" ]   # idempotent on the stored form
+    # the caret table: NUL, TAB, FS, US, DEL; a non-control escape and a bare word are untouched
+    run bash -c 'source "$1"; printf "%s" "a\\u0000 b\\u0009 c\\u001c d\\u001f e\\u007f f\\u0041 g\\u00ff \\u0000x" | release_body_normalize' _ "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh"
+    [ "$status" -eq 0 ]
+    [ "$output" = 'a\^@ b\^I c\^\ d\^_ e\^? f\u0041 g\u00ff \^@x' ] || { echo "caret table: $output"; return 1; }
+}
+
 @test "c133 v2: mutated notes under the approved digest refuse" {
     generate
     jq '.release_body = "tampered"' "$CANDIDATE" > "$CASE_DIR/c" && mv "$CASE_DIR/c" "$CANDIDATE"
