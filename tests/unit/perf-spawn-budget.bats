@@ -41,7 +41,7 @@ setup() {
   command -v yq >/dev/null 2>&1 || skip "yq not installed"
   command -v awk >/dev/null 2>&1 || skip "awk not installed"
   W="$BATS_TEST_TMPDIR/w"
-  mkdir -p "$W"
+  mkdir -p "$W/home"
 }
 
 # External tools whose trace lines count as process spawns (a leading VAR=value
@@ -51,11 +51,15 @@ EXT_RE='^\++ ?([A-Za-z_][A-Za-z0-9_]*=[^ ]* )*(/[^ ]*/)?(jq|yq|g?awk|mawk|nawk|b
 
 # _trace <stdin-file> <cwd> [VAR=value ...] -- <args to bash -x ...>
 # Runs the target under bash -x with PS4='+' from <cwd> with the given extra
-# environment. The trace is written to an inherited descriptor (BASH_XTRACEFD),
-# not stderr, and SHELLOPTS=xtrace makes child bash shells trace into it too;
-# the target's own stderr goes to TRACE_FILE.stderr. Sets TRACE_FILE, TOTAL
-# (trace lines) and EXT (external-tool lines), and fails the test if the live
-# repository config path shows up in the trace (the fixtures must stand alone).
+# environment ONLY: `env -i` drops the developer's or CI runner's ambient
+# environment (an ambient LOA_* override could point a hook at live state and any
+# value a hook expands would land in the trace file), then PATH, a fixture HOME
+# and TMPDIR, LANG=C and the explicit VAR=value list are set (case (h) pins it).
+# The trace is written to an inherited descriptor (BASH_XTRACEFD), not stderr,
+# and SHELLOPTS=xtrace makes child bash shells trace into it too; the target's
+# own stderr goes to TRACE_FILE.stderr. Sets TRACE_FILE, TOTAL (trace lines) and
+# EXT (external-tool lines), and fails the test if the live repository's config,
+# .run or grimoires path shows up in the trace (the fixtures must stand alone).
 _trace() {
   local in="$1" cwd="$2"; shift 2
   local envs=()
@@ -64,15 +68,24 @@ _trace() {
   TRACE_FILE="$W/trace.$$.$RANDOM"
   local xfd
   exec {xfd}>"$TRACE_FILE"
-  ( cd "$cwd" && env ${envs[@]+"${envs[@]}"} PS4='+' BASH_XTRACEFD="$xfd" SHELLOPTS=xtrace \
+  ( cd "$cwd" && env -i PATH="$PATH" HOME="$W/home" TMPDIR="$W" LANG=C ${envs[@]+"${envs[@]}"} \
+      PS4='+' BASH_XTRACEFD="$xfd" SHELLOPTS=xtrace \
       bash -x "$@" <"$in" >/dev/null 2>"$TRACE_FILE.stderr" ) || true
   exec {xfd}>&-
   TOTAL="$(grep -c '^+' "$TRACE_FILE" || true)"
   EXT="$(grep -cE "$EXT_RE" "$TRACE_FILE" || true)"
-  if grep -qF -- "$PROJECT_ROOT/.loa.config.yaml" "$TRACE_FILE"; then
-    echo "the trace reads the live repository config ($PROJECT_ROOT/.loa.config.yaml); point the target at a fixture config" >&2
-    return 1
-  fi
+  # A live path may appear in a plain assignment (a hook computing its default
+  # before the test seam overrides it: `+KF_FILE=<live>`); it may NOT appear as a
+  # command argument, which is a read or write of live state.
+  local live hits
+  for live in "$PROJECT_ROOT/.loa.config.yaml" "$PROJECT_ROOT/.run/" "$PROJECT_ROOT/grimoires/"; do
+    hits="$(grep -nF -- "$live" "$TRACE_FILE" | grep -vE '^[0-9]+:\++[A-Za-z_][A-Za-z0-9_]*=' || true)"
+    if [[ -n "$hits" ]]; then
+      echo "the trace touches live repository state ($live) outside a plain assignment; point the target at a fixture copy:" >&2
+      printf '%s\n' "$hits" | head -5 >&2
+      return 1
+    fi
+  done
 }
 
 # _check_budget <label> <measured-total> <measured-ext>
@@ -116,7 +129,7 @@ _check_budget() {
     LOA_KNOWN_FAILURES_FILE="$kf" -- "$PROJECT_ROOT/.claude/hooks/loa-kf-surface.sh"
   # sanity: the fixture really reaches the table (all five rows surface)
   [[ "$(LOA_KF_SURFACE_TEST_MODE=1 BATS_VERSION=1 LOA_KF_SURFACE_TEST_CONFIG=true LOA_KNOWN_FAILURES_FILE="$kf" bash "$PROJECT_ROOT/.claude/hooks/loa-kf-surface.sh" <"$W/in.json")" == *"KF-005 (rec 5)"* ]]
-  _check_budget "loa-kf-surface" 34 2   # measured: 34 trace lines, 2 external-tool lines
+  _check_budget "loa-kf-surface" 36 2   # measured: 36 trace lines, 2 external-tool lines (was 34/2; the explicit env -i environment adds two bash-internal lines — no new tool spawn; sprint-281 audit DISS-C-001)
 }
 
 # --- (b) grimoire-index.sh --tsv on a scratch PROJECT_ROOT mirror.
