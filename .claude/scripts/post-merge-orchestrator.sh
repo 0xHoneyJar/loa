@@ -1161,34 +1161,50 @@ phase_tag() {
   echo "[TAG] Verified ${tag} at ${target}"
 }
 
-# release_body_normalize: stdin -> stdout. GitHub's release storage rewrites a literal backslash-u escape of a C0
-# control (U+0000-U+001F) or DEL (U+007F) into caret notation (\^@ ... \^_, \^?); apply the same rewrite to a body
-# before comparing it with a read-back (sprint-bug-283, KF-064). Pure text transform; python3 is already a
-# publication dependency (jcs-helper.py). Anything else in the body is left byte-identical.
-release_body_normalize() {  # bytes in, bytes out: no universal-newline conversion, nothing stripped
-  python3 -I -c '
-import re, sys
-def caret(m):
+# GitHub's release storage rewrites a literal backslash-u escape of a C0 control (U+0000-U+001F) or DEL (U+007F)
+# into caret notation (\^@ ... \^_, \^?). ONE python definition of that rewrite serves both helpers below
+# (sprint-bug-283, KF-064; review r2 DISS-C-004: no second copy to drift). python3 is already a publication
+# dependency (jcs-helper.py); -I isolates it from the caller's site and environment.
+RELEASE_BODY_CARET_PY='
+import re
+def _caret_b(m):
     v = int(m.group(1), 16)
     return b"\\^" + (b"?" if v == 0x7f else bytes([v + 64]))
-sys.stdout.buffer.write(re.sub(rb"\\u00([01][0-9a-fA-F]|7[fF])", caret, sys.stdin.buffer.read()))'
+def normalize_bytes(b):
+    return re.sub(rb"\\u00([01][0-9a-fA-F]|7[fF])", _caret_b, b)
+'
+
+# release_body_normalize: bytes in, bytes out (no newline translation, nothing stripped) — the rewrite alone, for
+# direct callers and the fixture test.
+release_body_normalize() {
+  python3 -I -c "${RELEASE_BODY_CARET_PY}
+import sys
+sys.stdout.buffer.write(normalize_bytes(sys.stdin.buffer.read()))"
 }
 
 # release_body_identical <sent notes> <read-back JSON>: the rewrite and the equality test in ONE python process
-# over strings decoded from JSON (review r1 DISS-001: text-mode stdin turned CRLF into LF and command substitution
-# stripped trailing newlines, so those two differences were tolerated). Prints `equal` or `differ <sent> <read>`
-# (normalised lengths); exits non-zero when python3 or the input is unusable, which the caller treats as a refusal.
+# (review r1 DISS-001). Both inputs travel through temp files written by the printf builtin — never on argv, so a
+# body near GitHub's 125 000-character limit (and its larger JSON read-back) is compared instead of failing with
+# E2BIG (review r2 DISS-001) — and python reads bytes, so no locale or newline translation touches them. Prints
+# `equal` or `differ <sent_len> <read_len>` (normalised lengths); any other outcome (python3 missing, unparsable
+# read-back, a non-string body) exits non-zero with the reason on stderr, which the caller turns into a refusal.
 release_body_identical() {
-  jq -nc --arg sent "$1" --argjson rb "$2" '{sent: $sent, read: ($rb.body // "")}' |
-  python3 -I -c '
-import json, re, sys
-d = json.load(sys.stdin)
-def caret(m):
-    v = int(m.group(1), 16)
-    return "\\^" + ("?" if v == 0x7f else chr(v + 64))
-norm = lambda s: re.sub(r"\\u00([01][0-9a-fA-F]|7[fF])", caret, s)
-a, b = norm(d["sent"]), norm(d["read"])
-print("equal" if a == b else "differ %d %d" % (len(a), len(b)))'
+  local dir rc=0
+  dir=$(mktemp -d "${TMPDIR:-/tmp}/release-body.XXXXXX") || return 1
+  printf '%s' "$1" > "$dir/sent" && printf '%s' "$2" > "$dir/readback" || { rm -rf "$dir"; return 1; }
+  python3 -I -c "${RELEASE_BODY_CARET_PY}
+import json, sys
+sent = open(sys.argv[1], 'rb').read()
+rb = json.loads(open(sys.argv[2], 'rb').read())
+body = rb.get('body') if isinstance(rb, dict) else None
+if body is None:
+    body = ''
+if not isinstance(body, str):
+    raise SystemExit('read-back body is not a string')
+a, b = normalize_bytes(sent), normalize_bytes(body.encode('utf-8', 'surrogateescape'))
+print('equal' if a == b else 'differ %d %d' % (len(a), len(b)))" "$dir/sent" "$dir/readback" || rc=$?
+  rm -rf "$dir"
+  return "$rc"
 }
 
 phase_release() {
@@ -1280,13 +1296,18 @@ phase_release() {
   # body is compared after applying that one rewrite to BOTH sides; id, tag_name, draft, prerelease and name stay
   # exact, the sealed candidate is never rewritten (its digest guards it), and any other body difference still
   # refuses. The mismatch names the failing terms so the state receipt explains the refusal.
-  local body_verdict mismatch
-  # The comparison's own failure (no python3, a crash, unparsable read-back) refuses explicitly instead of aborting
-  # the script under set -e — never a pass by accident (review r1 DISS-C-001).
-  if ! body_verdict=$(release_body_identical "$notes" "$readback" 2>/dev/null) || [[ "$body_verdict" != equal && "$body_verdict" != differ\ * ]]; then
-    fail_phase release "Release body comparison unavailable (python3 and jq required); release not verified"
+  local body_verdict mismatch body_err
+  # The comparison's own failure (no python3, a crash, an unparsable read-back, a non-string body) refuses
+  # explicitly instead of aborting the script under set -e — never a pass by accident (review r1 DISS-C-001);
+  # the last stderr line names the cause so the receipt does not blame tool availability for a size or
+  # decoding problem (review r2 DISS-C-002).
+  body_err=$(mktemp "${TMPDIR:-/tmp}/release-body-err.XXXXXX")
+  if ! body_verdict=$(release_body_identical "$notes" "$readback" 2>"$body_err") || [[ "$body_verdict" != equal && "$body_verdict" != differ\ * ]]; then
+    local cause; cause=$(tail -n 1 "$body_err" 2>/dev/null | tr -d '\r' | cut -c1-200); rm -f "$body_err"
+    fail_phase release "Release body comparison failed (python3 required): ${cause:-no diagnostic}; release not verified"
     return 1
   fi
+  rm -f "$body_err"
   mismatch=$(jq -r --argjson id "$id" --arg tag "$tag" --arg body "$body_verdict" \
       --argjson pre "$prerelease" --arg title "$RELEASE_TITLE" \
       '[ (if .id != $id then "id" else empty end),
