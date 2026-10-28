@@ -1161,6 +1161,19 @@ phase_tag() {
   echo "[TAG] Verified ${tag} at ${target}"
 }
 
+# release_body_normalize: stdin -> stdout. GitHub's release storage rewrites a literal backslash-u escape of a C0
+# control (U+0000-U+001F) or DEL (U+007F) into caret notation (\^@ ... \^_, \^?); apply the same rewrite to a body
+# before comparing it with a read-back (sprint-bug-283, KF-064). Pure text transform; python3 is already a
+# publication dependency (jcs-helper.py). Anything else in the body is left byte-identical.
+release_body_normalize() {
+  python3 -I -c '
+import re, sys
+def caret(m):
+    v = int(m.group(1), 16)
+    return "\\^" + ("?" if v == 0x7f else chr(v + 64))
+sys.stdout.write(re.sub(r"\\u00([01][0-9a-fA-F]|7[fF])", caret, sys.stdin.read()))'
+}
+
 phase_release() {
   update_phase "release" "in_progress"
 
@@ -1240,12 +1253,29 @@ phase_release() {
     fi
   fi
   if ! id=$(jq -er '.id | select(type == "number" and . > 0)' <<< "$response") ||
-      ! readback=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/releases/${id}") ||
-      ! jq -e --argjson id "$id" --arg tag "$tag" --arg body "$notes" --argjson pre "$prerelease" \
-        --arg title "$RELEASE_TITLE" \
-        '.id == $id and .tag_name == $tag and .body == $body and .draft == false and .prerelease == $pre
-         and ($title == "" or .name == $title)' <<< "$readback" >/dev/null; then
+      ! readback=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/releases/${id}"); then
     fail_phase release "Release identifier or read-back mismatch"
+    return 1
+  fi
+  # sprint-bug-283 (KF-064): GitHub stores a literal \u00XX escape of a C0 control or DEL in a release body as
+  # caret notation (\u0000 -> \^@, \u001f -> \^_, \u007f -> \^?), so the body it returns is not byte-equal to the
+  # body that was sent whenever the notes quote such an escape (a commit subject about a sanitiser range did). The
+  # body is compared after applying that one rewrite to BOTH sides; id, tag_name, draft, prerelease and name stay
+  # exact, the sealed candidate is never rewritten (its digest guards it), and any other body difference still
+  # refuses. The mismatch names the failing terms so the state receipt explains the refusal.
+  local sent_norm read_norm mismatch
+  sent_norm=$(release_body_normalize <<< "$notes")
+  read_norm=$(jq -r '.body // ""' <<< "$readback" | release_body_normalize)
+  mismatch=$(jq -r --argjson id "$id" --arg tag "$tag" --arg sent "$sent_norm" --arg read "$read_norm" \
+      --argjson pre "$prerelease" --arg title "$RELEASE_TITLE" \
+      '[ (if .id != $id then "id" else empty end),
+         (if .tag_name != $tag then "tag_name" else empty end),
+         (if $sent != $read then "body" else empty end),
+         (if .draft != false then "draft" else empty end),
+         (if .prerelease != $pre then "prerelease" else empty end),
+         (if ($title != "" and .name != $title) then "name" else empty end) ] | join(",")' <<< "$readback" 2>/dev/null) || mismatch="unreadable"
+  if [[ -n "$mismatch" ]]; then
+    fail_phase release "Release identifier or read-back mismatch (terms: ${mismatch}; sent body ${#sent_norm} chars, read back ${#read_norm} chars after normalisation)"
     return 1
   fi
   update_phase release completed "$(jq -nc --argjson id "$id" --arg tag "$tag" --argjson pre "$prerelease" '{id:$id,tag:$tag,prerelease:$pre,verified:true}')"

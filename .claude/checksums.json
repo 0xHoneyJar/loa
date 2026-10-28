@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-28T06:26:18Z",
+  "generated": "2026-10-28T23:10:47Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1247,7 +1247,7 @@
     ".claude/scripts/permission-audit.sh": "0d6b285d298d38f58234e74f647733c45f6d1587ee78c76a2f6814cae8498232",
     ".claude/scripts/pii-filter.sh": "000e60898cf5627af71fbb6ae96121e07af5a2c2aee22a114948d446bd15113f",
     ".claude/scripts/pipeline-self-review.sh": "a83bb87b350f8a167da182f6336ada3a85e3c30f754599934592f00a436c82e7",
-    ".claude/scripts/post-merge-orchestrator.sh": "39c40b9ccd11089afbd483903d7829c7d1c4fa741c47feb6a4830530b810745a",
+    ".claude/scripts/post-merge-orchestrator.sh": "3cc1cb564f014d17192c0f4b473078df3e4660c6731231df40bd4aedf5dc1045",
     ".claude/scripts/post-pr-audit.sh": "80db891ebe06f9cc991b98c4d1e1e2668192be83cb3352f29be23f9c4c8a17af",
     ".claude/scripts/post-pr-context-clear.sh": "6fd99e8fc2b822e9f89ab35e74c3f857a217868f8aac9a5b8cd6df3b8e7037ea",
     ".claude/scripts/post-pr-e2e.sh": "b171c127f49e155f349519209745e7fbee6905a29988b1622121313315b20eda",
