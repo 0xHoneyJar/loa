@@ -153,17 +153,21 @@ rtc() { (cd "$R" && "$SCRIPT" "$@"); }
     # Every executable on the current PATH (first entry wins, as in lookup) except the two
     # timeout binaries, so hosts with tools under Homebrew, Nix or asdf keep them.
     local dir old_ifs="$IFS"
+    local -a batch
     IFS=:
     for dir in $PATH; do
         IFS="$old_ifs"
         [ -n "$dir" ] && [ -d "$dir" ] || continue
+        batch=()
         for f in "$dir"/*; do
             [ -e "$f" ] || continue
             [ -x "$f" ] && [ ! -d "$f" ] || continue
             b="${f##*/}"
             case "$b" in timeout|gtimeout) continue ;; esac
-            [ -e "$shim/$b" ] || [ -L "$shim/$b" ] || ln -s "$f" "$shim/$b"
+            [ -e "$shim/$b" ] || [ -L "$shim/$b" ] || batch+=("$f")
         done
+        # one ln per PATH dir instead of one per file; names are unique within a dir, so the test above is the first-wins rule
+        if [ "${#batch[@]}" -gt 0 ]; then ln -s -- "${batch[@]}" "$shim/"; fi
     done
     IFS="$old_ifs"
     local dangling; dangling="$(find "$shim" -type l ! -exec test -e {} \; -print)"
