@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-28T04:37:36Z",
+  "generated": "2026-10-28T04:39:57Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -12,7 +12,7 @@
     ".claude/adapters/loa_cheval/adapters/headless_concurrency.py": "33cdb4ed90832501b732a6114e9113211eaec65abad0d32749456e914b1c1fd3",
     ".claude/adapters/loa_cheval/audit/__init__.py": "536aa98aaa52bbd63f7b644b3e515800540bdb603d0e51f5eb05050e7eabd80c",
     ".claude/adapters/loa_cheval/audit/modelinv.py": "1d3c602030e5587882b1dad2ca78ec962a512ebf43482359ee4305175b4e2f95",
-    ".claude/adapters/loa_cheval/audit_envelope.py": "14fed7b970352a6016cbfd73b3734535dbef796a5e460eda9deef699c64a01a6",
+    ".claude/adapters/loa_cheval/audit_envelope.py": "f5523a911e767fee74d504bc5fa4d416deaae27353c8ba201cc422a3cbd8ed7b",
     ".claude/adapters/loa_cheval/codegen/__init__.py": "0e8cd933f778cf606521efb40442ea317087bc9fc7ce5dd9d26eaa1b412c8f52",
     ".claude/adapters/loa_cheval/codegen/emit_endpoint_validator_ts.py": "de3be0ee59e5d56974ca2b80e9e31aac7fdd4d21e741fcc17db6756929e19ba4",
     ".claude/adapters/loa_cheval/codegen/emit_model_resolver_ts.py": "5a853bdc93b25b2348f37473d6ac27635e16f4e3a924181f9a6a11ad66bb3d13",
@@ -969,7 +969,7 @@
     ".claude/scripts/archetype-resolver.sh": "ed3dadf4a08f558b7ee3175ae50bea572155f2607baaaed2a4a411e22a453305",
     ".claude/scripts/archive-cycle.sh": "a22e19ac850c6bd31eb7ee6fa318421ec08d97b9373199e74102e2d0930f7d75",
     ".claude/scripts/assess-discovery-context.sh": "3b3a4b3647a2e3595522a691ad0ccd8ffbb6b05f10b9bedb86239b4733e00c0f",
-    ".claude/scripts/audit-envelope.sh": "edea0b3963d0d502f60fd832c8b475220f87867a20c1d9fc3761003c77912d41",
+    ".claude/scripts/audit-envelope.sh": "e5eb0a8c532cd3242219cc52c3a69da64c52588ad34feb5d25c7ca83c4331569",
     ".claude/scripts/audit-secret-redaction-scan.sh": "37b1c8e4c695619c22422d4cb5e8b71a1e8b9c2468b867f840fd869177edfba8",
     ".claude/scripts/audit-verify-for-merge.sh": "8c7477d5cb4ea205897a0cd32463c4c6225672e8bf2cdeacb1d1f2139d21d755",
     ".claude/scripts/audit/audit-snapshot-install.sh": "96667437732acc9c1a145ffe6ffe5adec81d9fe7bbcb9676ce9eb5637ba3e6bd",
@@ -1215,7 +1215,7 @@
     ".claude/scripts/loa-learnings-index.sh": "946a17b59146614c8c8e233fb77daffc0b2f45c6cc52133f270f1468475c3853",
     ".claude/scripts/loa-migrate-model-config.py": "ddbbee30bea5f37bed78fe6a651b41ed9020e08a54b990742cd0d64dbffedc3b",
     ".claude/scripts/loa-setup-check.sh": "2872f31e1f9a54f29e255d7ee0cae20dba56351c6ef2fe9954d98d7b7b5086a3",
-    ".claude/scripts/loa-status.sh": "4a5e38371699f64f548d5caf8be44d3b218dee645afaf22246829576a8918246",
+    ".claude/scripts/loa-status.sh": "ec918c589191c0c076ada1ee1c5243003a1253365233e4f684737c1554771092",
     ".claude/scripts/loa-substrate-doctor.sh": "601f9aff35afe80d2a01d1a6be4676bf8757d233f28a0b369e44bb0a107973d1",
     ".claude/scripts/loa-substrate-health.sh": "e243e02e2b8d05bca0ca6ec3809da229922f0c160a3693535fe36e9243534c23",
     ".claude/scripts/loa-substrate-recalibrate.sh": "1bc6599f46d1b8cbd5ae2507e98b91d776e9cf0c74dbf53e56463c18d9f99814",

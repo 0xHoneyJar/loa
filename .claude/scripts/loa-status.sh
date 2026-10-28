@@ -421,19 +421,37 @@ _an_audit_chain_summary() {
     )
     local total=7   # 7 primitives in the cycle-098 model
     local valid=0
-    local entry path
+    local entry path existing=()
     for entry in "${logs[@]}"; do
         path="${entry#*:}"
         local full="${PROJECT_ROOT}/${path}"
         if [[ -f "$full" ]]; then
-            if "$AUDIT_ENVELOPE_SCRIPT" verify-chain "$full" >/dev/null 2>&1; then
-                valid=$((valid + 1))
-            fi
+            existing+=("$full")
         else
             # Primitive not yet emitting; counts as "validates" by absence.
             valid=$((valid + 1))
         fi
     done
+
+    # cycle-137 FR-7: ONE verifier process for every existing chain file
+    # (`verify-chains`, one JSON record per path in argument order). Fail-closed:
+    # index k counts only when exactly one record for k echoes the path passed
+    # at k with ok:true; unrecorded, duplicated or malformed records count
+    # invalid, and an exit other than 0/1 or unparsable output counts NONE of
+    # the passed paths (more conservative than the per-call loop only in that
+    # abnormal-exit case).
+    if [[ ${#existing[@]} -gt 0 ]]; then
+        local records rc=0 ok_count=0
+        records="$("$AUDIT_ENVELOPE_SCRIPT" verify-chains "${existing[@]}" 2>/dev/null)" || rc=$?
+        if [[ "$rc" -eq 0 || "$rc" -eq 1 ]]; then
+            ok_count="$(jq -n '$ARGS.positional as $p | [inputs] as $r
+                | [range(0; $p | length) as $k | [$r[] | select(type == "object" and .i == $k)]
+                   | select(length == 1 and .[0].ok == true and .[0].path == $p[$k])] | length' \
+                --args -- "${existing[@]}" <<<"$records" 2>/dev/null)" || ok_count=0
+            [[ "$ok_count" =~ ^[0-9]+$ ]] || ok_count=0
+        fi
+        valid=$((valid + ok_count))
+    fi
 
     # L5 + L7 are not chain-critical, count as validating.
     valid=$((valid + 2))
