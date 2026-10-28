@@ -39924,3 +39924,80 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1130"
+    created_at: "2026-10-28T05:21:24Z"
+    updated_at: "2026-10-28T05:21:24Z"
+    phase: "implementation"
+    category: "scope"
+    summary: "FR-6 companion target moves from 300 s to the measured floor: 163 main runs at about 3 s; median 667 s at load 5-8 (baseline 1006 s)."
+    decision: "The adversarial-review-companion.bats acceptance is the measured floor (the script's own per-call runtime times 163 calls), not 300 s; the reaped stub holds shorten from 300 to 240 s under the 2x rule, which saves no passing-run time; block-destructive-bash.bats goes from 95 to 62 s with the corpus replayed once."
+    rationale: "300 s is not reachable by test edits: every reaped hold is ended by the reaper or teardown, never waited out, so the remaining time is main's runtime per test; changing the script or the number of main runs per test is outside the task's allowlist and rules (D-6.1)."
+    alternatives_considered:
+      - option: "fewer main runs per test (shared fixtures across tests)"
+        rejected_because: "changes what each test proves; structural work for another cycle"
+      - option: "parallel bats jobs for this file"
+        rejected_because: "GNU parallel is absent here and the file's lock tests are timing-sensitive"
+    consequences:
+      positive:
+        - "honest floor recorded with load"
+        - "corpus tests 14–22 s → <50 ms"
+      negative:
+        - "the companion file stays ~11 minutes serial"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "abbe9ae8"
+    source: "grimoires/loa/a2a/sprint-282/reports/c.md § Floor"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T05:21:24Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "grimoires/loa/a2a/sprint-282/reports/c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1131"
+    created_at: "2026-10-28T05:21:28Z"
+    updated_at: "2026-10-28T05:21:28Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "CMP-55 keeps its 300 s hold (no negative control fails it); test-body sleep holders stay unwired; --jobs setup_file unverified live."
+    decision: "CMP-55 sets CMP_STUB_HOLD_S=300 in its body because neither a holder that exits at once nor a failing reaper fails it (follow-up: assert the reap attempt); the test-body holders stay unwired since they add no wall time and the only valid knob value (≥240) would lengthen them; the --jobs claim rests on the bats 1.13.0 source (one setup_file per file process) because GNU parallel is absent."
+    rationale: "The rule is 'shorten only below a proven bound with a negative control': a hold whose shortening cannot be proven keeps today's value; lengthening holds was never the task."
+    alternatives_considered:
+      - option: "shorten CMP-55's hold anyway"
+        rejected_because: "no test fails when it is broken, so the shortening is unproven"
+      - option: "wire every holder to the knob as the SDD wording says"
+        rejected_because: "turns 20–30 s holds into 240 s holds for no wall-time gain"
+    consequences:
+      positive:
+        - "every shortened hold has a red negative control"
+      negative:
+        - "SDD § 5.6 wording partially superseded"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "abbe9ae8"
+    source: "grimoires/loa/a2a/sprint-282/reports/c.md § Part 2"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T05:21:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "grimoires/loa/a2a/sprint-282/reports/c.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
