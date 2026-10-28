@@ -39154,3 +39154,733 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1109"
+    created_at: "2026-10-28T04:48:50Z"
+    updated_at: "2026-10-28T04:48:50Z"
+    phase: "architecture"
+    category: "process"
+    summary: "Every review/audit verdict names reviewed_head; a later code commit re-runs the gate (verify-only for gate/BB fixes); docs-only commits exempt."
+    decision: "Verdict files carry reviewed_head; code commits after a verdict re-run that gate; ship files are committed before the final gate pass so the reviewed head is the merged head."
+    rationale: "Flatline PRD B3/B7: evidence not bound to SHAs lets a verdict ride a head it never saw."
+    alternatives_considered:
+      - option: "trust the latest verdict regardless of later commits"
+        rejected_because: "a Bridgebuilder or gate fix after the audit would ship unaudited"
+    consequences:
+      positive:
+        - "R-1/R-3 compare shas and trees mechanically"
+      negative:
+        - "one extra verify-only audit pass after any post-audit code fix"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/sdd.md § 11.D D-1.1"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:48:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e5df3b589"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1110"
+    created_at: "2026-10-28T04:48:54Z"
+    updated_at: "2026-10-28T04:48:54Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "KF shape C regex needs a space after the label; shape B keeps its looseness; every ## heading resets cur (silent)."
+    decision: "fieldval gains ^(- )?\\*\\*LABEL( [^*]*)?\\*\\*: ?; a non-numeric ## KF-abc: heading resets cur with no stderr output."
+    rationale: "bd-atk7q: **Symptom (short)**: was unparsed and a digit-less heading attributed fields to the previous entry."
+    alternatives_considered:
+      - option: "accept any bold label prefix"
+        rejected_because: "**Symptomatic**: would become a Symptom field"
+    consequences:
+      positive:
+        - "both parsers stay textually aligned"
+      negative:
+        - "one more regex per field line"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/sdd.md § 5.1"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:48:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "748d2886c"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1111"
+    created_at: "2026-10-28T04:48:58Z"
+    updated_at: "2026-10-28T04:48:58Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "Shape C applies to Symptom and Recurrence count only; Status keeps shapes A/B because the live qualified Status lines are historical annotations."
+    decision: "Only the Symptom and Recurrence count labels take the new shape C; a decoy fixture pins that **Status (original)**: after **Status**: changes nothing."
+    rationale: "KF-008 carries **Status (original)**: OPEN after its plain Status line; first-wins would still hold, but a future reordering must never make a historical status the entry status."
+    alternatives_considered:
+      - option: "shape C for all three labels"
+        rejected_because: "the live file's only shape-C line is a historical Status annotation"
+    consequences:
+      positive:
+        - "live output byte-identical by construction"
+      negative:
+        - "a qualified Status variant stays unparsed"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/sdd.md § 5.1 and § 11.D D-2.2"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:48:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e5df3b589"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1112"
+    created_at: "2026-10-28T04:49:02Z"
+    updated_at: "2026-10-28T04:49:02Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "loa-status reads the six catalog fields with one yq (six-line protocol, line-count gate, verbatim fallback); agy memo keyed by file identity."
+    decision: "One yq eval -r prints alias + five fields; accepted only as exactly six lines; else today's reads. The agy opt-in node is memoised per process behind dev:ino:size:mtime:ctime."
+    rationale: "bd-gv5jf: six yq spawns (~40 ms) and a double opt-in read per loa-status run; the fallback keeps every degraded path byte-identical."
+    alternatives_considered:
+      - option: "parse the whole catalog once with yq -o=json and jq"
+        rejected_because: "changes the error paths and adds a jq spawn"
+    consequences:
+      positive:
+        - "≥40 ms per /loa"
+      negative:
+        - "a multi-line value falls back to six reads"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/sdd.md § 5.2, § 5.3"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "748d2886c"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1113"
+    created_at: "2026-10-28T04:49:06Z"
+    updated_at: "2026-10-28T04:49:06Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "Non-profile hot knobs are cached through a profiles.yaml cached_keys list with source explicit|absent; profile_keys and overrides unchanged."
+    decision: "profiles.yaml gains top-level cached_keys: [karpathy_principles.diff_lines_per_task]; the cache builder records value/source for each; loa_knob returns the fallback for absent without yq."
+    rationale: "bd-h5tcn: the karpathy PostToolUse hook paid a live yq+jq read per Write/Edit for a key no profile defines; a per-process memo is useless for a fresh-process hook."
+    alternatives_considered:
+      - option: "per-process memo in loa_knob"
+        rejected_because: "the hook is a new process per tool call"
+      - option: "add the key to every profile"
+        rejected_because: "it is not a profile knob and would change loa_profile output"
+    consequences:
+      positive:
+        - "no yq on the warm Write/Edit path"
+      negative:
+        - "one more schema concept (cached_keys)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/sdd.md § 5.4"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "748d2886c"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1114"
+    created_at: "2026-10-28T04:49:10Z"
+    updated_at: "2026-10-28T04:49:10Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "grimoire-index decisions cache under .run/perf-cache with key v1:sha256:yq:jq:rows, awk-validated payload, mktemp writer, env opt-out, never fatal."
+    decision: "The decisions TSV rows are cached content-keyed; the reader validates header, row count, field count and the sanitiser alphabet; the writer refuses symlinked or non-owned dirs; LOA_GRIMOIRE_INDEX_NO_CACHE=1 disables read and write; write-mode bad/total come from one root-preserving jq."
+    rationale: "bd-1mfm7: parsing 1,100 decisions rows with yq is the remaining 175-210 ms floor; Flatline B1/B4/B6 asked for the trust boundary and the root-preserving jq."
+    alternatives_considered:
+      - option: "cache the whole index JSON"
+        rejected_because: "every other family is cheap and changes often"
+      - option: "a --no-cache CLI flag"
+        rejected_because: "--help must stay byte-identical"
+    consequences:
+      positive:
+        - "warm run ≤650 ms target"
+      negative:
+        - "one more state file under .run"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/sdd.md § 3, § 5.5"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e5df3b589"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1115"
+    created_at: "2026-10-28T04:49:14Z"
+    updated_at: "2026-10-28T04:49:14Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "No framework-wide fast-path opt-out switch: fast paths fall back automatically; only the decisions cache gets an opt-out."
+    decision: "Decline Flatline SDD M39's LOA_PERF_FAST_PATH=0; the one component that can serve stored state (the cache) carries the only opt-out."
+    rationale: "The loop's passes carry no opt-out and their fallbacks are automatic; a global switch would add untested branches to every hook."
+    alternatives_considered:
+      - option: "LOA_PERF_FAST_PATH=0 honoured by every fast path"
+        rejected_because: "adds a knob and a branch to seven hot paths for no observed need"
+    consequences:
+      positive:
+        - "no new knob surface"
+      negative:
+        - "an operator cannot force the slow paths for diagnosis"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/sdd.md § 11.D D-5.2"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e5df3b589"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1116"
+    created_at: "2026-10-28T04:49:18Z"
+    updated_at: "2026-10-28T04:49:18Z"
+    phase: "architecture"
+    category: "implementation"
+    summary: "Corpus-once via setup_file with status capture; companion waits shortened only below proven bounds with a negative control; measured floor governs."
+    decision: "block-destructive-bash.bats runs the corpus once per file; adversarial-review-companion.bats shortens only sleeps no test waits on (CMP_STUB_HOLD_S read by the in-file shim only); the TAP set is compared per test name; a floor above 300 s moves the AC by a class-S decision row."
+    rationale: "bd-wctli: two files cost >15 minutes of the 51-minute suite; assertions must not change."
+    alternatives_considered:
+      - option: "quarantine the slow tests"
+        rejected_because: "the refusal list forbids quarantining a test"
+    consequences:
+      positive:
+        - "suite minutes back"
+      negative:
+        - "timing-sensitive tests keep their real waits"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/sdd.md § 5.6"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:18Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "748d2886c"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1117"
+    created_at: "2026-10-28T04:49:22Z"
+    updated_at: "2026-10-28T04:49:22Z"
+    phase: "architecture"
+    category: "process"
+    summary: "CMP-37 is not made deterministic in this cycle; its acceptance evidence is a serial whole-file companion run on an idle host."
+    decision: "The load-sensitive CMP-37 stays as is; a full-suite CMP-37 failure is diagnostic only when the whole companion file passes serially on the idle host."
+    rationale: "It asserts a real ordering with a real wait; making it deterministic is structural work outside bd-wctli."
+    alternatives_considered:
+      - option: "rewrite CMP-37 around a barrier"
+        rejected_because: "changes what the test proves; out of scope"
+    consequences:
+      positive:
+        - "honest evidence rule"
+      negative:
+        - "a 15-minute serial run per gate"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/sdd.md § 11.D D-6.2; prd.md § Release predicate R-4"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e5df3b589"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1118"
+    created_at: "2026-10-28T04:49:26Z"
+    updated_at: "2026-10-28T04:49:26Z"
+    phase: "architecture"
+    category: "security"
+    summary: "verify-chains implemented: JSON-lines records in argument order, per-path exception isolation, fail-closed wrapper; store-mutation test is go/no-go."
+    decision: "One Python process calls the unchanged audit_verify_chain per path; records {i,path,ok,error}; exit 0/1/2; loa-status counts by index and treats missing records as invalid; _check_trust_store untouched."
+    rationale: "bd-09z1i: ~155 ms per chain file from a per-process trust-store subprocess; the in-process cache already re-authenticates on content change, so N paths in one process equal N sequential calls."
+    alternatives_considered:
+      - option: "defer the bead"
+        rejected_because: "the equivalence can be tested without touching the protected functions"
+      - option: "verify the trust store once and skip it per path"
+        rejected_because: "changes the TOCTOU defence pinned by test_audit_trust_policy.py"
+    consequences:
+      positive:
+        - "≥100 ms per /loa"
+      negative:
+        - "STOP and defer if the equivalence test cannot pass"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/sdd.md § 5.7"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e5df3b589"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1119"
+    created_at: "2026-10-28T04:49:31Z"
+    updated_at: "2026-10-28T04:49:31Z"
+    phase: "architecture"
+    category: "process"
+    summary: "v2.0.0-rc.9 published unattended from the post-merge candidate with mechanical safeguards: recomputed digest, merge_sha check, publish summary."
+    decision: "Merge and publish are authorised by the operator's instruction; R-3 gates the merge, R-6/R-7 gate the publish (digest equality, merge_sha equality, publish-summary.md), R-8 verifies the tag and runs an install smoke test; a written rollback precedes the publish."
+    rationale: "Flatline B5/B2: an unattended publish needs a predicate and a pause-equivalent; the operator said release when ready."
+    alternatives_considered:
+      - option: "pause for an operator digest confirmation"
+        rejected_because: "the operator delegated the release and is not present; the digest is recomputed independently instead"
+    consequences:
+      positive:
+        - "one authoritative release predicate"
+      negative:
+        - "no human eyes between merge and publish"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/prd.md § Release predicate; sdd.md § 5.8"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:31Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e5df3b589"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1120"
+    created_at: "2026-10-28T04:49:34Z"
+    updated_at: "2026-10-28T04:49:34Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 281 review: DISS-C-003 confirmed — the spawn-budget tracer missed spawns behind stderr redirects and child shells; fixed red-first in-sprint."
+    decision: "The tracer writes xtrace to an inherited BASH_XTRACEFD with SHELLOPTS=xtrace; tool regex widened; +3 headroom floor; budgets re-measured (implement-gate 113 → 127)."
+    rationale: "A probe showed plain bash -x counted 1 of 3 hidden spawns; the guard's purpose is the spawn count."
+    alternatives_considered:
+      - option: "document the gap in the header only"
+        rejected_because: "the budgets would pass while real spawns regressed"
+    consequences:
+      positive:
+        - "guard sees the hooks' real jq/yq calls"
+      negative:
+        - "budget numbers changed once"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/a2a/sprint-281/engineer-feedback.md § Cross-Model Observations"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "d005a771a"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1121"
+    created_at: "2026-10-28T04:49:39Z"
+    updated_at: "2026-10-28T04:49:39Z"
+    phase: "review"
+    category: "process"
+    summary: "Sprint 281 review approved with 2 medium/5 low observations; the dissent ran on a code-only --diff-file after --diff-range refused budget_exceeded."
+    decision: "Use --diff-file with the code-only diff and --budget 700 when the branch range carries planning prose; observations became beads bd-0h7kq, bd-3qed8 and Sprint 2 Task 2.1 requirements."
+    rationale: "The full range estimate was 624c against a 200c budget because of 140 KB of planning documents; the voices should read code."
+    alternatives_considered:
+      - option: "raise the config budget"
+        rejected_because: "the prose still dilutes the voices' attention"
+    consequences:
+      positive:
+        - "two voices, consensus, six advisories triaged"
+      negative:
+        - "the envelope's diff_range is null (diff_sha256 recorded instead)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/a2a/sprint-281/engineer-feedback.md"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "d005a771a"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1122"
+    created_at: "2026-10-28T04:49:43Z"
+    updated_at: "2026-10-28T04:49:43Z"
+    phase: "review"
+    category: "security"
+    summary: "Sprint 281 audit APPROVED (0/0/1/3); DISS-C-001 fixed red-first (tracer env -i allowlist); two pre-existing lows filed as beads bd-4sikh, bd-kdzc3."
+    decision: "The traced hooks run under an explicit environment and live .loa.config.yaml/.run/grimoires paths are refused as command arguments; the KF row cap and the karpathy trajectory symlink guard are follow-ups, not in-sprint changes."
+    rationale: "They are pre-existing and outside the loop's diff; the sprint's scope is the loop and its guard."
+    alternatives_considered:
+      - option: "fix the two pre-existing lows in Sprint 281"
+        rejected_because: "System Zone behaviour changes outside the reviewed loop would need their own red-first cycle"
+    consequences:
+      positive:
+        - "scope discipline"
+      negative:
+        - "two lows wait for Sprint 2 or later"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/a2a/sprint-281/auditor-sprint-feedback.md"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "747b5db0d"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1123"
+    created_at: "2026-10-28T04:49:47Z"
+    updated_at: "2026-10-28T04:49:47Z"
+    phase: "review"
+    category: "security"
+    summary: "MED-001 awk sanitiser portability (BWK awk NUL regex, BSD cut char cap) carried to Sprint 2 Task 2.1; BWK awk UNVERIFIED on the ship host."
+    decision: "Task 2.1 runs both KF awk programs under every awk available including BWK awk when obtainable and states the byte-cap contract; until then the risk is recorded, not blocking."
+    rationale: "mawk and busybox agree byte-for-byte; BWK awk could not be installed or built here; the failure mode is loss of a default-off surface, not injection."
+    alternatives_considered:
+      - option: "block the sprint until BWK awk is verified"
+        rejected_because: "the host cannot obtain it and the surface is default-off"
+    consequences:
+      positive:
+        - "explicit residual risk"
+      negative:
+        - "macOS behaviour unverified until Sprint 2"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/a2a/sprint-281/auditor-sprint-feedback.md § MED-001"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "747b5db0d"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1124"
+    created_at: "2026-10-28T04:49:51Z"
+    updated_at: "2026-10-28T04:49:51Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "grimoire-index write mode: a failed or non-two-line check jq refuses the write with '?' as the count instead of exiting with jq's own status."
+    decision: "The root-preserving jq's output is captured once; exactly two lines are required, else bad='?' and today's refuse-to-write error path runs (exit 1)."
+    rationale: "The input JSON is jq-generated, so the branch is unreachable in practice; a refusal is the safer reading of an impossible state than inheriting jq's exit code under set -e."
+    alternatives_considered:
+      - option: "keep jq's own exit status"
+        rejected_because: "it would exit without the ::error line the write path promises"
+    consequences:
+      positive:
+        - "one documented refusal path"
+      negative:
+        - "an unreachable branch changes its exit text"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/a2a/sprint-282/reports/a.md § Decisions for the lead (3)"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "937b87ee0"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1125"
+    created_at: "2026-10-28T04:49:55Z"
+    updated_at: "2026-10-28T04:49:55Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "Decisions cache race: key and rows come from one snapshot, so a mid-run rewrite leaves a cache consistent with its own key (SDD over sprint.md)."
+    decision: "sha256 and yq both read a mktemp copy of decisions.yaml; a racing rewrite cannot pair a new key with old rows; no second hash after the parse."
+    rationale: "The SDD § 3 rule is the authority; 'caches nothing' would cost an extra sha256 spawn per miss for no safety gain (the cache is keyed by the bytes it was built from)."
+    alternatives_considered:
+      - option: "re-hash the source after parsing and skip the write on a change"
+        rejected_because: "one more spawn per miss; the snapshot already guarantees key/rows consistency"
+    consequences:
+      positive:
+        - "no extra spawn"
+      negative:
+        - "sprint.md Task 2.2 wording is superseded"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/a2a/sprint-282/reports/a.md § Decisions for the lead (4)"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "937b87ee0"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1126"
+    created_at: "2026-10-28T04:49:59Z"
+    updated_at: "2026-10-28T04:49:59Z"
+    phase: "implementation"
+    category: "security"
+    summary: "Decisions cache trust check tightens a uid-owned group/world-writable .run or perf-cache dir (chmod go-w) before trusting it; foreign dirs stay out."
+    decision: "_gi_trusted_dir runs chmod go-w on a directory the current uid owns when it carries a group or other write bit and trusts it when the chmod succeeds; a directory another uid owns, or one chmod cannot change, is refused."
+    rationale: "zone-write-guard creates .run/perf-cache under the user's umask (775 under umask 002 on the reference host), which left the cache inert on every such host; tightening our own directory can widen nothing."
+    alternatives_considered:
+      - option: "keep the strict boundary and chmod by hand once"
+        rejected_because: "every umask-002 host would ship an inert cache until an operator notices"
+      - option: "relax the boundary to accept group-writable dirs"
+        rejected_because: "a group member could plant a cache"
+    consequences:
+      positive:
+        - "cache works on umask-002 hosts"
+        - "no widening"
+      negative:
+        - "a framework script changes a directory mode it owns"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: "grimoires/loa/a2a/sprint-282/reports/a.md § Decisions for the lead (1); .claude/scripts/grimoire-index.sh _gi_trusted_dir"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:49:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e5f751ac0"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1127"
+    created_at: "2026-10-28T04:50:04Z"
+    updated_at: "2026-10-28T04:50:04Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "agy opt-in memo key includes dev:ino:size:mtime:ctime of the resolved file (stat -L) AND $PATH, since the yq/python3 flavour on PATH picks the reader."
+    decision: "A PATH change invalidates the memo; stat -L keys on the symlink target; a stat failure clears the memo and runs the original read uncached; memo variables are reset at load and never seeded from the environment."
+    rationale: "The reader's result depends on which yq or python3 is found; a forged key + value in the environment must never read as an opt-in."
+    alternatives_considered:
+      - option: "key on the path and size+mtime only"
+        rejected_because: "a PATH switch between calls could serve a stale node from another reader"
+    consequences:
+      positive:
+        - "no stale node across reader changes"
+      negative:
+        - "a PATH change costs one extra read"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: ".claude/scripts/lib/agy-gate-lib.sh _agy_opt_in_node_memo"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:50:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "268bc2f1b"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1128"
+    created_at: "2026-10-28T04:50:08Z"
+    updated_at: "2026-10-28T04:50:08Z"
+    phase: "implementation"
+    category: "security"
+    summary: "verify-chains records are JSON lines {i,path,ok,error} validated by index; loa-status counts one ok:true record per path; abnormal exit counts none."
+    decision: "Exit 0 all ok / 1 any not ok / 2 usage, import or unvalidatable output; a missing, duplicate or malformed record is a FAILED record with [VERIFY-CHAINS-NO-RECORD]; loa-status keeps the -f pre-filter and treats exit other than 0/1 as no path verified."
+    rationale: "Fail-closed by construction (PRD FR-7, Flatline B1/B2): a verifier crash can never read as valid chains; per-path exceptions are isolated so one bad chain does not hide the others."
+    alternatives_considered:
+      - option: "plain 'ok <path>' lines"
+        rejected_because: "paths with spaces or newlines are ambiguous"
+    consequences:
+      positive:
+        - "one process per loa-status run"
+        - "store re-authenticated per path through the unchanged cache"
+      negative:
+        - "an abnormal verifier exit now counts every passed path invalid (old loop: per-path)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "bf96f91c"
+    source: ".claude/scripts/audit-envelope.sh audit_verify_chains; .claude/scripts/loa-status.sh _an_audit_chain_summary"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T04:50:08Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "bf96f91cb"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
