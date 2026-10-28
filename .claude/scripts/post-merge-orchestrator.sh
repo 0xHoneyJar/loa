@@ -1263,9 +1263,18 @@ phase_release() {
   # body is compared after applying that one rewrite to BOTH sides; id, tag_name, draft, prerelease and name stay
   # exact, the sealed candidate is never rewritten (its digest guards it), and any other body difference still
   # refuses. The mismatch names the failing terms so the state receipt explains the refusal.
-  local sent_norm read_norm mismatch
-  sent_norm=$(release_body_normalize <<< "$notes")
-  read_norm=$(jq -r '.body // ""' <<< "$readback" | release_body_normalize)
+  local sent_norm read_norm read_raw mismatch
+  # The normaliser's own failure (no python3, a crash) refuses explicitly instead of aborting the script under
+  # set -e, and an empty result for a non-empty input is a refusal too — never a pass by accident.
+  if ! sent_norm=$(release_body_normalize <<< "$notes") || { [[ -n "$notes" && -z "$sent_norm" ]]; }; then
+    fail_phase release "Release body normaliser unavailable or empty for the sent notes (python3 required)"
+    return 1
+  fi
+  read_raw=$(jq -r '.body // ""' <<< "$readback")
+  if ! read_norm=$(release_body_normalize <<< "$read_raw") || { [[ -n "$read_raw" && -z "$read_norm" ]]; }; then
+    fail_phase release "Release body normaliser unavailable or empty for the read-back body (python3 required)"
+    return 1
+  fi
   mismatch=$(jq -r --argjson id "$id" --arg tag "$tag" --arg sent "$sent_norm" --arg read "$read_norm" \
       --argjson pre "$prerelease" --arg title "$RELEASE_TITLE" \
       '[ (if .id != $id then "id" else empty end),
