@@ -28,6 +28,11 @@ export LC_ALL=C
 export TZ=UTC
 set -euo pipefail
 
+# Environment (kept out of the --help text above, which is lines 2-30 verbatim):
+#   LOA_GRIMOIRE_INDEX_NO_CACHE=1  disables the decisions-family cache
+#     (.run/perf-cache/grimoire-index-decisions.v1.tsv) for both read and write. CI or GITHUB_ACTIONS
+#     set disables it too. Trust boundary and key: see emit_decisions.
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 G="${PROJECT_ROOT}/grimoires/loa"
@@ -222,24 +227,135 @@ emit_notes(){
 # status, summary (title slot), path <ledger>#<id>, refs = source, two empty slots,
 # voice ninth (decided_by // proposed_by). yq is optional here: without Mike Farah
 # yq v4, or on an unparsable ledger, the family is skipped with a stderr note.
+#
+# Decisions cache (cycle-137 FR-5, sdd \u00a7 3 / \u00a7 5.5). The family's rows, exactly as printed, are kept in
+# $PROJECT_ROOT/.run/perf-cache/grimoire-index-decisions.v1.tsv: line 1 is the key
+#   <GI_DEC_KEY_PREFIX>:<sha256 of the decisions.yaml snapshot>:<yq major.minor>:<jq major.minor>:<rows>
+# and each later line is one row. Trust boundary, checked before any read or write: .run and
+# .run/perf-cache are real directories (not symlinks) owned by the current uid with no group or other
+# write bit, the cache file is not a symlink, CI and GITHUB_ACTIONS are unset and
+# LOA_GRIMOIRE_INDEX_NO_CACHE is not 1. Otherwise the family is built exactly as before the cache. The
+# key and the rows come from ONE snapshot of decisions.yaml (sha256 and yq both read the copy), so a
+# rewrite mid-run cannot pair a new key with old rows. A cache that fails validation is a miss; a
+# failed write is ignored (never fatal, never a stderr line).
+#
+# Cache-key prefix, bound to GI_DEC_JQ just below: ANY edit of that jq program (its `s` sanitiser
+# included) must bump GI_DEC_KEY_PREFIX (v1 -> v2) in the same commit, or rows rendered by the old
+# program would be served as current. tests/unit/grimoire-index.bats pins each (prefix, sha256 of the
+# GI_DEC_JQ literal) pair, so an edit without a bump fails there.
+GI_DEC_KEY_PREFIX="v1"
+# Rows are agent-authored and UNTRUSTED (as in loa-decisions-surface.sh): every field is cleaned in jq.
+# C0/C1 controls (tab and newline included, so no cell shifts the TAB columns) and U+2028/9 become
+# spaces, < and > become single guillemets, and each field is capped at 160 code points.
+GI_DEC_JQ='
+    def s: tostring | gsub("[[:cntrl:]\u0080-\u009f\u2028\u2029]"; " ") | gsub("<"; "\u2039") | gsub(">"; "\u203a")
+           | gsub("  +"; " ") | sub("^ "; "") | sub(" $"; "") | .[0:160];
+    .[] | objects | select(((.id // "") | s) != "")
+    | ["decisions", (.id | s), ((.status // "") | s), ((.summary // "") | s), ("grimoires/loa/decisions.yaml#" + (.id | s)),
+       ((.source // "") | s), "", "", ((.decided_by // .proposed_by // "") | s)] | join("\t")'
+
+# _gi_trusted_dir <dir>: 0 when <dir> is a real directory (not a symlink) owned by the current uid with
+# no group or other write bit. GNU stat, then BSD stat; any stat failure means "not trusted".
+_gi_trusted_dir(){
+  local st
+  [[ -d "$1" && ! -L "$1" ]] || return 1
+  st="$(stat -c '%u %a' -- "$1" 2>/dev/null)" || st="$(stat -f '%u %Lp' -- "$1" 2>/dev/null)" || return 1
+  [[ "$st" =~ ^([0-9]+)\ ([0-7]+)$ ]] || return 1
+  [[ "${BASH_REMATCH[1]}" == "$EUID" ]] || return 1
+  (( (8#${BASH_REMATCH[2]} & 8#022) == 0 ))
+}
+# _gi_dec_cache_on: the environment and directory half of the trust boundary (a missing perf-cache
+# directory is allowed: the writer creates it under umask 077 and re-checks it).
+_gi_dec_cache_on(){
+  [[ "${LOA_GRIMOIRE_INDEX_NO_CACHE:-}" != "1" && -z "${CI+x}" && -z "${GITHUB_ACTIONS+x}" ]] || return 1
+  _gi_trusted_dir "${PROJECT_ROOT}/.run" || return 1
+  [[ ! -L "${PROJECT_ROOT}/.run/perf-cache" ]] || return 1
+  [[ ! -e "${PROJECT_ROOT}/.run/perf-cache" ]] || _gi_trusted_dir "${PROJECT_ROOT}/.run/perf-cache"
+}
+# _gi_dec_key <snapshot> <yq --version text>: sets the caller's `key` to
+# <prefix>:<sha256 of the snapshot>:<yq major.minor>:<jq major.minor>; 1 when any part is unavailable.
+_gi_dec_key(){
+  local sum yv jv
+  [[ "$2" =~ version\ v([0-9]+)\.([0-9]+) ]] || return 1
+  yv="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+  jv="$(jq --version 2>/dev/null)" || return 1
+  [[ "$jv" =~ ([0-9]+)\.([0-9]+) ]] || return 1
+  jv="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+  sum="$(sha256_portable < "$1" 2>/dev/null)" || return 1
+  sum="${sum%% *}"
+  [[ "$sum" =~ ^[0-9a-f]{64}$ ]] || return 1
+  key="${GI_DEC_KEY_PREFIX}:${sum}:${yv}:${jv}"
+}
+# _gi_dec_read <cache> <key>: ONE awk validates the whole file \u2014 line 1 is "<key>:<n>", then exactly n
+# rows of 9 TAB-separated fields with no byte of [\000-\010\012-\037\177<>] (outside the jq sanitiser's
+# output alphabet) \u2014 and prints the rows only after all of it validated; exit 1 is a miss. NUL is tested
+# with index() and a one-byte NUL string, not /\000/: busybox awk reads /\000/ as an empty regex that
+# matches every line (and ends a record at a NUL, so a NUL row there fails the field or row count).
+_gi_dec_read(){
+  awk -v k="$2" '
+    BEGIN { z = sprintf("%c", 0) }
+    NR == 1 {
+      if (index($0, k ":") != 1) { bad = 1; exit }
+      c = substr($0, length(k) + 2)
+      if (c !~ /^(0|[1-9][0-9]*)$/) { bad = 1; exit }
+      next
+    }
+    split($0, fld, "\t") != 9 || /[\001-\010\012-\037\177<>]/ || (z != "" && index($0, z)) { bad = 1; exit }
+    { row[NR - 1] = $0 }
+    END {
+      if (bad || NR < 1 || NR - 1 != c + 0) exit 1
+      for (i = 1; i < NR; i++) print row[i]
+    }' "$1"
+}
+# _gi_dec_write <cache> <key> <rows>: umask 077; mkdir -p (when absent), then re-check the directory (not a symlink,
+# trusted); an exclusive mktemp beside the cache; key line + rows; re-check that the cache path is not
+# a symlink immediately before the rename; mv -f -T (mv -f where -T is unsupported). Any failure
+# removes the temp and returns 1. Concurrent writers: the rename is atomic, same key => same rows.
+_gi_dec_write(){
+  ( umask 077
+    dir="${1%/*}" tmp=""
+    if { [[ -d "$dir" ]] || mkdir -p -- "$dir" 2>/dev/null; } && _gi_trusted_dir "$dir" && [[ ! -L "$1" ]] &&
+       tmp="$(mktemp "$1.XXXXXX" 2>/dev/null)" &&
+       { if [[ -n "$3" ]]; then printf '%s\n' "$3"; fi |
+           awk -v k="$2" '{ r[NR] = $0 } END { print k ":" NR; for (i = 1; i <= NR; i++) print r[i] }' > "$tmp"; } 2>/dev/null &&
+       [[ ! -L "$1" ]] &&
+       { mv -f -T -- "$tmp" "$1" 2>/dev/null || { [[ ! -d "$1" && ! -L "$1" ]] && mv -f -- "$tmp" "$1" 2>/dev/null; }; }
+    then exit 0; fi
+    [[ -z "$tmp" ]] || rm -f -- "$tmp" 2>/dev/null
+    exit 1 )
+}
 emit_decisions(){
   local f="${G}/decisions.yaml" j v=""; [[ -f "$f" ]] || return 0
   command -v yq >/dev/null 2>&1 && v="$(yq --version 2>&1 || true)"
   if [[ "$v" != *mikefarah*"version v4."* ]]; then
     echo "grimoire-index: NOTE: decisions family skipped (needs Mike Farah yq v4)" >&2; return 0
   fi
+  local cache="${PROJECT_ROOT}/.run/perf-cache/grimoire-index-decisions.v1.tsv" snap="" key="" rows=""
+  if _gi_dec_cache_on && [[ ! -L "$cache" ]] && snap="$(mktemp 2>/dev/null)"; then
+    if cp -- "$f" "$snap" 2>/dev/null && _gi_dec_key "$snap" "$v"; then
+      if [[ -f "$cache" ]] && rows="$(_gi_dec_read "$cache" "$key")"; then
+        rm -f -- "$snap"; [[ -z "$rows" ]] || printf '%s\n' "$rows"; return 0   # hit (zero rows is a hit too)
+      fi
+      f="$snap"   # miss: parse the snapshot the key was computed from
+    else
+      rm -f -- "$snap"; snap=""
+    fi
+  else
+    snap=""
+  fi
   if ! j="$(yq -o=json -I0 '.decisions // []' "$f" 2>/dev/null)" || ! printf '%s' "$j" | jq -e 'type == "array"' >/dev/null 2>&1; then
+    [[ -z "$snap" ]] || rm -f -- "$snap"
     echo "grimoire-index: NOTE: decisions family skipped (grimoires/loa/decisions.yaml does not parse)" >&2; return 0
   fi
-  # Rows are agent-authored and UNTRUSTED (as in loa-decisions-surface.sh): every field is cleaned in jq.
-  # C0/C1 controls (tab and newline included, so no cell shifts the TAB columns) and U+2028/9 become
-  # spaces, < and > become single guillemets, and each field is capped at 160 code points.
-  printf '%s' "$j" | jq -r '
-    def s: tostring | gsub("[[:cntrl:]\u0080-\u009f\u2028\u2029]"; " ") | gsub("<"; "\u2039") | gsub(">"; "\u203a")
-           | gsub("  +"; " ") | sub("^ "; "") | sub(" $"; "") | .[0:160];
-    .[] | objects | select(((.id // "") | s) != "")
-    | ["decisions", (.id | s), ((.status // "") | s), ((.summary // "") | s), ("grimoires/loa/decisions.yaml#" + (.id | s)),
-       ((.source // "") | s), "", "", ((.decided_by // .proposed_by // "") | s)] | join("\t")'
+  if [[ -n "$snap" ]]; then
+    rm -f -- "$snap"
+    if rows="$(printf '%s' "$j" | jq -r "$GI_DEC_JQ" 2>/dev/null)"; then
+      [[ -z "$rows" ]] || printf '%s\n' "$rows"
+      _gi_dec_write "$cache" "$key" "$rows" || true
+      return 0
+    fi
+  fi
+  printf '%s' "$j" | jq -r "$GI_DEC_JQ"
 }
 
 # emit_obs removed cycle-121 (observation store deleted)
@@ -331,10 +447,15 @@ case "$MODE" in
     [[ $rc -eq 0 ]] && log "grimoire-index: valid ($(echo "$JSON" | jq -r '.total') entries; kf=${gen_kf}, headings=${raw_heads}, hand-table=${hand_rows})"
     exit $rc ;;
   write)
-    bad="$(echo "$JSON" | jq -r '[.families[][] | select((.id|length)==0 or (.path|length)==0 or (.family|test("[^a-z]")))] | length')"
+    # The malformed-record count and .total come from ONE jq that keeps the root object. Exactly two
+    # output lines are required (read without mapfile, which bash 3.2 lacks); a jq failure or any other
+    # line count refuses the write, as a nonzero count does.
+    wm="$(echo "$JSON" | jq -r '. as $root | ([$root.families[][] | select((.id|length)==0 or (.path|length)==0 or (.family|test("[^a-z]")))] | length), $root.total')" || wm=""
+    bad="?"; total=""
+    if [[ "$wm" == *$'\n'* && "${wm#*$'\n'}" != *$'\n'* ]]; then bad="${wm%%$'\n'*}"; total="${wm#*$'\n'}"; fi
     if [[ "$bad" != "0" ]]; then echo "::error::[GRIMOIRE-INDEX] refusing to write — $bad malformed records (id/path/family). Likely a corrupt source filename." >&2; exit 1; fi
     exec 9>"$LOCK"; flock 9 2>/dev/null || true
     tmpj="$(mktemp)"; printf '%s\n' "$JSON" > "$tmpj"; mv "$tmpj" "$OUT_JSON"
     tmpm="$(mktemp)"; render_md "$JSON" > "$tmpm"; mv "$tmpm" "$OUT_MD"
-    log "grimoire-index: wrote ${OUT_MD#$PROJECT_ROOT/} + ${OUT_JSON#$PROJECT_ROOT/} ($(echo "$JSON" | jq -r '.total') entries)" ;;
+    log "grimoire-index: wrote ${OUT_MD#$PROJECT_ROOT/} + ${OUT_JSON#$PROJECT_ROOT/} (${total} entries)" ;;
 esac
