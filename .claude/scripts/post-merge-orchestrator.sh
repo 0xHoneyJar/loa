@@ -1165,13 +1165,30 @@ phase_tag() {
 # control (U+0000-U+001F) or DEL (U+007F) into caret notation (\^@ ... \^_, \^?); apply the same rewrite to a body
 # before comparing it with a read-back (sprint-bug-283, KF-064). Pure text transform; python3 is already a
 # publication dependency (jcs-helper.py). Anything else in the body is left byte-identical.
-release_body_normalize() {
+release_body_normalize() {  # bytes in, bytes out: no universal-newline conversion, nothing stripped
   python3 -I -c '
 import re, sys
 def caret(m):
     v = int(m.group(1), 16)
+    return b"\\^" + (b"?" if v == 0x7f else bytes([v + 64]))
+sys.stdout.buffer.write(re.sub(rb"\\u00([01][0-9a-fA-F]|7[fF])", caret, sys.stdin.buffer.read()))'
+}
+
+# release_body_identical <sent notes> <read-back JSON>: the rewrite and the equality test in ONE python process
+# over strings decoded from JSON (review r1 DISS-001: text-mode stdin turned CRLF into LF and command substitution
+# stripped trailing newlines, so those two differences were tolerated). Prints `equal` or `differ <sent> <read>`
+# (normalised lengths); exits non-zero when python3 or the input is unusable, which the caller treats as a refusal.
+release_body_identical() {
+  jq -nc --arg sent "$1" --argjson rb "$2" '{sent: $sent, read: ($rb.body // "")}' |
+  python3 -I -c '
+import json, re, sys
+d = json.load(sys.stdin)
+def caret(m):
+    v = int(m.group(1), 16)
     return "\\^" + ("?" if v == 0x7f else chr(v + 64))
-sys.stdout.write(re.sub(r"\\u00([01][0-9a-fA-F]|7[fF])", caret, sys.stdin.read()))'
+norm = lambda s: re.sub(r"\\u00([01][0-9a-fA-F]|7[fF])", caret, s)
+a, b = norm(d["sent"]), norm(d["read"])
+print("equal" if a == b else "differ %d %d" % (len(a), len(b)))'
 }
 
 phase_release() {
@@ -1263,28 +1280,23 @@ phase_release() {
   # body is compared after applying that one rewrite to BOTH sides; id, tag_name, draft, prerelease and name stay
   # exact, the sealed candidate is never rewritten (its digest guards it), and any other body difference still
   # refuses. The mismatch names the failing terms so the state receipt explains the refusal.
-  local sent_norm read_norm read_raw mismatch
-  # The normaliser's own failure (no python3, a crash) refuses explicitly instead of aborting the script under
-  # set -e, and an empty result for a non-empty input is a refusal too — never a pass by accident.
-  if ! sent_norm=$(release_body_normalize <<< "$notes") || { [[ -n "$notes" && -z "$sent_norm" ]]; }; then
-    fail_phase release "Release body normaliser unavailable or empty for the sent notes (python3 required)"
+  local body_verdict mismatch
+  # The comparison's own failure (no python3, a crash, unparsable read-back) refuses explicitly instead of aborting
+  # the script under set -e — never a pass by accident (review r1 DISS-C-001).
+  if ! body_verdict=$(release_body_identical "$notes" "$readback" 2>/dev/null) || [[ "$body_verdict" != equal && "$body_verdict" != differ\ * ]]; then
+    fail_phase release "Release body comparison unavailable (python3 and jq required); release not verified"
     return 1
   fi
-  read_raw=$(jq -r '.body // ""' <<< "$readback")
-  if ! read_norm=$(release_body_normalize <<< "$read_raw") || { [[ -n "$read_raw" && -z "$read_norm" ]]; }; then
-    fail_phase release "Release body normaliser unavailable or empty for the read-back body (python3 required)"
-    return 1
-  fi
-  mismatch=$(jq -r --argjson id "$id" --arg tag "$tag" --arg sent "$sent_norm" --arg read "$read_norm" \
+  mismatch=$(jq -r --argjson id "$id" --arg tag "$tag" --arg body "$body_verdict" \
       --argjson pre "$prerelease" --arg title "$RELEASE_TITLE" \
       '[ (if .id != $id then "id" else empty end),
          (if .tag_name != $tag then "tag_name" else empty end),
-         (if $sent != $read then "body" else empty end),
+         (if $body != "equal" then ("body (" + $body + ")") else empty end),
          (if .draft != false then "draft" else empty end),
          (if .prerelease != $pre then "prerelease" else empty end),
          (if ($title != "" and .name != $title) then "name" else empty end) ] | join(",")' <<< "$readback" 2>/dev/null) || mismatch="unreadable"
   if [[ -n "$mismatch" ]]; then
-    fail_phase release "Release identifier or read-back mismatch (terms: ${mismatch}; sent body ${#sent_norm} chars, read back ${#read_norm} chars after normalisation)"
+    fail_phase release "Release identifier or read-back mismatch (terms: ${mismatch}; normalised lengths sent/read where the body differs)"
     return 1
   fi
   update_phase release completed "$(jq -nc --argjson id "$id" --arg tag "$tag" --argjson pre "$prerelease" '{id:$id,tag:$tag,prerelease:$pre,verified:true}')"
