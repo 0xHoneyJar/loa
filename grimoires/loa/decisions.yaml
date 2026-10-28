@@ -40165,3 +40165,114 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1136"
+    created_at: "2026-10-28T06:56:06Z"
+    updated_at: "2026-10-28T06:56:06Z"
+    phase: "review"
+    category: "security"
+    summary: "S282 audit triage: profile-lib cache trust gap (DISS-C-001/C-002) pre-existing, graded MEDIUM + bead; C-004/C-005/C-007 pre-existing LOW + beads"
+    decision: "The audit grades the companion voice's HIGH (a forged .run/effective-config.json served by loa_knob; a predictable temp name for its writer) as MEDIUM pre-existing: the cache code is unchanged by this sprint (the diff adds cached_keys only), the precondition is a co-tenant who can write .run but not the config files, and the fix touches a per-tool-call hot path that deserves its own red-first task with mirror parity. It ships as a bead with the exact recipe (the decisions-cache boundary, mktemp + mv -T). DISS-C-004 (absence counted valid), DISS-C-005 (floor descendant clause; no mapping-level floor key exists today) and DISS-C-007 (KARPATHY_CHECKPOINT_CMD seam) are pre-existing LOW with beads."
+    rationale: "Under umask 002 (the common shared-group case) the config files are group-writable too, so the cache adds no capability there; the distinctive case needs .run writable while the tracked files are not. A hot-path refusal mistake would silently drop the profile cache on every PostToolUse; the audit gate is the wrong place for that change. The sprint did introduce the trust-boundary pattern for its own cache, so the sibling cache's gap is recorded as the first follow-up."
+    alternatives_considered:
+      - option: "CHANGES_REQUIRED and patch profile-lib at audit time"
+        rejected_because: "a hot-path lib change without its own red-first task and mirror parity; the gap is pre-existing and narrow"
+      - option: "Accept the voice's HIGH grading as given"
+        rejected_because: "the voice did not weigh the precondition or that the code predates the sprint; the one-way rule applies to the auditor's grading"
+    consequences:
+      positive:
+        - "every voiced finding has a bead or a decision row"
+        - "the release predicate is unaffected (no critical/high in the audited diff)"
+      negative:
+        - "a known hardening gap ships in rc.9 (pre-existing since the profile cache landed)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "2832bacc"
+    source: "grimoires/loa/a2a/sprint-282/adversarial-audit.json; grimoires/loa/a2a/audits/2026-10-28/SECURITY_ANALYSIS_TODO-sprint-282.md § Phase 1C"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T06:56:06Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "beads filed at audit time (sprint-282-audit label); auditor-sprint-feedback.md § Cross-Model Observations"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1137"
+    created_at: "2026-10-28T06:56:10Z"
+    updated_at: "2026-10-28T06:56:10Z"
+    phase: "review"
+    category: "security"
+    summary: "S282 audit triage: DISS-C-006 (FIFO blocks the decisions cache) and DISS-C-008 (hold knob ineffective) refuted by probe and reading; pinned by tests"
+    decision: "Both findings are recorded as not confirmed. A FIFO planted at the cache path is never opened (the reader requires -f) and is replaced by the writer's mv -T; two runs identical, no hang (probe; now two bats cases). CMP_STUB_HOLD_S is expanded inside the test process's own invoke_dissenter shim after setup() set it, so the three reaped holds do run 240 s (the measured 872 → 667 s serial wall time matches three 60 s shorter holds); CMP-55 pins 300 deliberately."
+    rationale: "The voice reasoned from the diff without executing it; the probe and the file's structure settle both questions. Pinning the FIFO/hard-link properties costs two cheap tests and protects the SessionStart path that calls grimoire-index."
+    alternatives_considered:
+      - option: "Count both as LOW findings with beads"
+        rejected_because: "a finding the evidence refutes is not a finding; recording it as such would misstate the audited surface"
+    consequences:
+      positive:
+        - "two new regression tests for the cache's handling of special files"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "2832bacc"
+    source: "~/.cache/loa/cycle-137/scripts/cache-fifo-probe.py; tests/unit/grimoire-index.bats (FIFO, hard-link cases); tests/unit/adversarial-review-companion.bats:106,186,210,236"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T06:56:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "the audit test-only commit after c31089280 (grimoire-index.bats FIFO + hard-link cases)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1138"
+    created_at: "2026-10-28T06:56:15Z"
+    updated_at: "2026-10-28T06:56:15Z"
+    phase: "review"
+    category: "implementation"
+    summary: "S282 audit: AGC-29/AGC-31 strengthened (proven hit before each mutation; real-key forge + control) test-only; both verdicts re-bound to the new head"
+    decision: "DISS-C-003 (MEDIUM, test coverage) is fixed in the sprint: under the current-second rule the old AGC-29 and AGC-31 passed by bypass, never exercising a populated memo. AGC-29 now ages and settles each fixture and asserts a hit before the mv, the deletion and the path switch; AGC-31 forges the real in-shell key (with the PATH component) and adds a control proving the forge would hit without the lib's reset-at-load. The change is test-only, so the audit verdict and a lead verify-only review round name the new head; the full tests/unit suite re-runs on it for G-4."
+    rationale: "The sprint's own memo tests lost their teeth to the sprint's own r2 fix; shipping them hollow would leave the memo's reset and invalidation unguarded. Test-only, bounded, no code path changes."
+    alternatives_considered:
+      - option: "Bead it for the next cycle"
+        rejected_because: "the hollow tests are a regression introduced in this sprint, not inherited"
+    consequences:
+      positive:
+        - "every memo property (hit, miss per key component, reset at load, invalidation per mutation) is now pinned deterministically"
+      negative:
+        - "the conformance file waits ~8 s more for fixtures to settle"
+        - "one more full-suite run (~70 min) before the ship"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "2832bacc"
+    source: "grimoires/loa/a2a/sprint-282/adversarial-audit.json DISS-C-003; tests/unit/agy-gate-conformance.bats AGC-29, AGC-31"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T06:56:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "the audit test-only commit after c31089280; red-test-check N/A (no red case: a strengthening); suites green on the new head"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
