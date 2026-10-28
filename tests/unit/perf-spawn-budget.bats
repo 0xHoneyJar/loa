@@ -163,7 +163,7 @@ _check_budget() {
   # sanity: all six families reach the index, so the trace covers every emitter
   local tsv; tsv="$(bash "$root/x/y/grimoire-index.sh" --tsv)"
   [[ "$tsv" == *$'decisions\tDEC-0003'* && "$tsv" == *$'vision\tvision-001'* && "$tsv" == *$'lore\tbeta'* && "$tsv" == *$'notes\tL5'* ]]
-  _check_budget "grimoire-index --tsv" 165 15   # measured: 165 trace lines, 15 external-tool lines (was 96/11): the traced run is a decisions-cache MISS (cycle-137 FR-5: snapshot, sha256, jq --version, trust-boundary stat checks, the writer awk); a warm run skips the yq parse. Under umask 002 the fixture .run is group-writable, outside the cache trust boundary, and the count is 115/12
+  _check_budget "grimoire-index --tsv" 167 15   # measured: 167 trace lines (umask 002: the fixture .run is 775 and the trust check tightens it with one chmod — D-5.3; 165 under umask 022), 15 external-tool lines (was 96/11): the traced run is a decisions-cache MISS (cycle-137 FR-5: snapshot, sha256, jq --version, trust-boundary stat checks, the writer awk); a warm run skips the yq parse
 }
 
 # --- (c) implement-gate.sh: Write to a grimoires/ path, no live .run.

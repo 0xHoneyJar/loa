@@ -255,14 +255,19 @@ GI_DEC_JQ='
        ((.source // "") | s), "", "", ((.decided_by // .proposed_by // "") | s)] | join("\t")'
 
 # _gi_trusted_dir <dir>: 0 when <dir> is a real directory (not a symlink) owned by the current uid with
-# no group or other write bit. GNU stat, then BSD stat; any stat failure means "not trusted".
+# no group or other write bit. GNU stat, then BSD stat; any stat failure means "not trusted". A directory
+# the uid OWNS that carries a group or other write bit is tightened here (chmod go-w) and trusted when the
+# chmod succeeds (cycle-137 D-5.3): zone-write-guard creates .run/perf-cache under the user's umask (775
+# under umask 002), which would leave this cache inert on every such host; tightening our own directory
+# can widen nothing. A directory another uid owns, or one chmod cannot change, stays outside the boundary.
 _gi_trusted_dir(){
   local st
   [[ -d "$1" && ! -L "$1" ]] || return 1
   st="$(stat -c '%u %a' -- "$1" 2>/dev/null)" || st="$(stat -f '%u %Lp' -- "$1" 2>/dev/null)" || return 1
   [[ "$st" =~ ^([0-9]+)\ ([0-7]+)$ ]] || return 1
   [[ "${BASH_REMATCH[1]}" == "$EUID" ]] || return 1
-  (( (8#${BASH_REMATCH[2]} & 8#022) == 0 ))
+  (( (8#${BASH_REMATCH[2]} & 8#022) == 0 )) && return 0
+  chmod go-w -- "$1" 2>/dev/null
 }
 # _gi_dec_cache_on: the environment and directory half of the trust boundary (a missing perf-cache
 # directory is allowed: the writer creates it under umask 077 and re-checks it).

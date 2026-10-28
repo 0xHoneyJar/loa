@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-28T04:29:46Z",
+  "generated": "2026-10-28T04:33:35Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1110,7 +1110,7 @@
     ".claude/scripts/gpt-review-api.sh": "778e7d8b58b706b481f4537b8bca877dce03a96894cf1cc62d317a8ccc982771",
     ".claude/scripts/gpt-review-hook.sh": "d7443d6a00ddc615a74a1c694b2aef0ab02d8d2b634aa788789505d4320bbc61",
     ".claude/scripts/gpt-review-toggle.sh": "5cf303cf1ea4452ded31178eb2fe5c339fd700cb84503b6768f4c1148003bb35",
-    ".claude/scripts/grimoire-index.sh": "a235cb1cc4b280b6560372fc178b3d24d21a52e50d95f97d0dd3621b1bfd8da4",
+    ".claude/scripts/grimoire-index.sh": "8ae1849f8129a871d73522132136fe7145b8dab5d869624d07d606dd1bcd87c5",
     ".claude/scripts/ground-truth-gen.sh": "3e2b6b9cc4f4cece10665be21208a18fff82f1a6d8203d31840a6165c7243e2e",
     ".claude/scripts/grounding-check.sh": "9dff13aafa30dd6767f2f5f86326939a4d80e1a07d4a154338ede9a79979a1f9",
     ".claude/scripts/guard-yield.sh": "2836b110058bcc2008348b520188749e763572c4c9218f1d10b6fbbd9f0f6551",
