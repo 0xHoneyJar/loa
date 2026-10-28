@@ -665,7 +665,7 @@ _agc27_ns_mtime() {  # 0 when a fresh write in this directory keeps a sub-second
     agy_opted_in "$CFG" || { echo "first call read off"; return 1; }
     agy_opted_in "$CFG" || { echo "memo hit read off"; return 1; }
     [ "$(_agc27_calls)" = 1 ] || { echo "node reads: $(_agc27_calls)"; return 1; }
-    _cfg cli-only '"true"'; : > "$BATS_TEST_TMPDIR/node-calls"
+    _cfg cli-only '"true"'; touch -d "@$(( $(date +%s) - 60 ))" "$CFG"; : > "$BATS_TEST_TMPDIR/node-calls"   # aged again (same rule)
     run --separate-stderr agy_gate_warn_once "$CFG"   # (run: a subshell — the warn and its own agy_opted_in share one memo there)
     [ "$status" -eq 0 ]
     [ "$(_agc27_calls)" = 1 ] || { echo "node reads in warn_once: $(_agc27_calls)"; return 1; }

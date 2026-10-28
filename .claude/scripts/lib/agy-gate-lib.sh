@@ -228,6 +228,19 @@ _agy_opt_in_node_memo() {  # <config> → sets _AGY_NODE_MEMO_VAL to _agy_opt_in
     fi
   fi
   if [[ -z "$st" ]]; then _AGY_NODE_MEMO_KEY=""; _AGY_NODE_MEMO_VAL=$(_agy_opt_in_node "$cfg"); return 0; fi
+  # A file modified in the CURRENT second (or later: clock skew) is never memoised (cycle-137 Sprint 282 review r1
+  # DISS-001): with whole-second stat — the BSD branch, or a 1 s filesystem under GNU — a same-size rewrite within that
+  # second keeps every key component, so a revoked `agy_opt_in: true` could read as still on for the rest of the shell.
+  # Once the clock has moved past the file's mtime second, a later rewrite changes mtime and misses as before. The
+  # current second comes from the shell (bash 5 EPOCHSECONDS, bash 4.2+ printf %(%s)T), else one `date` fork (bash 3.2).
+  local mt now; mt="${st#*:*:*:}"; mt="${mt%%:*}"; mt="${mt%%.*}"
+  if [[ -n "${EPOCHSECONDS:-}" ]]; then now="$EPOCHSECONDS"
+  elif now=$(printf '%(%s)T' -1 2>/dev/null) && [[ "$now" =~ ^[0-9]+$ ]]; then :
+  else now=$(date +%s 2>/dev/null) || now=""
+  fi
+  if [[ ! "$mt" =~ ^[0-9]+$ || ! "$now" =~ ^[0-9]+$ || "$mt" -ge "$now" ]]; then
+    _AGY_NODE_MEMO_KEY=""; _AGY_NODE_MEMO_VAL=$(_agy_opt_in_node "$cfg"); return 0
+  fi
   id="$cfg|$st|$PATH"
   [[ "$id" == "$_AGY_NODE_MEMO_KEY" ]] && return 0
   _AGY_NODE_MEMO_VAL=$(_agy_opt_in_node "$cfg")
