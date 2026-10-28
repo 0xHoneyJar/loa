@@ -176,3 +176,29 @@ _check_budget() {
   grep -q 'push_notify_active\|_push_load_config' "$TRACE_FILE"
   _check_budget "run-mode-stop-guard" 78 2   # measured: 78 trace lines, 2 external-tool lines
 }
+
+# --- (g) the tracer itself: xtrace must count spawns that run inside a function or
+# a sourced file whose stderr is redirected, and inside a child bash — the shapes
+# the guarded hooks use for their jq/yq calls (`source lib 2>/dev/null`,
+# `v="$(loa_knob … 2>/dev/null)"`, `$(bash "$CHECKPOINT" read --json 2>/dev/null | jq …)`).
+# A plain `bash -x 2>trace` loses all three (xtrace rides stderr), so the budgets
+# above would pass while the real spawn count regressed (sprint-281 review, DISS-C-003).
+@test "spawn budget tracer: counts spawns hidden by stderr redirects, sourced libs and child shells" {
+  cat >"$W/lib.sh" <<'EOF'
+lib_call() { jq -n '1' >/dev/null; }
+EOF
+  cat >"$W/target.sh" <<'EOF'
+#!/usr/bin/env bash
+f() { jq -n '2' >/dev/null; }
+f 2>/dev/null                                               # function with stderr redirected
+source "${LIB_UNDER_TEST}" 2>/dev/null && lib_call 2>/dev/null   # sourced lib, redirected
+v="$(printf 'x' | jq -R . 2>/dev/null)"                     # command substitution + pipeline, redirected
+bash -c 'yq --version >/dev/null 2>&1' >/dev/null           # child bash
+printf '%s\n' "$v" >/dev/null
+EOF
+  : >"$W/empty"
+  _trace "$W/empty" "$W" LIB_UNDER_TEST="$W/lib.sh" -- "$W/target.sh"
+  # four external-tool spawns: jq (function), jq (sourced lib), jq (pipeline), yq (child bash)
+  echo "EXT=${EXT} TOTAL=${TOTAL}" >&2
+  [[ "$EXT" -eq 4 ]]
+}
