@@ -1,12 +1,13 @@
-# Software Design Document: Bridgebuilder and scaffold follow-ups (cycle-136)
+# Software Design Document: Performance follow-ups (cycle-137)
 
-**Version:** 1.3
-**Date:** 2026-10-27
-**Author:** Software Architect Agent (Claude Fable 5.1, unattended)
-**Status:** Draft 1.2 — autonomous run; design-level decisions taken on the operator's behalf are § 11.D D-1.1 … D-1.6 (DEC-1067 … DEC-1072), the Flatline-driven PRD 1.1 rows DEC-1073 … DEC-1077 and the Flatline SDD rows § 11.D D-2.1 … D-2.7 (proposed, confirm at the cycle close)
-**PRD:** `grimoires/loa/prd.md` 1.3 (FR-1 … FR-5)
-**Cycle:** `cycle-136-bridgebuilder-followups`; **branch:** `feature/cycle-136-bridgebuilder-followups`
-**Flatline:** `grimoires/loa/a2a/flatline/cycle-136-sdd-review.json` (2/2 voices, cross-scoring degraded — KF-041 shape; 5 skeptic blockers and 30 medium items, every one read; dispositions in § 11.F — 1.1 → 1.2)
+**Version:** 1.2
+**Date:** 2026-10-28
+**Amendment 1.2 (implementation):** D-5.3 — the decisions-cache trust check tightens a uid-owned group- or world-writable `.run` / `.run/perf-cache` (`chmod go-w`) before trusting it (zone-write-guard creates the directory under the user's umask; a foreign-owned or untightenable directory stays out); DEC-1126. I-2.2a/b, I-2.3b, I-2.5, I-2.6, FR-6 floor: DEC-1124/1125/1127/1131/1128/1129/1130.
+**Revision:** 1.1 integrates the Flatline SDD review (5 blockers, 40 medium items — dispositions in § 11.F) and PRD 1.1's release predicate: cache writer/reader hardening, verify-chains protocol and fail-closed rules, allowed-failure policy, jq root preservation, unattended merge/publish safeguards.
+**Author:** Architect Agent (Claude Fable 5.1, unattended)
+**PRD Reference:** `grimoires/loa/prd.md` (1.1, FR-1 … FR-8, G-1 … G-6, § Release predicate R-1 … R-8)
+**Status:** Draft — autonomous cycle on the operator's instruction of 2026-10-28
+**Cycle:** `cycle-137-performance-followups`, branch `feature/cycle-137-performance`
 
 ---
 
@@ -30,258 +31,256 @@
 
 ### 1.1 System Overview
 
-Three independent changes in two components of the Loa framework:
-
-- **C-1 Scaffold (shell).** `scaffold_post_merge_workflow` in `.claude/scripts/lib/scaffold-post-merge-workflow.sh` gains a *legacy-guard check* inside its existing-file (idempotency) branch and an opt-in *fix* mode. Callers: `mount-loa.sh:703` (`scaffold_post_merge_workflow ""`) and `mount-submodule.sh:308`. One detection path (`awk`); no `yq` (D-2.1).
-- **C-2 Base `.reviewignore` through the contents API (TypeScript 5.9).** `paged-fetch.ts` `attempt` resolves the base branch's `.reviewignore` through `IGitProvider.getFileContent` when the local read reports the base commit missing from the clone, confirms a 404 is an absence (not an authorization gap) with one bounded probe, and passes the result into the selection.
-- **C-3 Contract tidy-up (TypeScript 5.9).** `SelectionConfig` lives in `core/types.ts` with one optional `reviewignoreBase` result object; `TruncationResult.reviewignoreSource` is a declared field; `ports/index.ts` re-exports `FileContentResult`; a failed content read logs one WARN; the stats suffix grammar is removed; FR-5 downgrades head-side scope validation to a WARN in pull-request mode with an explicit hand-off to `applyTrustedReviewScope`.
+Eight components, all inside the existing framework. C-1 is a gate pass over code that already exists (the 20 loop commits). C-2, C-4, C-5, C-6 and C-7 are single-lever changes to one file or one lib each; C-3 carries two levers in two files (the loa-status ceiling read and the agy memo in the shared lib) and lands as two commits. All are built the way the loop built its passes: profile, golden capture, change, old-vs-new mirror parity, review. C-8 is the ship. Nothing new is added to the per-tool-call hook chains; every change removes spawns or shortens tests.
 
 ### 1.2 Architectural Pattern
 
-Hexagonal as today: `paged-fetch.ts` (core) talks to the provider through the `IGitProvider` port; `truncateFiles` (core) stays synchronous and receives inputs, never performs I/O beyond the existing local `.reviewignore` read. The scaffold is a sourced bash library with no new dependency.
+"Fast path with verbatim fallback" (the loop's passes 7, 9, 10, 11, 16, 18): the plain, common input shape takes one process; every other shape runs the original code unchanged, so error text, exit codes and degraded paths stay byte-identical by construction. Caches (C-4, C-5) are pure functions of their inputs, content-keyed, written atomically under `.run/`, and ignored on any defect (the 2026-07 loop's `.run/perf-cache` conventions in `zone-write-guard.sh:81-104, 227-263`).
 
 ### 1.3 Component Diagram
 
 ```
-mount-loa.sh / mount-submodule.sh ──► scaffold_post_merge_workflow(source_path)   [C-1]
-                                         │ existing file?
-                                         ├─ yes → legacy_release_guard_check(target)  → WARN | silent   (awk only)
-                                         │           └─ LOA_SCAFFOLD_FIX_RELEASE_GUARD=1 → rewrite one `if:` line (safe write) | refuse WARN
-                                         └─ no  → cp | git checkout (unchanged)
-
-fetchPRFilesTwoPass (cache: Map<baseSha, BaseReviewignore|undefined>)
-   └─► attempt ─► resolveBaseReviewignore(git, owner, repo, pin.base_sha, repoRoot, pin.files, cache)   [C-2]
-                     │ local readBaseReviewignore → ok → {patterns, "base"} · absent → {[], "none"} · other → undefined
-                     │ unknown_commit → getFileContent(".reviewignore", base_sha, 1 MiB)
-                     │      text (regular file) → {patterns, "base"} + INFO line
-                     │      404 → access probe on a file the PR modifies/removes at the base (maxBytes 1):
-                     │             readable → {[], "none"} · 404 / error / no such file → undefined
-                     │      other failure → undefined
-                     ▼
-         truncateFiles(listed, { ...selConfig, reviewignoreBase?, reviewignoreBaseSha })
-                     └─ reviewignoreBase given → use it; else today's read (base_unavailable + degrade on failure — DEC-1043)
+Sprint 281                               Sprint 282
+┌──────────────────────────┐   ┌──────────────────────────────────────────────────────────┐
+│ C-1 gate pass            │   │ C-2 KF parsers      loa-kf-surface.sh · grimoire-index.sh│
+│  20 loop commits         │   │ C-3 loa-status      one yq ceilings · agy node memo       │
+│  reviewer.md → review    │   │ C-4 profile-lib     cached non-profile knobs             │
+│  → audit → COMPLETED     │   │ C-5 grimoire-index  decisions cache · one write-mode jq   │
+└──────────────────────────┘   │ C-6 tests           corpus-once · bounded waits           │
+                               │ C-7 audit-envelope  verify-chains (one process)           │
+                               └──────────────────────────────────────────────────────────┘
+                                                      │
+                                              C-8 ship: PR → BB → merge → record → archive → rc.9
 ```
 
 ### 1.4 Components
 
-| Component | Files | Owner |
-|---|---|---|
-| C-1 scaffold legacy-guard check + fix mode | `.claude/scripts/lib/scaffold-post-merge-workflow.sh` (header comment documents the flag), `tests/unit/mount-workflow-scaffold.bats` (new cases MWS-T13 …), `CHANGELOG.md` | A |
-| C-2 base `.reviewignore` via contents API | `resources/core/paged-fetch.ts`, `resources/core/truncation.ts` (typed `BaseRead`, `resolveBasePatterns` helper), `__tests__/paged-fetch-reviewignore.test.ts` (new), `__tests__/truncation.test.ts`, `resources/exclusions-and-coverage.md`, `CHANGELOG.md` | B |
-| C-3 contract tidy-up + FR-5 | `resources/core/paged-fetch.ts`, `resources/core/truncation.ts`, `resources/config.ts`, `__tests__/paged-fetch-coverage.test.ts`, `__tests__/paged-fetch-contents.test.ts`, `__tests__/truncation.test.ts`, `CHANGELOG.md`; Phase 0 (lead): `resources/core/types.ts`, `resources/ports/index.ts` | B (after C-2); lead for Phase 0 |
+| Id | Component | Files | PRD |
+|---|---|---|---|
+| C-1 | Formal gates on the optimisation loop | `grimoires/loa/a2a/sprint-281/reviewer.md`, fix commits on loop files | FR-1 |
+| C-2 | KF field-variant parsing and heading reset | `.claude/hooks/loa-kf-surface.sh`, `.claude/scripts/grimoire-index.sh` | FR-2 |
+| C-3 | loa-status single-yq ceiling read; agy opt-in node memo | `.claude/scripts/loa-status.sh`, `.claude/scripts/lib/agy-gate-lib.sh` | FR-3 |
+| C-4 | Cached non-profile knobs in profile-lib | `.claude/scripts/lib/profile-lib.sh`, `.claude/data/profiles.yaml` | FR-4 |
+| C-5 | grimoire-index decisions cache and one write-mode jq | `.claude/scripts/grimoire-index.sh` | FR-5 |
+| C-6 | Test-suite runtime: corpus-once fixture, bounded waits | `tests/unit/block-destructive-bash.bats`, `tests/unit/adversarial-review-companion.bats` | FR-6 |
+| C-7 | `verify-chains`: one Python process for every chain file | `.claude/scripts/audit-envelope.sh`, `.claude/adapters/loa_cheval/audit_envelope.py`, `.claude/scripts/loa-status.sh` | FR-7 |
+| C-8 | Ship and publish `v2.0.0-rc.9` | `CHANGELOG.md`, `README.md`, `.loa-version.json`, ship scripts under `~/.cache/loa/cycle-137/ship/` | FR-8 |
+
+---
 
 ## 2. Software Stack
 
 ### 2.1 Languages and runtimes
-Bash 5 (library sourced by the mount scripts under `set -euo pipefail`; bats-core tests); TypeScript 5.9 on Node 22 (`node:test` via tsx; `npm run build` = gen-bb-registry + tsc + dist manifest).
+bash 5 (hooks and scripts; bash-3.2/BSD-friendly constructs where the surrounding file already is), POSIX awk (mawk, busybox and BWK must all run the KF regexes — no gawk-only syntax), jq 1.7, mikefarah yq v4 (optional where it is optional today), Python 3.13 (`audit_envelope.py`), bats 1.13 via `npx --no-install bats`.
 
 ### 2.2 Build and verification
-`npm test`, `npm run build`, `tools/check-bb-dist-fresh.sh --check`, `tools/check-prompt-budget.sh --quiet` (SKILL.md ≤ 16,384 B — unchanged this cycle), `tools/gen-checksums.sh`, `repo-map-gen.sh`, `check-manifest-paths.sh`; bats via the npx cache on PATH; the cross-platform shell lint (no `sed -i`, `readlink -f`, `grep -P`, `find -printf`, bare `timeout`).
+`hyperfine -N` for every measurement (hyperfine 2.0 JSON: `.results[0].measurements[].time_wall_clock.value`); `PS4` traces for spawn counts; old-vs-new mirrors built in REAL directories (a symlinked hooks or scripts dir lets `..` escape to the live lib — the pass-18 lesson); `tools/check-no-raw-sha256sum.sh`, `tools/check-no-swallowed-jq.sh --quiet`, `bash .claude/scripts/check-loa.sh`, `repo-map-gen.sh --validate`, `tests/unit/perf-spawn-budget.bats`.
 
 ### 2.3 External services
-GitHub contents API through the existing allowlisted `gh api repos/<o>/<r>/contents/<path>?ref=<40-hex>` shape (`adapters/github-cli.ts` `getFileContent`); no new shape, no headers; the adapter's 30 s `gh` timeout and its error mapping (`httpStatus`, `RATE_LIMITED`, `FORBIDDEN`) apply unchanged.
+GitHub via `gh` (PR, checks, merge, release); the post-merge pipeline for the rc.9 candidate; Bridgebuilder on `codex-headless`.
+
+---
 
 ## 3. Database Design
 
-None. The only persisted artefacts are the coverage record (unchanged schema — `reviewignore_source` keeps its four values) and the files the scaffold reads or, on opt-in, rewrites.
+No database. Two new file caches under `.run/perf-cache/` (gitignored, state zone):
+
+| Cache | Key (first line) | Payload | Writer | Readers |
+|---|---|---|---|---|
+| `grimoire-index-decisions.v1.tsv` | `v1:<sha256 of decisions.yaml bytes>:<yq major.minor>:<jq major.minor>:<row count>` | the decisions family TSV rows exactly as `emit_decisions` prints them (post-sanitisation, 9 tab-separated fields each) | `grimoire-index.sh` (miss path) | `grimoire-index.sh` |
+| `.run/effective-config.json` (existing) | `schema_version: 1`, `id` (content key of config + profiles + floor, unchanged) | gains `knobs["karpathy_principles.diff_lines_per_task"] = {value, source: explicit\|absent, profile_value: null}` | `profile-lib.sh` cache builder | `loa_knob` |
+
+Writer rules (both caches; precedent `zone-write-guard.sh:227-263`, whose `$$` temp the new writer improves on with `mktemp`): `umask 077`; a uid-owned `.run` or `.run/perf-cache` that carries a group or other write bit is tightened with `chmod go-w` and trusted when the chmod succeeds (D-5.3, amendment 1.2); refuse when `.run`, `.run/perf-cache` or the cache file is a symlink (`[[ -L ]]` checked on each, and again on the file immediately before the rename); `mkdir -p` the directory then re-check `-L`; exclusive temp via `mktemp "$cache.XXXXXX"` in the same directory; write; `mv -f -T` (`mv -f` where `-T` is absent); on any failure remove the temp and continue (never fatal); never read or written under `CI`/`GITHUB_ACTIONS` or when `LOA_GRIMOIRE_INDEX_NO_CACHE=1` (decisions cache). Concurrent writers: the rename is atomic, last writer wins, both payloads are correct by construction (same key ⇒ same rows). Reader rules: one `awk` pass accepts the decisions cache only if line 1 equals the computed key, the number of payload rows equals the key's row count, every row has exactly 9 fields and no byte in `[\x00-\x08\x0a-\x1f\x7f<>]` (the sanitiser's output alphabet excludes them); the awk prints the rows only after the whole file validated, so a truncated, altered or wrong-key file prints nothing and is a miss. The decisions key and the rows are derived from one captured byte string of `decisions.yaml` (the file is read once into a variable or temp copy; sha256 and yq both consume that copy), so a rewrite mid-run cannot pair a new key with old rows. `.run/` is gitignored (`git check-ignore .run/perf-cache/x`), so a downstream mount's `git status` stays clean. The `effective-config.json` builder keeps its existing writer (unchanged in this cycle).
+
+---
 
 ## 4. UI Design
 
-CLI text only. Every line is single-line; filenames, provider error details and validation reasons are rendered bounded (≤ 200 characters) with control characters escaped and never a raw response body (D-2.6). New lines (stderr):
+No user interface changes. Every hook and script keeps its stdout, stderr and exit codes byte-identical on the live inputs; the only new operator-visible text is the CHANGELOG release section, the PR body and the release notes.
 
-- `[scaffold] WARN: <target> keeps the legacy simple-release guard (pr_type != 'cycle' && pr_number != ''); since Loa cycle-135 housekeeping merges classify 'housekeeping' and this guard sends them to the orchestrator, which refuses. Replace it with: (needs.classify.outputs.pr_type == 'bugfix' || needs.classify.outputs.pr_type == 'other') && needs.classify.outputs.pr_number != ''  — or re-run the mount with LOA_SCAFFOLD_FIX_RELEASE_GUARD=1 to rewrite that one line (bd-nr5i6)`
-- `[scaffold] fixed: <target> simple-release if: → allowlist guard (one line changed; bd-nr5i6)`
-- `[scaffold] WARN: LOA_SCAFFOLD_FIX_RELEASE_GUARD=1 but <target> has no single job-level simple-release if: carrying the legacy guard — left unchanged`
-- `[bridgebuilder] INFO: .reviewignore at base <sha> read through the contents API (the base commit is not in the clone)` (once per base-sha resolution; cached, so once per run unless the base moves)
-- `[bridgebuilder] WARN: content read of "<file>" failed: <outcome> (no_patch)` (once per file per attempt; outcomes `error`, `too_large`, `binary`, and an empty `text` answer; the file name is JSON-quoted and bounded through `boundedForLog` — review round 1 LOW 6)
-- `[bridgebuilder] WARN: bridgebuilder.<key>: the PR head's value is invalid (<reason>) — ignored on a pull request; the trusted configuration (or its default) governs`
+---
 
 ## 5. API Specifications
 
-### 5.1 `scaffold_post_merge_workflow(source_path)` (C-1)
+### 5.1 KF field parsing (C-2, both awk programs)
 
-Unchanged signature and return (always 0). New behaviour in the existing-file branch, one detection path (`awk`, no `yq` — D-2.1):
+`fieldval(line, label)` recognises three line shapes, each with an optional leading `- `:
+
+| Shape | Regex (awk ERE, label interpolated) | Example |
+|---|---|---|
+| A (existing) | `^(- )?\*\*LABEL\*\*: ?` | `**Symptom**: text` |
+| B (existing) | `^(- )?\*\*LABEL[^*]*:\*\* ?` | `**Symptom (short):** text` |
+| C (new) | `^(- )?\*\*LABEL( [^*]*)?\*\*: ?` | `**Symptom (short)**: text` |
+
+Shape C requires a space after the label so `**Symptomatic**:` is not a Symptom field; shape B keeps its existing looseness (unchanged). Shape C applies to the `Symptom` and `Recurrence count` labels only (D-2.2): the live file's only qualified `Status` line for a parsed label is `**Status (original)**: OPEN …` in KF-008 — a historical annotation that must never become the entry's status — so `Status` keeps shapes A/B; a decoy fixture places `**Status (original)**:` after `**Status**:` and asserts no change. Heading rule: every `^## ` line resets `cur = ""`; only `^## KF-[0-9]+:` then sets `cur` to the entry id. Consequence on the live file: none (0 shape-C lines; the non-numeric H2 headings — `## Schema`, `## KF-{NNN}: {short title}`, `## Index`, two `## How to …` — carry no first-wins fields that today attach to an entry). The two programs stay textually aligned; the kf-surface copy keeps its `LC_ALL=C awk` and `san()`.
+
+### 5.2 `_anthropic_ceiling_json` (C-3, `loa-status.sh:848-870`)
+
+One `yq eval -r` program emits six lines in this order: alias (`.aliases.opus // ""`), then for `$m` = the alias with a leading `anthropic:` removed: `effective_input_ceiling`, `probed_ceiling`, `ceiling_calibration.calibrated_at`, `ceiling_calibration.transport`, `context_window`, each `// ""`. The six lines are captured with `mapfile -t` (bash ≥ 4) from the `yq` output — a trailing empty field is a present empty line, and `yq -r` always terminates the last line — and the result is used only when `yq` exits 0 and the array has exactly six elements; otherwise the current per-field reads run verbatim. A multi-line value therefore falls back (as the pass-18 design). Fixtures (fast path or fallback, output identical either way): malformed YAML, a map where a scalar is expected, an embedded newline, explicit `null`, explicit `false`, an empty final field, all optional fields absent, `yq` failing. A bats assertion proves the fast path is taken on the live config (`bash -x` trace: one `yq`, no per-field read). The JSON object `_anthropic_ceiling_json` prints is unchanged.
+
+### 5.3 agy opt-in node memo (C-3, `agy-gate-lib.sh`)
+
+`_agy_opt_in_node` stays the subshell reader (fd-9 open-once semantics, r251-6 V3). A new parent-shell wrapper `_agy_opt_in_node_memo <cfg>` sets `_AGY_NODE_MEMO_VAL` (its result variable — callers read the variable, never `$(...)`, so the memo persists in the calling shell) and returns 0: it computes `id=<cfg>|<dev>:<ino>:<size>:<mtime>` with one portable `stat` (GNU `stat -c '%d:%i:%s:%Y'`, else BSD `stat -f '%d:%i:%z:%m'`); when `stat` fails the memo is dropped and the node re-read every time; when `id` equals `_AGY_NODE_MEMO_KEY` the stored value is returned, else `_agy_opt_in_node <cfg>` runs and both variables are stored. `agy_opted_in` and `agy_gate_warn_once` are rewritten to call the wrapper in the parent shell and read `_AGY_NODE_MEMO_VAL`; their return values and stderr text are unchanged; every other function is untouched. The memo lives only in the calling shell (a `$(...)` caller cannot populate it — same limitation as the pass-14 memo, documented in the comment). Fixtures: hit on an unchanged file; miss after a same-size in-place rewrite `true` → `false` with a distinct mtime (`touch -d`); miss after `mv` replacement (new inode); miss after deletion (node absent); miss after switching `<cfg>`; `$(...)` caller correct. Callers covered: `loa-status.sh` and `run-preflight.sh` by mirror parity (human and `--json`), `flatline-orchestrator.sh` and `adversarial-review.sh` by their existing agy bats suites.
+
+### 5.4 `loa_knob` cached non-profile knobs (C-4, `profile-lib.sh`)
+
+`profiles.yaml` gains a top-level `cached_keys:` list (schema stays 1; unknown top-level keys are ignored by today's reader, verified by the cache builder test). The cache builder adds, for each listed key not already a profile key, `knobs[key] = {value: <explicit config value or null>, source: "explicit" | "absent", profile_value: null}`; `profile_keys` and `overrides` are computed as today from profile keys only (so `loa_profile` output is unchanged). Classification mirrors the live path exactly: the builder evaluates the SAME yq expression `_loa_pl_live` uses for the key; `source: explicit` iff that expression yields what the live path would return as a value today, and the stored `value` is that same string; every other outcome (absent key, explicit `null`, non-scalar, the live path's empty result) is `absent`, so a warm `loa_knob` returns the caller's fallback exactly where the live path does (fixtures: absent, `null`, `""`, `false`, `0`, a map, a multi-line string). `loa_knob` on a warm cache: `source == "absent"` → print the caller's fallback and return 0 without `yq`; `explicit` → the value as today; a cache that lacks the knob entry (built from an older `profiles.yaml`) → the live read as today. The stale (`id` mismatch), missing-cache and missing-`yq` paths are unchanged (live reads). First listed key: `karpathy_principles.diff_lines_per_task`.
+
+### 5.5 `grimoire-index.sh` decisions cache (C-5)
 
 ```
-legacy_release_guard_check(target):
-  # 0. target must be a regular file (not a symlink) readable by the caller; else silent (with the flag: the refuse WARN)
-  # 1. J = indentation of the first non-blank, non-comment line after `^jobs:` whose indentation is > 0 (the jobs' key indent)
-  #    block = from the line /^<J>simple-release:/ to the first following non-blank, non-comment line whose indentation ≤ J (or EOF)
-  #    (D-2.2: no job-id regex — job ids with digits, quoted keys, anchors or aliases cannot extend the block;
-  #     zero or two `simple-release:` keys → not found → silent)
-  # 2. C = indentation of the first non-blank, non-comment line inside the block (the job's child indent, read from the file)
-  #    walk the block tracking block scalars: a line whose value is `|`, `>` (with optional chomping/indent indicators) opens a
-  #    block scalar at its own indentation k; every following line with indentation > k is scalar content and is skipped (D-2.3)
-  #    candidates = lines at indentation exactly C matching /^if:[[:space:]]/ outside block-scalar content
-  # 3. exactly one candidate whose value is single-line (not `|`/`>`, not empty, not ending in a flow/mapping opener) → guard
-  #    zero, two or more, or multi-line → "not a single job-level if:" → silent (with the flag: the refuse WARN)
-  # 4. normalise the value: strip one `${{ … }}` wrapper, strip a trailing ` # comment`, collapse whitespace runs to one space,
-  #    trim, strip one pair of surrounding single or double quotes (D-2.1)
-  if norm == LEGACY  → WARN (above); if LOA_SCAFFOLD_FIX_RELEASE_GUARD=1 → safe rewrite (below), print "fixed"
-  elif norm == ALLOWLIST → silent
-  else → silent (customised; with the flag set → the refuse WARN)
-  return 0 in every branch (both callers run under set -e — DEC-1077)
-
-safe rewrite (D-2.4): re-read the candidate line by number immediately before writing and require it to still match; build
-  `<original indent>if: <ALLOWLIST>` preserving the original quoting style (none / single / double); write the whole file to a
-  temp file in the same directory (mktemp there), preserve the original mode, `mv -f` over the target; refuse (WARN, no change)
-  if the target is a symlink or the re-read differs.
+emit_decisions():
+  f = decisions.yaml; [[ -f ]] || return
+  yq gate (unchanged: NOTE + return when not mikefarah v4; yq major.minor parsed from the gate's own --version output)
+  caching = LOA_GRIMOIRE_INDEX_NO_CACHE != 1 and CI/GITHUB_ACTIONS unset and ! -L .run and ! -L .run/perf-cache
+  snap = one read of f (temp copy under mktemp -d, or a variable when NUL-free)   # key and rows from the same bytes
+  key = "v1:$(sha256_portable < snap):$(yq maj.min):$(jq maj.min from the one existing `jq --version` capture or a single spawn)"
+  cache = $PROJECT_ROOT/.run/perf-cache/grimoire-index-decisions.v1.tsv
+  if caching and -f cache and ! -L cache: rows = awk-validate(cache, key)  # header, row count, 9 fields, alphabet; prints only if all valid
+     if rows non-empty or (validated and the row count is 0): print rows; return
+  rows = (today's yq → jq pipeline over snap, unchanged, including the unparsable-ledger NOTE path which caches nothing)
+  print rows
+  if caching: write cache (umask 077; mkdir -p dir; re-check -L dir; tmp=$(mktemp "$cache.XXXXXX");
+     printf "%s:%d\n%s" key-prefix nrows rows > tmp; re-check -L cache; mv -f -T tmp cache) || rm -f tmp; true   # never fatal
 ```
+Write-mode checks: the `bad` count and `.total` are read from `$JSON` with ONE jq program that preserves the root object — `jq -r '. as $root | ([$root.families[][] | select((.id|length)==0 or (.path|length)==0 or (.family|test("[^a-z]")))] | length), $root.total'` — captured into two variables with `mapfile -t`; a jq failure or a line count other than two is treated as `bad != 0` (refuse to write, as today's error path) and the bats cases cover a valid and an invalid index for both emitted values and the exit status (`validate` mode keeps its own jq calls: it is not hot). Modes consuming the cache: `--tsv`, `--json`, write (all through `collect`); `--validate` also goes through `collect` and therefore also consumes it; the JSON output is derived from the same cached TSV rows. `--help`, `--tsv`, `--json`, `--validate` outputs unchanged; the env knob `LOA_GRIMOIRE_INDEX_NO_CACHE=1` (disables read and write) is documented in the header comment (no new CLI flag, so `--help` is byte-identical). The `v1:` prefix constant sits adjacent to the `s` filter with a comment binding them (a sanitiser change bumps the prefix in the same commit) and a bats test asserts the prefix changes when the filter text changes (hash of the filter literal pinned next to the prefix).
 
-`LEGACY = needs.classify.outputs.pr_type != 'cycle' && needs.classify.outputs.pr_number != ''`; `ALLOWLIST = (needs.classify.outputs.pr_type == 'bugfix' || needs.classify.outputs.pr_type == 'other') && needs.classify.outputs.pr_number != ''`. Multi-line `if: |` blocks, two job-level `if:` lines, a missing `simple-release` job and anything the normalisation does not reduce to one of the two texts are "customised" (silent). The flag is an environment variable so both callers surface it without signature changes (DEC-1068); the library's header comment and the CHANGELOG document it (D-2.7).
+### 5.6 Test-suite runtime (C-6)
 
-### 5.2 `resolveBaseReviewignore(git, owner, repo, baseSha, repoRoot, files, cache)` (C-2, `paged-fetch.ts`)
+`block-destructive-bash.bats`: `setup_file()` runs `run-corpus.sh --hook "$HOOK" --json` once into `$BATS_FILE_TMPDIR/corpus.json`; `corpus_json()` prints that file; the three corpus tests are otherwise unchanged (the runtime test keeps reading `runtime_ms` from the same JSON, which is the one measured run). `block-destructive-bash.bats` `setup_file` captures without failing: `run-corpus.sh … > corpus.json 2> corpus.err; echo $? > corpus.status` (`|| true`); each corpus test first asserts `corpus.status` is `0` and `jq -e . corpus.json` succeeds, then reads its field, so a runner failure fails the three tests with the runner's stderr, not `setup_file`; `-f` selection and `--jobs` still run `setup_file` once per file process. `adversarial-review-companion.bats`: the env knob `CMP_STUB_HOLD_S` (default 300 = today) is read only by the `cheval` shim the bats file itself defines (lines 160–240: behaviours `stubborn`, `slow`, `unavailable-companion-slow`) and by the holder lines in test bodies (`sleep 30` holders at 1253, 1310, 1594, 1613, 1624, 1719, 1741, 1749; the `sleep 20` sleeper at 183); no production script reads it. Baseline procedure: `bats -T` serial on the idle ship host, median of three totals, before and after. Rules: a fixed sleep no test waits on shortens to the minimum its own bound requires; a hold that exists to be reaped keeps ≥ 2× the longest wait any test places on it (the affected tests and their bounds are listed by name in the implementer's report); polls keep their bounds; the synchronisation states each test demonstrates before asserting (holder ready, lock contended, released, timed out, cleaned up) are preserved and the negative control proves it (holder exits early / reaper disabled → the test fails); no assertion, expected value or skip condition changes. CMP-37 is left as is (out of scope for determinism); its acceptance evidence is the serial whole-file run (PRD R-4). The engineering floor is the script's own per-test runtime; if the measured floor exceeds the PRD's 300 s, a `proposed` decision row written before `/review-sprint sprint-2` moves FR-6's acceptance to the measured floor and names the improvement achieved.
 
-```ts
-type BaseRead =
-  | { ok: true; patterns: string[] }
-  | { ok: false; why: "absent" | "unknown_commit" | "other"; detail: string };          // truncation.ts (exported)
-type BaseReviewignore = { patterns: string[]; source: "base" | "none" };               // the resolved result
-async function resolveBaseReviewignore(git: PagedContentGit, owner: string, repo: string, baseSha: string,
-  repoRoot: string | undefined, files: readonly PullRequestFile[], cache: Map<string, BaseReviewignore | undefined>,
-): Promise<BaseReviewignore | undefined>
-```
-1. `cache.has(baseSha)` → return the cached value (an `undefined` outcome is cached too, so a restarted attempt makes no second call — D-2.5). Attempts are sequential; no in-flight promise cache is needed.
-2. `readBaseReviewignore(repoRoot, baseSha)` (exported from `truncation.ts`; never throws) classifies: `unknown_commit` when `git cat-file -e <sha>^{commit}` exits non-zero (exit status, not stderr text; `LC_ALL=C` on every git call — D-2.5); otherwise `absent` when `ls-tree` prints nothing; `other` for a non-blob mode, oversize, `git show` failure or timeout. `ok` → `{patterns, "base"}`; `absent` → `{[], "none"}`; `other` → `undefined`.
-3. Only `unknown_commit`, and only when `typeof git.getFileContent === "function"`: `await git.getFileContent(owner, repo, ".reviewignore", baseSha, REVIEWIGNORE_MAX_BYTES)` against the run's target `owner/repo` (the PR's base repository; never a fork's). `kind: "text"` (the adapter already requires a regular `type: "file"` envelope with base64 content, answers `too_large` when `size` exceeds the bound and rejects a `size` that disagrees with the decoded bytes — so `text` is complete by construction; a symlink or directory entry is not `text`) → `{parseReviewignoreLines(content), "base"}` plus the INFO line.
-4. A `GitProviderError` with `httpStatus === 404` is **not** proof of absence (an authorization gap also surfaces as 404 — SKP-002). Confirm access with one probe (D-2.6): take the first listed file whose status is `modified`, `removed` or `renamed` (`previous_filename` for renamed) — a path that exists at the base — and call `getFileContent(owner, repo, <path>, baseSha, 1)`; any `text` / `too_large` / `binary` answer proves the ref is readable → the 404 was an absence → `{[], "none"}`; a 404 or error on the probe, or no such file in the listing (all files added), → `undefined` (fail closed). At most two calls per resolution.
-5. Any other result or error on step 3 (rate limit, `FORBIDDEN` / 401 / 403, malformed envelope, `too_large`, `binary`, `size` mismatch, a non-`GitProviderError` throw, a timeout surfacing as an error) → `undefined`.
-6. `undefined` leaves today's path: `truncateFiles` performs its own read and reports `base_unavailable` (checkout copy, degrade — DEC-1043's trade-off, restated in § 6 and § 9 — D-2.6).
-7. The result (or `undefined`) is stored in `cache` under `baseSha`. The read is outside the `max_content_fetches` cap and the `fetch_missing_patches` switch (they govern listed files).
+### 5.7 `audit-envelope.sh verify-chains` (C-7)
 
-### 5.3 `SelectionConfig` and `TruncationResult` (C-3, `core/types.ts`, Phase 0)
+New subcommand `verify-chains <path>…` → one Python invocation that imports `loa_cheval.audit_envelope` once and calls `audit_verify_chain(path)` per argument in order, wrapping each call in its own try/except so one path's exception becomes that path's FAIL and the next path still runs; it prints one JSON record per input path in argument order — `{"i": <0-based index>, "path": <str>, "ok": <bool>, "error": <str|null>}` — and exits 0 when every record is `ok`, 1 when any is not, 2 on usage (zero arguments) or import failure. A missing path is `ok: false, error: "missing"`. The shell wrapper parses the records with one `jq` keyed on `i` (so paths with spaces, colons or newlines are safe) and is fail-closed: any input index without a record, a non-zero exit other than 1, or unparsable output marks every unrecorded path FAILED. Snapshot semantics: each path is verified exactly as a per-call invocation would at that moment — `_check_trust_store` runs per path and its in-process `_TRUST_STORE_CACHE` re-authenticates through the subprocess snapshot whenever the store path or content changed since the previous path; a store that becomes INVALID or disappears between paths fails every later path while earlier results stand. Equivalence proof: a pytest case in `tests/unit/` (D may not touch `tests/security/`) drives the batch over three fixture chains with a hook that mutates the trust store between paths (replace with a store revoking the signing key; tamper the signature; delete the file) and asserts the batch records equal fresh per-call `audit_verify_chain` results under the same schedule; if it cannot pass without touching `_check_trust_store`, C-7 is deferred (FR-7(b)). `_check_trust_store` is unchanged: its in-process `_TRUST_STORE_CACHE` (keyed by the store path and content key, `audit_envelope.py:411, 414-440`) makes the `audit-signing-helper.py trust-store-verify` subprocess run once per process for an unchanged store and again if the store's content key changes between files — the TOCTOU snapshot defence pinned by `tests/security/test_audit_trust_policy.py:147-165` is untouched. `loa-status.sh:415-435` collects the chain paths that exist (today's `[[ -f ]]` pre-filter stays, so missing files keep counting as valid by absence) and makes one `verify-chains` call; the per-index parse reproduces today's `valid` count exactly; a fail-closed wrapper result (no records) counts every passed path invalid, which is more conservative than today only in the abnormal-exit case and is recorded in the comment. Mutation check: the bats case runs `verify-chains` against a read-only chain tree and compares the sha256 of every chain file before and after. `verify-chain <path>` (singular) stays for every other caller.
 
-```ts
-export type ReviewignoreSource = "base" | "checkout" | "base_unavailable" | "none";
-export type SelectionConfig = Pick<BridgebuilderConfig, …the keys truncateFiles reads…> & {
-  /** cycle-135 C-2: read `.reviewignore` at this PR base sha (undefined: the checkout). */
-  reviewignoreBaseSha?: string;
-  /** cycle-136 C-2 (D-2.5): the base `.reviewignore` already resolved by paged-fetch; wins over the sha read. */
-  reviewignoreBase?: { patterns: string[]; source: "base" | "none" };
-};
-export interface TruncationResult { …; reviewignoreSource?: ReviewignoreSource; }
-```
-One optional object instead of two coupled fields (gpt IMP-005 / opus IMP-009): `source: "none"` always carries `patterns: []`. `truncateFiles(files, config: SelectionConfig): TruncationResult`; `paged-fetch.ts` imports `SelectionConfig` and `ReviewignoreSource` from `./types.js`; the intersection casts and the local type aliases are deleted in Phase 0 (opus IMP-012). `truncateFiles` resolves the base patterns through one helper `resolveBasePatterns(config)` called from both read sites (opus IMP-017): `config.reviewignoreBase` when set (skip `parseReviewignoreFile`, `reviewignoreSource = config.reviewignoreBase.source`), else today's read.
+### 5.8 Ship (C-8)
 
-### 5.4 `ports/index.ts`
-Adds `FileContentResult` to the `./git-provider.js` type export block (Phase 0).
+CHANGELOG: `[Unreleased]` content moves under `## [2.0.0-rc.9] — 2026-10-2x — Performance follow-ups (release candidate)`; version markers as the rc.8 heading (`git log -p` of the rc.8 commit is the template); `.loa-version.json` `framework_version` → `2.0.0-rc.9`; README install pin → `--tag v2.0.0-rc.9`. The ship scripts are the cycle-135 set with cycle, branch, PR and `--prev origin/record/cycle-136-bridgebuilder-followups` substituted. Ship files (CHANGELOG heading, README pin, `.loa-version.json`) are committed BEFORE the final review/audit of Sprint 282 so the reviewed head is the merged head (PRD R-1, R-3). Unattended merge and publish are authorised by the operator's instruction (PRD § Authorization): merge only via the ship recipe under R-3; publish only after the publish-summary stage — `a2a/sprint-282/publish-summary.md` lists the prepared candidate path, the pipeline's printed digest, the digest the lead recomputes with `sha256_portable` over the fetched candidate bytes (must be equal), the candidate's `merge_sha` (must equal the merge commit on `origin/main`), the tag and the CHANGELOG heading, and ticks R-1 … R-7. Publish: from a non-shallow clone, `post-merge-orchestrator.sh --publish <candidate> --approve-sha256 <digest>`; verify `git merge-base --is-ancestor v2.0.0-rc.9 origin/main`, the release page, and the install smoke test (`git clone --depth 1 --branch v2.0.0-rc.9` into a scratch directory → `check-loa.sh` and the kf-surface hook succeed). Rollback (written before publishing): revert the merge commit on `main` with manifests regenerated; mark the GitHub release as a withdrawn pre-release (tag never deleted); reopen the beads; decision row. The ship scripts are copied to `a2a/sprint-282/ship/` with their sha256 listed in `e2e.md`.
 
-### 5.5 Stats suffix removal
-`patternSuffix` / `PATTERN_SUFFIX` / `exclusionPattern` deleted; every exclusion entry already carries `pattern`; `paged-fetch.ts` reads `ex.pattern` only; the posted stats lose the ` [pattern: <p>]` tail. `resources/exclusions-and-coverage.md` and the CHANGELOG state the removal; a repository-wide `[pattern:` search is an acceptance criterion.
-
-### 5.6 Head-side scope validation in pull-request mode (FR-5, Could Have)
-`resolveConfig(cliArgs, env, yaml)` already receives `env`; it computes `const prMode = isPullRequestContext(cliArgs.pr, env)`. The YAML it validates on a pull request *is* the PR head's `.loa.config.yaml` (the trusted replacement arrives later through `loadTrustedConfig`), so a validation error there is head-origin by construction (gpt IMP-007). The head YAML is validated first, before any trusted value is seen; the trusted scope keys later *replace* the head values in `applyTrustedReviewScope` (flat lists, booleans and integers — `exclude_patterns` is recomposed as defaults + trusted + CLI; nothing is deep-merged). For the three validated scope keys (`protected_paths`, `max_content_fetches`, and the `exclude_patterns` list shape), a validation error in PR mode is caught, written as the WARN in § 4, the key is left *unset* — never the invalid value — and the key's name is appended to `provenance.deferredScopeKeys` (SKP-008). `applyTrustedReviewScope` is the only consumer: it installs the trusted source's validated value, or (no source, DEC-1055) the default, and clears the list. Every production caller of `resolveConfig` (today: `main.ts` only) must call `applyTrustedReviewScope` before using the configuration; a test pins this by reading `main.ts` and asserting the call order, and `fetchPRFilesTwoPass` / the review pipeline never read the three keys from a configuration that still carries a non-empty `deferredScopeKeys` (an assertion at the pipeline entry throws a config error naming the keys). An invalid *trusted* value stays a config error; local mode throws as today. Composition tests cover a permissive valid head value vs a restrictive trusted value and mixed valid/invalid keys (gpt IMP-008).
-
-### 5.7 Configuration
-No new `.loa.config.yaml` keys. One new environment variable for the mount scripts: `LOA_SCAFFOLD_FIX_RELEASE_GUARD=1`.
+---
 
 ## 6. Error Handling Strategy
 
-| Situation | Behaviour |
-|---|---|
-| `if:` unparseable / multi-line / zero or several job-level candidates / no `simple-release` job | treated as customised: silent; with the flag, the refuse WARN |
-| legacy text on a step-level `if:`, inside a block scalar, in another job or in a comment | never matched (job-scoped, child-indentation-anchored, block-scalar aware) |
-| target is a symlink, or the line changed between detection and rewrite | fix mode refuses (WARN), file unchanged |
-| base `.reviewignore`: local read `unknown_commit` | contents API (one call per base sha per run, cached incl. failures) |
-| base `.reviewignore`: local read `other` (symlink, oversize, git error) | today's `base_unavailable` + degrade, no API call |
-| contents API 404 for `.reviewignore` | one access probe on a base-existing listed file; readable → `none`; else `base_unavailable` |
-| contents API rate-limit / auth / malformed / too_large / binary / timeout / non-provider throw | fall through to today's `base_unavailable` + degrade (fail closed) |
-| provider without `getFileContent` | today's behaviour |
-| **`base_unavailable` on a pull request** | the checkout copy — PR-head-controlled — governs and the review degrades (`reviewignore_unavailable`, merge-blocking). This is DEC-1043's deliberate trade-off: dropping the deny list would send excluded content (secrets, vendored trees) to the model; applying the head's copy can hide files, which the degrade makes visible and merge-blocking. C-2 makes this path rare on shallow checkouts; it is not changed here (SKP-001 → D-2.6). |
-| failed content read of a listed file | outcome recorded as today + one bounded WARN line |
-| invalid head scope key on a PR | WARN, key unset and deferred, trusted value or default governs; locally: config error (unchanged) |
+- Fast paths accept only the plain shape; any failure (`yq`/`jq` nonzero, wrong line count, unreadable file) runs the original code, so messages and exit codes are the originals.
+- Caches are never fatal: a write failure is ignored (`|| true`), a bad cache is a miss; `CI`/`GITHUB_ACTIONS` never write a cache.
+- `verify-chains` reports per path; a trust-store refusal (`[TRUST-STORE-INVALID]`, bootstrap-pending under strict) fails every path verified while the store is in that state, as the per-call form would; a per-path exception is that path's FAIL; missing records or an abnormal exit are fail-closed in the wrapper (every unrecorded path FAILED).
+- Allowed-failure policy (PRD R-4): the only tests that may fail on the ship host are the three KF-034 `semver evidence` tests named there, and they must fail identically on `main` under the same `tag.gpgsign`; every other failure, skip change or changed failure signature blocks; the policy is applied on the exact final head and again on the merge commit's CI run (CI carries no KF-034).
+- The gate pass (C-1) fixes land red-first; a finding that cannot be fixed within the sprint reverts that single loop commit — after checking that no later pass depends on it (shared helpers such as `compat-lib.sh`, cache conventions, mirror-harness assumptions; a dependent later pass is reverted together or the finding is fixed forward) — with manifests regenerated in the revert commit and a decision row.
+- Verdict binding: every review/audit verdict names `reviewed_head: <sha>`; a code commit after it re-runs the gate (verify-only pass for a gate or Bridgebuilder fix); docs-only commits (`grimoires/**`, `CHANGELOG.md`, `README.md`, `.loa-version.json`, `.skill-loop-progress.md`) do not.
+- The ship refuses to merge with a pending or red required check and refuses to publish a candidate whose digest does not re-canonicalise (the rc.6/rc.7 lesson, KF-063).
+
+---
 
 ## 7. Testing Strategy
 
-- **C-1 bats** (`mount-workflow-scaffold.bats` MWS-T13 …), every case with the library sourced under `set -euo pipefail` as the callers do, PATH set to a directory holding only coreutils/awk/sed/grep/bash (no `yq`): legacy file → WARN + byte-identical (`cmp`); allowlist → silent; customised single-line `if:` → silent; flag + legacy → one changed line, "fixed" notice, idempotent second run, result byte-identical to the allowlist fixture; flag + customised → refuse WARN, unchanged, exit 0; negative fixtures byte-identical with and without the flag — step-level `if:` with the legacy text, a second job (`legacy-copy`) carrying it, the text in a comment, a multi-line `if: |` block, the text inside a `run: |` block scalar at the child indentation, two job-level `if:` lines, no `simple-release` job, a job id with digits (`simple-release-2:`) following the block, a 4-space-indented workflow, a `${{ … }}`-wrapped legacy guard (detected; rewritten preserving the wrapper is NOT attempted — refuse), a symlinked target (refuse); existing MWS-T1 … T12 unchanged.
-- **C-2** (`paged-fetch-reviewignore.test.ts`, fixture adapter; the local read's class forced through a `deps.readBaseReviewignore` seam): `unknown_commit` + API text → `reviewignore_source: "base"`, base patterns applied, `degraded: false`, exactly one `.reviewignore` call at `pin.base_sha` against the target `owner/repo`, one INFO line; + 404 + probe readable → `none`, not degraded, exactly two calls; + 404 + probe 404 → `base_unavailable`; + 404 + no modified/removed file in the listing → `base_unavailable`, one call; + RATE_LIMITED / FORBIDDEN / 401 / malformed / too_large / binary / size mismatch / a plain `TypeError` thrown / a timeout-shaped error → `base_unavailable` (per case); `ok` / `absent` locally → zero API calls; `other` locally → `base_unavailable`, zero calls; provider without `getFileContent` → today's behaviour; local mode → no call; restarted attempt (one head move), same base → no second call, also when the first outcome was `undefined`; base move → one new call; content at the bound / one over / empty; `maxContentFetches: 0` and `fetchMissingPatches: false` do not affect it. `truncation.test.ts`: the three `BaseRead` failure classes via temp git repos (incl. `cat-file -e` for an unknown sha), `resolveBasePatterns` honouring `reviewignoreBase` at both read sites.
-- **C-3**: `tsc` clean; no intersection casts (grep pin in a test); `FileContentResult` imported from `../ports/index.js`; coverage fixtures use `pattern`; a literal ` [pattern: x]` in stats is plain text; a repository-wide `[pattern:` search is clean outside CHANGELOG / archive / a2a / the plain-text fixtures; failed read → one bounded WARN (a filename with a newline is escaped). **FR-5**: per key, PR mode (three detection routes) + valid trusted → WARN + trusted value; PR mode + no source → default; invalid trusted → error; local → throws; `deferredScopeKeys` populated by `resolveConfig` and cleared by `applyTrustedReviewScope`; the `main.ts` call-order pin; the pipeline-entry assertion fires on a configuration with a non-empty `deferredScopeKeys`; composition: permissive valid head vs restrictive trusted; mixed valid/invalid keys.
-- Red-first for every behaviour: each implementer delivers a test patch (red) and a fix patch (green); the lead reproduces red → green on the landed shas (`red-green-npm.sh`, `red-test-check.sh` for bats).
-- Suites: `npm test`, the scaffold + pipeline bats files, `tools/check-prompt-budget.sh`, the cross-platform shell lint patterns, the CI mirror from the landed head before the PR.
+| Component | Red-first tests | Parity harness | Measurement |
+|---|---|---|---|
+| C-1 | review/audit fix commits each carry a test where behaviour changes | the pass's own `~/.cache/loa/eso-loop/pass-K/` harness re-run | `perf-spawn-budget.bats` 6/6 |
+| C-2 | `kf-surface.bats`, `grimoire-index.bats`: shape C parsed, shape B still parsed, `**Symptomatic**:` not a field, `## KF-abc:` resets silently, `## Index` fields ignored; drift test extracts the `fieldval` body and heading rule from both files and asserts equality; both programs run under each available awk (mawk, busybox, `gawk --posix`; absent ones skipped by name) | live `known-failures.md`: hook stdout and `--tsv/--json/write` byte-identical | spawn budget unchanged |
+| C-3 | `loa-status-providers.bats`: one yq, fast path taken on the live config (trace), six-line protocol fixtures (malformed YAML, map, newline, null, false, empty final field, all absent, yq failure); `agy-gate-conformance.bats`: memo hit, miss after same-size rewrite with distinct mtime, after `mv`, after deletion, after a path switch; `$(...)` caller | old mirror vs new on live/--json/--help/bogus/no-yq and the config matrix for `loa-status.sh` AND `run-preflight.sh` | ≥ 40 ms, `yq` count 1 |
+| C-4 | `profile-lib.bats`: cached absent knob returns fallback without yq (trace: `bash -x` of the call with `PS4` naming the command, grep for `yq`), explicit value wins, classification fixtures (null, "", false, 0, map, multi-line), older cache without the entry → live read, stale id → rebuild, `loa_profile` output unchanged, cache JSON differs only by the knob entry | karpathy hook state files across the pass-19 matrix | hook trace: no `yq` on the warm path |
+| C-5 | `grimoire-index.bats`: hit skips yq (trace), miss rebuilds, content change invalidates, truncated / altered row / wrong key / wrong count / symlinked dir or file / read-only `.run` ignored, `NO_CACHE=1` disables read and write, CI env disables, yq-absent host never reads, two concurrent writers, mid-run rewrite caches nothing, write-mode jq on a valid and an invalid index (values + exit status), prefix–filter coupling | live grimoire cold and warm, all four modes | warm ≤ 650 ms; cold ≤ old + 40 ms |
+| C-6 | negative control per affected test (break the asserted behaviour under the shortened waits → fails; restore → passes); `setup_file` status/stdout/stderr captured and asserted by the corpus tests | serial TAP pass/fail/skip set per test name before and after | corpus runs once; `bats -T` serial median of 3, before and after |
+| C-7 | `audit-envelope*.bats`: `verify-chains` on valid/tampered/broken/missing/empty chains, zero args → exit 2, read-only tree with sha256 before/after, wrapper fail-closed on a truncated record set; pytest in `tests/unit/`: batch records equal per-call results under the store-mutation schedule (revoke, tamper, delete); `test_audit_trust_policy.py` unchanged and green | per-path results equal per-call results on the live chains | 5-chain fixture root: ≥ 100 ms |
+| C-8 | — | publish-summary.md digest cross-check; install smoke test from a scratch clone | checks green on the exact head; tag reachable from main |
+
+Whole-head parity gate after C-2 … C-7 land: one old mirror from the pre-sprint head and one new mirror from the sprint head (REAL directories) run every touched entry point over the live inputs; stdout, stderr, rc and written files `cmp` identical (ages/timestamps normalised only where today's output embeds them). Full `tests/unit` on the final head under the allowed-failure policy (§ 6); `check-loa.sh`; `repo-map-gen.sh --validate`; the two lint tools. Measurement protocol for every number: `hyperfine -N -i --warmup 3 --runs 10`, mean ± σ, old and new in the same session on the idle ship host, cache state stated, baseline revision named, host id and command line recorded (PRD § NFR Performance).
+
+---
 
 ## 8. Development Phases
 
-| Phase | Owner | Content |
+| Phase | Sprint | Content |
 |---|---|---|
-| 0 contract | lead | `core/types.ts` gains `ReviewignoreSource`, `SelectionConfig` (with `reviewignoreBaseSha` and `reviewignoreBase`) and `TruncationResult.reviewignoreSource`; `ports/index.ts` re-export; `truncation.ts` exports `readBaseReviewignore`, `BaseRead`, `parseReviewignoreLines`, `REVIEWIGNORE_MAX_BYTES` and takes `SelectionConfig`; `paged-fetch.ts` imports both types from `./types.js`, its local aliases and the intersection casts deleted; behaviour unchanged; tests compile |
-| 1 | A | C-1 scaffold check + fix mode (awk only, safe write), bats, header comment, CHANGELOG |
-| 2 | B | C-2 typed `BaseRead` (cat-file classification), `resolveBaseReviewignore` with the probe and the cache, `resolveBasePatterns`, tests, reference doc, CHANGELOG |
-| 3 | B | C-3 remaining items: suffix removal, bounded WARN on failed read, tests; then FR-5 (own commit pair): PR-mode deferral + `deferredScopeKeys` + pipeline assertion + `main.ts` pin |
-| 4 | lead | land red → fix pairs, dist/manifests, review gate (≤ 3 dissent runs), audit gate, PR, Bridgebuilder, merge, record, archive, JACKED_OUT |
+| 1 | 281 | `reviewer.md` for the loop; `/review-sprint`; fixes; `/audit-sprint`; `COMPLETED` |
+| 2 | 282 | C-2 … C-7 (ordered C-2, C-5, C-3, C-4, C-6, C-7 — smallest blast radius first; C-7 after C-3 because both touch `loa-status.sh`); `/review-sprint`; `/audit-sprint`; `COMPLETED` |
+| 3 | 282 (Tasks 2.9, 2.E2E) | C-8 ship: CHANGELOG/README/version committed before the final gate pass (so the reviewed head is the merged head) → PR → Bridgebuilder (a code fix re-runs the audit as a verify-only pass) → merge under R-3 → record → publish summary → publish rc.9 → smoke test → archive. The ship runs after Sprint 282's `COMPLETED` marker as in cycles 135/136; its evidence lands in `a2a/sprint-282/e2e.md` and the archive. |
+
+---
 
 ## 9. Known Risks and Mitigation
 
 | Risk | Mitigation |
 |---|---|
-| awk block detection ends early or late on an unusual layout | block ends at the first non-blank non-comment line with indentation ≤ J; child indentation read from the file; block scalars tracked; fixtures for digits in job ids, 4-space indents, `run: |` content |
-| the rewrite races a concurrent edit or follows a symlink | re-read-and-compare immediately before the write; symlink refused; temp file + `mv -f` in the same directory with the mode preserved |
-| a 404 from the contents API hides an authorization gap | the access probe on a base-existing listed file; no such file → fail closed |
-| `getFileContent`'s 404 surfaces as a generic NETWORK error | the adapter maps gh's `HTTP 404` to `httpStatus: 404`; the test pins the shape from the adapter's mapping |
-| a stalled contents request | the adapter's 30 s `gh` timeout → error → `undefined` → `base_unavailable`; one test with a timeout-shaped rejection |
-| `base_unavailable` on a PR applies the head's `.reviewignore` | DEC-1043's trade-off, now rare (C-2); the degrade is merge-blocking; a future cycle may choose "no patterns" if the leak side is reassessed (OQ-3) |
-| removing the suffix breaks a downstream `stats` reader | structured `pattern` shipped in cycle-135; CHANGELOG names the removal; single-commit revert |
-| FR-5 deferral consumed without the trusted replacement | `deferredScopeKeys` + the pipeline-entry assertion + the `main.ts` call-order pin |
+| Shape C regex over-matches a bold label followed by a space in prose | the space-then-qualifier form requires `**Label …**:` at line start; bats negative fixtures (`**Symptom** text`, `**Symptomatic**:`) |
+| The six-line yq protocol mis-parses a value containing a newline | line-count check → fallback; fixture with a multi-line `transport` |
+| The agy memo hides a config rewritten mid-process | identity key over dev/ino/size/mtime; fixture rewrites the file between two calls |
+| `cached_keys` changes `effective-config.json` for existing users | the cache id is content-derived, so the first run after upgrade rebuilds it; `profile_keys`/`overrides` unchanged; bats asserts `loa_profile` output byte-identical |
+| The decisions cache serves stale rows | key = sha256 of the file bytes + yq version; invalidation fixture |
+| Shortened test waits mask a reaper failure | holds stay ≥ 2× the longest wait on them; the pass/fail set is compared per test name; the reaper tests are listed by name in the task |
+| `verify-chains` changes a trust decision | `_check_trust_store` untouched; the security suite is a gate; per-path results compared with per-call results |
+| rc.9 publish regressions (KF-034, KF-063) | rc.8 recipe; non-shallow clone; lead-recomputed digest equals the printed digest; `merge_sha` equals the merge commit; ancestry check; install smoke test; written rollback (withdrawn pre-release, tag kept, merge reverted) |
+| KF-034 on the ship host hides a real red | the allowed-failure list names the three `semver evidence` tests; `main` must fail exactly the same under the same host condition; CI (no KF-034) must be green on the merge commit |
+| A cache temp or path is attacked through a symlink | writer refuses symlinked `.run`, `.run/perf-cache` and cache file (re-checked before the rename); `mktemp` exclusive temp; reader validates header, count, fields and alphabet |
+
+---
 
 ## 10. Open Questions
 
-- OQ-1: should the scaffold also detect the legacy guard on the `full-pipeline` job (`pr_type == 'cycle'`)? Not part of the defect: that guard is unchanged since cycle-134. Out of scope.
-- OQ-2: should `reviewignore_source` distinguish the API read (`base_api`)? Decided no (DEC-1064, DEC-1070): same trust level, same file; the INFO line carries the provenance.
-- OQ-3: should `base_unavailable` on a pull request apply no patterns instead of the head's copy? Kept as DEC-1043 (leak side weighted heavier); recorded for a future review once C-2 has made the path rare in practice.
+- OQ-1: Should the decisions cache key include the `grimoire-index.sh` sanitiser version? Decided yes via the `v1:` prefix: a later change to the `s` filter bumps the prefix in the same commit. Resolved — D-5.1 (DEC row written at sprint planning).
+- OQ-2: Should FR-6's 300 s target for the companion file be an acceptance criterion when the per-test script runtime is the floor? Resolved — D-6.1: the measured floor governs; a decision row adjusts the AC if the floor is higher.
+- OQ-3: Should `verify-chains` replace `verify-chain` for other callers? Decided no — D-7.1: only `loa-status.sh` switches; the singular form stays for every other caller and for the bats suites.
+
+---
 
 ## 11. Appendix
 
 ### 11.D Design decisions taken on the operator's behalf
 
 | # | Decision | Row |
-|---|----------|-----|
-| D-1.1 | Scaffold detection reads only single-line `if:` forms; multi-line or unknown text is "customised" and silent | DEC-1067 |
-| D-1.2 | The opt-in fix is the environment variable `LOA_SCAFFOLD_FIX_RELEASE_GUARD=1`, not a new positional argument | DEC-1068 |
-| D-1.3 | The base `.reviewignore` is resolved in `paged-fetch.ts` (async) and handed to the synchronous selection; `truncateFiles` keeps its own read as the fallback | DEC-1069 |
-| D-1.4 | `SelectionConfig` moves to `core/types.ts`; `TruncationResult.reviewignoreSource` declared; no new coverage-record values | DEC-1070 |
-| D-1.5 | The stats suffix is removed in this cycle; the failed-read line is a `[bridgebuilder] WARN:` on stderr, no logger threading | DEC-1071 |
-| D-1.6 | Head-side scope validation is downgraded to a WARN only in pull-request mode, inside `resolveConfig` via `isPullRequestContext(cliArgs.pr, env)` | DEC-1072 |
-| D-2.1 | One detection path: `awk`; no `yq`; normalisation strips a `${{ }}` wrapper, a trailing comment and one pair of quotes (Flatline opus IMP-003/004) | DEC-1078 |
-| D-2.2 | The job block ends at the first non-blank, non-comment line with indentation ≤ J; the child indentation is read from the file (Flatline SKP-003, opus IMP-001/002) | DEC-1079 |
-| D-2.3 | Block scalars are tracked; content lines never yield candidates (Flatline SKP-004) | DEC-1080 |
-| D-2.4 | Safe rewrite: symlink refused, re-read before write, temp file in the same directory, mode preserved, `mv -f` (Flatline gpt IMP-003, opus IMP-005) | DEC-1081 |
-| D-2.5 | `unknown_commit` by `git cat-file -e` exit status under `LC_ALL=C`; the resolution cached per base sha including failures (`Map.has`); one `reviewignoreBase` object (Flatline opus IMP-007/008/009, gpt IMP-005/006/011) | DEC-1082 |
-| D-2.6 | A 404 for `.reviewignore` is confirmed by one access probe on a base-existing listed file before it becomes `none`; no probe target → fail closed; `base_unavailable` keeps DEC-1043's checkout-copy trade-off, restated (Flatline SKP-002, SKP-001, opus IMP-015); WARN rendering bounded and escaped (gpt IMP-009) | DEC-1083 |
-| D-2.7 | FR-5 deferral is explicit: `provenance.deferredScopeKeys`, cleared by `applyTrustedReviewScope`, asserted at the pipeline entry, `main.ts` call order pinned (Flatline SKP-008, gpt IMP-007/008); the flag is documented in the library header and the CHANGELOG (opus IMP-014) | DEC-1084 |
+|---|---|---|
+| D-2.1 | Shape C requires a space after the label; shape B's looseness is kept; every `## ` heading resets `cur` | at sprint planning |
+| D-2.2 | Shape C is recognised for `Symptom` and `Recurrence count` only; `Status` keeps shapes A/B because the live qualified Status forms are historical annotations | 1.1 |
+| D-3.1 | The six-line yq protocol with a line-count gate and verbatim fallback; the agy memo is parent-shell only, keyed by file identity | at sprint planning |
+| D-4.1 | Non-profile hot knobs are cached through a `cached_keys` list in `profiles.yaml` with `source: explicit\|absent`; `profile_keys`/`overrides` unchanged | at sprint planning |
+| D-5.1 | Decisions cache under `.run/perf-cache/`, key `v1:<sha256>:<yq>:<jq>:<rows>`, awk-validated payload, `mktemp` + symlink re-check writer, env opt-out for read and write, never fatal; write-mode `bad`+`total` in one root-preserving jq | at sprint planning (amended 1.1) |
+| D-6.1 | Corpus-once via `setup_file` with status capture; companion waits shortened only below their proven bounds with a negative control per test; the measured floor governs the AC by a pre-review decision row | at sprint planning (amended 1.1) |
+| D-6.2 | CMP-37 is not made deterministic in this cycle; its acceptance evidence is a serial whole-file run on an idle host (PRD R-4) | 1.1 |
+| D-7.1 | `verify-chains` implemented (not deferred) with JSON-lines records in argument order, per-path exception isolation, fail-closed wrapper, and the store-mutation equivalence test as the go/no-go; only `loa-status.sh` switches | at sprint planning (amended 1.1) |
+| D-8.1 | `v2.0.0-rc.9` published through the post-merge candidate recipe from a non-shallow clone; majors stay rc pre-releases; unattended merge and publish are authorised by the operator's instruction with the mechanical safeguards of PRD R-3 / R-6 / R-7 (lead-recomputed digest, `merge_sha` check, publish-summary stage) | at sprint planning (amended 1.1) |
+| D-1.1 | Every verdict names `reviewed_head`; a later code commit re-runs the gate (verify-only for gate/Bridgebuilder fixes); docs-only commits exempt; ship files committed before the final gate pass | 1.1 |
+| D-5.3 | The decisions-cache trust check tightens a uid-owned group/world-writable `.run` or `.run/perf-cache` (`chmod go-w`) before trusting it; a foreign-owned or untightenable directory stays outside the boundary | 1.2 (DEC-1126) |
+| D-5.2 | No framework-wide fast-path opt-out switch: the fast paths fall back automatically and the loop's passes carry none; only the decisions cache (the one component that can serve stored state) gets an opt-out | 1.1 |
+
+### 11.F Flatline SDD review dispositions
+
+Review: `flatline-orchestrator.sh --doc grimoires/loa/sdd.md --phase sdd --budget 300` on SDD 1.0 (commit 748d2886c): 5 blockers, 40 medium items (`~/.cache/loa/cycle-137/logs/flatline-sdd.out`).
+
+| # | Finding (location) | Disposition in 1.1 |
+|---|---|---|
+| B1 | cache directory / temp-file / no-follow safety (§ 3) | § 3 writer rules: `-L` on `.run`, `.run/perf-cache` and the file (re-checked before rename), `mktemp` exclusive temp, cleanup on failure; fixtures for symlinked parents, pre-existing temp symlinks, concurrent replacement (§ 7 C-5) |
+| B2 | verify-chains per-path exceptions, fail-closed, snapshot vs per-path trust (§ 5.7, § 6) | § 5.7: per-path try/except, JSON-lines records, exit 0/1/2, fail-closed wrapper; trust is per path through the untouched cache; store-mutation equivalence test is the go/no-go |
+| B3 | expected-failure allowlist (§ 6, § 7, § 9) | § 6 allowed-failure policy (three KF-034 test names, same on `main`, applied on the exact release commit; CI carries no KF-034); § 9 row |
+| B4 | write-mode jq loses the root object (§ 5.5) | § 5.5: `. as $root | (...bad... | length), $root.total`, `mapfile` capture, two-line check, tests on valid and invalid indexes for values and exit status |
+| B5 | approve-sha256 as operator input or BB required; which of merge/publish unattended (§ 5.8, § 8, D-8.1) | § 5.8 and D-8.1: both unattended per the operator's instruction with mechanical safeguards — lead-recomputed digest must equal the printed one, `merge_sha` must equal the merge commit, publish-summary stage, Bridgebuilder non-degraded with no open blocking finding before merge |
+| M1 | root-preserving jq | B4 |
+| M2, M17, M23, M33 | per-path semantics, machine-readable results, missing path, zero args | § 5.7 |
+| M3, M37 | `setup_file` failure reporting and status capture | § 5.6 |
+| M4, M5, M20 | companion tests listed with bounds; baseline procedure; decision gate | § 5.6 |
+| M6, M32 | performance gates as absolute + relative with protocol | § 7 measurement protocol; C-5 warm absolute + cold relative; PRD NFR Performance |
+| M7 | exact KF-034 failures permitted | § 6 policy |
+| M8 | release gate binds merge, candidate, digest, tag | § 5.8; PRD R-3, R-6, R-8 |
+| M9 | memo result without command substitution | § 5.3 (`_AGY_NODE_MEMO_VAL`) |
+| M10, M35 | portable stat; stat failure invalidates; same-size rewrite fixture | § 5.3 |
+| M11, M12, M15 (PRD) | payload validation; key and rows from one snapshot | § 3 reader rules; § 5.5 `snap` |
+| M13, M28 | temp-file safety; named helper precedent | § 3 (precedent `zone-write-guard.sh:227-263`, improved with `mktemp`) |
+| M14 | NO_CACHE / CI guards placement | § 5.5 `caching` predicate (read and write) |
+| M15 | trailing empty record in the six-line protocol | § 5.2 (`mapfile -t`) |
+| M16, M36 | non-profile knob classification | § 5.4 (same yq expression as the live path; fixtures) |
+| M18 | how bats obtains trace evidence | § 7 C-4 (`bash -x` with `PS4`, grep `yq`) |
+| M19 | post-publish rollback | § 5.8 |
+| M21 | which modes consume the cache | § 5.5 (all four via `collect`) |
+| M22, M29 | jq version in the key; yq version from the gate's capture | § 3 key; § 5.5 |
+| M24 | Phase 3 assigned to a sprint | § 8 (Sprint 282 Tasks 2.9 / 2.E2E after `COMPLETED`, cycles 135/136 precedent) |
+| M25 | C-3 is two levers | § 1.1 corrected (two commits) |
+| M26 | ship scripts outside version control | § 5.8 (copied to `a2a/sprint-282/ship/`, sha256 in e2e) |
+| M27 | final line without newline; fast-path assertion | § 5.2 |
+| M30 | prefix–filter coupling | § 5.5 (adjacent constant + bats assertion) |
+| M31 | parser drift test | § 7 C-2 |
+| M34 | run both awk programs under each available awk | § 7 C-2 |
+| M38 | whole-head parity gate | § 7 |
+| M39 | framework-wide fast-path opt-out | Declined — D-5.2: fast paths fall back automatically; only the decisions cache gets an opt-out |
+| M40 | revert rule checks later-pass dependencies | § 6 |
 
 ### 11.E Grounding reads
-`.claude/scripts/lib/scaffold-post-merge-workflow.sh` (whole), `.claude/scripts/mount-loa.sh:703`, `.claude/scripts/mount-submodule.sh:308`, `.github/workflows/post-merge.yml:106-114, 190-192`, `tests/unit/mount-workflow-scaffold.bats` (MWS-T1 … T12); `resources/core/paged-fetch.ts:34-71, 305-375, 463-470, 495`, `resources/core/truncation.ts:394-470, 540-600, 1393-1414, 1461, 1613`, `resources/core/types.ts:62, 328`, `resources/ports/index.ts`, `resources/ports/git-provider.ts`, `resources/adapters/github-cli.ts` (`getFileContent`, `gh()` error mapping, the 30 s timeout), `resources/config.ts:634-640, 1544-1560` (`isPullRequestContext`, `resolveConfig`), `resources/main.ts` (`resolveConfig` → `loadTrustedConfig` → `applyTrustedReviewScope` order), `__tests__/paged-fetch-coverage.test.ts:67-91`.
-
-### 11.F Flatline SDD review dispositions (1.1 → 1.2)
-
-Cross-scoring degraded (KF-041 shape): 0 HIGH_CONSENSUS, 5 skeptic blockers, 30 medium items; every item read.
-
-| Item | Disposition |
-|---|---|
-| SKP-001 (790) — `base_unavailable` applies the PR-head-controlled checkout copy; the degrade does not prevent exclusion | **Kept, restated (§ 6, § 9, OQ-3; D-2.6):** DEC-1043's trade-off — the deny list protects secrets from reaching the model; the degrade is merge-blocking; C-2 makes the path rare. Not changed in this cycle. |
-| SKP-002 (730) — a 404 can be an authorization gap | **Integrated (§ 5.2 step 4; D-2.6):** one access probe on a base-existing listed file (`maxBytes` 1); no probe target → fail closed. |
-| SKP-003 (740) — job-id regex misses digits/quoted keys | **Integrated (§ 5.1; D-2.2):** block ends at the first non-blank non-comment line with indentation ≤ J. |
-| SKP-004 (710) — block scalars can hold text at the child indentation | **Integrated (§ 5.1; D-2.3):** block-scalar tracking; fixture with `run: |` content. |
-| SKP-008 (720) — PR-mode suppression without a guaranteed `applyTrustedReviewScope` | **Integrated (§ 5.6; D-2.7):** `deferredScopeKeys`, cleared by the applier, asserted at the pipeline entry, `main.ts` order pinned. |
-| opus IMP-003, IMP-004, gpt IMP-001/002 — single detection path; normalisation rules; conservative subset | **Integrated (§ 5.1; D-2.1):** `awk` only, no `yq`; `${{ }}`, trailing comment, quotes; quoted keys / anchors / aliases / duplicates never match. PRD FR-1 1.2 drops the `yq` path. |
-| opus IMP-001/002, gpt IMP-002 — block termination; child indentation from the file; digit job ids | **Integrated (§ 5.1; D-2.2).** |
-| gpt IMP-003, opus IMP-005 — safe rewrite mechanics | **Integrated (§ 5.1; D-2.4).** |
-| opus IMP-006 — fixtures under `set -euo pipefail`; PATH with coreutils but no yq | **Integrated (§ 7).** |
-| opus IMP-016 — fixtures: no `simple-release`, two `if:` lines | **Integrated (§ 7).** |
-| opus IMP-007, gpt IMP-011 — classify by `cat-file -e` exit status / `LC_ALL=C` | **Integrated (§ 5.2 step 2; D-2.5).** |
-| gpt IMP-006, opus IMP-008 — cache semantics (`Map.has`, failures cached) | **Integrated (§ 5.2 steps 1, 7; D-2.5).** |
-| gpt IMP-005, opus IMP-009 — one `reviewignoreBase` object | **Integrated (§ 5.3; D-2.5).** |
-| gpt IMP-004 — verify a regular file | **Integrated (§ 5.2 step 3):** the adapter's envelope check (`type: "file"`, base64) already rejects other entries; stated. |
-| gpt IMP-012 — timeout behaviour | **Integrated (§ 2.3, § 9, § 7):** the adapter's 30 s timeout → error → `undefined`; a timeout-shaped test. |
-| gpt IMP-009 — bounded WARN rendering | **Integrated (§ 4; D-2.6).** |
-| gpt IMP-010 — warning deduplication | **Integrated (§ 4):** INFO once per base-sha resolution (cached); failed-file WARN once per file per attempt. |
-| gpt IMP-007/008 — FR-5 provenance and composition tests | **Integrated (§ 5.6, § 7).** |
-| opus IMP-010 — INFO not WARN for the notice; once-per-run vs per-base | **Integrated (§ 4).** |
-| opus IMP-011 — parameterised FR-5 WARN | **Integrated (§ 4):** "the trusted configuration (or its default) governs" — the applier, not `resolveConfig`, knows which. |
-| opus IMP-012 — Phase 0 takes the import switch and cast deletion | **Integrated (§ 8 Phase 0).** |
-| opus IMP-013 — diagram vs § 5.2 | **Integrated (§ 1.3).** |
-| opus IMP-014 — operator-facing doc for the flag | **Integrated (§ 1.4, § 5.1; D-2.7):** library header comment + CHANGELOG (the mounting SKILL.md is budget-bound; a one-line pointer only if it fits). |
-| opus IMP-015 — state the checkout-copy consequence | **Integrated (§ 6, § 9).** |
-| opus IMP-017 — one `resolveBasePatterns` helper | **Integrated (§ 5.3).** |
-| opus IMP-018 — non-`GitProviderError` throw | **Integrated (§ 5.2 step 5, § 7).** |
-
-> Sources: `grimoires/loa/a2a/flatline/cycle-136-sdd-review.json`
+`.claude/hooks/loa-kf-surface.sh:96-125`; `.claude/scripts/grimoire-index.sh:93-128, 216-250, 296-330`; `.claude/scripts/loa-status.sh:415-440, 848-870`; `.claude/scripts/lib/agy-gate-lib.sh:122-145, 203-216, 298-325`; `.claude/scripts/lib/profile-lib.sh:28-75, 100-165, 212-260, 289`; `.claude/data/profiles.yaml`; `.claude/hooks/safety/zone-write-guard.sh:81-104, 227-263`; `tests/unit/block-destructive-bash.bats:1540-1600`; `tests/unit/adversarial-review-companion.bats:160-240`; `.claude/adapters/loa_cheval/audit_envelope.py:411-445, 500-545, 580-600, 705-730`; `.claude/scripts/audit-envelope.sh`; `grimoires/loa/known-failures.md` (69 H2 headings, 63 numeric KF headings, 0 shape-C fields); `grimoires/loa/archive/cycle-136-bridgebuilder-followups/sdd.md` (format precedent); `~/.cache/loa/cycle-135/ship/*.sh`.

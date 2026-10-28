@@ -190,3 +190,187 @@ _make_kf_fixture() {
   # no raw control bytes in surfaced output
   printf '%s' "$output" | grep -qP '[\x00-\x08\x0e-\x1f]' && false || true
 }
+
+# ---- cycle-137 FR-2 (bd-atk7q): shape-C field lines and the H2 reset (sdd § 5.1, D-2.1, D-2.2) ----
+# One fixture holds every case; each test asserts one of them. grimoire-index.bats carries the same
+# fixture for the index side.
+_kf_shapes_fixture() {
+  cat > "$1" <<'EOF'
+# Known Failures
+
+## Schema
+
+**Symptom**: schema-level symptom attaches to nothing
+
+## KF-001: shape C symptom
+**Status**: OPEN
+**Symptom (short)**: s
+**Recurrence count (approx)**: 4
+
+## KF-002: shape B still parsed
+**Status**: OPEN
+**Symptom (short):** s
+**Recurrence count**: 2
+
+## KF-003: symptomatic decoy
+**Status**: OPEN
+**Symptomatic**: x
+**Symptom**: real
+**Recurrence count**: 1
+
+## KF-004: status decoy after plain status
+**Status**: A
+**Status (original)**: B
+**Symptom**: four
+**Recurrence count**: 1
+
+## KF-005: only a qualified status
+**Status (original)**: B
+**Symptom**: five
+**Recurrence count**: 1
+
+## KF-006: entry before a non-numeric heading
+**Status**: OPEN
+**Recurrence count**: 6
+
+## KF-abc: non-numeric heading
+**Symptom**: x
+**Status**: from-abc
+
+## KF-007: entry before the index heading
+**Status**: OPEN
+
+## Index
+
+**Symptom**: index-level symptom
+**Recurrence count**: 99
+
+## KF-008: list-marker shape C
+- **Symptom (list)**: listed
+- **Recurrence count (est.)**: 8
+- **Status**: OPEN
+EOF
+}
+
+# Runs the hook on the shapes fixture; sets output (stdout) and HOOK_ERR (stderr).
+_hook_on_shapes() {
+  local f="$BATS_TEST_TMPDIR/shapes.md"; _kf_shapes_fixture "$f"
+  output="$(env LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" LOA_KNOWN_FAILURES_FILE="$f" \
+    bash "$HOOK" 2>"$BATS_TEST_TMPDIR/hook.err")"
+  HOOK_ERR="$(cat "$BATS_TEST_TMPDIR/hook.err")"
+}
+_row() { printf '%s\n' "$output" | grep -F -- "  - $1 (" || true; }
+
+@test "FR-2 hook: shape C **Symptom (short)**: s surfaces as the symptom" {
+  _hook_on_shapes
+  [[ "$(_row KF-001)" == *"): s" ]] || { echo "got: $(_row KF-001)" >&2; false; }
+}
+
+@test "FR-2 hook: shape B **Symptom (short):** s is still parsed" {
+  _hook_on_shapes
+  [ "$(_row KF-002)" = "  - KF-002 (rec 2): s" ]
+}
+
+@test "FR-2 hook: **Symptomatic**: is not a Symptom field" {
+  _hook_on_shapes
+  [ "$(_row KF-003)" = "  - KF-003 (rec 1): real" ]
+}
+
+@test "FR-2 hook: a ## KF-abc: heading resets the entry silently (no row, previous entry untouched, no stderr)" {
+  _hook_on_shapes
+  [ "$(_row KF-006)" = "  - KF-006 (rec 6): " ] || { echo "got: $(_row KF-006)" >&2; false; }
+  [[ "$output" != *"KF-abc"* ]]
+  [ -z "$HOOK_ERR" ]
+}
+
+@test "FR-2 hook: fields under ## Index / ## Schema headings attach to no entry" {
+  _hook_on_shapes
+  [ "$(_row KF-007)" = "  - KF-007 (rec ?): " ] || { echo "got: $(_row KF-007)" >&2; false; }
+  [[ "$output" != *"index-level"* && "$output" != *"schema-level"* && "$output" != *"rec 99"* ]]
+}
+
+@test "FR-2 hook: shape C **Recurrence count (approx)**: 4 gives recurrence 4 (list-marker form too)" {
+  _hook_on_shapes
+  [[ "$(_row KF-001)" == "  - KF-001 (rec 4):"* ]] || { echo "got: $(_row KF-001)" >&2; false; }
+  [ "$(_row KF-008)" = "  - KF-008 (rec 8): listed" ] || { echo "got: $(_row KF-008)" >&2; false; }
+}
+
+# The two parsers (this hook and grimoire-index.sh emit_kf) must not drift: the fieldval body and the
+# H2 heading rule are compared line for line (leading indentation stripped, comments included).
+_fieldval_body() { awk '/function fieldval\(/ { p = 1 } p { sub(/^[ \t]+/, ""); print } p && /^[ \t]*}[ \t]*$/ { exit }' "$1"; }
+# The heading rule: from the "# Every H2" comment to the `cur != "" {` line (the KF block only; the
+# notes emitter in grimoire-index.sh has its own /^## / rule), keeping the rule lines.
+_heading_rule() {
+  awk '/# Every H2 heading/ { p = 1 }
+       p && /^[ \t]*(# Every H2|\/\^## |cur = id; next|cur != "" \{)/ { sub(/^[ \t]+/, ""); print }
+       p && /cur != "" \{/ { exit }' "$1"
+}
+
+@test "FR-2 drift guard: fieldval body and the H2 heading rule are identical in both KF parsers" {
+  local a b
+  a="$(_fieldval_body "$HOOK")"; b="$(_fieldval_body "$GEN")"
+  [ -n "$a" ]
+  [[ "$a" == *'reC = '* ]]                       # shape C is present (the guard is not vacuous)
+  [ "$a" = "$b" ] || { diff <(printf '%s\n' "$a") <(printf '%s\n' "$b") >&2; false; }
+  a="$(_heading_rule "$HOOK")"; b="$(_heading_rule "$GEN")"
+  [[ "$a" == *'/^## / { cur = "" }'* ]]           # every H2 resets the entry
+  [ "$a" = "$b" ] || { diff <(printf '%s\n' "$a") <(printf '%s\n' "$b") >&2; false; }
+}
+
+# Every awk on the host runs both programs on one fixture (the shapes cases plus a 3-byte-UTF-8 symptom
+# longer than the 100-byte cap, \001 and \177) and the outputs must be byte-identical. Absent
+# interpreters are skipped by name (on fd 3). BWK awk is used when LOA_BWK_AWK (default
+# ~/.cache/loa/bwk-awk/awk/a.out) is an executable.
+_awk_shim() {   # _awk_shim <dir> <awk command line> — a PATH dir whose `awk` runs that interpreter
+  mkdir -p "$1"; printf '#!/bin/sh\nexec %s "$@"\n' "$2" > "$1/awk"; chmod +x "$1/awk"
+}
+_awks_present() {   # prints one interpreter command line per present awk
+  local bwk="${LOA_BWK_AWK:-$HOME/.cache/loa/bwk-awk/awk/a.out}"
+  if command -v mawk >/dev/null 2>&1; then echo mawk; else echo "# skip: mawk absent" >&3; fi
+  if busybox awk 'BEGIN{}' >/dev/null 2>&1; then echo "busybox awk"; else echo "# skip: busybox awk absent" >&3; fi
+  if command -v gawk >/dev/null 2>&1; then echo "gawk --posix"; else echo "# skip: gawk absent" >&3; fi
+  if [[ -x "$bwk" ]]; then echo "$bwk"; else echo "# skip: BWK awk absent ($bwk)" >&3; fi
+}
+
+@test "FR-2 portability: both KF parsers give byte-identical output under every awk present" {
+  local p="$BATS_TEST_TMPDIR/proj" f a i=0 names=()
+  mkdir -p "$p/grimoires/loa" "$p/x/y"   # real x/y dir: PROJECT_ROOT = $p
+  cp "$GEN" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$p/x/y/"
+  f="$p/grimoires/loa/known-failures.md"; _kf_shapes_fixture "$f"
+  {
+    printf '\n## KF-009: utf8 cap\n**Status**: OPEN\n**Symptom**: '
+    for a in $(seq 1 60); do printf '\342\200\224'; done
+    printf ' tail\n**Recurrence count**: 1\n\n## KF-010: c0 and del\n**Status**: OP\001EN\n**Symptom**: a\001b\177c d\n**Recurrence count**: 2\n'
+  } >> "$f"
+  while IFS= read -r a; do
+    _awk_shim "$BATS_TEST_TMPDIR/shim-$i" "$a"
+    env PATH="$BATS_TEST_TMPDIR/shim-$i:$PATH" LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" \
+      LOA_KNOWN_FAILURES_FILE="$f" bash "$HOOK" > "$BATS_TEST_TMPDIR/shim-$i/hook.out" 2>&1
+    env PATH="$BATS_TEST_TMPDIR/shim-$i:$PATH" bash "$p/x/y/grimoire-index.sh" --tsv > "$BATS_TEST_TMPDIR/shim-$i/tsv.out" 2>&1
+    grep -qF '  - KF-009 (rec 1): ' "$BATS_TEST_TMPDIR/shim-$i/hook.out"
+    grep -q '^kf	KF-010	' "$BATS_TEST_TMPDIR/shim-$i/tsv.out"
+    names+=("$a"); i=$((i + 1))
+  done < <(_awks_present)
+  [ "${#names[@]}" -ge 2 ] || skip "fewer than two awk interpreters present (${names[*]-none})"
+  for ((i = 1; i < ${#names[@]}; i++)); do
+    cmp "$BATS_TEST_TMPDIR/shim-0/hook.out" "$BATS_TEST_TMPDIR/shim-$i/hook.out" || { echo "hook: ${names[0]} vs ${names[$i]} differ" >&2; false; }
+    cmp "$BATS_TEST_TMPDIR/shim-0/tsv.out" "$BATS_TEST_TMPDIR/shim-$i/tsv.out" || { echo "grimoire-index: ${names[0]} vs ${names[$i]} differ" >&2; false; }
+  done
+}
+
+# A NUL byte in a body: mawk deletes it and keeps the rest of the line, busybox awk ends the line at it
+# (an interpreter difference in input handling that the program cannot see). The invariant every awk
+# must keep: no NUL and no control byte reaches the surfaced output, and later entries still parse.
+@test "FR-2 portability: a NUL byte in a symptom never reaches the hook output under any awk present" {
+  local f="$BATS_TEST_TMPDIR/nul.md" a i=0
+  printf '# Known Failures\n\n## KF-001: nul\n**Status**: OPEN\n**Symptom**: before\000after\n**Recurrence count**: 1\n\n## KF-002: next\n**Symptom**: two\n**Recurrence count**: 2\n' > "$f"
+  while IFS= read -r a; do
+    _awk_shim "$BATS_TEST_TMPDIR/nshim-$i" "$a"
+    env PATH="$BATS_TEST_TMPDIR/nshim-$i:$PATH" LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" \
+      LOA_KNOWN_FAILURES_FILE="$f" bash "$HOOK" > "$BATS_TEST_TMPDIR/nshim-$i/hook.out"
+    grep -qF '  - KF-001 (rec 1): before' "$BATS_TEST_TMPDIR/nshim-$i/hook.out"
+    grep -qxF '  - KF-002 (rec 2): two' "$BATS_TEST_TMPDIR/nshim-$i/hook.out"
+    [ "$(tr -d '\n' < "$BATS_TEST_TMPDIR/nshim-$i/hook.out" | LC_ALL=C tr -d '[:print:]\200-\377' | wc -c)" -eq 0 ] || { echo "$a: control or NUL byte in the output" >&2; od -c "$BATS_TEST_TMPDIR/nshim-$i/hook.out" >&2; false; }
+    i=$((i + 1))
+  done < <(_awks_present 3>/dev/null)
+}

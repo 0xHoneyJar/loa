@@ -9,10 +9,13 @@
 # Provides portable alternatives for commands that behave differently
 # across Linux (GNU), macOS (BSD), and Windows WSL.
 #
-# Design principle: Detect once at source time, dispatch per-call.
-# This is the same pattern Kubernetes uses in hack/lib/util.sh —
-# cache the platform detection result so every subsequent call is
-# a single branch, not a fork+exec of `uname`.
+# Design principle: detect lazily on first use, cache in the calling shell,
+# dispatch per-call. A variation on the pattern Kubernetes uses in
+# hack/lib/util.sh — the platform probes (uname, sed, stat, …) fork once per
+# process at most, and only when a helper that needs them is called, so merely
+# sourcing this lib costs no forks. Inside a $(...) subshell the cache cannot
+# reach the parent shell: loops that call helpers via $(...) many times should
+# call the matching `_compat_need_*` guard once after sourcing.
 #
 # Usage:
 #   source .claude/scripts/compat-lib.sh
@@ -44,49 +47,83 @@ _COMPAT_LIB_LOADED=true
 _COMPAT_LIB_VERSION="1.3.0"
 
 # =============================================================================
-# Platform Detection (run once at source time)
+# Platform Detection (non-forking probes at source time; forking probes lazy)
 #
-# Like Chromium's build/detect_host_arch.py — detect early, cache globally,
-# avoid per-call overhead. Every function below reads these cached flags
-# instead of forking a subprocess.
+# Every function below reads a cached flag instead of forking a subprocess on
+# each call; the flag is filled by its `_compat_need_*` guard the first time a
+# helper needs it (see the design principle in the header).
 # =============================================================================
 
-_COMPAT_OS="unknown"
-case "$(uname -s)" in
-  Darwin)  _COMPAT_OS="darwin" ;;
-  Linux)   _COMPAT_OS="linux" ;;
-  MINGW*|MSYS*|CYGWIN*) _COMPAT_OS="windows" ;;
-esac
+# Probes that fork (uname, sort, sed, readlink, find, stat) are LAZY: each
+# variable starts empty (still defined, so `set -u` consumers are safe) and
+# is filled on the first call of the helper that needs it. The helpers call
+# the `_compat_need_*` guard below; a value already set (e.g. a test
+# overriding _COMPAT_OS after sourcing) is never re-probed. Note a first call
+# made inside a $(...) subshell cannot memoise into the parent shell, so it
+# re-probes per call there. Set LOA_COMPAT_DEBUG=1 to probe everything at
+# source time (as before) and print the results.
+
+_COMPAT_OS=""
+_COMPAT_HAS_SORT_V=""
+_COMPAT_SED_STYLE=""
+_COMPAT_HAS_READLINK_F=""
+_COMPAT_HAS_FIND_PRINTF=""
+_COMPAT_STAT_STYLE=""
+
+_compat_need_os() {
+  [[ -n "$_COMPAT_OS" ]] && return 0
+  _COMPAT_OS="unknown"
+  case "$(uname -s)" in
+    Darwin)  _COMPAT_OS="darwin" ;;
+    Linux)   _COMPAT_OS="linux" ;;
+    MINGW*|MSYS*|CYGWIN*) _COMPAT_OS="windows" ;;
+  esac
+}
 
 # Feature detection for sort -V (absent on macOS <10.15)
-_COMPAT_HAS_SORT_V=false
-if echo "1.0" | sort -V &>/dev/null; then
-  _COMPAT_HAS_SORT_V=true
-fi
+_compat_need_sort_v() {
+  [[ -n "$_COMPAT_HAS_SORT_V" ]] && return 0
+  _COMPAT_HAS_SORT_V=false
+  if echo "1.0" | sort -V &>/dev/null; then
+    _COMPAT_HAS_SORT_V=true
+  fi
+}
 
 # Feature detection for GNU sed vs BSD sed
-_COMPAT_SED_STYLE="bsd"
-if sed --version &>/dev/null 2>&1; then
-  _COMPAT_SED_STYLE="gnu"
-fi
+_compat_need_sed_style() {
+  [[ -n "$_COMPAT_SED_STYLE" ]] && return 0
+  _COMPAT_SED_STYLE="bsd"
+  if sed --version &>/dev/null 2>&1; then
+    _COMPAT_SED_STYLE="gnu"
+  fi
+}
 
 # Feature detection for readlink -f
-_COMPAT_HAS_READLINK_F=false
-if readlink -f / &>/dev/null 2>&1; then
-  _COMPAT_HAS_READLINK_F=true
-fi
+_compat_need_readlink_f() {
+  [[ -n "$_COMPAT_HAS_READLINK_F" ]] && return 0
+  _COMPAT_HAS_READLINK_F=false
+  if readlink -f / &>/dev/null 2>&1; then
+    _COMPAT_HAS_READLINK_F=true
+  fi
+}
 
 # Feature detection for GNU find -printf
-_COMPAT_HAS_FIND_PRINTF=false
-if find /dev/null -maxdepth 0 -printf '%T+' &>/dev/null 2>&1; then
-  _COMPAT_HAS_FIND_PRINTF=true
-fi
+_compat_need_find_printf() {
+  [[ -n "$_COMPAT_HAS_FIND_PRINTF" ]] && return 0
+  _COMPAT_HAS_FIND_PRINTF=false
+  if find /dev/null -maxdepth 0 -printf '%T+' &>/dev/null 2>&1; then
+    _COMPAT_HAS_FIND_PRINTF=true
+  fi
+}
 
 # Feature detection for GNU stat -c vs BSD stat -f
-_COMPAT_STAT_STYLE="bsd"
-if stat -c %Y / &>/dev/null 2>&1; then
-  _COMPAT_STAT_STYLE="gnu"
-fi
+_compat_need_stat_style() {
+  [[ -n "$_COMPAT_STAT_STYLE" ]] && return 0
+  _COMPAT_STAT_STYLE="bsd"
+  if stat -c %Y / &>/dev/null 2>&1; then
+    _COMPAT_STAT_STYLE="gnu"
+  fi
+}
 
 # Feature detection for GNU sha256sum vs BSD shasum -a 256
 # Prefers GNU sha256sum when both are available (deterministic, simpler dispatch).
@@ -101,6 +138,8 @@ elif command -v shasum >/dev/null 2>&1; then
 fi
 
 if [[ "${LOA_COMPAT_DEBUG:-}" == "1" ]]; then
+  _compat_need_os; _compat_need_sed_style; _compat_need_sort_v
+  _compat_need_readlink_f; _compat_need_find_printf; _compat_need_stat_style
   echo "[compat-lib] OS: $_COMPAT_OS" >&2
   echo "[compat-lib] sed: $_COMPAT_SED_STYLE" >&2
   echo "[compat-lib] sort -V: $_COMPAT_HAS_SORT_V" >&2
@@ -140,6 +179,7 @@ sed_inplace() {
     return 1
   fi
 
+  _compat_need_sed_style
   if [[ "$_COMPAT_SED_STYLE" == "gnu" ]]; then
     sed -i "$@"
   else
@@ -180,6 +220,7 @@ get_canonical_path() {
   local target="$1"
 
   # Tier 1: GNU readlink -f
+  _compat_need_readlink_f
   if [[ "$_COMPAT_HAS_READLINK_F" == "true" ]]; then
     readlink -f "$target" 2>/dev/null && return 0
   fi
@@ -237,6 +278,7 @@ get_canonical_path() {
 #   echo -e "1.10.0\n1.9.0\n1.2.0" | version_sort -r  # reverse
 #
 version_sort() {
+  _compat_need_sort_v
   if [[ "$_COMPAT_HAS_SORT_V" == "true" ]]; then
     sort -V "$@"
   else
@@ -310,6 +352,7 @@ make_temp() {
 get_file_mtime() {
   local file="$1"
 
+  _compat_need_stat_style
   if [[ "$_COMPAT_STAT_STYLE" == "gnu" ]]; then
     stat -c %Y "$file"
   else
@@ -338,6 +381,7 @@ find_sorted_by_time() {
   local pattern="$2"
   local order="${3:-}"
 
+  _compat_need_find_printf
   if [[ "$_COMPAT_HAS_FIND_PRINTF" == "true" ]]; then
     if [[ "$order" == "reverse" ]]; then
       find "$dir" -name "$pattern" -type f -printf '%T+ %p\n' 2>/dev/null | sort -r | cut -d' ' -f2-
@@ -348,6 +392,7 @@ find_sorted_by_time() {
     # Portable fallback: stat each file
     local sort_flag=""
     [[ "$order" == "reverse" ]] && sort_flag="-r"
+    _compat_need_stat_style  # probe here: the pipeline below runs get_file_mtime in a subshell
 
     find "$dir" -name "$pattern" -type f 2>/dev/null | while IFS= read -r file; do
       local mtime
@@ -447,6 +492,7 @@ _date_to_epoch() {
     return 1
   fi
 
+  _compat_need_os
   # Tier 1: GNU date -d (Linux)
   if [[ "$_COMPAT_OS" == "linux" ]]; then
     date -d "$timestamp" +%s 2>/dev/null && return 0

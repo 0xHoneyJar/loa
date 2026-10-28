@@ -21,6 +21,16 @@
 # the key would not discriminate between profiles.
 schema_version: 1
 
+# cached_keys (cycle-137 FR-4, SDD § 5.4): NON-profile knobs read on hot paths
+# (the karpathy PostToolUse hook reads diff_lines_per_task on every Write/Edit).
+# The profile cache (.run/effective-config.json) also records each listed key as
+# `source: explicit` (with the config's value) or `source: absent`, so a warm
+# loa_knob answers without a live yq read. Profile semantics are untouched: a
+# listed key gets no profile value, never appears in profile_keys or overrides,
+# and a key that is a profile key or a floor key is not cached here.
+cached_keys:
+  - karpathy_principles.diff_lines_per_task
+
 profiles:
   lean:
     known_failures.surface_at_session_start: false

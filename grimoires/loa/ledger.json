@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": null,
+  "active_cycle": "cycle-137-performance-followups",
   "cycles": [
     {
       "id": "cycle-036",
@@ -2813,9 +2813,35 @@
           "completed": "2026-10-27T02:40:18Z"
         }
       ]
+    },
+    {
+      "id": "cycle-137-performance-followups",
+      "label": "cycle-137 — performance: the 22-pass extreme-software-optimization loop through the formal gates (Sprint 281), its six follow-up beads bd-atk7q bd-gv5jf bd-h5tcn bd-1mfm7 bd-wctli bd-09z1i (Sprint 282), and the v2.0.0-rc.9 release",
+      "status": "active",
+      "created": "2026-10-28T01:42:19Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 281,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-28T02:06:22Z",
+          "completed": "2026-10-28T03:24:38Z"
+        },
+        {
+          "global_id": 282,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-10-28T02:06:22Z",
+          "completed": "2026-10-28T06:59:09Z"
+        }
+      ]
     }
   ],
-  "global_sprint_counter": 279,
+  "global_sprint_counter": 282,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -3286,6 +3312,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 281,
-  "last_updated": "2026-10-27T03:59:55Z"
+  "next_sprint_number": 283,
+  "last_updated": "2026-10-28T06:59:09Z"
 }

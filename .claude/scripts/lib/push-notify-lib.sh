@@ -49,6 +49,18 @@ _push_load_config() {
   PUSH_TIMEOUT="5"
   [[ -f "$LOA_PUSH_CONFIG" ]] || return 0
   command -v yq >/dev/null 2>&1 || return 0
+  # Fast path: ONE yq prints the three values, one node each (eval renders a
+  # scalar on one line; a multi-line value takes >= 2 lines and an empty value
+  # still prints a line), so exactly three lines means each line is what its own
+  # call below would print. A failure, or any other line count (a multi-line
+  # value, an empty trailing value), falls through to the three reads unchanged.
+  local _pn_out _pn_e _pn_c _pn_t _pn_x
+  if _pn_out="$(yq eval '(.notifications.push_command.enabled // false), (.notifications.push_command.command // ""), (.notifications.push_command.timeout_sec // 5)' "$LOA_PUSH_CONFIG" 2>/dev/null)" &&
+     { IFS= read -r _pn_e && IFS= read -r _pn_c && IFS= read -r _pn_t && ! IFS= read -r _pn_x; } <<< "$_pn_out"; then
+    PUSH_ENABLED="$_pn_e"; PUSH_COMMAND="$_pn_c"; PUSH_TIMEOUT="$_pn_t"
+    [[ "$PUSH_COMMAND" == "null" ]] && PUSH_COMMAND=""
+    return 0
+  fi
   PUSH_ENABLED="$(yq eval '.notifications.push_command.enabled // false' "$LOA_PUSH_CONFIG" 2>/dev/null || echo false)"
   PUSH_COMMAND="$(yq eval '.notifications.push_command.command // ""' "$LOA_PUSH_CONFIG" 2>/dev/null || echo "")"
   PUSH_TIMEOUT="$(yq eval '.notifications.push_command.timeout_sec // 5' "$LOA_PUSH_CONFIG" 2>/dev/null || echo 5)"

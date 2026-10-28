@@ -55,9 +55,13 @@ path_without(){
   local tool="$1" d="$BATS_TEST_TMPDIR/pw-$1" p f b
   mkdir -p "$d"
   local IFS=:
+  local -a batch
   for p in $PATH; do
     [[ -d "$p" ]] || continue
-    for f in "$p"/*; do b="${f##*/}"; [[ "$b" == "$tool" || -e "$d/$b" ]] && continue; ln -s "$f" "$d/$b" 2>/dev/null || true; done
+    batch=()
+    for f in "$p"/*; do b="${f##*/}"; [[ "$b" == "$tool" || -e "$d/$b" ]] && continue; batch+=("$f"); done
+    # one ln per PATH dir instead of one per file; names are unique within a dir, so the -e test above is the first-wins rule
+    (( ${#batch[@]} )) && { ln -s -- "${batch[@]}" "$d/" 2>/dev/null || true; }
   done
   printf '%s' "$d"
 }

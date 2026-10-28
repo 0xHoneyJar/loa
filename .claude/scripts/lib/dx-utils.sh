@@ -424,6 +424,8 @@ dx_check_dep() {
 # Uses _COMPAT_OS from compat-lib.sh if available, else detects
 _dx_install_hint() {
     local tool="$1"
+    # compat-lib probes lazily (ESO pass 8): fill _COMPAT_OS first when the lib is loaded.
+    declare -F _compat_need_os >/dev/null 2>&1 && _compat_need_os
     local os="${_COMPAT_OS:-}"
     if [[ -z "${os}" ]]; then
         case "$(uname -s 2>/dev/null)" in

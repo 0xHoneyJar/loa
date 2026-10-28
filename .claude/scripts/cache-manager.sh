@@ -162,15 +162,13 @@ get_config() {
     local default="${2:-}"
 
     if [[ -f "$CONFIG_FILE" ]] && command -v yq &>/dev/null; then
-        local exists
-        exists=$(yq -r ".$key | type" "$CONFIG_FILE" 2>/dev/null || echo "null")
-        if [[ "$exists" != "null" ]]; then
-            local value
-            value=$(yq -r ".$key" "$CONFIG_FILE" 2>/dev/null || echo "")
-            if [[ "$value" != "null" ]]; then
-                echo "$value"
-                return 0
-            fi
+        # One yq read, not a `| type` probe plus a value read (two ~6 ms spawns per lookup): yq prints
+        # "!!null" (never the bare word) for an absent key, so the probe only ever gated on yq
+        # failing; an unreadable file or an absent/null key both fall through to the default.
+        local value
+        if value=$(yq -r ".$key" "$CONFIG_FILE" 2>/dev/null) && [[ "$value" != "null" ]]; then
+            echo "$value"
+            return 0
         fi
     fi
 

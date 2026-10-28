@@ -793,6 +793,82 @@ PY
 }
 
 # -----------------------------------------------------------------------------
+# audit_verify_chains [--verify-for-merge] <log_path>...
+#
+# cycle-137 FR-7 (SDD § 5.7): verify several chains in ONE Python process via
+# loa_cheval.audit_envelope.audit_verify_chains, which calls the unchanged
+# audit_verify_chain per path (own try/except; the trust store is re-checked
+# per path, so N paths == N per-call verifications — see its docstring).
+#
+# Output: exactly one JSON record per input path, in argument order:
+#   {"i": <0-based index>, "path": <arg>, "ok": <bool>, "error": <str|null>}
+# ("missing" for a path that does not exist). Fail-closed: an index without
+# exactly one well-formed record echoing its path (verifier crash, truncated
+# or malformed output) gets ok:false, error "[VERIFY-CHAINS-NO-RECORD] ...".
+# Exit: 0 only when the verifier exited 0 and every record is ok; 1 when any
+# record is not ok; 2 on usage (zero paths), import failure, or when the
+# records cannot be validated (nothing printed then: callers count no path).
+# -----------------------------------------------------------------------------
+audit_verify_chains() {
+    local strict=0
+    if [[ "${1:-}" == "--verify-for-merge" ]]; then strict=1; shift; fi
+    _audit_strict_verify_enabled "$strict" && strict=1
+    if [[ $# -eq 0 ]]; then
+        echo "Usage: audit-envelope.sh verify-chains [--verify-for-merge] <log_path>..." >&2
+        return 2
+    fi
+
+    local out prc=0 validated
+    out="$(_audit_verify_chains_py "$strict" "$@")" || prc=$?
+
+    # One jq keyed on the index: exactly one well-formed record per requested
+    # path whose .path echoes that argument, else a FAILED record (fail-closed).
+    if ! validated="$(jq -ncR --argjson prc "$prc" '
+        $ARGS.positional as $paths
+        | [inputs | (try fromjson catch null)
+           | select(type == "object" and (.i | type) == "number" and (.path | type) == "string"
+                    and (.ok | type) == "boolean" and (.ok == (.error == null))
+                    and ((.error | type) == "string" or .error == null))] as $recs
+        | range(0; $paths | length) as $k
+        | [$recs[] | select(.i == $k)] as $m
+        | if ($m | length) == 1 and $m[0].path == $paths[$k]
+          then {i: $k, path: $paths[$k], ok: $m[0].ok, error: $m[0].error}
+          else {i: $k, path: $paths[$k], ok: false,
+                error: ("[VERIFY-CHAINS-NO-RECORD] the verifier returned no single valid record for this path (exit \($prc))")}
+          end' --args -- "$@" <<<"$out")"; then
+        _audit_log "audit_verify_chains: cannot validate the verifier output; no path verified"
+        return 2
+    fi
+    printf '%s\n' "$validated"
+    if [[ "$prc" -eq 2 ]]; then return 2; fi
+    # jq -c prints every failed record with the literal `"ok":false`.
+    if [[ "$prc" -eq 0 && "$validated" != *'"ok":false'* ]]; then return 0; fi
+    return 1
+}
+
+# The verifier process behind audit_verify_chains: $1 strict flag, then paths.
+# (A function, not a heredoc inside $(...), so bash 3.2 parses it.)
+_audit_verify_chains_py() {
+    python3 - "${_LOA_AUDIT_REPO_ROOT}/adapters" "$@" <<'PY'
+import json
+import sys
+try:
+    sys.path.insert(0, sys.argv[1])
+    from loa_cheval.audit_envelope import audit_verify_chains
+except Exception as exc:
+    print("verify-chains: cannot import the verifier (" + type(exc).__name__ + ": " + str(exc) + ")",
+          file=sys.stderr)
+    sys.exit(2)
+# Paths are echoed byte-exact (argv is decoded with surrogateescape).
+sys.stdout.reconfigure(errors="surrogateescape")
+records = audit_verify_chains(sys.argv[3:], verify_for_merge=sys.argv[2] == "1")
+for record in records:
+    print(json.dumps(record, ensure_ascii=False))
+sys.exit(0 if all(record["ok"] for record in records) else 1)
+PY
+}
+
+# -----------------------------------------------------------------------------
 # _audit_primitive_id_for_log <log_path>
 # Heuristic: derive primitive_id from the log filename. Recovery uses this to
 # locate the matching snapshot archive entry. Falls back to inspecting the
@@ -1151,6 +1227,10 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
             shift
             audit_verify_chain "$@"
             ;;
+        verify-chains)
+            shift
+            audit_verify_chains "$@"
+            ;;
         verify-trust-store)
             shift
             audit_trust_store_verify "$@"
@@ -1177,6 +1257,10 @@ Commands:
       --verify-for-merge (or LOA_AUDIT_STRICT_VERIFY=1): STRICT mode — fail closed
       on a BOOTSTRAP-PENDING/missing trust-store and producer-writable local
       pubkeys (ATK-3/ATK-4). Opt-in; see runbooks/audit-verify-for-merge-activation.md.
+  verify-chains [--verify-for-merge] <log_path>...
+      Same verification for several logs in ONE process; prints one JSON record
+      per path in argument order ({"i","path","ok","error"}); fail-closed.
+      Exit 0 all ok, 1 any not ok, 2 usage/import failure.
   verify-trust-store [<trust-store-path>]
       Verify trust-store root_signature against pinned root pubkey.
   recover-chain <log_path>

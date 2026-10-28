@@ -213,9 +213,41 @@ fi
 _ig_replay_json='{}'
 [[ "${LOA_AUDIT_REPLAY:-}" == "1" ]] && _ig_replay_json='{"replay":true}'
 
+# One jq pass over the payload yields every field the gate reads from it: the parse verdict, the recorder's lead-session
+# test, tool_input.file_path (else notebook_path) and cwd, each NUL-terminated so a value keeps its newlines (read -d ''
+# keeps them; a $(...) would not). _ig_mode: F = one parsed value and plain-string fields (use them), U = one value jq -e .
+# calls unparsable (null or false), anything else (no jq, parse error, none or several values, a non-string path, a NUL in
+# the path or cwd) = L: the separate jq calls below decide exactly as before.
+_ig_mode="" _ig_lead="" _ig_path="" _ig_cwd=""
+if command -v jq &>/dev/null; then
+    { IFS= read -r -d '' _ig_mode; IFS= read -r -d '' _ig_lead; IFS= read -r -d '' _ig_path; IFS= read -r -d '' _ig_cwd; } < <(
+        jq -nj 'def nul: any(explode[]; . == 0);
+            [inputs] as $a
+            | (if ($a | length) != 1 then null else $a[0] end) as $p
+            | if ($a | length) != 1 then ["L", "", "", ""]
+              elif ($p == null or $p == false) then ["U", "0", "", ""]
+              else
+                ([$p | .tool_input.file_path // .tool_input.notebook_path // empty]) as $f
+                | ([$p | .cwd // empty | strings]) as $c
+                | if ($f | length) > 1 or ($f | any(type != "string" or nul)) or ($c | any(nul)) then ["L", "", "", ""]
+                  else ["F",
+                        ($p | if (.tool_input.active_skill // "") != "" and (.agent_id // "") == "" then "1" else "0" end),
+                        ($f[0] // ""), ($c[0] // "")]
+                  end
+              end
+            | .[] | ., ([0] | implode)' <<<"$input" 2>/dev/null
+    )
+fi
+
+# True when the payload is a lead-session claim: tool_input.active_skill set and no subagent agent_id
+_ig_lead_claim() {
+    if [[ "$_ig_mode" == [FU] ]]; then [[ "$_ig_lead" == 1 ]]; return; fi
+    jq -e '(.tool_input.active_skill // "") != "" and (.agent_id // "") == ""' <<<"$input" >/dev/null 2>&1
+}
+
 # Evidence recorder: lead session only (no teammate role, no subagent agent_id), once, atomic.
 if [[ -z "${LOA_TEAM_MEMBER:-}" && -d "$RUN_DIR" ]] \
-    && jq -e '(.tool_input.active_skill // "") != "" and (.agent_id // "") == ""' <<<"$input" >/dev/null 2>&1 \
+    && _ig_lead_claim \
     && ! jq -e '.active_skill_seen_at' "$FEATURES_FILE" >/dev/null 2>&1; then
     _ig_base=$(jq -c 'select(type == "object")' "$FEATURES_FILE" 2>/dev/null | tail -n 1)
     _ig_tmp=$(mktemp "$RUN_DIR/.platform-features.XXXXXX" 2>/dev/null) && {
@@ -227,7 +259,8 @@ if [[ -z "${LOA_TEAM_MEMBER:-}" && -d "$RUN_DIR" ]] \
 fi
 
 # No jq, or a payload jq cannot parse: the write cannot be evaluated, so ask (run-2 finding 5)
-if ! command -v jq &>/dev/null || ! jq -e . <<<"$input" >/dev/null 2>&1; then
+if ! command -v jq &>/dev/null || [[ "$_ig_mode" == U ]] \
+    || { [[ "$_ig_mode" != F ]] && ! jq -e . <<<"$input" >/dev/null 2>&1; }; then
     echo "[GATE] could not evaluate tool_input (jq missing or payload unparsable)." >&2
     emit_ask "[GATE] could not evaluate tool_input. Verify this write is intentional."
     exit 0
@@ -235,12 +268,15 @@ fi
 
 # Extract the path: Write/Edit/MultiEdit carry file_path, NotebookEdit carries notebook_path. jq -j plus a sentinel
 # byte keeps a trailing newline, which $(...) would otherwise strip from the raw value (run-3 finding 4)
-if ! file_path=$(jq -j '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"$input" 2>/dev/null && printf x); then
+if [[ "$_ig_mode" == F ]]; then
+    file_path=$_ig_path
+elif ! file_path=$(jq -j '.tool_input.file_path // .tool_input.notebook_path // empty' <<<"$input" 2>/dev/null && printf x); then
     echo "[GATE] could not evaluate tool_input (path not readable)." >&2
     emit_ask "[GATE] could not evaluate tool_input. Verify this write is intentional."
     exit 0
+else
+    file_path=${file_path%x}
 fi
-file_path=${file_path%x}
 
 # A parsed payload without a path is not a file write the gate can classify: allow
 if [[ -z "$file_path" ]]; then
@@ -294,7 +330,12 @@ _ig_under_root() {
 
 canonical_root=$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P) || canonical_root=""
 logical_root=$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -L) || logical_root=""
-payload_cwd=$(jq -r '.cwd // empty | strings' <<<"$input" 2>/dev/null) || payload_cwd=""
+if [[ "$_ig_mode" == F ]]; then
+    payload_cwd=$_ig_cwd
+    while [[ "$payload_cwd" == *$'\n' ]]; do payload_cwd=${payload_cwd%$'\n'}; done   # as $(...) strips them
+else
+    payload_cwd=$(jq -r '.cwd // empty | strings' <<<"$input" 2>/dev/null) || payload_cwd=""
+fi
 if [[ "$file_path" == /* ]]; then
     abs_path=$file_path
 else
