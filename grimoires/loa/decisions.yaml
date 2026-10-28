@@ -39156,7 +39156,7 @@ decisions:
     prior_requests: []
   - id: "DEC-1109"
     created_at: "2026-10-28T04:48:50Z"
-    updated_at: "2026-10-28T04:48:50Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "architecture"
     category: "process"
     summary: "Every review/audit verdict names reviewed_head; a later code commit re-runs the gate (verify-only for gate/BB fixes); docs-only commits exempt."
@@ -39171,8 +39171,8 @@ decisions:
       negative:
         - "one extra verify-only audit pass after any post-audit code fix"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39180,19 +39180,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:48:50Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e5df3b589"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1110"
     created_at: "2026-10-28T04:48:54Z"
-    updated_at: "2026-10-28T04:48:54Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "architecture"
     category: "implementation"
     summary: "KF shape C regex needs a space after the label; shape B keeps its looseness; every ## heading resets cur (silent)."
@@ -39207,8 +39212,8 @@ decisions:
       negative:
         - "one more regex per field line"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39216,19 +39221,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:48:54Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "748d2886c"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1111"
     created_at: "2026-10-28T04:48:58Z"
-    updated_at: "2026-10-28T04:48:58Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "architecture"
     category: "implementation"
     summary: "Shape C applies to Symptom and Recurrence count only; Status keeps shapes A/B because the live qualified Status lines are historical annotations."
@@ -39243,8 +39253,8 @@ decisions:
       negative:
         - "a qualified Status variant stays unparsed"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39252,19 +39262,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:48:58Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e5df3b589"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1112"
     created_at: "2026-10-28T04:49:02Z"
-    updated_at: "2026-10-28T04:49:02Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "architecture"
     category: "implementation"
     summary: "loa-status reads the six catalog fields with one yq (six-line protocol, line-count gate, verbatim fallback); agy memo keyed by file identity."
@@ -39279,8 +39294,8 @@ decisions:
       negative:
         - "a multi-line value falls back to six reads"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39288,19 +39303,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:02Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "748d2886c"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1113"
     created_at: "2026-10-28T04:49:06Z"
-    updated_at: "2026-10-28T04:49:06Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "architecture"
     category: "implementation"
     summary: "Non-profile hot knobs are cached through a profiles.yaml cached_keys list with source explicit|absent; profile_keys and overrides unchanged."
@@ -39317,8 +39337,8 @@ decisions:
       negative:
         - "one more schema concept (cached_keys)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39326,19 +39346,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:06Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "748d2886c"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1114"
     created_at: "2026-10-28T04:49:10Z"
-    updated_at: "2026-10-28T04:49:10Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "architecture"
     category: "implementation"
     summary: "grimoire-index decisions cache under .run/perf-cache with key v1:sha256:yq:jq:rows, awk-validated payload, mktemp writer, env opt-out, never fatal."
@@ -39355,8 +39380,8 @@ decisions:
       negative:
         - "one more state file under .run"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39364,19 +39389,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:10Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e5df3b589"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1115"
     created_at: "2026-10-28T04:49:14Z"
-    updated_at: "2026-10-28T04:49:14Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "architecture"
     category: "implementation"
     summary: "No framework-wide fast-path opt-out switch: fast paths fall back automatically; only the decisions cache gets an opt-out."
@@ -39391,8 +39421,8 @@ decisions:
       negative:
         - "an operator cannot force the slow paths for diagnosis"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39400,19 +39430,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:14Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e5df3b589"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1116"
     created_at: "2026-10-28T04:49:18Z"
-    updated_at: "2026-10-28T04:49:18Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "architecture"
     category: "implementation"
     summary: "Corpus-once via setup_file with status capture; companion waits shortened only below proven bounds with a negative control; measured floor governs."
@@ -39427,8 +39462,8 @@ decisions:
       negative:
         - "timing-sensitive tests keep their real waits"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39436,19 +39471,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:18Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "748d2886c"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1117"
     created_at: "2026-10-28T04:49:22Z"
-    updated_at: "2026-10-28T04:49:22Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "architecture"
     category: "process"
     summary: "CMP-37 is not made deterministic in this cycle; its acceptance evidence is a serial whole-file companion run on an idle host."
@@ -39463,8 +39503,8 @@ decisions:
       negative:
         - "a 15-minute serial run per gate"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39472,19 +39512,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:22Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e5df3b589"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1118"
     created_at: "2026-10-28T04:49:26Z"
-    updated_at: "2026-10-28T04:49:26Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "architecture"
     category: "security"
     summary: "verify-chains implemented: JSON-lines records in argument order, per-path exception isolation, fail-closed wrapper; store-mutation test is go/no-go."
@@ -39501,8 +39546,8 @@ decisions:
       negative:
         - "STOP and defer if the equivalence test cannot pass"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39510,19 +39555,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:26Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e5df3b589"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1119"
     created_at: "2026-10-28T04:49:31Z"
-    updated_at: "2026-10-28T04:49:31Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "architecture"
     category: "process"
     summary: "v2.0.0-rc.9 published unattended from the post-merge candidate with mechanical safeguards: recomputed digest, merge_sha check, publish summary."
@@ -39537,8 +39587,8 @@ decisions:
       negative:
         - "no human eyes between merge and publish"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39546,19 +39596,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:31Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e5df3b589"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1120"
     created_at: "2026-10-28T04:49:34Z"
-    updated_at: "2026-10-28T04:49:34Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "review"
     category: "process"
     summary: "Sprint 281 review: DISS-C-003 confirmed — the spawn-budget tracer missed spawns behind stderr redirects and child shells; fixed red-first in-sprint."
@@ -39573,8 +39628,8 @@ decisions:
       negative:
         - "budget numbers changed once"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39582,19 +39637,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:34Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "d005a771a"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1121"
     created_at: "2026-10-28T04:49:39Z"
-    updated_at: "2026-10-28T04:49:39Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "review"
     category: "process"
     summary: "Sprint 281 review approved with 2 medium/5 low observations; the dissent ran on a code-only --diff-file after --diff-range refused budget_exceeded."
@@ -39609,8 +39669,8 @@ decisions:
       negative:
         - "the envelope's diff_range is null (diff_sha256 recorded instead)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39618,19 +39678,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:39Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "d005a771a"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1122"
     created_at: "2026-10-28T04:49:43Z"
-    updated_at: "2026-10-28T04:49:43Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "review"
     category: "security"
     summary: "Sprint 281 audit APPROVED (0/0/1/3); DISS-C-001 fixed red-first (tracer env -i allowlist); two pre-existing lows filed as beads bd-4sikh, bd-kdzc3."
@@ -39645,8 +39710,8 @@ decisions:
       negative:
         - "two lows wait for Sprint 2 or later"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39654,19 +39719,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:43Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "747b5db0d"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1123"
     created_at: "2026-10-28T04:49:47Z"
-    updated_at: "2026-10-28T04:49:47Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "review"
     category: "security"
     summary: "MED-001 awk sanitiser portability (BWK awk NUL regex, BSD cut char cap) carried to Sprint 2 Task 2.1; BWK awk UNVERIFIED on the ship host."
@@ -39681,8 +39751,8 @@ decisions:
       negative:
         - "macOS behaviour unverified until Sprint 2"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39690,19 +39760,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:47Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "747b5db0d"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1124"
     created_at: "2026-10-28T04:49:51Z"
-    updated_at: "2026-10-28T04:49:51Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "implementation"
     category: "implementation"
     summary: "grimoire-index write mode: a failed or non-two-line check jq refuses the write with '?' as the count instead of exiting with jq's own status."
@@ -39717,8 +39792,8 @@ decisions:
       negative:
         - "an unreachable branch changes its exit text"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39726,19 +39801,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:51Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "937b87ee0"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1125"
     created_at: "2026-10-28T04:49:55Z"
-    updated_at: "2026-10-28T04:49:55Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "implementation"
     category: "implementation"
     summary: "Decisions cache race: key and rows come from one snapshot, so a mid-run rewrite leaves a cache consistent with its own key (SDD over sprint.md)."
@@ -39753,8 +39833,8 @@ decisions:
       negative:
         - "sprint.md Task 2.2 wording is superseded"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39762,19 +39842,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:55Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "937b87ee0"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1126"
     created_at: "2026-10-28T04:49:59Z"
-    updated_at: "2026-10-28T04:49:59Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "implementation"
     category: "security"
     summary: "Decisions cache trust check tightens a uid-owned group/world-writable .run or perf-cache dir (chmod go-w) before trusting it; foreign dirs stay out."
@@ -39792,8 +39877,8 @@ decisions:
       negative:
         - "a framework script changes a directory mode it owns"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39801,19 +39886,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:49:59Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "e5f751ac0"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1127"
     created_at: "2026-10-28T04:50:04Z"
-    updated_at: "2026-10-28T04:50:04Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "implementation"
     category: "implementation"
     summary: "agy opt-in memo key includes dev:ino:size:mtime:ctime of the resolved file (stat -L) AND $PATH, since the yq/python3 flavour on PATH picks the reader."
@@ -39828,8 +39918,8 @@ decisions:
       negative:
         - "a PATH change costs one extra read"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39837,19 +39927,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:50:04Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "268bc2f1b"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1128"
     created_at: "2026-10-28T04:50:08Z"
-    updated_at: "2026-10-28T04:50:08Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "implementation"
     category: "security"
     summary: "verify-chains records are JSON lines {i,path,ok,error} validated by index; loa-status counts one ok:true record per path; abnormal exit counts none."
@@ -39865,8 +39960,8 @@ decisions:
       negative:
         - "an abnormal verifier exit now counts every passed path invalid (old loop: per-path)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "bf96f91c"
@@ -39874,19 +39969,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T04:50:08Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "bf96f91cb"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1129"
     created_at: "2026-10-28T05:04:30Z"
-    updated_at: "2026-10-28T05:04:30Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "implementation"
     category: "security"
     summary: "verify-chains judgment calls: 'missing' text for an absent path; loa-status counts none on an abnormal exit; wrapper re-validates records; jq ≥ 1.6."
@@ -39905,8 +40005,8 @@ decisions:
         - "one jq spawn (~5 ms) per verify-chains call"
         - "jq older than 1.6 makes the wrapper exit 2 (fail-closed)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "41b0dc18"
@@ -39914,19 +40014,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T05:04:30Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "bf96f91cb"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1130"
     created_at: "2026-10-28T05:21:24Z"
-    updated_at: "2026-10-28T05:21:24Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "implementation"
     category: "scope"
     summary: "FR-6 companion target moves from 300 s to the measured floor: 163 main runs at about 3 s; median 667 s at load 5-8 (baseline 1006 s)."
@@ -39944,8 +40049,8 @@ decisions:
       negative:
         - "the companion file stays ~11 minutes serial"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "abbe9ae8"
@@ -39953,19 +40058,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T05:21:24Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "grimoires/loa/a2a/sprint-282/reports/c.md"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1131"
     created_at: "2026-10-28T05:21:28Z"
-    updated_at: "2026-10-28T05:21:28Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "implementation"
     category: "implementation"
     summary: "CMP-55 keeps its 300 s hold (no negative control fails it); test-body sleep holders stay unwired; --jobs setup_file unverified live."
@@ -39982,8 +40092,8 @@ decisions:
       negative:
         - "SDD § 5.6 wording partially superseded"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "abbe9ae8"
@@ -39991,19 +40101,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T05:21:28Z"
         from: null
         to: "proposed"
         by: "agent:implementing-tasks"
         evidence: "grimoires/loa/a2a/sprint-282/reports/c.md"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1132"
     created_at: "2026-10-28T06:03:38Z"
-    updated_at: "2026-10-28T06:03:38Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "review"
     category: "implementation"
     summary: "S282 review r1 fix: agy memo skips a config modified in the current second, closing the whole-second stat (BSD) stale-opt-in window"
@@ -40026,8 +40141,8 @@ decisions:
         - "a remote filesystem whose server clock runs behind the host can still memoise a just-written file (recorded residual)"
         - "a file with a future mtime (clock skew) is never memoised"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "c31b9e03"
@@ -40035,19 +40150,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T06:03:38Z"
         from: null
         to: "proposed"
         by: "agent:reviewing-code"
         evidence: "57e38f8c0 (red) → c31b9e03c (fix); red-test-check VERIFIED (~/.cache/loa/cycle-137/logs/rtc-282-r1fix.json)"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1133"
     created_at: "2026-10-28T06:28:42Z"
-    updated_at: "2026-10-28T06:28:42Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "review"
     category: "implementation"
     summary: "S282 review r2 fix: agy memo bypass covers ctime with a one-second margin; clock from printf %(%s)T then date, never EPOCHSECONDS"
@@ -40070,8 +40190,8 @@ decisions:
         - "AGC-27/AGC-28 wait up to ~6 s in total for their fixtures to settle"
         - "the remote-filesystem clock-lag residual of DEC-1132 stands"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "c3108928"
@@ -40079,19 +40199,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T06:28:42Z"
         from: null
         to: "proposed"
         by: "agent:reviewing-code"
         evidence: "c69059546 (red) → c31089280 (fix); red-test-check ~/.cache/loa/cycle-137/logs/rtc-282-r2fix.json"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1134"
     created_at: "2026-10-28T06:28:47Z"
-    updated_at: "2026-10-28T06:28:47Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "review"
     category: "process"
     summary: "S282 review round 3 runs lead-only: the review's two dissent runs are spent, run 3 is reserved for the audit on the final head"
@@ -40108,8 +40233,8 @@ decisions:
       negative:
         - "round 3's approval rests on the lead's reading and the mechanical checks alone"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "c3108928"
@@ -40117,19 +40242,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T06:28:47Z"
         from: null
         to: "proposed"
         by: "agent:reviewing-code"
         evidence: "engineer-feedback.md round 3 (reviewed_head c31089280); adversarial-audit.json"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1135"
     created_at: "2026-10-28T06:28:51Z"
-    updated_at: "2026-10-28T06:28:51Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "review"
     category: "process"
     summary: "S282 full-suite AC 'no new skips': the two added skips are Sprint 282's own host-conditional portability tests (BWK awk, gawk absent), not regressions"
@@ -40146,8 +40276,8 @@ decisions:
       negative:
         - "two awk variants remain UNVERIFIED on this host"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "c3108928"
@@ -40155,19 +40285,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T06:28:51Z"
         from: null
         to: "proposed"
         by: "agent:reviewing-code"
         evidence: "comm -13 of the skip lines: '# skip: BWK awk absent', '# skip: gawk absent' only on 8d63417b0"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1136"
     created_at: "2026-10-28T06:56:06Z"
-    updated_at: "2026-10-28T06:56:06Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "review"
     category: "security"
     summary: "S282 audit triage: profile-lib cache trust gap (DISS-C-001/C-002) pre-existing, graded MEDIUM + bead; C-004/C-005/C-007 pre-existing LOW + beads"
@@ -40185,8 +40320,8 @@ decisions:
       negative:
         - "a known hardening gap ships in rc.9 (pre-existing since the profile cache landed)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "auditing-security/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "2832bacc"
@@ -40194,19 +40329,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T06:56:06Z"
         from: null
         to: "proposed"
         by: "agent:auditing-security"
         evidence: "beads filed at audit time (sprint-282-audit label); auditor-sprint-feedback.md § Cross-Model Observations"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1137"
     created_at: "2026-10-28T06:56:10Z"
-    updated_at: "2026-10-28T06:56:10Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "review"
     category: "security"
     summary: "S282 audit triage: DISS-C-006 (FIFO blocks the decisions cache) and DISS-C-008 (hold knob ineffective) refuted by probe and reading; pinned by tests"
@@ -40220,8 +40360,8 @@ decisions:
         - "two new regression tests for the cache's handling of special files"
       negative: []
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "auditing-security/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "2832bacc"
@@ -40229,19 +40369,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T06:56:10Z"
         from: null
         to: "proposed"
         by: "agent:auditing-security"
         evidence: "the audit test-only commit after c31089280 (grimoire-index.bats FIFO + hard-link cases)"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1138"
     created_at: "2026-10-28T06:56:15Z"
-    updated_at: "2026-10-28T06:56:15Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "review"
     category: "implementation"
     summary: "S282 audit: AGC-29/AGC-31 strengthened (proven hit before each mutation; real-key forge + control) test-only; both verdicts re-bound to the new head"
@@ -40257,8 +40402,8 @@ decisions:
         - "the conformance file waits ~8 s more for fixtures to settle"
         - "one more full-suite run (~70 min) before the ship"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "auditing-security/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "2832bacc"
@@ -40266,19 +40411,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T06:56:15Z"
         from: null
         to: "proposed"
         by: "agent:auditing-security"
         evidence: "the audit test-only commit after c31089280; red-test-check N/A (no red case: a strengthening); suites green on the new head"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1139"
     created_at: "2026-10-28T08:24:28Z"
-    updated_at: "2026-10-28T08:24:28Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "operations"
     category: "process"
     summary: "cycle-137 ship: Bridgebuilder degraded in both rounds (anthropic voice timed out under host load); no blocking finding open → proceed to merge"
@@ -40296,8 +40446,8 @@ decisions:
       negative:
         - "no anthropic voice on this PR (recorded; KF-037 recurrence)"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "run-mode/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "3215c141"
@@ -40305,19 +40455,24 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T08:24:28Z"
         from: null
         to: "proposed"
         by: "agent:run-mode"
         evidence: "PR #1309 comments (round 1 and round 2 triage); logs bb-1309-r1.log, bb-1309-r2.log"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
   - id: "DEC-1140"
     created_at: "2026-10-28T08:24:34Z"
-    updated_at: "2026-10-28T08:24:34Z"
+    updated_at: "2026-10-28T22:58:39Z"
     phase: "operations"
     category: "process"
     summary: "cycle-137 ship: final-head re-baseline ran under load 6–8 from other sessions; recorded with the caveat, FR-3 stays the same-session paired A/B"
@@ -40334,8 +40489,8 @@ decisions:
       negative:
         - "the final-head absolute table is noisier than the loop's 2026-10-27 baseline"
     proposed_by: "agent"
-    decided_by: null
-    decided_by_ref: null
+    decided_by: "operator"
+    decided_by_ref: "cli:2026-10-28T22:58:39Z"
     evidence_sha256: null
     recorded_by: "run-mode/b60eab0f-f20d-4741-85e5-d3add6949037"
     commit: "3215c141"
@@ -40343,13 +40498,18 @@ decisions:
     cycle: "cycle-137-performance-followups"
     supersedes: null
     supersede_proposed_by: null
-    status: "proposed"
+    status: "decided"
     transitions:
       - at: "2026-10-28T08:24:34Z"
         from: null
         to: "proposed"
         by: "agent:run-mode"
         evidence: "rebaseline-final.tsv (load 6–8); rebaseline-55f82c534.tsv (load 5–6); NOTES 2026-10-28 ship entry (ps -C zsh)"
+      - at: "2026-10-28T22:58:39Z"
+        from: "proposed"
+        to: "decided"
+        by: "operator:decisions-command"
+        evidence: "cli:2026-10-28T22:58:39Z"
     rejection_rationale: null
     follow_up: null
     prior_requests: []
