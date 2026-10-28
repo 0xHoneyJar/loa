@@ -265,3 +265,36 @@ EOF
   fi
   grep -qF "printf '%s\\n' unset" "$TRACE_FILE"
 }
+
+# --- (i) karpathy-surgical-diff-check.sh: a Write payload with a WARM profile cache (cycle-137 FR-4, Task 2.4).
+# The hook resolves its root from its own path (../../..), so it runs from a fixture mirror (real files, never a
+# symlink: `..` resolves physically) holding copies of the hook, profile-lib.sh and the two data files; the config,
+# the profile cache, the state and the trajectory are all under the fixture root and LOA_RUN_DIR is pinned there.
+# The checkpoint is a stub script (a fixed task; the hook runs `bash <file> read --json`), so run-checkpoint / br are
+# not on the measured path.
+@test "spawn budget: karpathy-surgical-diff-check.sh on a Write payload with a warm profile cache" {
+  local root="$W/root" hook
+  mkdir -p "$root/.claude/hooks/quality" "$root/.claude/scripts/lib" "$root/.claude/data" "$root/.run" "$root/grimoires/loa/a2a/trajectory"
+  cp "$PROJECT_ROOT/.claude/hooks/quality/karpathy-surgical-diff-check.sh" "$root/.claude/hooks/quality/"
+  cp "$PROJECT_ROOT/.claude/scripts/lib/profile-lib.sh" "$root/.claude/scripts/lib/"
+  cp "$PROJECT_ROOT/.claude/data/profiles.yaml" "$PROJECT_ROOT/.claude/data/floor.yaml" "$root/.claude/data/"
+  hook="$root/.claude/hooks/quality/karpathy-surgical-diff-check.sh"
+  printf 'loa:\n  profile: standard\n' >"$root/.loa.config.yaml"
+  printf '{"checkpoint":{"task":"bd-perf","sprint":"sprint-1"}}\n' >"$W/ck.out"
+  printf 'cat "%s"\n' "$W/ck.out" >"$W/ck.sh"
+  printf '{"tool_name":"Write","session_id":"perf-spawn-budget","tool_input":{"file_path":"%s/a.md","content":"x\\ny"}}\n' "$root" >"$W/in.json"
+  # warm the profile cache with one untraced call (same environment as the traced one)
+  ( cd "$root" && env -i PATH="$PATH" HOME="$W/home" TMPDIR="$W" LANG=C KARPATHY_CHECKPOINT_CMD="$W/ck.sh" \
+      LOA_RUN_DIR="$root/.run" bash "$hook" <"$W/in.json" >/dev/null 2>&1 ) || true
+  jq -e '.knobs["karpathy_principles.diff_lines_per_task"].source == "absent"' "$root/.run/effective-config.json" >/dev/null
+  _trace "$W/in.json" "$root" KARPATHY_CHECKPOINT_CMD="$W/ck.sh" LOA_RUN_DIR="$root/.run" -- "$hook"
+  # Sanity: the fixture reaches the per-task state write (not an early exit).
+  [ -s "$root/.run/karpathy-surgical/bd-perf.jsonl" ]
+  grep -q 'loa_knob karpathy_principles.diff_lines_per_task' "$TRACE_FILE"
+  # The warm threshold read is answered from the cache: no live yq read of the config.
+  if grep -nE '^\++ ?([A-Za-z_][A-Za-z0-9_]*=[^ ]* )*(/[^ ]*/)?yq( |$)' "$TRACE_FILE" >&2; then
+    echo "a yq ran on the warm path (lines above): the cached_keys entry is not being used" >&2
+    return 1
+  fi
+  _check_budget "karpathy" 196 9   # measured (cycle-137 Task 2.4, three runs identical): 196 trace lines, 9 external-tool lines on the warm path; before cached_keys the same fixture took the live read of diff_lines_per_task (one yq + one jq more)
+}

@@ -320,3 +320,148 @@ knob() { bash "$LIB" knob "$@"; }
     [[ "$output" != *"thread.md"* ]]
     rm -rf -- "$T/fx/tools"
 }
+
+# ---- cycle-137 FR-4 (Task 2.4, bd-h5tcn): non-profile hot knobs listed in profiles.yaml `cached_keys` ----
+_pl20_trace() {  # <args to profile-lib.sh> → stdout; xtrace on a dedicated descriptor (a 2>/dev/null inside cannot hide a spawn) → $T/trace
+    local xfd out
+    exec {xfd}>"$T/trace"
+    out=$(env PS4='+' BASH_XTRACEFD="$xfd" SHELLOPTS=xtrace bash "$LIB" "$@" 2>/dev/null)   # (env: SHELLOPTS is readonly here)
+    grep -q '^+' "$T/trace" || { echo "the trace is empty — the tracer did not run" >&2; return 1; }
+    exec {xfd}>&-
+    printf '%s\n' "$out"
+}
+_pl20_yq_lines() { grep -cE '^\++ ?([A-Za-z_][A-Za-z0-9_]*=[^ ]* )*(/[^ ]*/)?yq( |$)' "$T/trace" || true; }
+_pl20_live() {  # <key> <fallback> → what the LIVE read (_loa_pl_live) prints for the current config
+    bash -c 'source "$1"; _loa_pl_paths; _loa_pl_live "$2" "$3"' _ "$LIB" "$1" "$2"
+}
+
+@test "PL-20 (cycle-137 FR-4) warm cache, a cached key absent from the config: the fallback, and NO yq on the read" {
+    printf 'loa:\n  profile: standard\n' > "$CFG"
+    knob karpathy_principles.diff_lines_per_task 100 >/dev/null   # builds the cache
+    [ -f "$LOA_PROFILE_CACHE_FILE" ]
+    out=$(_pl20_trace knob karpathy_principles.diff_lines_per_task 100)
+    [ "$out" = 100 ] || { echo "got '$out'"; return 1; }
+    [ "$(_pl20_yq_lines)" = 0 ] || { echo "yq ran on the warm read:"; grep -E 'yq' "$T/trace"; return 1; }
+    jq -e '.knobs["karpathy_principles.diff_lines_per_task"] == {value: null, source: "absent", profile_value: null}' "$LOA_PROFILE_CACHE_FILE" >/dev/null \
+        || { jq -c '.knobs["karpathy_principles.diff_lines_per_task"]' "$LOA_PROFILE_CACHE_FILE"; return 1; }
+    # (and in the same shell: the in-memory path answers the fallback without yq as well)
+    run bash -c 'source "$1"; loa_profile >/dev/null; loa_knob karpathy_principles.diff_lines_per_task 100' _ "$LIB"
+    [ "$output" = 100 ]
+}
+
+@test "PL-21 (cycle-137 FR-4) an explicit value of a cached key wins on the warm path, without yq" {
+    printf 'karpathy_principles:\n  diff_lines_per_task: 42\n' > "$CFG"
+    knob karpathy_principles.diff_lines_per_task 100 >/dev/null
+    out=$(_pl20_trace knob karpathy_principles.diff_lines_per_task 100)
+    [ "$out" = 42 ]
+    [ "$(_pl20_yq_lines)" = 0 ] || { grep -E 'yq' "$T/trace"; return 1; }
+}
+
+@test "PL-22 (cycle-137 FR-4) classification: the warm read of a cached key prints exactly what the live read prints" {
+    local v want got n=0
+    while IFS= read -r v; do
+        n=$((n + 1))
+        printf 'karpathy_principles:\n  diff_lines_per_task: %s\n' "$v" > "$CFG"
+        touch -d "@$(( 1790000000 + n ))" "$CFG"
+        want=$(_pl20_live karpathy_principles.diff_lines_per_task FB)
+        knob karpathy_principles.diff_lines_per_task FB >/dev/null   # build
+        got=$(knob karpathy_principles.diff_lines_per_task FB)       # warm
+        [ "$got" = "$want" ] || { echo "value <$v>: warm '$got', live '$want'"; return 1; }
+    done <<'VALUES'
+null
+~
+""
+''
+false
+true
+0
+42
+-7
+1.0
+1.50
+1e3
+0x10
+0o17
+.5
+100000000000000000001
+"null"
+"__LOA_PL_MISS__"
+" padded "
+{a: 1, b: [x, y]}
+[]
+{}
+[1, "two", {three: 3}]
+"line one\nline two\n"
+|
+VALUES
+    # the multi-line block scalar, a merge key and an anchor
+    printf 'karpathy_principles:\n  diff_lines_per_task: |\n    alpha\n    beta\n' > "$CFG"; touch -d '@1790001000' "$CFG"
+    want=$(_pl20_live karpathy_principles.diff_lines_per_task FB); knob karpathy_principles.diff_lines_per_task FB >/dev/null
+    [ "$(knob karpathy_principles.diff_lines_per_task FB)" = "$want" ] || { echo "block scalar"; return 1; }
+    printf 'base: &b\n  diff_lines_per_task: 77\nkarpathy_principles:\n  <<: *b\n' > "$CFG"; touch -d '@1790001001' "$CFG"
+    want=$(_pl20_live karpathy_principles.diff_lines_per_task FB); knob karpathy_principles.diff_lines_per_task FB >/dev/null
+    [ "$(knob karpathy_principles.diff_lines_per_task FB)" = "$want" ] || { echo "merge key: live '$want'"; return 1; }
+    printf 'n: &n 33\nkarpathy_principles:\n  diff_lines_per_task: *n\n' > "$CFG"; touch -d '@1790001002' "$CFG"
+    want=$(_pl20_live karpathy_principles.diff_lines_per_task FB); knob karpathy_principles.diff_lines_per_task FB >/dev/null
+    [ "$(knob karpathy_principles.diff_lines_per_task FB)" = "$want" ] || { echo "anchor: live '$want'"; return 1; }
+    # a non-mapping ancestor, and a config that does not parse
+    printf 'karpathy_principles: 5\n' > "$CFG"; touch -d '@1790001003' "$CFG"
+    want=$(_pl20_live karpathy_principles.diff_lines_per_task FB); knob karpathy_principles.diff_lines_per_task FB >/dev/null 2>&1
+    [ "$(knob karpathy_principles.diff_lines_per_task FB 2>/dev/null)" = "$want" ] || { echo "scalar ancestor: live '$want'"; return 1; }
+    printf 'karpathy_principles: [unclosed\n' > "$CFG"; touch -d '@1790001004' "$CFG"
+    want=$(_pl20_live karpathy_principles.diff_lines_per_task FB); knob karpathy_principles.diff_lines_per_task FB >/dev/null 2>&1
+    [ "$(knob karpathy_principles.diff_lines_per_task FB 2>/dev/null)" = "$want" ] || { echo "unparsable: live '$want'"; return 1; }
+    # the named classes, as the brief states them
+    printf 'karpathy_principles:\n  diff_lines_per_task: null\n' > "$CFG"; touch -d '@1790001005' "$CFG"; knob karpathy_principles.diff_lines_per_task FB >/dev/null
+    [ "$(knob karpathy_principles.diff_lines_per_task FB)" = FB ]
+    printf 'karpathy_principles:\n  diff_lines_per_task: ""\n' > "$CFG"; touch -d '@1790001006' "$CFG"; knob karpathy_principles.diff_lines_per_task FB >/dev/null
+    [ "$(knob karpathy_principles.diff_lines_per_task FB)" = FB ]
+    printf 'karpathy_principles:\n  diff_lines_per_task: false\n' > "$CFG"; touch -d '@1790001007' "$CFG"; knob karpathy_principles.diff_lines_per_task FB >/dev/null
+    [ "$(knob karpathy_principles.diff_lines_per_task FB)" = false ]
+    printf 'karpathy_principles:\n  diff_lines_per_task: 0\n' > "$CFG"; touch -d '@1790001008' "$CFG"; knob karpathy_principles.diff_lines_per_task FB >/dev/null
+    [ "$(knob karpathy_principles.diff_lines_per_task FB)" = 0 ]
+    printf 'karpathy_principles:\n  diff_lines_per_task: {b: 2, a: 1}\n' > "$CFG"; touch -d '@1790001009' "$CFG"; knob karpathy_principles.diff_lines_per_task FB >/dev/null
+    [ "$(knob karpathy_principles.diff_lines_per_task FB)" = '{"b":2,"a":1}' ]
+}
+
+@test "PL-23 (cycle-137 FR-4) a cache without the knob entry (an older profiles.yaml) reads live; a stale id rebuilds" {
+    printf 'karpathy_principles:\n  diff_lines_per_task: 250\n' > "$CFG"
+    knob karpathy_principles.diff_lines_per_task 100 >/dev/null
+    jq -c 'del(.knobs["karpathy_principles.diff_lines_per_task"])' "$LOA_PROFILE_CACHE_FILE" > "$T/c" && mv "$T/c" "$LOA_PROFILE_CACHE_FILE"
+    out=$(_pl20_trace knob karpathy_principles.diff_lines_per_task 100)
+    [ "$out" = 250 ]
+    [ "$(_pl20_yq_lines)" -ge 1 ] || { echo "the entry-less cache did not take the live read"; return 1; }
+    jq -c '.id = "v1|stale"' "$LOA_PROFILE_CACHE_FILE" > "$T/c" && mv "$T/c" "$LOA_PROFILE_CACHE_FILE"
+    [ "$(knob karpathy_principles.diff_lines_per_task 100)" = 250 ]
+    [ "$(jq -r '.id' "$LOA_PROFILE_CACHE_FILE")" != "v1|stale" ]
+    jq -e '.knobs["karpathy_principles.diff_lines_per_task"] == {value: 250, source: "explicit", profile_value: null}' "$LOA_PROFILE_CACHE_FILE" >/dev/null
+}
+
+@test "PL-24 (cycle-137 FR-4) cached_keys changes no profile answer: profile, source, overrides, profile_keys; the cache differs only by the knob entry" {
+    printf 'loa:\n  profile: lean\nguardrails:\n  input:\n    enabled: true\nkarpathy_principles:\n  diff_lines_per_task: 9\n' > "$CFG"
+    cp "$PROFILES" "$T/without.yaml"; yq -i 'del(.cached_keys)' "$T/without.yaml"
+    local which
+    for which in without with; do
+        if [[ "$which" == without ]]; then export LOA_PROFILES_FILE="$T/without.yaml"; else export LOA_PROFILES_FILE="$PROFILES"; fi
+        export LOA_PROFILE_CACHE_FILE="$T/run/cache-$which.json"
+        { bash "$LIB" profile; bash "$LIB" source; bash "$LIB" overrides; bash "$LIB" json | jq -c .profile_keys; } > "$T/answers-$which" 2>&1
+    done
+    cmp "$T/answers-without" "$T/answers-with" || { diff "$T/answers-without" "$T/answers-with"; return 1; }
+    diff <(jq -S 'del(.id)' "$T/run/cache-without.json") \
+         <(jq -S 'del(.id) | del(.knobs["karpathy_principles.diff_lines_per_task"])' "$T/run/cache-with.json") \
+        || { echo "the caches differ beyond the knob entry"; return 1; }
+    # (and the lean profile's keys are untouched by the cached key)
+    [ "$(jq -r '.profile_keys | index("karpathy_principles.diff_lines_per_task")' "$T/run/cache-with.json")" = null ]
+}
+
+@test "PL-25 (cycle-137 FR-4) a cached key that is a profile key or a floor key is not cached as non-profile; the floor one warns" {
+    cp "$PROFILES" "$T/profiles.yaml"
+    yq -i '.cached_keys += ["karpathy_principles.surgical_diff_warning", "implement_gate.mode"]' "$T/profiles.yaml"
+    export LOA_PROFILES_FILE="$T/profiles.yaml"
+    printf 'loa:\n  profile: lean\n' > "$CFG"
+    run --separate-stderr bash "$LIB" knob karpathy_principles.surgical_diff_warning true
+    [ "$output" = false ]   # the lean profile value, not "absent"
+    [[ "$stderr" == *"profiles.yaml key implement_gate.mode names a floor key; ignored"* ]] || { echo "stderr=$stderr"; return 1; }
+    jq -e '.knobs["karpathy_principles.surgical_diff_warning"].source == "profile" and (.knobs | has("implement_gate.mode") | not)' "$LOA_PROFILE_CACHE_FILE" >/dev/null
+    [ "$(bash "$LIB" knob implement_gate.mode ask 2>/dev/null)" = ask ]
+}
