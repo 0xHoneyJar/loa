@@ -58,6 +58,8 @@ san(){ printf '%s' "${1-}" | tr -d '\000-\010\013\014\016-\037\177' | tr '\t\n\r
 # one separator, last variable takes the remainder). Prepended to the emit_* awk programs so each family
 # is ONE pass with no per-field subprocesses. Keep san() and SAN_AWK in lock-step.
 SAN_AWK='
+# Byte cap: under LC_ALL=C substr() caps BYTES. GNU cut -c was already byte-based on Linux, so Linux
+# output is unchanged; BSD cut hosts formerly capped characters.
 function san(s) {
   gsub(/\000/, "", s)
   gsub(/[\001-\010\013\014\016-\037\177]/, "", s)
@@ -92,17 +94,24 @@ emit_kf(){
   # is reduced to a leading integer (5+ -> 5, >=7 -> 7); non-numeric (many/every/
   # n/a) -> "?". Bodies are UNTRUSTED — sanitized at surfacing by san() (its awk twin in SAN_AWK).
   awk "$SAN_AWK"'
-    function fieldval(line, label,   reA, reB, v) {
-      # Two field-line variants, both with an optional "- " list marker:
+    function fieldval(line, label,   reA, reB, reC, v) {
+      # Three field-line variants, each with an optional "- " list marker:
       #   A) **Label**: value                 (colon outside the bold)
       #   B) **Label[ (suffix)]:** value       (colon inside the bold; suffix
       #      may contain spaces/parens/em-dash but no "*")
+      #   C) **Label (suffix)**: value         (a space after the label, colon outside the bold),
+      #      for Symptom and Recurrence count ONLY: a qualified Status ("Status (original)") is a
+      #      historical annotation and never the entry status (sdd D-2.2). Keep in step with the twin.
       reA = "^(- )?\\*\\*" label "\\*\\*: ?"
       reB = "^(- )?\\*\\*" label "[^*]*:\\*\\* ?"
+      reC = "^(- )?\\*\\*" label "( [^*]*)?\\*\\*: ?"
       if (line ~ reA) { v = line; sub(reA, "", v); return v }
       if (line ~ reB) { v = line; sub(reB, "", v); return v }
+      if ((label == "Symptom" || label == "Recurrence count") && line ~ reC) { v = line; sub(reC, "", v); return v }
       return ""
     }
+    # Every H2 heading closes the current entry; only a ## KF-NNN: heading opens one.
+    /^## / { cur = "" }
     /^## KF-[0-9]+:/ {
       if (match($0, /KF-[0-9]+/)) { id = substr($0, RSTART, RLENGTH) }
       else { id = "" }

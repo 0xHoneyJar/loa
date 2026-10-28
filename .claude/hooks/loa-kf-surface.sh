@@ -82,7 +82,8 @@ if [[ ! -r "$KF_FILE" ]]; then
 fi
 
 # Parse id + symptom from each ## KF-NNN: entry (source of truth), deduped by
-# id. Mirrors grimoire-index.sh emit_kf field-parsing (both field variants).
+# id. Mirrors grimoire-index.sh emit_kf field-parsing (the field shapes and the H2
+# heading rule; tests/unit/kf-surface.bats pins the two copies line for line).
 # The SAME awk pass sanitizes and formats the final "  - ID (rec N): symptom"
 # rows (one process, not ~3 sanitiser pipelines per row). san() below is the
 # byte-for-byte awk twin of the reference spec above; the symptom's leading/trailing tabs are
@@ -91,6 +92,8 @@ fi
 # LC_ALL=C pins substr/length to BYTES, matching `cut -c` (GNU cut -c is
 # byte-based in every locale), so old and new agree under UTF-8 and C alike.
 rows="$(LC_ALL=C awk '
+  # Byte cap: under LC_ALL=C substr() caps BYTES. GNU cut -c was already byte-based on Linux, so Linux
+  # output is unchanged; BSD cut hosts formerly capped characters.
   function san(s) {
     gsub(/\000/, "", s)
     gsub(/[\001-\010\013\014\016-\037\177]/, "", s)
@@ -99,13 +102,24 @@ rows="$(LC_ALL=C awk '
     sub(/^ /, "", s); sub(/ $/, "", s)
     return substr(s, 1, 100)
   }
-  function fieldval(line, label,   reA, reB, v) {
+  function fieldval(line, label,   reA, reB, reC, v) {
+    # Three field-line variants, each with an optional "- " list marker:
+    #   A) **Label**: value                 (colon outside the bold)
+    #   B) **Label[ (suffix)]:** value       (colon inside the bold; suffix
+    #      may contain spaces/parens/em-dash but no "*")
+    #   C) **Label (suffix)**: value         (a space after the label, colon outside the bold),
+    #      for Symptom and Recurrence count ONLY: a qualified Status ("Status (original)") is a
+    #      historical annotation and never the entry status (sdd D-2.2). Keep in step with the twin.
     reA = "^(- )?\\*\\*" label "\\*\\*: ?"
     reB = "^(- )?\\*\\*" label "[^*]*:\\*\\* ?"
+    reC = "^(- )?\\*\\*" label "( [^*]*)?\\*\\*: ?"
     if (line ~ reA) { v = line; sub(reA, "", v); return v }
     if (line ~ reB) { v = line; sub(reB, "", v); return v }
+    if ((label == "Symptom" || label == "Recurrence count") && line ~ reC) { v = line; sub(reC, "", v); return v }
     return ""
   }
+  # Every H2 heading closes the current entry; only a ## KF-NNN: heading opens one.
+  /^## / { cur = "" }
   /^## KF-[0-9]+:/ {
     if (match($0, /KF-[0-9]+/)) { id = substr($0, RSTART, RLENGTH) } else { id = "" }
     if (id != "" && !(id in seen)) { order[++n] = id; seen[id] = 1 }
