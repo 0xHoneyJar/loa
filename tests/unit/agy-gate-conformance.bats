@@ -674,14 +674,16 @@ _agc27_ns_mtime() {  # 0 when a fresh write in this directory keeps a sub-second
 @test "AGC-28 (cycle-137 FR-3) a same-length in-place rewrite is a miss: with a distinct mtime, and twice within one second" {
     _agc27_count
     _cfg cli-only 'true '   # (same length as `false`; the trailing space is not part of the scalar)
-    local t; t=$(date +%s)
+    local t; t=$(( $(date +%s) - 60 ))   # aged stamps: each read below is a KEY MISS, not the current-second bypass (review r2 DISS-C-005)
     touch -d "@$t" "$CFG"
     agy_opted_in "$CFG" || { echo "true read off"; return 1; }
     _cfg cli-only false; touch -d "@$(( t + 1 ))" "$CFG"
     ! agy_opted_in "$CFG" || { echo "stale memo: false read as true"; return 1; }
     _cfg cli-only 'true '; touch -d "@$(( t + 2 ))" "$CFG"
     agy_opted_in "$CFG" || { echo "stale memo: true read as false"; return 1; }
-    [ "$(_agc27_calls)" = 3 ]
+    [ "$(_agc27_calls)" = 3 ] || { echo "node reads: $(_agc27_calls) (expected 3 misses)"; return 1; }
+    agy_opted_in "$CFG" || { echo "memo hit read off"; return 1; }   # no re-touch: served from the memo
+    [ "$(_agc27_calls)" = 3 ] || { echo "node reads after the hit: $(_agc27_calls) (expected still 3)"; return 1; }
     if ! _agc27_ns_mtime; then skip "this filesystem keeps 1 s mtimes: the same-second rewrite case is not decidable here"; fi
     # (no touch: two plain writes back to back, normally inside one second — only the sub-second mtime/ctime tells them apart)
     _cfg cli-only false
@@ -692,9 +694,9 @@ _agc27_ns_mtime() {  # 0 when a fresh write in this directory keeps a sub-second
     ! agy_opted_in "$CFG" || { echo "same-second rewrite to false not seen"; return 1; }
 }
 
-@test "AGC-33 (cycle-137 review r1 DISS-001) with whole-second stat (the BSD branch) a same-length rewrite within the same second is seen, and an aged file is still memoised" {
-    _agc27_count
-    # a stat shim with BSD argv and whole-second times: mtime = ctime = now - SHIM_AGE (default 0 = the current second)
+_agc33_shim() {  # a stat shim with BSD argv and WHOLE-SECOND times for the memo's identity read only (review r1/r2)
+    # mtime = SHIM_MTIME when set, else now - SHIM_AGE (default 0 = the current second, recomputed per call);
+    # ctime = SHIM_CTIME when set (`live` = the current second at every call), else the mtime.
     local shim="$BATS_TEST_TMPDIR/statshim"; mkdir -p "$shim"
     cat > "$shim/stat" <<'EOF'
 #!/usr/bin/env bash
@@ -702,13 +704,19 @@ _agc27_ns_mtime() {  # 0 when a fresh write in this directory keeps a sub-second
 if [[ "$1" == "-L" && "$2" == "-f" && "$3" == "%d:%i:%z:%m:%c" ]]; then
     f=""; for a in "$@"; do f=$a; done
     sz=$(/usr/bin/stat -L -c %s -- "$f" 2>/dev/null) || exit 1
-    now=$(( $(date +%s) - ${SHIM_AGE:-0} ))
-    printf '%s\n' "7:${sz}:${sz}:${now}:${now}"; exit 0
+    m=${SHIM_MTIME:-$(( $(date +%s) - ${SHIM_AGE:-0} ))}
+    case "${SHIM_CTIME:-}" in live) c=$(date +%s) ;; "") c=$m ;; *) c=$SHIM_CTIME ;; esac
+    printf '%s\n' "7:${sz}:${sz}:${m}:${c}"; exit 0
 fi
 exec /usr/bin/stat "$@"
 EOF
     chmod +x "$shim/stat"
     PATH="$shim:$PATH"; _AGY_STAT_STYLE=bsd; _AGY_NODE_MEMO_KEY=""; _AGY_NODE_MEMO_VAL=""
+}
+
+@test "AGC-33 (cycle-137 review r1 DISS-001) with whole-second stat (the BSD branch) a same-length rewrite within the same second is seen, and an aged file is still memoised" {
+    _agc27_count
+    _agc33_shim
     # (1) the window: true, then a same-length false in the same second — the second call must read the file again
     _cfg cli-only 'true '
     agy_opted_in "$CFG" || { echo "true read off"; return 1; }
@@ -718,10 +726,34 @@ EOF
     # (2) an aged file is still memoised: one read for two calls
     : > "$BATS_TEST_TMPDIR/node-calls"; _AGY_NODE_MEMO_KEY=""; _AGY_NODE_MEMO_VAL=""
     _cfg cli-only true
-    export SHIM_AGE=60
+    export SHIM_MTIME=$(( $(date +%s) - 60 ))   # frozen ONCE: a per-call `now - 60` changes across a clock tick (review r2 DISS-C-001)
     agy_opted_in "$CFG" || { echo "aged true read off"; return 1; }
     agy_opted_in "$CFG" || { echo "aged memo hit read off"; return 1; }
     [ "$(_agc27_calls)" = 1 ] || { echo "node reads for an aged file: $(_agc27_calls) (expected 1)"; return 1; }
+    unset SHIM_MTIME
+}
+
+@test "AGC-34 (cycle-137 review r2 DISS-001) with whole-second stat a permission change within the current second is seen: an aged true config chmod'ed 0600 then 0666 in one second reads off on the second call" {
+    _agc27_count
+    _agc33_shim
+    _cfg cli-only true; chmod 0600 "$CFG"
+    export SHIM_MTIME=$(( $(date +%s) - 60 )) SHIM_CTIME=live   # content aged; the chmod stamps ctime in the current second
+    agy_opted_in "$CFG" || { echo "0600 true read off"; return 1; }
+    chmod 0666 "$CFG"   # others can write now: the permission rule must read it off — same whole second, same key
+    ! agy_opted_in "$CFG" || { echo "stale memo: a world-writable config still read as on under whole-second stat"; return 1; }
+    [ "$(_agc27_calls)" = 2 ] || { echo "node reads: $(_agc27_calls) (expected 2: no memo while ctime is in the current second)"; return 1; }
+    unset SHIM_MTIME SHIM_CTIME
+}
+
+@test "AGC-35 (cycle-137 review r2 DISS-C-002) a stamp one second old is still inside the window: a same-length rewrite is seen with the clock one tick ahead of the stamp" {
+    _agc27_count
+    _agc33_shim
+    export SHIM_AGE=1   # every identity read reports mtime = ctime = now - 1 (a coarse-clock stamp lagging the fine clock)
+    _cfg cli-only 'true '
+    agy_opted_in "$CFG" || { echo "true read off"; return 1; }
+    _cfg cli-only false
+    ! agy_opted_in "$CFG" || { echo "stale memo: false read as true with a one-second-old stamp"; return 1; }
+    [ "$(_agc27_calls)" = 2 ] || { echo "node reads: $(_agc27_calls) (expected 2: a stamp within one second of the clock is never memoised)"; return 1; }
     unset SHIM_AGE
 }
 
