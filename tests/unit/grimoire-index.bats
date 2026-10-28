@@ -492,6 +492,28 @@ _assert_not_used() {
   _assert_not_used "$CACHE" PATH="$shim:$PATH"
 }
 
+@test "decisions cache: a FIFO planted at the cache path neither blocks nor is read; it is replaced by a fresh regular cache (audit DISS-C-006)" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  mkdir -p "$CDIR"; chmod 700 "$CDIR"; mkfifo "$CACHE"
+  local out rc=0
+  out="$(timeout 60 env -u CI -u GITHUB_ACTIONS -u LOA_GRIMOIRE_INDEX_NO_CACHE bash "$GIX" --tsv 2>"$BATS_TEST_TMPDIR/err")" || rc=$?
+  [ "$rc" -eq 0 ] || { echo "run 1 exit $rc (124 = blocked on the FIFO); stderr: $(cat "$BATS_TEST_TMPDIR/err")"; return 1; }
+  [ "$out" = "$(_cold_tsv)" ]
+  [ -f "$CACHE" ] && [ ! -p "$CACHE" ] || { echo "the FIFO was not replaced by a regular cache file"; return 1; }
+  [ "$(_gi --tsv)" = "$out" ]
+}
+
+@test "decisions cache: a hard link planted at the cache path is never written through — the linked file keeps its bytes and loses the link" {
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  mkdir -p "$CDIR"; chmod 700 "$CDIR"
+  printf 'victim\n' > "$BATS_TEST_TMPDIR/victim"; ln "$BATS_TEST_TMPDIR/victim" "$CACHE"
+  [ "$(_gi --tsv)" = "$(_cold_tsv)" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/victim")" = "victim" ] || { echo "the hard-linked file was overwritten"; return 1; }
+  local links; links="$(stat -c %h "$BATS_TEST_TMPDIR/victim" 2>/dev/null || stat -f %l "$BATS_TEST_TMPDIR/victim")"
+  [ "$links" = 1 ] || { echo "the victim still shares its inode with the cache (links=$links)"; return 1; }
+  [ "$(_gi --tsv)" = "$(_cold_tsv)" ]
+}
+
 @test "decisions cache: LOA_GRIMOIRE_INDEX_NO_CACHE=1 disables read and write" {
   _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"; _planted
   _assert_not_used "$CACHE" LOA_GRIMOIRE_INDEX_NO_CACHE=1

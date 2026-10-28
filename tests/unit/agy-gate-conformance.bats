@@ -785,26 +785,36 @@ EOF
     unset SHIM_MTIME SHIM_CTIME
 }
 
-@test "AGC-29 (cycle-137 FR-3) a miss after mv replacement (new inode, same size and mtime), after deletion, and after switching the config path" {
+@test "AGC-29 (cycle-137 FR-3) a POPULATED memo does not survive an mv replacement (new inode, same size and mtime), a deletion, or a config path switch" {
     _agc27_count
-    _cfg cli-only 'true '
+    _agc29_aged() { touch -d "@$(( $(date +%s) - 60 ))" "$1"; _agc_settle "$1"; }   # aged + settled: memoisable (audit DISS-C-003)
+    _cfg cli-only 'true '; _agc29_aged "$CFG"
     agy_opted_in "$CFG" || { echo "true read off"; return 1; }
+    agy_opted_in "$CFG" || { echo "hit read off"; return 1; }
+    [ "$(_agc27_calls)" = 1 ] || { echo "no hit before the mv: $(_agc27_calls) reads"; return 1; }
     printf 'hounfour:\n  headless:\n    mode: cli-only\n    agy_opt_in: false\n' > "$BATS_TEST_TMPDIR/next.yaml"
     touch -r "$CFG" "$BATS_TEST_TMPDIR/next.yaml"
     [ "$(wc -c < "$CFG")" = "$(wc -c < "$BATS_TEST_TMPDIR/next.yaml")" ]
     mv -f "$BATS_TEST_TMPDIR/next.yaml" "$CFG"
     ! agy_opted_in "$CFG" || { echo "stale memo after mv"; return 1; }
-    _cfg cli-only true; agy_opted_in "$CFG"
+    [ "$(_agc27_calls)" = 2 ] || { echo "reads after mv: $(_agc27_calls) (expected 2)"; return 1; }
+    _cfg cli-only true; _agc29_aged "$CFG"
+    agy_opted_in "$CFG" || { echo "true read off (2)"; return 1; }
+    agy_opted_in "$CFG" || { echo "hit read off (2)"; return 1; }
+    [ "$(_agc27_calls)" = 3 ] || { echo "no hit before the deletion: $(_agc27_calls) reads"; return 1; }
     rm -f "$CFG"
     run --separate-stderr agy_opted_in "$CFG"
     [ "$status" -eq 1 ] && [ -z "$stderr" ] || { echo "deleted: status=$status stderr=$stderr"; return 1; }
     agy_opted_in "$CFG" && { echo "deleted config opted in"; return 1; }
     [ -z "$_AGY_NODE_MEMO_VAL" ] && [ -z "$_AGY_NODE_MEMO_KEY" ] || { echo "stale memo kept for a deleted config: $_AGY_NODE_MEMO_VAL"; return 1; }
-    _cfg cli-only true
-    printf 'hounfour:\n  headless:\n    agy_opt_in: false\n' > "$BATS_TEST_TMPDIR/other.yaml"
-    agy_opted_in "$CFG" || { echo "true read off"; return 1; }
+    _cfg cli-only true; _agc29_aged "$CFG"
+    printf 'hounfour:\n  headless:\n    agy_opt_in: false\n' > "$BATS_TEST_TMPDIR/other.yaml"; _agc29_aged "$BATS_TEST_TMPDIR/other.yaml"
+    agy_opted_in "$CFG" || { echo "true read off (3)"; return 1; }
+    agy_opted_in "$CFG" || { echo "hit read off (3)"; return 1; }
+    local n; n=$(_agc27_calls)
     ! agy_opted_in "$BATS_TEST_TMPDIR/other.yaml" || { echo "path switch returned the other config's value"; return 1; }
     agy_opted_in "$CFG" || { echo "switch back read off"; return 1; }
+    [ "$(_agc27_calls)" = $(( n + 2 )) ] || { echo "reads across the path switch: $(_agc27_calls) (expected $(( n + 2 )): each switch is a miss)"; return 1; }
 }
 
 @test "AGC-30 (cycle-137 FR-3) a \$(agy_opted_in …) caller gets the right answer (the memo lives only in the calling shell)" {
@@ -817,12 +827,19 @@ EOF
     [ "$(agy_opted_in "$CFG"; echo $?)" = 0 ]
 }
 
-@test "AGC-31 (cycle-137 FR-3) the memo is never seeded from the environment: a forged key + value for a false config reads off" {
-    _cfg cli-only false
-    local st; st=$(stat -L -c '%d:%i:%s:%.9Y:%.9Z' -- "$CFG" 2>/dev/null) || skip "GNU stat needed to forge the key"
-    run --separate-stderr env _AGY_NODE_MEMO_KEY="$CFG|$st" _AGY_NODE_MEMO_VAL="bool true" _AGY_STAT_STYLE=bsd \
+@test "AGC-31 (cycle-137 FR-3) the memo is never seeded from the environment: the REAL key with a forged value for a false config reads off, and the control (seeded after load) would have hit" {
+    _agc27_count
+    _cfg cli-only false; touch -d "@$(( $(date +%s) - 60 ))" "$CFG"; _agc_settle "$CFG"
+    ! agy_opted_in "$CFG" || { echo "false read on"; return 1; }
+    ! agy_opted_in "$CFG" || { echo "false read on (hit)"; return 1; }
+    [ "$(_agc27_calls)" = 1 ] && [ -n "$_AGY_NODE_MEMO_KEY" ] || { echo "no populated memo to forge: reads=$(_agc27_calls) key='$_AGY_NODE_MEMO_KEY'"; return 1; }
+    # the child inherits the real key (cfg|dev:ino:size:mtime:ctime|PATH) with a forged value: the lib resets both at load
+    run --separate-stderr env _AGY_NODE_MEMO_KEY="$_AGY_NODE_MEMO_KEY" _AGY_NODE_MEMO_VAL="bool true" \
         bash -c 'source "$1"; agy_opted_in "$2"' _ "$LIB" "$CFG"
     [ "$status" -eq 1 ] || { echo "a forged memo opted in: status=$status stderr=$stderr"; return 1; }
+    # control: the same forge applied AFTER the load hits (so the assertion above is about the reset, not about a key mismatch)
+    run --separate-stderr env bash -c 'source "$1"; _AGY_NODE_MEMO_KEY="$3"; _AGY_NODE_MEMO_VAL="bool true"; agy_opted_in "$2"' _ "$LIB" "$CFG" "$_AGY_NODE_MEMO_KEY"
+    [ "$status" -eq 0 ] || { echo "control: the forged key did not hit (status=$status stderr=$stderr) — the forge proves nothing"; return 1; }
 }
 
 @test "AGC-32 (cycle-137 FR-3) agy_gate_warn_once prints today's texts: untrusted, ancestor (int, alias), bool True, a string, and the availability WARN" {
