@@ -459,12 +459,28 @@ _assert_not_used() {
   [ ! -e "$CDIR" ]
 }
 
-@test "decisions cache: a group- or world-writable .run or perf-cache directory is neither read nor written" {
+@test "decisions cache: a group- or world-writable .run or perf-cache directory that cannot be tightened is neither read nor written" {
+  # (lead follow-up, D-5.3: a uid-owned directory IS tightened first — next test; here chmod is shimmed to
+  # fail, so the directory stays group-writable and outside the boundary)
   _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"; _planted
-  chmod 770 "$CDIR"; _assert_not_used "$CACHE"
-  chmod 707 "$CDIR"; _assert_not_used "$CACHE"
-  chmod 700 "$CDIR"; chmod 770 "$CP/.run"; _assert_not_used "$CACHE"
-  chmod 700 "$CP/.run"
+  local shim="$BATS_TEST_TMPDIR/chmodshim"; mkdir -p "$shim"
+  printf '#!/bin/sh\nexit 1\n' > "$shim/chmod"; chmod +x "$shim/chmod"
+  /bin/chmod 770 "$CDIR"; _assert_not_used "$CACHE" PATH="$shim:$PATH"
+  /bin/chmod 707 "$CDIR"; _assert_not_used "$CACHE" PATH="$shim:$PATH"
+  /bin/chmod 700 "$CDIR"; /bin/chmod 770 "$CP/.run"; _assert_not_used "$CACHE" PATH="$shim:$PATH"
+  /bin/chmod 700 "$CP/.run"
+}
+
+@test "decisions cache: a uid-owned group-writable .run or perf-cache directory is tightened (chmod go-w) and then used (lead follow-up, D-5.3)" {
+  # zone-write-guard creates .run/perf-cache under the user's umask (775 under umask 002), which would
+  # leave the decisions cache inert on every such host; a directory we own is tightened, not refused.
+  _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
+  mkdir -p "$CDIR"; chmod 775 "$CDIR"; chmod 775 "$CP/.run"
+  _gi --tsv >/dev/null
+  [ -f "$CACHE" ] || { echo "no cache written after tightening" >&2; ls -la "$CP/.run" "$CDIR" >&2; false; }
+  [ "$(stat -c %a "$CP/.run")" = "755" ] && [ "$(stat -c %a "$CDIR")" = "755" ]
+  local tr="$BATS_TEST_TMPDIR/trace.warm"; _gi_trace "$tr" --tsv >/dev/null
+  ! _parsed_by_yq "$tr" || { echo "warm run still parsed with yq (cache not used)" >&2; false; }
 }
 
 @test "decisions cache: a directory owned by another uid (stat reports it) is neither read nor written" {
