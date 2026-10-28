@@ -130,6 +130,12 @@ _loa_pl_build() {
     def forbidden($k): any($floor[]; . as $f | ($k | test($f | globre)) or (($f | split("*")[0]) | startswith($k + ".")));
     ($all | map(select(forbidden(.)))) as $bad |
     ($all - $bad) as $keys |
+    # cycle-137 FR-4 (SDD § 5.4): profiles.yaml `cached_keys` — non-profile knobs read on hot paths. A listed
+    # key that is a profile key stays a profile key; a floor key is dropped with the profile WARN text.
+    ($pf.cached_keys | if type == "array" then map(select(type == "string" and test("^[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)*$"))) else [] end
+     | reduce .[] as $c ([]; if index([$c]) then . else . + [$c] end) | . - $all) as $cks |
+    ($cks | map(select(forbidden(.)))) as $ckbad |
+    ($cks - $ckbad) as $cached |
     (try ($cfg.loa.profile) catch null) as $req |
     (if $req == null then {name: "standard", source: "default"}
      elif ($req | type) == "string" and ($profiles[$req]? | type) == "object" then {name: $req, source: "explicit"}
@@ -140,7 +146,12 @@ _loa_pl_build() {
         (if ($pv | has($k)) then $pv[$k] else null end) as $p |
         if $e != null then .[$k] = {value: $e, source: "explicit", profile_value: $p}
         elif ($pv | has($k)) then .[$k] = {value: $p, source: "profile", profile_value: $p}
-        else . end)) as $knobs |
+        else . end)
+     # (a cached key: `explicit` iff the config value is not null, the same `. == null → MISS` rule as _loa_pl_live;
+     # `absent` → loa_knob prints the fallback of the caller without a live read)
+     | reduce $cached[] as $k (.;
+        (try ($cfg | getpath($k | split("."))) catch null) as $e |
+        .[$k] = {value: $e, source: (if $e != null then "explicit" else "absent" end), profile_value: null})) as $knobs |
     {
       schema_version: 1,
       id: $id,
@@ -149,11 +160,11 @@ _loa_pl_build() {
       profile_requested: (if $req == null then null else ($req | clean(64)) end),
       profile_keys: $keys,
       knobs: $knobs,
-      overrides: ([$knobs | to_entries[]
+      overrides: ([$knobs | to_entries[] | select(.key as $k | $keys | index([$k]))
                    | select(.value.source == "explicit" and .value.value != .value.profile_value)
                    | "\(.key)=\(.value.value | clean(128))"] | sort),
       warnings: ([if $sel.source == "invalid" then "unknown loa.profile \"\($req | clean(64))\"; using standard" else empty end]
-                 + [$bad[] | "profiles.yaml key \(.) names a floor key; ignored"])
+                 + [($bad + $ckbad)[] | "profiles.yaml key \(.) names a floor key; ignored"])
     }' 2>/dev/null) || out=""
   if [[ -z "$out" ]]; then
     _LOA_PL_JSON=""
@@ -237,10 +248,15 @@ loa_knob() {
      command -v jq >/dev/null 2>&1; then
     v=$(jq -r --arg id "$_LOA_PL_CUR_ID" --arg k "$key" '
           if .schema_version == 1 and .id == $id then
-            (if (.knobs | has($k)) then .knobs[$k].value
-               | (if type == "string" then . elif type == "object" or type == "array" then tojson else tostring end)
+            (if (.knobs | has($k)) then
+               (if .knobs[$k].source == "absent" then "__LOA_PL_ABSENT__" else .knobs[$k].value
+                | (if type == "string" then . elif type == "object" or type == "array" then tojson else tostring end) end)
              else "__LOA_PL_MISS__" end)
           else "__LOA_PL_STALE__" end' "$_LOA_PL_CACHE" 2>/dev/null) || v="__LOA_PL_STALE__"
+    if [[ "$v" == "__LOA_PL_ABSENT__" ]]; then   # (cycle-137 FR-4: a cached key the config does not set — no live read)
+      printf '%s\n' "$fallback"
+      return 0
+    fi
     if [[ "$v" == "__LOA_PL_MISS__" ]]; then
       _loa_pl_live "$key" "$fallback"
       return 0
@@ -255,9 +271,14 @@ loa_knob() {
     return 0
   fi
   v=$(printf '%s' "$_LOA_PL_JSON" | jq -r --arg k "$key" '
-        if (.knobs | has($k)) then .knobs[$k].value
-          | (if type == "string" then . elif type == "object" or type == "array" then tojson else tostring end)
+        if (.knobs | has($k)) then
+          (if .knobs[$k].source == "absent" then "__LOA_PL_ABSENT__" else .knobs[$k].value
+           | (if type == "string" then . elif type == "object" or type == "array" then tojson else tostring end) end)
         else "__LOA_PL_MISS__" end' 2>/dev/null) || v="__LOA_PL_MISS__"
+  if [[ "$v" == "__LOA_PL_ABSENT__" ]]; then
+    printf '%s\n' "$fallback"
+    return 0
+  fi
   if [[ -z "$v" || "$v" == "__LOA_PL_MISS__" ]]; then
     _loa_pl_live "$key" "$fallback"
     return 0
