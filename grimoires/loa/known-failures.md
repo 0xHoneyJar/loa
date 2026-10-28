@@ -76,7 +76,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-019](#kf-019-confabulated-absence--an-agent-asserts-a-governed-capability-is-absent-when-the-config-sot-declares-it-present) | DOCUMENTED 2026-06-19 — detector shipped (sensing-confabulated-absence) | agent reasoning over capability availability (headless terminals + Flatline routing) | 1 |
 | [KF-020](#kf-020-claude--p-subscription-oauth--potential-per-token-billing-via-the-43333-auth-detection-bug-metering-policy-was-announced-then-paused) | OPEN — external/upstream; live exposure UNCONFIRMED | cheval claude-headless adapter — #43333 auth-detection bug surfacing/mitigation | 0 |
 | [KF-021](#kf-021-842968-copy-set-silently-drifts--gitignored--check-mode-content-blind) | OPEN → resolved by cycle-117 Wave-1 item G (#1177) | update-loa.sh / mount-submodule.sh submodule copy set | 1 |
-| [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 5 |
+| [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 6 |
 | [KF-023](#kf-023-flatline-counts-schema-invalid-exit-0-content-as-a-successful-voice) | RESOLVED-IN-FLIGHT 2026-07-18 (#1227 / sprint-bug-227) | Flatline Phase 1 content qualification | 1 downstream mechanical reproduction |
 | [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content--ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
 | [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
@@ -1233,7 +1233,7 @@ Fleet evidence: crate+ledger settings.json stuck at 374 rules vs 382-rule pin (m
 **Feature**: beads_rust (br) sync
 **Symptom**: br sync --status reports 'Dirty issues: N / Database is newer (export recommended)' while br sync --flush-only exits 'Nothing to export (no dirty issues)' (verbose shows dirty_count=0); newly created issues are stranded in the DB and never reach issues.jsonl — silent data-loss risk if a later --rebuild/--import-only treats JSONL as authoritative. The status dirty counter also stays sticky AFTER a successful --force export.
 **First observed**: 2026-07-11 agent-ergonomics pass 1 (epic bd-m1o6 stranded)
-**Recurrence count**: 5
+**Recurrence count**: 6
 **Current workaround**: br sync --flush-only --force exports everything (verified bd-m1o6 landed in JSONL); ignore the sticky --status dirty counter afterwards. beads-health.sh (R-003) now probes content currency instead of trusting mtime alone.
 **Upstream issue**: beads_rust v0.2.6 — same family as the known br list --json under-report; needs an upstream issue
 **Related visions / lore**: none
@@ -1247,6 +1247,7 @@ Fleet evidence: crate+ledger settings.json stuck at 374 rules vs 382-rule pin (m
 | 2026-07-29 | br sync + br sync --flush-only after 25 creates (br 0.2.6, cycle-121 kickoff) | Both report 'current/nothing to export' while all 25 cycle-121 ids are DB-only (issues.jsonl has 0). Proceeded per Reading guide: DB authoritative, NO --rebuild/--import-only, JSONL export deferred. | run-20260729-68d1b75c |
 | 2026-09-17 | framework review session: br sync --status vs beads-health on branch feature/cycle-123-bug-burndown (br 0.2.6) | --status reports 'Dirty issues: 1 / Database is newer' while beads-health reports JSONL 1607h stale; not chased per Reading guide | framework-review-2026-09-17.md §3.4 (grimoires/loa/a2a/); local HEAD 65e0c4a0 |
 | 2026-10-15 | cycle-130 kickoff: 44 br create (5 epics, 39 tasks) left issues.jsonl at its 2026-10-13 mtime; --status said Dirty issues: 1 while --flush-only exported nothing; --flush-only --force once | ids landed in .beads/issues.jsonl (verified by grep); Dirty issues: 1 persists after the force; also br create --parent fails on this DB (no such column: last_child in table child_counters) so tasks carry epic:<id> labels and the epic depends on its tasks | grimoires/loa/NOTES.md 2026-10-15 kickoff entry; ~/.cache/loa/cycle-130/seed-beads.sh; cycle-130 plan commit |
+| 2026-10-28 | cycle-137 close-out: br sync --flush-only reports "Nothing to export (no dirty issues)" while br sync --status says Dirty issues: 1 / Database is newer; br close on five sprint-282 beads answered "already closed or not found" while br show said OPEN (br doctor: sqlite integrity WARN page 2 never used) | closed the five via br update --status closed (worked); comments carry the SHIPPED facts; export still reports one dirty issue — split-brain persists | NOTES.md 2026-10-28 close-out entry; br doctor output in the session transcript |
 
 ### Reading guide
 
