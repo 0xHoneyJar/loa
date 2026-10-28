@@ -696,8 +696,10 @@ assert_nothing_published() {
 @test "bug-283 r1 (DISS-C-003): release_body_normalize maps the REAL rc.9 candidate line onto GitHub's stored line, and a caret table" {
     sed '$d' "$SCRIPT" > "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh"
     local fx="$ROOT/tests/fixtures/post-merge/rc9-release-body"
-    [ -s "$fx/candidate-line.txt" ] && [ -s "$fx/github-line.txt" ]
-    ! cmp -s "$fx/candidate-line.txt" "$fx/github-line.txt"   # the pair really differs before normalisation
+    [ -s "$fx/candidate-line.txt" ]
+    [ -s "$fx/github-line.txt" ]
+    run cmp -s "$fx/candidate-line.txt" "$fx/github-line.txt"
+    [ "$status" -ne 0 ]   # the pair really differs before normalisation (a bare `! cmp` would never fail the test)
     run bash -c 'source "$1"; release_body_normalize < "$2"' _ "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh" "$fx/candidate-line.txt"
     [ "$status" -eq 0 ]
     [ "$output" = "$(cat "$fx/github-line.txt")" ] || { echo "normalised candidate line != GitHub line"; echo "got:  $output"; echo "want: $(cat "$fx/github-line.txt")"; return 1; }
@@ -707,6 +709,28 @@ assert_nothing_published() {
     run bash -c 'source "$1"; printf "%s" "a\\u0000 b\\u0009 c\\u001c d\\u001f e\\u007f f\\u0041 g\\u00ff \\u0000x" | release_body_normalize' _ "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh"
     [ "$status" -eq 0 ]
     [ "$output" = 'a\^@ b\^I c\^\ d\^_ e\^? f\u0041 g\u00ff \^@x' ] || { echo "caret table: $output"; return 1; }
+}
+
+@test "bug-283 r2 (DISS-001): release_body_identical compares a 200 000-byte body (no argv limit) and a 200 000-byte read-back JSON" {
+    sed '$d' "$SCRIPT" > "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh"
+    local big="$CASE_DIR/big.txt"; head -c 200000 /dev/zero | tr '\0' 'a' > "$big"; printf ' \\u0000 tail\n' >> "$big"
+    jq -n --rawfile b "$big" '{id:81, tag_name:"v1.0.1", name:"v1.0.1", body:($b | gsub("\\\\u0000"; "\\^@")), draft:false, prerelease:false}' > "$CASE_DIR/big-rb.json"
+    [ "$(wc -c < "$CASE_DIR/big-rb.json")" -gt 131072 ]   # above MAX_ARG_STRLEN: an argv-borne JSON could not be exec'd
+    run bash -c 'source "$1"; release_body_identical "$(cat "$2")" "$(cat "$3")"' _ "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh" "$big" "$CASE_DIR/big-rb.json"
+    [ "$status" -eq 0 ] || { echo "status=$status output=${output:0:200}"; return 1; }
+    [ "$output" = equal ] || { echo "verdict: $output"; return 1; }
+}
+
+@test "bug-283 r2 (DISS-C-004): release_body_identical itself maps the REAL rc.9 pair to equal and refuses a one-caret shift inside the normalised region" {
+    sed '$d' "$SCRIPT" > "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh"
+    local fx="$ROOT/tests/fixtures/post-merge/rc9-release-body"
+    run bash -c 'source "$1"; release_body_identical "$(cat "$2")" "$(jq -n --rawfile b "$3" "{body: (\$b | rtrimstr(\"\\n\"))}")"' _ "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh" "$fx/candidate-line.txt" "$fx/github-line.txt"
+    [ "$status" -eq 0 ]
+    [ "$output" = equal ] || { echo "real pair: $output"; return 1; }
+    # the stored line with \^@ shifted to \^A (NUL -> SOH): not GitHub's rewrite of the sent \u0000 -> refuse
+    run bash -c 'source "$1"; release_body_identical "$(cat "$2")" "$(sed "s/\\\\^@/\\\\^A/" "$3" | jq -Rs "{body: rtrimstr(\"\\n\")}")"' _ "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh" "$fx/candidate-line.txt" "$fx/github-line.txt"
+    [ "$status" -eq 0 ]
+    [[ "$output" == differ\ * ]] || { echo "one-caret shift accepted: $output"; return 1; }
 }
 
 @test "c133 v2: mutated notes under the approved digest refuse" {
