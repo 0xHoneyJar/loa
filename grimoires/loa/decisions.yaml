@@ -40001,3 +40001,167 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1132"
+    created_at: "2026-10-28T06:03:38Z"
+    updated_at: "2026-10-28T06:03:38Z"
+    phase: "review"
+    category: "implementation"
+    summary: "S282 review r1 fix: agy memo skips a config modified in the current second, closing the whole-second stat (BSD) stale-opt-in window"
+    decision: "_agy_opt_in_node_memo compares the identity stat's mtime second with the shell's current second (EPOCHSECONDS, else printf %(%s)T, else one date fork) and reads the node uncached whenever mtime >= now; an older file is memoised as before. Red test AGC-33 (a whole-second stat shim) first, then the lib; AGC-27's fixtures aged by 60 s so the one-read assertion stays meaningful."
+    rationale: "The review's DISS-001 (primary voice, CONFIRMED): under BSD stat or a 1 s filesystem a same-size rewrite within one second keeps every key component, so a revoked agy_opt_in: true could read as still on for the rest of the shell — a consent violation on a supported host (macOS). The rule costs no spawn on bash 4.2+ and closes the window whatever the stat precision; a rewrite in a later second changes mtime and misses as today."
+    alternatives_considered:
+      - option: "Key the memo on the file's content (a read or a hash per call)"
+        rejected_because: "a read per call is what the memo removes; a hash adds a fork per call on the hot path"
+      - option: "Disable the memo on the BSD branch only"
+        rejected_because: "loses the FR-3 saving on macOS and leaves the GNU branch exposed on 1 s filesystems"
+      - option: "Document the window and ship (the implementer's reading)"
+        rejected_because: "the SDD's own risk row requires the memo to keep the config-cannot-change-mid-run assumption honest"
+    consequences:
+      positive:
+        - "no new spawn on bash 4.2+ (EPOCHSECONDS / printf builtin)"
+        - "closes the window for both stat flavours"
+        - "AGC-27/AGC-33 pin that an aged file is still read once"
+      negative:
+        - "bash 3.2 pays one date fork per call"
+        - "a remote filesystem whose server clock runs behind the host can still memoise a just-written file (recorded residual)"
+        - "a file with a future mtime (clock skew) is never memoised"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "c31b9e03"
+    source: "grimoires/loa/a2a/sprint-282/engineer-feedback-r1.md § Changes Required 1; grimoires/loa/sdd.md § 5.3 and § 9 memo risk row"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T06:03:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:reviewing-code"
+        evidence: "57e38f8c0 (red) → c31b9e03c (fix); red-test-check VERIFIED (~/.cache/loa/cycle-137/logs/rtc-282-r1fix.json)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1133"
+    created_at: "2026-10-28T06:28:42Z"
+    updated_at: "2026-10-28T06:28:42Z"
+    phase: "review"
+    category: "implementation"
+    summary: "S282 review r2 fix: agy memo bypass covers ctime with a one-second margin; clock from printf %(%s)T then date, never EPOCHSECONDS"
+    decision: "_agy_opt_in_node_memo compares both stamp seconds (mtime, ctime) with the clock and reads uncached when either is at or after now - 1; the clock is `builtin printf '%(%s)T' -1`, else one date fork. Red tests AGC-34 (chmod 0600 then 0666 within one second under a whole-second stat shim) and AGC-35 (a stamp one second behind the clock) landed first; AGC-33 part 2 freezes its aged stamp once; AGC-28 ages its base stamp and pins a hit; AGC-36 pins each key component as a miss under frozen aged stamps; real-file fixtures that must be memoised wait until the clock is two seconds past their ctime (_agc_settle)."
+    rationale: "Round-2 dissent (2/2 voices): the round-1 rule checked mtime only, yet ctime is a key component with the same whole-second precision, so a permission change within the second could keep a now world-writable config memoised as on (DISS-001); the per-call aged stamp made AGC-33 flaky across a clock tick (DISS-C-001); a coarse kernel stamp can lag the fine clock at a second boundary (DISS-C-002); EPOCHSECONDS is a plain inheritable variable on bash < 5 (DISS-C-003). The margin costs one more second of uncached reads after a write or chmod, nothing on the hot path (the live config is read once per shell)."
+    alternatives_considered:
+      - option: "Compare ctime without the one-second margin"
+        rejected_because: "leaves a millisecond window at a second boundary when the kernel's coarse stamp lags the shell clock"
+      - option: "Exempt sub-second (GNU) stamps from the bypass"
+        rejected_because: "two writes within one kernel tick carry identical nanosecond stamps, so the same class of window stays open on GNU hosts"
+      - option: "Keep EPOCHSECONDS first for bash 5"
+        rejected_because: "printf %(%s)T is the same builtin cost on bash 4.2+, and the plain-variable hazard on bash 4 disappears"
+    consequences:
+      positive:
+        - "closes the chmod window and the stamp-lag window"
+        - "no new spawn on bash 4.2+"
+        - "the key components are now pinned individually by AGC-36"
+      negative:
+        - "a file written, touched or chmod'ed within the last ~2 s is read uncached"
+        - "AGC-27/AGC-28 wait up to ~6 s in total for their fixtures to settle"
+        - "the remote-filesystem clock-lag residual of DEC-1132 stands"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "c3108928"
+    source: "grimoires/loa/a2a/sprint-282/engineer-feedback-r2.md § Changes Required 1, § Observations 1-4; grimoires/loa/sdd.md § 5.3"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T06:28:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:reviewing-code"
+        evidence: "c69059546 (red) → c31089280 (fix); red-test-check ~/.cache/loa/cycle-137/logs/rtc-282-r2fix.json"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1134"
+    created_at: "2026-10-28T06:28:47Z"
+    updated_at: "2026-10-28T06:28:47Z"
+    phase: "review"
+    category: "process"
+    summary: "S282 review round 3 runs lead-only: the review's two dissent runs are spent, run 3 is reserved for the audit on the final head"
+    decision: "Round 3 of /review-sprint sprint-2 is the lead's own re-check of the round-2 fix pair (red-test-check VERIFIED, covering suites green, parity identical, manifests regenerated) without a third cross-model review run; the sprint's third dissent run is the audit's, on the full code diff of the final head, so every line of the fix pair still meets a cross-model voice before COMPLETED."
+    rationale: "The sprint plan caps dissent at three runs per sprint and reserves one for the audit (cycle-136 precedent: the third run was the audit). Spending it on review round 3 would leave the audit single-voiced on the head that ships; the fix pair is 40 lines of lib and test that two voices already shaped."
+    alternatives_considered:
+      - option: "A third review dissent run on the fix diff"
+        rejected_because: "leaves the audit without a cross-model voice on the final head"
+      - option: "Skip the audit's dissent instead"
+        rejected_because: "the audit gate is the security verdict; its dissent is the one that must see the whole diff"
+    consequences:
+      positive:
+        - "every commit of the sprint is covered by a dissent run at least once (r1: the sprint; r2: the r1 fix; audit: the whole diff incl. the r2 fix)"
+      negative:
+        - "round 3's approval rests on the lead's reading and the mechanical checks alone"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "c3108928"
+    source: "grimoires/loa/sprint.md 1.1 § Execution (bounded-loop exits; ≤ 3 dissent runs per sprint); engineer-feedback-r1.md, engineer-feedback-r2.md"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T06:28:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:reviewing-code"
+        evidence: "engineer-feedback.md round 3 (reviewed_head c31089280); adversarial-audit.json"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1135"
+    created_at: "2026-10-28T06:28:51Z"
+    updated_at: "2026-10-28T06:28:51Z"
+    phase: "review"
+    category: "process"
+    summary: "S282 full-suite AC 'no new skips': the two added skips are Sprint 282's own host-conditional portability tests (BWK awk, gawk absent), not regressions"
+    decision: "The full tests/unit TAP on 8d63417b0 (7309 planned, 7306 ok, 3 not ok = exactly the KF-034 allowed-failure list, 135 skipped) satisfies the AC: the two skips absent from the Sprint 281 head are new Sprint 282 tests that skip when an alternative awk is not installed ('BWK awk absent', 'gawk absent'); no previously running test became a skip. The final-head run after the review fixes is compared against this one by skip NAME, not count."
+    rationale: "The AC's intent is that no existing coverage silently disappears; a new test that declares its host precondition and skips is additional coverage on hosts that have the tool (bd-aceil tracks the BWK verification)."
+    alternatives_considered:
+      - option: "Install BWK awk and gawk on the ship host to run them"
+        rejected_because: "bd-aceil already carries the BWK verification; the ship host's mawk/busybox coverage is the one the live hook runs on"
+      - option: "Read the count increase as an AC failure"
+        rejected_because: "it would block a release on tests that did not exist before this sprint"
+    consequences:
+      positive:
+        - "the AC keeps its teeth for existing tests (name-level comparison)"
+      negative:
+        - "two awk variants remain UNVERIFIED on this host"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "c3108928"
+    source: "grimoires/loa/sprint.md 1.1 § Sprint 2 Acceptance Criteria (full tests/unit TAP under PRD R-4); ~/.cache/loa/cycle-137/logs/unit-8d63417b0.tap vs a2a/sprint-281/evidence/tap/unit-final-c0d41f5e3.tap"
+    cycle: "cycle-137-performance-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-28T06:28:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:reviewing-code"
+        evidence: "comm -13 of the skip lines: '# skip: BWK awk absent', '# skip: gawk absent' only on 8d63417b0"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
