@@ -2822,11 +2822,26 @@
       "archived": null,
       "archive_path": null,
       "prd": "grimoires/loa/prd.md",
-      "sdd": null,
-      "sprints": []
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 281,
+          "local_label": "sprint-1",
+          "status": "planned",
+          "created": "2026-10-28T02:06:22Z",
+          "completed": null
+        },
+        {
+          "global_id": 282,
+          "local_label": "sprint-2",
+          "status": "planned",
+          "created": "2026-10-28T02:06:22Z",
+          "completed": null
+        }
+      ]
     }
   ],
-  "global_sprint_counter": 279,
+  "global_sprint_counter": 282,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -3297,6 +3312,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 281,
-  "last_updated": "2026-10-28T01:42:19Z"
+  "next_sprint_number": 283,
+  "last_updated": "2026-10-28T02:06:22Z"
 }
