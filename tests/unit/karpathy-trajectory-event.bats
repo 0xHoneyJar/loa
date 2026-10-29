@@ -231,7 +231,7 @@ _shim() {
     _victim_unchanged
 }
 
-@test "KT-14 FR-6 the warn path's own spawns on an existing directory: no realpath(1), two cd + pwd -P builtin pairs, one guard stat, no mkdir (review r2 DISS-C-003)" {
+@test "KT-14 FR-6 the warn path's own spawns on an existing directory: no realpath(1), two cd + pwd -P builtin pairs, three guard stats (the -L chain, the descriptor, the path lstat), no mkdir (review r2 DISS-C-003; audit DISS-001)" {
     : > "$TMP_DIR/empty"
     local input fd
     input=$(jq -nc --arg c "$(printf 'a\nb\nc\nd\ne')" '{tool_name:"Write", tool_input:{file_path:"/tmp/x", content:$c}}')
@@ -241,18 +241,22 @@ _shim() {
     exec {fd}>&-
     grep -q 'karpathy-surgical-warn' "$TMP_DIR/stderr"
     [ "$(wc -l < "$DAY")" -eq 1 ]
-    local rp pw st mk
+    local rp pw st fd ls mk
     rp="$(grep -cE '^\++ ?realpath ' "$TMP_DIR/trace" || true)"
     # the guard's two canonicalising subshells are the only `cd -- <path>` lines on the path (profile-lib's own cd/pwd -P
     # pairs carry no `--`), so count those: `pwd -P` alone would also count profile-lib's
     pw="$(grep -cE "^\\++ ?cd -- $M" "$TMP_DIR/trace" || true)"
-    st="$(grep -cE "^\++ ?stat -Lc '%n\|%u\|%a\|%h' " "$TMP_DIR/trace" || true)"
+    st="$(grep -cE "^\++ ?stat -Lc '%n\|%u\|%a\|%h\|%d:%i\|%F' -- $M/grimoires" "$TMP_DIR/trace" || true)"
+    fd="$(grep -cE "^\++ ?stat -Lc '%n\|%u\|%a\|%h\|%d:%i\|%F' -- /dev/fd/[0-9]+" "$TMP_DIR/trace" || true)"
+    ls="$(grep -cE "^\++ ?stat -c '%d:%i\|%F' -- " "$TMP_DIR/trace" || true)"
     # (profile-lib's own cache-directory mkdir is not on the trajectory path: only a mkdir of TRAJ_DIR counts)
     mk="$(grep -cE "^\++ ?mkdir .*$M/grimoires" "$TMP_DIR/trace" || true)"
-    echo "realpath=$rp guard-cd=$pw guard-stat=$st mkdir=$mk" >&2
+    echo "realpath=$rp guard-cd=$pw chain-stat=$st fd-stat=$fd lstat=$ls mkdir=$mk" >&2
     [ "$rp" -eq 0 ]
     [ "$pw" -eq 2 ]
     [ "$st" -eq 1 ]
+    [ "$fd" -eq 1 ]
+    [ "$ls" -eq 1 ]
     [ "$mk" -eq 0 ]
 }
 
@@ -281,5 +285,34 @@ _shim() {
     export KARPATHY_TRAJECTORY_DIR="$M/../outside/trajectory"
     _warn_refused
     [ ! -e "$TMP_DIR/outside" ]
+    _victim_unchanged
+}
+
+@test "KT-18 FR-6 fd-anchored append: a stat shim reporting another device:inode for the open descriptor → nothing written, the fresh day file stays empty (audit DISS-001)" {
+    # The guard opens first and verifies /dev/fd/N against the path's lstat row; a mismatch means the path no longer
+    # names the file we hold — refuse. Only the descriptor row is altered; every other stat line passes through.
+    local real; real="$(command -v stat)"
+    _shim stat "\"$real\" \"\$@\" | awk -F'|' -v OFS='|' '\$1 ~ /^\\/dev\\/fd\\// { \$5 = \"0:0\" } { print }'"
+    _warn_refused
+    [ -f "$DAY" ]
+    [ ! -s "$DAY" ]
+    [ "$(stat -c %a "$DAY")" = "600" ]
+    _victim_unchanged
+}
+
+@test "KT-19 FR-6 fd-anchored append: the path's lstat row reporting a symbolic link after a prior append → refused, still one line (audit DISS-001)" {
+    _warn_refused
+    [ "$(wc -l < "$DAY")" -eq 1 ]
+    local real; real="$(command -v stat)"
+    _shim stat "\"$real\" \"\$@\" | awk -F'|' -v OFS='|' 'NF == 2 && \$2 == \"regular file\" { \$2 = \"symbolic link\" } { print }'"
+    _warn_refused
+    [ "$(wc -l < "$DAY")" -eq 1 ]
+    _victim_unchanged
+}
+
+@test "KT-20 FR-6 fd-anchored append: a read-only uid-owned trajectory directory → the open fails, the append is refused and the hook still exits 0 with the warning" {
+    chmod 500 "$KARPATHY_TRAJECTORY_DIR"
+    _warn_refused
+    [ ! -e "$DAY" ]
     _victim_unchanged
 }
