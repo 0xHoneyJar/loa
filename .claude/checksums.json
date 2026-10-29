@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-29T00:36:22Z",
+  "generated": "2026-10-29T04:53:17Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -689,7 +689,7 @@
     ".claude/hooks/safety/team-role-guard-write.sh": "83dbd411381253a4149b3a545bab59405eea0d243159369de40ed65c8b30ab74",
     ".claude/hooks/safety/team-role-guard.sh": "b0cf1163f37089f0109408c2011e9b3bdde2d61441473e394ff2b05902107caf",
     ".claude/hooks/safety/team-skill-guard.sh": "145dd55c6cab1975721b379f9cd2684a481d9e414b03932b51be9f047daf2496",
-    ".claude/hooks/safety/zone-write-guard.sh": "9e2ccc640126b55ccb098f3c099a78bb9bca5148942dcaf9c766645021cc7a84",
+    ".claude/hooks/safety/zone-write-guard.sh": "95c259a6db891e691fcbe46b42589db18ebdd3335a336a32254601f3f44f6f66",
     ".claude/hooks/session-start/loa-context-class.sh": "db342c1f70053f226a88b89dae2aee4d8377dd088774cc259f36eb2dcb7c6d22",
     ".claude/hooks/session-start/loa-decisions-surface.sh": "a3f553e29b890f18224fd092477666a08329b8333045c54e9e6f939af3181675",
     ".claude/hooks/session-start/loa-l6-surface-handoffs.sh": "1a097865f65ad02e848fa0a6e0b2bef3a2fa7e3817de51f5dc46ded6c11e370d",

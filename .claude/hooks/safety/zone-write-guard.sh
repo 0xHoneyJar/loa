@@ -258,7 +258,7 @@ _zone_for_path() {
         if [[ -n "${cache_key}" ]]; then
             local cache_dir="${cache_file%/*}" cache_tmp="${cache_file}.$$"
             {
-                [[ -d "${cache_dir}" ]] || mkdir -p "${cache_dir}"
+                [[ -d "${cache_dir}" ]] || ( umask 077; mkdir -p -- "${cache_dir}" )
                 printf '%s\n%s' "${cache_key}" "${rows}" > "${cache_tmp}" &&
                     mv -f -T "${cache_tmp}" "${cache_file}"
             } 2>/dev/null || rm -f -- "${cache_tmp}" 2>/dev/null || true
