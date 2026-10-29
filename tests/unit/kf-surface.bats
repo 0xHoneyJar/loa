@@ -471,3 +471,123 @@ _san_line() { printf '%s\n' "$1" | grep -nxF -- "$2" | cut -d: -f1; }
 @test "FR-8 live: known-failures.md carries no C1 or U+2028/U+2029 bytes (the class leaves its surfaced output unchanged)" {
   [ "$(LC_ALL=C awk '/\302[\200-\237]|\342\200[\250\251]/ { c++ } END { print c + 0 }' "$KF")" -eq 0 ]
 }
+
+# ---- cycle-138 FR-7 (bd-4sikh): the 40-row cap — selection by (recurrence desc, numeric id desc), display in
+# file order, one elision line (sdd § 5.6, D-6.1, D-6.3, DEC-1159). Expected outputs are built in bash with
+# sort(1), independently of the hook's awk.
+_kf_cap_header() { printf '[KF-SURFACE] %d known-failure entries (symptom -> KF · recurrence). Read grimoires/loa/known-failures.md before triaging; recurrence >= 3 = structural.\n' "$1"; }
+_kf_elision() { printf '  \342\200\246 and %d more \342\200\224 see grimoires/loa/known-failures.md\n' "$1"; }
+# _kf_cap_fixture <file> <n>: entries KF-001 … KF-<n>, recurrence (i * 7) % 13, symptom "symptom i"
+_kf_cap_fixture() {
+  local i; { printf '# Known Failures\n\n'
+    for ((i = 1; i <= $2; i++)); do printf '## KF-%03d: entry %d\n**Status**: OPEN\n**Symptom**: symptom %d\n**Recurrence count**: %d\n\n' "$i" "$i" "$i" "$(( (i * 7) % 13 ))"; done; } > "$1"
+}
+# _kf_cap_expected <n> <max>: the hook's expected stdout for _kf_cap_fixture <n>
+_kf_cap_expected() {
+  local n="$1" max="$2" i r
+  _kf_cap_header "$n"
+  for ((i = 1; i <= n; i++)); do printf '%d %d\n' "$(( (i * 7) % 13 ))" "$i"; done \
+    | LC_ALL=C sort -k1,1nr -k2,2nr | head -n "$max" | LC_ALL=C sort -k2,2n \
+    | while read -r r i; do printf '  - KF-%03d (rec %d): symptom %d\n' "$i" "$r" "$i"; done
+  (( n > max )) && _kf_elision "$(( n - max ))"
+  return 0
+}
+_kf_run() { env LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" LOA_KNOWN_FAILURES_FILE="$1" bash "$HOOK" 2>"$BATS_TEST_TMPDIR/cap.err"; }
+
+@test "FR-7 cap: a 100-entry fixture prints the top 40 by (recurrence, id) in file order plus the elision line, under every awk present (byte-exact)" {
+  local f="$BATS_TEST_TMPDIR/n100.md" e="$BATS_TEST_TMPDIR/n100.expected" a i=0
+  _kf_cap_fixture "$f" 100; _kf_cap_expected 100 40 > "$e"
+  [ "$(grep -c '^  - KF-' "$e")" -eq 40 ]
+  while IFS= read -r a; do
+    local d="$BATS_TEST_TMPDIR/capshim-$i"; _awk_shim "$d" "$a"
+    env PATH="$d:$PATH" LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" LOA_KNOWN_FAILURES_FILE="$f" \
+      bash "$HOOK" > "$d/out" 2> "$d/err"
+    cmp "$e" "$d/out" || { echo "under $a:" >&2; diff "$e" "$d/out" >&2; false; }
+    [ ! -s "$d/err" ]
+    i=$((i + 1))
+  done < <(_awks_present 3>/dev/null)
+  [ "$i" -ge 1 ]
+}
+
+@test "FR-7 cap: 40 entries print today's table (no elision); 41 entries print 40 rows and '… and 1 more'" {
+  local f="$BATS_TEST_TMPDIR/n40.md"
+  _kf_cap_fixture "$f" 40; _kf_run "$f" > "$BATS_TEST_TMPDIR/n40.out"
+  _kf_cap_expected 40 40 > "$BATS_TEST_TMPDIR/n40.expected"
+  cmp "$BATS_TEST_TMPDIR/n40.expected" "$BATS_TEST_TMPDIR/n40.out"
+  [ "$(grep -c '^  - KF-' "$BATS_TEST_TMPDIR/n40.out")" -eq 40 ]
+  f="$BATS_TEST_TMPDIR/n41.md"; _kf_cap_fixture "$f" 41; _kf_run "$f" > "$BATS_TEST_TMPDIR/n41.out"
+  _kf_cap_expected 41 40 > "$BATS_TEST_TMPDIR/n41.expected"
+  cmp "$BATS_TEST_TMPDIR/n41.expected" "$BATS_TEST_TMPDIR/n41.out" || { diff "$BATS_TEST_TMPDIR/n41.expected" "$BATS_TEST_TMPDIR/n41.out" >&2; false; }
+}
+
+@test "FR-7 cap: an exact (recurrence, numeric id) tie at the boundary keeps the earlier file position; a duplicate heading stays deduped" {
+  # KF-001 and KF-0001 share recurrence 1 and numeric id 1; 39 others (KF-002 … KF-040) rank above them.
+  local f="$BATS_TEST_TMPDIR/tie.md" i
+  { printf '# Known Failures\n\n'
+    for ((i = 1; i <= 40; i++)); do printf '## KF-%03d: e\n**Symptom**: symptom %d\n**Recurrence count**: 1\n\n' "$i" "$i"; done
+    printf '## KF-0001: numeric twin\n**Symptom**: twin\n**Recurrence count**: 1\n\n'
+    printf '## KF-002: literal duplicate heading\n**Symptom**: duplicate\n**Recurrence count**: 9\n\n'; } > "$f"
+  { _kf_cap_header 41
+    for ((i = 1; i <= 40; i++)); do printf '  - KF-%03d (rec 1): symptom %d\n' "$i" "$i"; done
+    _kf_elision 1; } > "$BATS_TEST_TMPDIR/tie.expected"
+  _kf_run "$f" > "$BATS_TEST_TMPDIR/tie.out"
+  cmp "$BATS_TEST_TMPDIR/tie.expected" "$BATS_TEST_TMPDIR/tie.out" || { diff "$BATS_TEST_TMPDIR/tie.expected" "$BATS_TEST_TMPDIR/tie.out" >&2; false; }
+}
+
+@test "FR-7 cap: a malformed or oversized recurrence (abc, 11 digits) ranks as 0 and a selected row still prints today's recurrence text" {
+  # Selected: KF-050 (999999999, nine digits: the largest key), 38 rows at 5, then the best key-0 row by id:
+  # KF-950 (abc, printed "rec ?"). KF-901 (99999999999: more than nine digits, key 0) and KF-899 (0) are
+  # elided; were the eleven-digit value read as a number, KF-901 would be selected instead of KF-950.
+  local f="$BATS_TEST_TMPDIR/bad.md" i
+  { printf '# Known Failures\n\n'
+    for ((i = 1; i <= 38; i++)); do printf '## KF-%03d: e\n**Symptom**: symptom %d\n**Recurrence count**: 5\n\n' "$i" "$i"; done
+    printf '## KF-050: nine\n**Symptom**: nine digits\n**Recurrence count**: 999999999\n\n'
+    printf '## KF-950: abc\n**Symptom**: malformed\n**Recurrence count**: abc\n\n'
+    printf '## KF-901: big\n**Symptom**: oversized\n**Recurrence count**: 99999999999 (eleven digits)\n\n'
+    printf '## KF-899: zero\n**Symptom**: zero\n**Recurrence count**: 0\n\n'; } > "$f"
+  { _kf_cap_header 42
+    for ((i = 1; i <= 38; i++)); do printf '  - KF-%03d (rec 5): symptom %d\n' "$i" "$i"; done
+    printf '  - KF-050 (rec 999999999): nine digits\n  - KF-950 (rec ?): malformed\n'
+    _kf_elision 2; } > "$BATS_TEST_TMPDIR/bad.expected"
+  _kf_run "$f" > "$BATS_TEST_TMPDIR/bad.out"
+  cmp "$BATS_TEST_TMPDIR/bad.expected" "$BATS_TEST_TMPDIR/bad.out" || { diff "$BATS_TEST_TMPDIR/bad.expected" "$BATS_TEST_TMPDIR/bad.out" >&2; false; }
+  # under the cap the oversized row prints its recurrence text unchanged
+  printf '# Known Failures\n\n## KF-901: big\n**Symptom**: oversized\n**Recurrence count**: 99999999999 (eleven digits)\n' > "$BATS_TEST_TMPDIR/one.md"
+  _kf_run "$BATS_TEST_TMPDIR/one.md" | grep -qxF '  - KF-901 (rec 99999999999): oversized'
+}
+
+@test "FR-7 cap: 100 worst-case rows (symptoms past the 100-byte cap, 3-digit recurrences) surface as 40 rows under 8 KiB" {
+  local f="$BATS_TEST_TMPDIR/worst.md" sym i
+  sym="$(printf 'W%.0s' $(seq 1 130))"
+  { printf '# Known Failures\n\n'
+    for ((i = 1; i <= 100; i++)); do printf '## KF-%03d: w\n**Symptom**: %s\n**Recurrence count**: %d\n\n' "$i" "$sym" "$(( 100 + i * 7 % 900 ))"; done; } > "$f"
+  _kf_run "$f" > "$BATS_TEST_TMPDIR/worst.out"
+  [ "$(grep -c '^  - KF-' "$BATS_TEST_TMPDIR/worst.out")" -eq 40 ]
+  [ "$(wc -c < "$BATS_TEST_TMPDIR/worst.out")" -lt 8192 ] || { wc -c < "$BATS_TEST_TMPDIR/worst.out" >&2; false; }
+  # every symptom is at the 100-byte cap
+  [ "$(grep '^  - KF-' "$BATS_TEST_TMPDIR/worst.out" | LC_ALL=C awk '{ s = $0; sub(/^[^:]*: /, "", s); if (length(s) != 100) bad++ } END { print bad + 0 }')" -eq 0 ]
+}
+
+@test "FR-7 cap: KF_SURFACE_MAX_ROWS is a constant in the hook — an exported value changes nothing (no knob, no seam)" {
+  local f="$BATS_TEST_TMPDIR/env.md"
+  _kf_cap_fixture "$f" 100; _kf_cap_expected 100 40 > "$BATS_TEST_TMPDIR/env.expected"
+  env KF_SURFACE_MAX_ROWS=5 LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" LOA_KNOWN_FAILURES_FILE="$f" \
+    bash "$HOOK" > "$BATS_TEST_TMPDIR/env.out" 2>&1
+  cmp "$BATS_TEST_TMPDIR/env.expected" "$BATS_TEST_TMPDIR/env.out"
+  grep -qx 'KF_SURFACE_MAX_ROWS=40 *#.*' "$HOOK"
+  if grep -q 'asort(' "$HOOK"; then echo "asort is not in mawk, busybox or BWK awk" >&2; return 1; fi
+}
+
+@test "FR-7 cap: the live file surfaces min(entries, 40) rows, the full entry count in the header, and one elision line for the rest" {
+  local n out k
+  n="$(grep -oE '^## KF-[0-9]+:' "$KF" | sort -u | wc -l | tr -d ' ')"
+  out="$(env LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" bash "$HOOK" 2>/dev/null)"
+  [[ "$(printf '%s\n' "$out" | head -1)" == "[KF-SURFACE] $n known-failure entries "* ]]
+  if (( n > 40 )); then
+    [ "$(printf '%s\n' "$out" | grep -c '^  - KF-')" -eq 40 ]
+    k=$(( n - 40 ))
+    [ "$(printf '%s\n' "$out" | tail -1)" = "$(_kf_elision "$k" | tr -d '\n')" ]
+  else
+    [ "$(printf '%s\n' "$out" | grep -c '^  - KF-')" -eq "$n" ]
+  fi
+}
