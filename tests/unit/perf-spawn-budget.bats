@@ -275,6 +275,10 @@ EOF
 @test "spawn budget: karpathy-surgical-diff-check.sh on a Write payload with a warm profile cache" {
   local root="$W/root" hook
   mkdir -p "$root/.claude/hooks/quality" "$root/.claude/scripts/lib" "$root/.claude/data" "$root/.run" "$root/grimoires/loa/a2a/trajectory"
+  # cycle-138 FR-1: the profile cache is read and written only under a uid-owned, non-writable .run; every framework
+  # creator now makes .run 0700 regardless of umask (FR-4), so the fixture does the same (a 775 .run from an
+  # umask-002 host would be refused and the warm-cache precondition below could never hold).
+  chmod 700 "$root/.run"
   cp "$PROJECT_ROOT/.claude/hooks/quality/karpathy-surgical-diff-check.sh" "$root/.claude/hooks/quality/"
   cp "$PROJECT_ROOT/.claude/scripts/lib/profile-lib.sh" "$root/.claude/scripts/lib/"
   cp "$PROJECT_ROOT/.claude/data/profiles.yaml" "$PROJECT_ROOT/.claude/data/floor.yaml" "$root/.claude/data/"
