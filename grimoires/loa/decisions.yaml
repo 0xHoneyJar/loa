@@ -40513,3 +40513,118 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1141"
+    created_at: "2026-10-29T00:04:26Z"
+    updated_at: "2026-10-29T00:04:26Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "sprint-bug-283: release read-back tolerates exactly GitHub's caret rewrite of backslash-u control escapes, both sides, one python process, file inputs"
+    decision: "phase_release compares the sent notes and the read-back body after release_body_identical normalises both with one shared python definition (\\u00XX for XX in 00-1F or 7F -> caret notation, DEL -> \\^?), fed through temp files written by the printf builtin and read as bytes; id, tag_name, draft, prerelease and name stay exact; the sealed candidate is never rewritten; any other outcome of the comparison refuses with python's last stderr line in the receipt."
+    rationale: "GitHub rewrites those escapes on storage (observed on v2.0.0-rc.9), so an exact body equality can never pass for notes that quote one; a WARN-and-pass would weaken the C-3 identity check, and argv-borne inputs fail with E2BIG near GitHub's body limit (review r2). The rewrite is one regex; applying it to both sides keeps every other difference (CRLF, trailing newlines, an appended line, a one-caret shift) a refusal."
+    alternatives_considered:
+      - option: "Treat a body-only mismatch as a WARN and verify the release anyway"
+        rejected_because: "a pre-existing release with different notes would pass as identical — the property C-3 exists to refuse"
+      - option: "Compare a stored hash of the SENT body instead of the read-back"
+        rejected_because: "it proves nothing about what GitHub holds; the read-back is the point of the check"
+      - option: "Widen --ledger-only to a pending ledger phase"
+        rejected_because: "with the fix, a re-run of --publish completes the pending phases (the runbook's retry path); no new flag needed"
+    consequences:
+      positive:
+        - "the rc.9 class of failure cannot recur"
+        - "every other body difference still refuses (seven new tests incl. the real rc.9 pair)"
+        - "no new flag, config key or dependency"
+      negative:
+        - "two temp files per read-back"
+        - "the POST side still carries the body on argv (bd-qyvju, pre-existing)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "36fcbbfe"
+    source: "grimoires/loa/a2a/bug-20261028-90f357/triage.md § Fix Strategy; engineer-feedback-r1.md, engineer-feedback-r2.md"
+    cycle: "cycle-bug-20261028-90f357"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T00:04:26Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "698ab4eca → f2b3d97e9 → 00597308e → 1c7588151 → 64e8eabf8 → ceaeba1f8 → 462d4fd80 → 36fcbbfe5; red-test-check VERIFIED ×3"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1142"
+    created_at: "2026-10-29T00:04:30Z"
+    updated_at: "2026-10-29T00:04:30Z"
+    phase: "review"
+    category: "process"
+    summary: "sprint-bug-283 review round 3 runs lead-only: two dissent runs were spent on the review (both found real defects), run 3 is the audit's"
+    decision: "Round 3 of /review-sprint sprint-bug-283 is the lead's verify-only re-check of the r2 fix pair and the test correction without a third cross-model run; the sprint's third dissent is the audit's on the full code diff 46962aab0..36fcbbfe5."
+    rationale: "The same rule as cycle-137 Sprint 282 (DEC-1134): the audit must keep a cross-model voice on the head that ships; the r2 fix is 60 lines of lib and test that two voices already shaped, and red-test-check plus the whole file (71/71) are mechanical."
+    alternatives_considered:
+      - option: "A third review dissent run"
+        rejected_because: "leaves the audit single-voiced on the shipping head"
+    consequences:
+      positive:
+        - "every commit of the sprint meets a dissent voice at least once (r1: the fix; r2: the r1 fix; audit: everything)"
+      negative:
+        - "round 3's approval rests on the lead's reading and the mechanical checks"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "36fcbbfe"
+    source: "grimoires/loa/sprint.md cycle-137 § Execution (≤ 3 dissent runs per sprint); DEC-1134"
+    cycle: "cycle-bug-20261028-90f357"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T00:04:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "engineer-feedback.md round 3 (reviewed_head 36fcbbfe5); adversarial-audit.json"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1143"
+    created_at: "2026-10-29T00:04:34Z"
+    updated_at: "2026-10-29T00:04:34Z"
+    phase: "implementation"
+    category: "testing"
+    summary: "sprint-bug-283: literal rc.9 release-body fixtures (the differing line as sent and as GitHub stored it) are committed and never regenerated"
+    decision: "The one line of the v2.0.0-rc.9 candidate release_body that GitHub stored differently, and the stored line (captured 2026-10-28 from the API), are committed as literal fixtures; the fixture test asserts they differ before normalisation (run cmp + status) and that both helpers map the pair to equal."
+    rationale: "The stub and the fix share one regex, so a shared misunderstanding would pass the suite; real captured data is the only independent oracle short of a live API call."
+    alternatives_considered:
+      - option: "Regenerate the fixture from the API in CI"
+        rejected_because: "network, credentials and a moving target in a unit suite"
+    consequences:
+      positive:
+        - "an independent oracle for the rewrite"
+      negative:
+        - "two 470-byte files that must never be 'refreshed'"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "36fcbbfe"
+    source: "tests/fixtures/post-merge/rc9-release-body/README.md; engineer-feedback-r1.md observation 1 (DISS-C-003)"
+    cycle: "cycle-bug-20261028-90f357"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T00:04:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "1c7588151 (fixtures + test); ceaeba1f8 (precondition hardened)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
