@@ -42409,3 +42409,84 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1192"
+    created_at: "2026-10-29T09:39:19Z"
+    updated_at: "2026-10-29T09:39:19Z"
+    phase: "review"
+    category: "security"
+    summary: "cycle-138 S285 audit: check→append race on a group-writable trajectory dir adopted at MEDIUM (DEC-1166 trust root) → fixed in Sprint 286 Task 3.6"
+    decision: "The check→append race in the trajectory guard (a party able to WRITE the trajectory directory — a group member on an umask-002 checkout, the layout DEC-1185 accepts — can swap the checked day file for a symlink between `_traj_trusted`'s stat and the `>>`) is adopted at MEDIUM, not HIGH, and fixed in-cycle as Sprint 286 Task 3.6 (bd-7ihly, lead, red-first) instead of blocking Sprint 285: (1) the precondition is write permission inside the trust root, which DEC-1166 already treats as decisive — in that layout `.claude/hooks/*.sh` are group-writable too, so the party can edit the hook itself; (2) the sprint strictly narrowed the exposure from an unchecked append to a one-window race on an unsupported shared layout; (3) the principled fix is small: `exec {fd}>>` FIRST (O_APPEND|O_CREAT under the hook's umask 077), then verify the OPENED descriptor — the path's lstat row must be a regular file whose inode equals the descriptor's (`stat -L /dev/fd/N`), the descriptor's file uid-owned, one link, no g/o write — else close without writing. Sprint 286 is the sprint whose review and audit bind to the PR head (DEC-1161), so the fix still ships under two dissent-reviewed gates; Sprint 285's third dissent run is spent (≤ 3 per sprint)."
+    rationale: "Severity follows the recorded threat model, not the label a voice chose; the fix is scheduled where it gets full gates in this cycle, which is better for the codebase than a fourth unreviewed round or a deferred bead."
+    alternatives_considered:
+      - option: "CHANGES_REQUIRED now and a round-4 fix in Sprint 285"
+        rejected_because: "the sprint's dissent budget is spent — the fix would ship under a lead-only review and an audit whose dissent never saw it; Sprint 286's gates see it in full"
+      - option: "Reject group-writable trajectory directories (revert DEC-1185)"
+        rejected_because: "breaks the trajectory record on every umask-002 checkout (this host included) for a layout the model already trusts"
+      - option: "Defer to a later cycle"
+        rejected_because: "a HIGH-labelled finding deserves closure in the cycle that introduced the guard; the change is ~15 lines + tests"
+    consequences:
+      positive:
+        - "the record stays on umask-002 checkouts"
+        - "the fix lands under Sprint 286's dissent-reviewed review + audit"
+        - "the downgrade reasoning is written where the verdict is"
+      negative:
+        - "Sprint 285 ships with the race for the hours until Task 3.6 lands"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "9d6165a9"
+    source: "Sprint 285 audit dissent run 3 DISS-001 (HIGH in both voices) — grimoires/loa/a2a/sprint-285/adversarial-audit-r3.json"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T09:39:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "adversarial-audit-r3.json DISS-001; auditor-sprint-feedback.md § Medium; bd-7ihly; probes P1/P4/P7 (the checks that do hold)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1193"
+    created_at: "2026-10-29T09:39:22Z"
+    updated_at: "2026-10-29T09:39:22Z"
+    phase: "review"
+    category: "security"
+    summary: "cycle-138 S285 audit: .run state/summary leaf-only checks (pre-existing → bd-ooymp) and bidi/zero-width outside the FR-8 class (→ bd-tlo84) recorded"
+    decision: "Two pre-existing / design-scope findings become beads rather than Sprint 285 changes: (1) the karpathy hook's per-task state directory and summary file under `.run` keep leaf-only checks (`-L` on the dir, `mkdir -p` following a symlinked ancestor, `-L` only on the task file, the summary through `>` to `.tmp.$$`) — a checkout that force-adds `.run` as a symlink redirects those writes outside the checkout (JSON-encoded file_path + a sanitised key: unwanted file creation/append, not code execution); the hook comment marks the state directory out of FR-6's scope; same family as bd-phtus / bd-cd3yp → bd-ooymp (reuse the Sprint 284 `.run` predicate + the fd-anchored write). (2) The FR-8 class is the decisions jq filter class by design (DEC-1154) and leaves Unicode bidi controls and zero-width format characters alone (the 'neighbours kept' fixture pins U+202A); Trojan-Source reviewer deception in the surfaced table is possible, no escalation beyond surfacing the untrusted file → bd-tlo84, a PRD-level class decision for both twins AND the decisions filter."
+    rationale: "Neither was introduced or worsened by this sprint; (1) belongs with the `.run` writers' change set, (2) is a class definition that must change in three sanitisers at once or not at all."
+    alternatives_considered:
+      - option: "Extend the FR-8 class now"
+        rejected_because: "changes a PRD-level contract and the decisions filter mid-audit; the twins and the filter must move together"
+      - option: "Anchor the state writes in Sprint 285"
+        rejected_because: "out of FR-6's declared scope; the `.run` predicate work is one change set with bd-phtus/bd-cd3yp"
+    consequences:
+      positive:
+        - "one change set for the .run writers"
+        - "one class decision for three sanitisers"
+      negative:
+        - "both remain open at ship time"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "9d6165a9"
+    source: "Sprint 285 audit dissent run 3 DISS-C-001 (MEDIUM) and DISS-C-002 (LOW)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T09:39:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "adversarial-audit-r3.json DISS-C-001/002; beads bd-ooymp, bd-tlo84; hook lines 168-203; kf-surface.bats KF-008 fixture"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
