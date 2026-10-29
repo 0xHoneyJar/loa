@@ -4,8 +4,9 @@
 # review round 1, DISS-C-003: on an umask-002 host the first creator of .run used to make it 775, which the
 # profile-lib trust predicate (FR-1) refuses — the cache was off from the first session with no automatic repair).
 #
-# RDC-1  static guard: every `mkdir` of .run under .claude/hooks is inside a `( umask 077; … )` subshell or in a
-#        file that sets `umask 077` globally before it (the karpathy hook).
+# RDC-1  static guard: every `mkdir` of .run under .claude/hooks, .claude/scripts and .claude/scripts/lib is inside a
+#        `( umask 077; … mkdir … )` subshell (the mkdir itself inside it, not a `( umask 077; : ); mkdir` neighbour) or
+#        in a file that sets `umask 077` globally before it (the karpathy hook) (cycle-138 bd-r8pfc, audit DISS-C-003).
 # RDC-2  dynamic: a fresh root under umask 002 — the SessionStart context-class hook, the Write/Edit audit logger
 #        and the Bash mutation logger each create .run 0700; `find .run -type d -perm /022` prints nothing.
 # RDC-3  repair: a pre-existing uid-owned 775 .run is tightened with `chmod go-w` (→ 755: the predicate needs no
@@ -15,7 +16,8 @@
 # RDC-5  a uid-owned 700 .run is left alone (no chmod call; a recording chmod shim sees nothing).
 # RDC-6  the static guard's own teeth (Sprint 284 review round 2, DISS-C-001): on a fixture tree (RDC_HOOKS_DIR seam) a
 #        creator spelled through `$(dirname "$AUDIT_LOG")` IS inventoried, a trailing `# umask 077` comment does NOT
-#        satisfy the guard, and the `( umask 077; mkdir … )` subshell and a file-global `umask 077` do.
+#        satisfy the guard, a `( umask 077; : ); mkdir -p .run` neighbour subshell does NOT either, and the
+#        `( umask 077; mkdir … )` subshell and a file-global `umask 077` do.
 
 setup() {
   PROJECT_ROOT="$(cd "$BATS_TEST_DIRNAME/../.." && pwd)"
@@ -29,17 +31,27 @@ teardown() { chmod -R u+rwx "$T" 2>/dev/null || true; find "$T" -mindepth 1 -del
 
 _mode() { stat -c '%a' -- "$1" 2>/dev/null || stat -f '%Lp' -- "$1"; }
 
-# _unguarded <hooks-dir>: print every `mkdir` line under <hooks-dir> that can create .run (a literal `.run`, or the
-# known indirections `$AUDIT_LOG` / `${AUDIT_LOG%/*}` / `$RUN_DIR`) and is NOT inside a `( umask 077; … )` subshell on the
-# same line, nor in a file that sets `umask 077` at top level before it. Comments are stripped before matching, so a
-# trailing `# umask 077` does not count. Exit 0 when nothing is unguarded.
+# RDC_INVENTORY_RE: a `mkdir` line that can create .run — a literal `.run`, or the known indirections `$AUDIT_LOG` /
+# `${AUDIT_LOG%/*}` / `$RUN_DIR` (hooks, detect-platform-features, simstim-state, session-limit-capture) and
+# `$LOA_CACHE_DIR` (model-health-probe: defaults to $PROJECT_ROOT/.run). A bare `CACHE_DIR` is NOT a spelling: under
+# .claude/scripts it names ~/.loa/cache or .claude/cache (anthropic-oracle, cache-manager, check-updates, condense,
+# constructs-browse), never .run; LOA_STATUS_RUN_DIR (loa-status.sh) is a read-only bats seam with no mkdir.
+RDC_INVENTORY_RE='^[^#]*\bmkdir\b[^#]*(\.run|AUDIT_LOG|RUN_DIR|LOA_CACHE_DIR)'
+# RDC_SUBSHELL_RE: the mkdir itself sits inside the `( umask 077; … )` subshell — no `)` between the `umask 077;` and
+# the mkdir word (POSIX classes, no \b: bash's =~ on a BSD libc has no \b).
+RDC_SUBSHELL_RE='\([[:space:]]*umask[[:space:]]+077;([^)]*[^[:alnum:]_)])?mkdir([^[:alnum:]_]|$)'
+
+# _unguarded <dir-or-file>...: print every inventoried `mkdir` line (RDC_INVENTORY_RE) under the given directories
+# (recursive, *.sh) or in the given files that is NOT inside a `( umask 077; … mkdir … )` subshell on the same line,
+# nor in a file that sets `umask 077` at top level before it. Comments are stripped before matching, so a trailing
+# `# umask 077` does not count. Exit 0 when nothing is unguarded, 2 on an empty inventory.
 _unguarded() {
   local hits line f n code file_umask bad=0
-  hits="$(grep -rnE '^[^#]*\bmkdir\b[^#]*(\.run|AUDIT_LOG|RUN_DIR)' "$1" --include='*.sh' || true)"
-  [ -n "$hits" ] || { echo "empty inventory under $1" >&2; return 2; }
+  hits="$(grep -rnHE "$RDC_INVENTORY_RE" "$@" --include='*.sh' || true)"
+  [ -n "$hits" ] || { echo "empty inventory under $*" >&2; return 2; }
   while IFS= read -r line; do
     f="${line%%:*}"; n="${line#*:}"; n="${n%%:*}"; code="${line#*:*:}"; code="${code%%#*}"
-    if [[ "$code" =~ \([[:space:]]*umask[[:space:]]+077\; ]]; then continue; fi
+    if [[ "$code" =~ $RDC_SUBSHELL_RE ]]; then continue; fi
     file_umask="$(awk -v n="$n" 'NR < n && /^umask 077/ { found = 1 } END { print found + 0 }' "$f")"
     if [[ "$file_umask" != 1 ]]; then echo "unguarded .run creator: $line"; bad=1; fi
   done <<<"$hits"
@@ -52,10 +64,17 @@ _run_cc() {
   ( umask "$um"; cd "$root" && bash "$CC" --root "$root" < /dev/null > "$T/cc.out" 2> "$T/cc.err"; echo $? > "$T/cc.rc" )
 }
 
+# _rdc_tree: the real inventory — .claude/hooks (recursive) plus the top-level scripts and their lib (not recursive:
+# the scripts' tool subdirectories are outside the bd-r8pfc scope).
+_rdc_tree() { _unguarded "$PROJECT_ROOT/.claude/hooks" "$PROJECT_ROOT"/.claude/scripts/*.sh "$PROJECT_ROOT"/.claude/scripts/lib/*.sh; }
+
 @test "RDC-1 static guard: every mkdir of .run under .claude/hooks runs under umask 077 (subshell or file-global); the indirect creators are inventoried" {
-  run _unguarded "${RDC_HOOKS_DIR:-$PROJECT_ROOT/.claude/hooks}"
+  if [[ -n "${RDC_HOOKS_DIR:-}" ]]; then run _unguarded "$RDC_HOOKS_DIR"; else run _rdc_tree; fi
   echo "$output" >&2
   [ "$status" -eq 0 ]
+  # the scripts and their lib are in the inventory too (bd-r8pfc)
+  grep -nHE "$RDC_INVENTORY_RE" "$PROJECT_ROOT"/.claude/scripts/*.sh | grep -q 'grimoire-index.sh'
+  grep -nHE "$RDC_INVENTORY_RE" "$PROJECT_ROOT"/.claude/scripts/lib/*.sh | grep -q 'dec-write-lib.sh'
   # the known indirect creator is in the inventory (not only the literal .run lines): settings-cleanup's audit-log dir
   grep -rnE '^[^#]*\bmkdir\b[^#]*(\.run|AUDIT_LOG|RUN_DIR)' "$PROJECT_ROOT/.claude/hooks" --include='*.sh' | grep -q 'settings-cleanup.sh'
   grep -q 'umask 077; mkdir -p -- "$(dirname "$AUDIT_LOG")"' "$PROJECT_ROOT/.claude/hooks/hygiene/settings-cleanup.sh"
@@ -118,18 +137,20 @@ _run_cc() {
 
 
 @test "RDC-6 the static guard has teeth: an indirect creator is inventoried, a comment-only umask does not satisfy it, a subshell or a file-global umask does" {
-  local fx="$T/hooks"; mkdir -p "$fx/a" "$fx/b" "$fx/c" "$fx/d"
+  local fx="$T/hooks"; mkdir -p "$fx/a" "$fx/b" "$fx/c" "$fx/d" "$fx/e"
   printf '#!/usr/bin/env bash\nAUDIT_LOG=.run/x.jsonl\n[[ -d "${AUDIT_LOG%%/*}" ]] || mkdir -p "$(dirname "$AUDIT_LOG")"\n' > "$fx/a/indirect.sh"
   printf '#!/usr/bin/env bash\nmkdir -p .run  # umask 077 is mentioned only in this comment\n' > "$fx/b/comment.sh"
   printf '#!/usr/bin/env bash\n[[ -d .run ]] || ( umask 077; mkdir -p -- .run ) 2>/dev/null\n' > "$fx/c/subshell.sh"
   printf '#!/usr/bin/env bash\numask 077\nmkdir -p .run/state\n' > "$fx/d/global.sh"
+  printf '#!/usr/bin/env bash\n( umask 077; : ); mkdir -p .run\n' > "$fx/e/neighbour.sh"
   run _unguarded "$fx"
   [ "$status" -eq 1 ]
   [[ "$output" == *"a/indirect.sh:3:"* ]]
   [[ "$output" == *"b/comment.sh:2:"* ]]
   [[ "$output" != *"c/subshell.sh"* ]]
   [[ "$output" != *"d/global.sh"* ]]
+  [[ "$output" == *"e/neighbour.sh:2:"* ]]   # the umask subshell ends before the mkdir: flagged (bd-r8pfc)
   # the real tree is clean
-  run _unguarded "$PROJECT_ROOT/.claude/hooks"
+  run _rdc_tree
   [ "$status" -eq 0 ]
 }
