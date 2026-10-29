@@ -41815,3 +41815,183 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1176"
+    created_at: "2026-10-29T05:13:54Z"
+    updated_at: "2026-10-29T05:13:54Z"
+    phase: "implementation"
+    category: "testing"
+    summary: "cycle-138 S284: the karpathy spawn-budget fixture creates its .run 0700 (lead test edit); host umask 002 makes a 775 .run the predicate refuses"
+    decision: "The karpathy budget target's fixture made its .run with mkdir -p under the ambient umask (002 on this host → 775), which the new profile-lib predicate refuses, so the test's warm-cache precondition failed; the lead added `chmod 700 \"$root/.run\"` to the fixture as a separate test-only commit before landing D's fix. The budget line 196 / 9 is untouched; the measured trace is 205 lines (≤ the 215 budget), external-tool lines 9."
+    rationale: "Every framework creator makes .run 0700 regardless of umask since Task 1.1, so a 0700 fixture is the realistic one; implementer D could not edit the file (read-only in its brief) and wrote no report."
+    alternatives_considered:
+      - option: "Let the fixture inherit the umask"
+        rejected_because: "the test would depend on the host's umask"
+    consequences:
+      positive:
+        - "realistic fixture"
+        - "budget untouched"
+      negative:
+        - "a lead edit outside the implementer's patch"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d9f87317"
+    source: "tests/unit/perf-spawn-budget.bats (e1ea4c937)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T05:13:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e1ea4c937; red-profile-lib.txt; karpathy-trace counts 196 → 205 / 9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1177"
+    created_at: "2026-10-29T05:13:58Z"
+    updated_at: "2026-10-29T05:13:58Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "cycle-138 S284: two enumerated profile-lib differences accepted — a refused 775 .run re-emits per-process WARNs; absent config → one cache id rebuild"
+    decision: "Knob outputs are identical everywhere. With a 775 .run the new lib refuses the cache, so the WARNs a warm cache used to suppress (unknown profile, unparsable config) appear on every process — refusal means today's cache-off behaviour by design. When .loa.config.yaml is absent the old id came from GNU stat's -f filesystem fallback (the -c call exited non-zero on the missing path), the new id is the proper rows: one rebuild on such a host. Both are recorded in the CHANGELOG line."
+    rationale: "Neither changes a knob's value; the first is the refusal semantics the PRD asked for, the second removes a latent accident."
+    alternatives_considered:
+      - option: "Reproduce the old garbage id"
+        rejected_because: "it was never a deliberate contract"
+    consequences:
+      positive:
+        - "honest enumeration"
+      negative:
+        - "a warm cache used to hide a WARN on a 775 .run"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d9f87317"
+    source: "loa-wt-c138-d/.cycle138/fixtures/parity-result.txt"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T05:13:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "parity-result.txt (6 ABSENT.* id diffs; 10 775-mode output diffs = WARN lines)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1178"
+    created_at: "2026-10-29T05:14:01Z"
+    updated_at: "2026-10-29T05:14:01Z"
+    phase: "implementation"
+    category: "process"
+    summary: "cycle-138 S284: implementers A, C, D wrote no REPORT.md (idle after their patches); the lead reconstructed the evidence from their on-disk fixtures"
+    decision: "A, C and D produced their patches and evidence files (parity-out/modes.tsv, evidence.txt, TAP files, parity-result.txt, trace counts) but no REPORT.md, and did not act on two reminders; B wrote its report after one reminder. The lead landed from the patches plus the evidence files and wrote the walkthrough in a2a/sprint-284/reviewer.md; the missing reports are recorded as a harness gotcha (agents end their turn after the deliverables without the report step)."
+    rationale: "The evidence on disk was complete enough to verify every acceptance row; waiting on unresponsive agents would have burned the sprint budget."
+    alternatives_considered:
+      - option: "Re-spawn fresh agents to write reports"
+        rejected_because: "they would have to rediscover the work; the evidence files already carry it"
+    consequences:
+      positive:
+        - "sprint stays on budget"
+      negative:
+        - "implementer prose missing for three tasks"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d9f87317"
+    source: "loa-wt-c138-{a,c,d}/.cycle138/fixtures"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T05:14:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "ls loa-wt-c138-*/.cycle138; NOTES 2026-10-29"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1179"
+    created_at: "2026-10-29T05:14:05Z"
+    updated_at: "2026-10-29T05:14:05Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "cycle-138 S284: n/a primitives carry path null in audit_chain JSON (B's call); B's harness once rewrote the main checkout's profile cache (accepted)"
+    decision: "The two n/a primitives (L5, L7) have no chain file, so their JSON path is null rather than a fabricated string. Implementer B's first golden run over the live main checkout rewrote /home/merlin/Documents/thj/code/loa/.run/effective-config.json through loa-status's Profile line (a derived cache, rebuilt on the next read); the harness was then pointed at a temp cache path. Accepted, no repair needed."
+    rationale: "A null path is the honest value; the cache rewrite had no persistent effect."
+    alternatives_considered:
+      - option: "Empty-string path"
+        rejected_because: "a consumer could try to open it"
+    consequences:
+      positive:
+        - "honest JSON"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d9f87317"
+    source: "loa-wt-c138-b/.cycle138/REPORT.md"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T05:14:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "REPORT.md § UNVERIFIED and incidents"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1180"
+    created_at: "2026-10-29T05:14:09Z"
+    updated_at: "2026-10-29T05:14:09Z"
+    phase: "implementation"
+    category: "follow-up"
+    summary: "cycle-138 S284: live L6 handoffs INDEX.md fails verify-chains (now shown broken) — pre-existing; follow-up bd-3o1zy; classification unchanged"
+    decision: "The new classification reports the main checkout as 2/7 validate (4 absent, 1 broken): four chain files are absent and grimoires/loa/handoffs/INDEX.md exists but the verifier says not ok. The lead opened bd-3o1zy to investigate the L6 path mapping or the chain itself; Sprint 284 does not change the classification to hide it."
+    rationale: "FR-3 exists to surface exactly this; hiding it would recreate the defect."
+    alternatives_considered:
+      - option: "Treat L6 as n/a"
+        rejected_because: "L6 is a chain-bearing primitive in the cycle-098 model"
+    consequences:
+      positive:
+        - "real signal surfaced"
+      negative:
+        - "the live line reads 2/7 until the follow-up lands"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d9f87317"
+    source: "grimoires/loa/a2a/sprint-284/reviewer.md"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T05:14:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "parity-284 summary (loa-status-human diff); bd-3o1zy"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
