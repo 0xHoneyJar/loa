@@ -296,9 +296,12 @@ if [[ "$OVER" == "true" ]]; then
         fi
         # (3) The DESCRIPTOR's row (/dev/fd/N — the fstat of what we hold: uid, regular, one link, no g/o write) and an
         #     lstat of the path, which must still name a regular file on the same device:inode — so the bytes go to the
-        #     file the path names and never to something a swap substituted. Residual: a symlink planted in the
-        #     pre-check→open window makes the O_APPEND open create its (empty) target before the mismatch refuses — a 0600
-        #     empty file with no content, and only for a party already able to write inside the trust root.
+        #     file the path names and never to something a swap substituted. Residuals, for a party already able to
+        #     write inside the trust root (DEC-1166 / DEC-1185) who wins the pre-check→open window: a planted symlink makes
+        #     the O_APPEND open create its (empty) 0600 target before the mismatch refuses; a planted FIFO (or a symlink
+        #     to one) BLOCKS the open until the hook timeout — bash's noclobber adds O_EXCL only when its own stat fails,
+        #     and `>>` never has it; pure bash has no O_NONBLOCK / O_NOFOLLOW open, so the window itself cannot be closed
+        #     here (Sprint 286 review DISS-C-001). A FIFO present BEFORE the pre-check is refused unopened (KT-9).
         row=$(stat -Lc '%n|%u|%a|%h|%d:%i|%F' -- "/dev/fd/$TRAJ_FD" 2>/dev/null) || row=$(stat -Lf '%N|%u|%Lp|%l|%d:%i|%HT' -- "/dev/fd/$TRAJ_FD" 2>/dev/null) || return 1
         pathrow=$(stat -c '%d:%i|%F' -- "$TRAJ_FILE" 2>/dev/null) || pathrow=$(stat -f '%d:%i|%HT' -- "$TRAJ_FILE" 2>/dev/null) || return 1
         _traj_row "$row" || return 1
