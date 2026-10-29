@@ -57,7 +57,9 @@ parse_args(){
 }
 
 # Strip control bytes (keep UTF-8 multibyte), flatten whitespace, cap length.
-san(){ printf '%s' "${1-}" | tr -d '\000-\010\013\014\016-\037\177' | tr '\t\n\r' '   ' | sed -E 's/  +/ /g; s/^ //; s/ $//' | cut -c1-160; }
+# (The former shell san() — tr | sed | cut, capped at 160 — had no callers once every emitter sanitised inside its awk
+#  program; it was removed in cycle-138 Sprint 285 review round 1 (DISS-C-004). The awk san() in SAN_AWK below is
+#  the ONLY implementation; tests/unit/kf-surface.bats pins it line for line against the hook's twin.)
 # Byte-for-byte awk twin of san() (LC_ALL=C: substr/length count BYTES, like cut -c), plus rd(), an
 # emulation of `IFS=$'\t' read -r` (a whitespace IFS: leading/trailing tabs trimmed, tab RUNS collapse to
 # one separator, last variable takes the remainder). Prepended to the emit_* awk programs so each family

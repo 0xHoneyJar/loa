@@ -38,6 +38,10 @@
 #   only) — so a capped symptom may end inside a multi-byte UTF-8 sequence. The table is
 #   advisory text, never parsed as a value; the session context tolerates the
 #   split sequence. tests/unit/kf-surface.bats pins the boundary bytes.
+#   Known limit (Sprint 285 review DISS-C-005): the one-true-awk "second edition" (20230909+, /usr/bin/awk on
+#   FreeBSD 14) decodes UTF-8 regardless of LC_ALL — there substr() counts characters (the cap becomes 100
+#   characters) and the byte-class regexes for C1 / U+2028 / U+2029 do not match. Verified byte semantics: mawk,
+#   busybox awk, BWK one-true-awk 20220912. The macOS/FreeBSD check is bead bd-6lhso.
 # =============================================================================
 set -uo pipefail
 

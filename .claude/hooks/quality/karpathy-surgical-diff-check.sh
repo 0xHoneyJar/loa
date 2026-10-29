@@ -218,8 +218,8 @@ if [[ "$OVER" == "true" ]]; then
     [[ "$FILES_MOD" =~ ^[0-9]+$ ]] || FILES_MOD=0
     [[ "$TOOL_CALLS" =~ ^[0-9]+$ ]] || TOOL_CALLS=0
     # The append goes only through a trusted path (cycle-138 FR-6, SDD § 5.5, DEC-1168): TRAJ_DIR inside the
-    # checkout and anchored at the canonical root (no symlinked component below it; no `realpath -m` → refuse,
-    # no fallback); every directory below the root and the day file read by ONE stat (rows keyed by %n, rc
+    # checkout and anchored at the canonical root (no symlinked component below it; plain `realpath` on the two
+    # existing paths — GNU and BSD; a failing realpath → refuse, no fallback); every directory below the root and the day file read by ONE stat (rows keyed by %n, rc
     # ignored: `stat -L` prints a row for each path that exists); each component a uid-owned non-symlink
     # directory (its mode is not tested: a checkout's directories inherit the clone umask, and the checkout
     # root is the trust root — DEC-1166); the day file, when present, a uid-owned regular non-symlink file
@@ -231,9 +231,6 @@ if [[ "$OVER" == "true" ]]; then
         local -a comps=() rows=()
         [[ "$TRAJ_DIR" == "$REPO_ROOT/"* ]] || return 1
         rel="${TRAJ_DIR#"$REPO_ROOT/"}"
-        root_real=$(realpath -m -- "$REPO_ROOT" 2>/dev/null) || return 1
-        real=$(realpath -m -- "$TRAJ_DIR" 2>/dev/null) || return 1
-        [[ -n "$root_real" && -n "$real" && "$real" == "$root_real/$rel" ]] || return 1
         comp="$REPO_ROOT"
         while [[ -n "$rel" ]]; do
             comp="$comp/${rel%%/*}"
@@ -248,12 +245,20 @@ if [[ "$OVER" == "true" ]]; then
             done
             ( umask 077; mkdir -p -- "$TRAJ_DIR" ) 2>/dev/null || return 1
         fi
+        # Canonical path on the two EXISTING paths — plain realpath, which GNU and BSD both have (`-m` is GNU-only and
+        # made every BSD/macOS host refuse silently: Sprint 285 review DISS-C-003). A failing realpath still refuses.
+        root_real=$(realpath -- "$REPO_ROOT" 2>/dev/null) || return 1
+        real=$(realpath -- "$TRAJ_DIR" 2>/dev/null) || return 1
+        [[ -n "$root_real" && -n "$real" && "$real" == "$root_real/${TRAJ_DIR#"$REPO_ROOT/"}" ]] || return 1   # (rel was consumed by the component loop above)
         TRAJ_FILE="$TRAJ_DIR/karpathy-${TS:0:10}.jsonl"
         st=$(stat -Lc '%n|%u|%a|%h' -- "${comps[@]}" "$TRAJ_FILE" 2>/dev/null)
         [[ -n "$st" ]] || st=$(stat -Lf '%N|%u|%Lp|%l' -- "${comps[@]}" "$TRAJ_FILE" 2>/dev/null)
         while IFS= read -r row; do rows+=("$row"); done <<< "$st"
         n=${#comps[@]}
         (( ${#rows[@]} == n || ${#rows[@]} == n + 1 )) || return 1
+        # No row for the day file means it must be truly absent: a DANGLING symlink has no `stat -L` row either, and
+        # `>>` would create and write through it (Sprint 285 review DISS-C-001 / DISS-001).
+        if (( ${#rows[@]} == n )); then [[ ! -e "$TRAJ_FILE" && ! -L "$TRAJ_FILE" ]] || return 1; fi
         i=0
         for row in "${rows[@]}"; do
             links="${row##*|}"; row="${row%|*}"
