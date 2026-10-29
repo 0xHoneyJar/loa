@@ -374,3 +374,100 @@ _awks_present() {   # prints one interpreter command line per present awk
     i=$((i + 1))
   done < <(_awks_present 3>/dev/null)
 }
+
+# ---- cycle-138 FR-8 (bd-z6gxn): san() strips the decisions filter's control class (sdd § 5.6, D-6.2) ----
+# Symptoms carrying UTF-8 C1 (U+0080, NEL U+0085, U+009F) and U+2028 / U+2029, written as bytes by
+# printf, plus C0 / DEL (stripped as today) and neighbours the class must NOT touch (U+00A0, U+00A1,
+# U+2027, U+202A, < and >). grimoire-index.bats carries the same fixture for the index TSV.
+_kf_c1_fixture() {
+  {
+    printf '# Known Failures\n\n'
+    printf '## KF-001: nel\n**Status**: OPEN\n**Symptom**: a\302\205b\n**Recurrence count**: 1\n\n'
+    printf '## KF-002: u009f\n**Status**: OPEN\n**Symptom**: c\302\237d\n**Recurrence count**: 2\n\n'
+    printf '## KF-003: u2028\n**Status**: OPEN\n**Symptom**: e\342\200\250f\n**Recurrence count**: 3\n\n'
+    printf '## KF-004: u2029\n**Status**: OPEN\n**Symptom**: g\342\200\251h\n**Recurrence count**: 4\n\n'
+    printf '## KF-005: runs squeeze\n**Status**: OPEN\n**Symptom**: run \302\205 \342\200\250\342\200\251  \302\200 end\n**Recurrence count**: 5\n\n'
+    printf '## KF-006: trimmed\n**Status**: OPEN\n**Symptom**: \302\205lead and trail\342\200\251\n**Recurrence count**: 6\n\n'
+    printf '## KF-007: c0 and del as today\n**Status**: OPEN\n**Symptom**: c0\001del\177 x\n**Recurrence count**: 7\n\n'
+    printf '## KF-008: neighbours kept\n**Status**: OPEN\n**Symptom**: keep \302\240 nbsp \302\241 \342\200\247 \342\200\252 <x>\n**Recurrence count**: 8\n\n'
+  } > "$1"
+}
+# The symptom bytes the surface must carry, one per entry, in file order.
+_kf_c1_expected_symptoms() {
+  printf 'a b\nc d\ne f\ng h\nrun end\nlead and trail\nc0del x\nkeep \302\240 nbsp \302\241 \342\200\247 \342\200\252 <x>\n'
+}
+
+@test "FR-8 hook + index: NEL, U+009F, U+2028 and U+2029 become one space under every awk present (byte-exact)" {
+  local p="$BATS_TEST_TMPDIR/c1proj" e="$BATS_TEST_TMPDIR/c1.rows" es="$BATS_TEST_TMPDIR/c1.sym" a s n=0 i=0
+  mkdir -p "$p/grimoires/loa" "$p/x/y"   # real x/y dir: PROJECT_ROOT = $p
+  cp "$GEN" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$p/x/y/"
+  _kf_c1_fixture "$p/grimoires/loa/known-failures.md"
+  _kf_c1_expected_symptoms > "$es"
+  while IFS= read -r s; do n=$((n + 1)); printf '  - KF-%03d (rec %d): %s\n' "$n" "$n" "$s"; done < "$es" > "$e"
+  while IFS= read -r a; do
+    local d="$BATS_TEST_TMPDIR/c1shim-$i"; _awk_shim "$d" "$a"
+    env PATH="$d:$PATH" LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" \
+      LOA_KNOWN_FAILURES_FILE="$p/grimoires/loa/known-failures.md" bash "$HOOK" > "$d/hook.out" 2> "$d/hook.err"
+    tail -n +2 "$d/hook.out" > "$d/hook.rows"
+    cmp "$e" "$d/hook.rows" || { echo "hook under $a:" >&2; od -c "$d/hook.rows" >&2; false; }
+    [ ! -s "$d/hook.err" ]
+    env PATH="$d:$PATH" bash "$p/x/y/grimoire-index.sh" --tsv 2>/dev/null | awk -F'\t' '$1 == "kf" { print $7 }' > "$d/tsv.sym"
+    cmp "$es" "$d/tsv.sym" || { echo "index TSV under $a:" >&2; od -c "$d/tsv.sym" >&2; false; }
+    i=$((i + 1))
+  done < <(_awks_present 3>/dev/null)
+  [ "$i" -ge 1 ]
+}
+
+@test "FR-8 locale pin: a UTF-8 parent (LANG=en_US.UTF-8, LC_ALL=C.UTF-8) gives the C-parent bytes (hook and index)" {
+  local p="$BATS_TEST_TMPDIR/locproj" f
+  mkdir -p "$p/grimoires/loa" "$p/x/y"
+  cp "$GEN" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$p/x/y/"
+  f="$p/grimoires/loa/known-failures.md"; _kf_c1_fixture "$f"
+  {
+    printf '## KF-009: utf8 cap\n**Status**: OPEN\n**Symptom**: '
+    for a in $(seq 1 60); do printf '\342\200\224'; done
+    printf ' tail\n**Recurrence count**: 9\n\n'
+  } >> "$f"
+  env LANG=C LC_ALL=C LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" LOA_KNOWN_FAILURES_FILE="$f" \
+    bash "$HOOK" > "$BATS_TEST_TMPDIR/c.hook" 2>&1
+  env LANG=en_US.UTF-8 LC_ALL=C.UTF-8 LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" LOA_KNOWN_FAILURES_FILE="$f" \
+    bash "$HOOK" > "$BATS_TEST_TMPDIR/u.hook" 2>&1
+  cmp "$BATS_TEST_TMPDIR/c.hook" "$BATS_TEST_TMPDIR/u.hook"
+  env LANG=C LC_ALL=C bash "$p/x/y/grimoire-index.sh" --tsv > "$BATS_TEST_TMPDIR/c.tsv" 2>&1
+  env LANG=en_US.UTF-8 LC_ALL=C.UTF-8 bash "$p/x/y/grimoire-index.sh" --tsv > "$BATS_TEST_TMPDIR/u.tsv" 2>&1
+  cmp "$BATS_TEST_TMPDIR/c.tsv" "$BATS_TEST_TMPDIR/u.tsv"
+  grep -qF '  - KF-001 (rec 1): a b' "$BATS_TEST_TMPDIR/u.hook"   # the class applies in the UTF-8 run too
+}
+
+@test "FR-8 locale pin: every awk that runs san() is invoked as LC_ALL=C awk (the hook and every SAN_AWK call site)" {
+  grep -qF 'rows="$(LC_ALL=C awk ' "$HOOK"
+  local total pinned
+  total="$(grep -c 'awk .*"\$SAN_AWK"' "$GEN")"
+  pinned="$(grep -c 'LC_ALL=C awk .*"\$SAN_AWK"' "$GEN")"
+  [ "$total" -ge 3 ] || { echo "only $total SAN_AWK call sites found" >&2; false; }
+  [ "$total" -eq "$pinned" ] || { grep -n 'awk .*"\$SAN_AWK"' "$GEN" | grep -v 'LC_ALL=C awk' >&2; false; }
+}
+
+# san() in the hook and in SAN_AWK must not drift: identical line for line (indentation stripped,
+# comments included) except the return line, whose caps differ by design (100 hook, 160 index TSV).
+_san_body() { awk '/function san\(/ { p = 1 } p { sub(/^[ \t]+/, ""); print } p && /^[ \t]*}[ \t]*$/ { exit }' "$1"; }
+_san_line() { printf '%s\n' "$1" | grep -nxF -- "$2" | cut -d: -f1; }
+
+@test "FR-8 drift guard: san() is identical in both twins except the cap, and strips C1 and U+2028/2029 before the C0 strip" {
+  local a b n1 n2 n0
+  a="$(_san_body "$HOOK")"; b="$(_san_body "$GEN")"
+  [[ "$a" == *'return substr(s, 1, 100)'* ]]
+  [[ "$b" == *'return substr(s, 1, 160)'* ]]
+  a="$(printf '%s\n' "$a" | grep -v '^return substr(s, 1, ')"; b="$(printf '%s\n' "$b" | grep -v '^return substr(s, 1, ')"
+  [ "$a" = "$b" ] || { diff <(printf '%s\n' "$a") <(printf '%s\n' "$b") >&2; false; }
+  n1="$(_san_line "$a" 'gsub(/\302[\200-\237]/, " ", s)')"
+  n2="$(_san_line "$a" 'gsub(/\342\200[\250\251]/, " ", s)')"
+  n0="$(_san_line "$a" 'gsub(/[\001-\010\013\014\016-\037\177]/, "", s)')"
+  [ -n "$n1" ] && [ -n "$n2" ] && [ -n "$n0" ] || { echo "missing a class line: c1=$n1 u2028=$n2 c0=$n0" >&2; false; }
+  [ "$n1" -lt "$n0" ] && [ "$n2" -lt "$n0" ]
+  [[ "$a" != *'‹'* && "$a" != *'›'* ]]   # < and > are NOT replaced in the KF twins (stated in san())
+}
+
+@test "FR-8 live: known-failures.md carries no C1 or U+2028/U+2029 bytes (the class leaves its surfaced output unchanged)" {
+  [ "$(LC_ALL=C awk '/\302[\200-\237]|\342\200[\250\251]/ { c++ } END { print c + 0 }' "$KF")" -eq 0 ]
+}

@@ -652,3 +652,29 @@ _jq_shim() {   # _jq_shim <dir> <mode: inject|fail|three>
   # the emitted key really uses the prefix constant
   grep -qF 'key="${GI_DEC_KEY_PREFIX}:' "$GEN"
 }
+
+# ---- cycle-138 FR-8 (bd-z6gxn): SAN_AWK strips the decisions filter's control class (sdd § 5.6, D-6.2) ----
+# The fixture kf-surface.bats uses for the hook side: UTF-8 C1 and U+2028 / U+2029 become one space in the
+# kf symptom field; C0 / DEL as today; U+00A0, U+00A1, U+2027, U+202A, < and > are kept.
+@test "grimoire-index FR-8: NEL, U+009F, U+2028 and U+2029 become one space in the kf TSV symptom (byte-exact)" {
+  local dir="$BATS_TEST_TMPDIR/kfc1"
+  mkdir -p "$dir/grimoires/loa" "$dir/x/y"
+  cp "$GEN" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$dir/x/y/"
+  {
+    printf '# Known Failures\n\n'
+    printf '## KF-001: nel\n**Status**: OPEN\n**Symptom**: a\302\205b\n**Recurrence count**: 1\n\n'
+    printf '## KF-002: u009f\n**Status**: OPEN\n**Symptom**: c\302\237d\n**Recurrence count**: 2\n\n'
+    printf '## KF-003: u2028\n**Status**: OPEN\n**Symptom**: e\342\200\250f\n**Recurrence count**: 3\n\n'
+    printf '## KF-004: u2029\n**Status**: OPEN\n**Symptom**: g\342\200\251h\n**Recurrence count**: 4\n\n'
+    printf '## KF-005: runs squeeze\n**Status**: OPEN\n**Symptom**: run \302\205 \342\200\250\342\200\251  \302\200 end\n**Recurrence count**: 5\n\n'
+    printf '## KF-006: trimmed\n**Status**: OPEN\n**Symptom**: \302\205lead and trail\342\200\251\n**Recurrence count**: 6\n\n'
+    printf '## KF-007: c0 and del as today\n**Status**: OPEN\n**Symptom**: c0\001del\177 x\n**Recurrence count**: 7\n\n'
+    printf '## KF-008: neighbours kept\n**Status**: OPEN\n**Symptom**: keep \302\240 nbsp \302\241 \342\200\247 \342\200\252 <x>\n**Recurrence count**: 8\n\n'
+  } > "$dir/grimoires/loa/known-failures.md"
+  printf 'a b\nc d\ne f\ng h\nrun end\nlead and trail\nc0del x\nkeep \302\240 nbsp \302\241 \342\200\247 \342\200\252 <x>\n' > "$BATS_TEST_TMPDIR/c1.expected"
+  bash "$dir/x/y/grimoire-index.sh" --tsv 2>/dev/null | awk -F'\t' '$1 == "kf" { print $7 }' > "$BATS_TEST_TMPDIR/c1.got"
+  cmp "$BATS_TEST_TMPDIR/c1.expected" "$BATS_TEST_TMPDIR/c1.got" || { od -c "$BATS_TEST_TMPDIR/c1.got" >&2; false; }
+  # the written INDEX.md carries none of the class either
+  bash "$dir/x/y/grimoire-index.sh" --quiet
+  [ "$(LC_ALL=C awk '/\302[\200-\237]|\342\200[\250\251]/ { c++ } END { print c + 0 }' "$dir/grimoires/loa/INDEX.md")" -eq 0 ]
+}
