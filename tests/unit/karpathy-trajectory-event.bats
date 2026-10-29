@@ -311,8 +311,22 @@ _shim() {
 }
 
 @test "KT-20 FR-6 fd-anchored append: a read-only uid-owned trajectory directory → the open fails, the append is refused and the hook still exits 0 with the warning" {
+    [[ $EUID -eq 0 ]] && skip "directory modes do not bind root (review r1 DISS-C-001)"
     chmod 500 "$KARPATHY_TRAJECTORY_DIR"
     _warn_refused
     [ ! -e "$DAY" ]
+    _victim_unchanged
+}
+
+@test "KT-21 FR-6 fd-anchored append: the fresh day file is reopened O_APPEND after the exclusive create — a sibling's line written between our create and our write survives, ours after it (review r1 DISS-001)" {
+    # The stat shim plays the sibling hook: when asked for the descriptor row (after our create) it first appends a
+    # line to the day file through the regular append branch, then answers. With a `>`-positioned descriptor our
+    # event overwrote that line at offset zero; with the O_APPEND reopen both lines survive in order.
+    local real; real="$(command -v stat)"
+    _shim stat "for a in \"\$@\"; do case \"\$a\" in /dev/fd/*) printf '{\"sibling\":1}\\n' >> '$DAY';; esac; done; exec \"$real\" \"\$@\""
+    _trip_warn >/dev/null
+    [ "$(wc -l < "$DAY")" -eq 2 ]
+    [ "$(head -1 "$DAY")" = '{"sibling":1}' ]
+    [ "$(tail -1 "$DAY" | jq -r '.phase')" = "karpathy_check" ]
     _victim_unchanged
 }

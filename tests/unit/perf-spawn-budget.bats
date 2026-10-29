@@ -164,7 +164,7 @@ _check_budget() {
   # sanity: all six families reach the index, so the trace covers every emitter
   local tsv; tsv="$(bash "$root/x/y/grimoire-index.sh" --tsv)"
   [[ "$tsv" == *$'decisions\tDEC-0003'* && "$tsv" == *$'vision\tvision-001'* && "$tsv" == *$'lore\tbeta'* && "$tsv" == *$'notes\tL5'* ]]
-  _check_budget "grimoire-index --tsv" 167 15   # measured: 167 trace lines (umask 002: the fixture .run is 775 and the trust check tightens it with one chmod — D-5.3; 165 under umask 022), 15 external-tool lines (was 96/11): the traced run is a decisions-cache MISS (cycle-137 FR-5: snapshot, sha256, jq --version, trust-boundary stat checks, the writer awk); a warm run skips the yq parse
+  _check_budget "grimoire-index --tsv" 172 15   # measured 2026-10-29 (cycle-138 Sprint 286 review r1 DISS-C-004): 172 trace lines, three runs identical, umask 002 and 022 alike — the fixture .run is created 0700 above so the trust check no longer chmods (the former 167 carried that chmod and two lines of slack); the extra traced lines are the cycle-138 umask-077 creator subshell and the profile-lib kind-token reads; 15 external-tool lines (was 96/11): the traced run is a decisions-cache MISS (cycle-137 FR-5: snapshot, sha256, jq --version, trust-boundary stat checks, the writer awk); a warm run skips the yq parse (the warm target below)
   # Warm target (cycle-138 FR-12): the cold run above wrote the decisions cache; a second run of the same
   # fixture must take the cache-hit branch (no yq parse of decisions.yaml) within its own budget.
   [ -s "$root/.run/perf-cache/grimoire-index-decisions.v1.tsv" ]
