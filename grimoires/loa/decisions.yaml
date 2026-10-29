@@ -42292,3 +42292,40 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1189"
+    created_at: "2026-10-29T08:13:32Z"
+    updated_at: "2026-10-29T08:13:32Z"
+    phase: "review"
+    category: "security"
+    summary: "cycle-138 S285 review r1: dangling day-file symlink refused (no stat row ≠ absent); plain realpath after creation (BSD records again); dead shell"
+    decision: "Sprint 285 review round 1 (dissent run 1, both voices): (1) a DANGLING symlink at the trajectory day-file path has no `stat -L` row, so the guard read it as absent and `>>` would have created the attacker-chosen target through the link — when the stat returns only the component rows the day-file path must be truly absent (`! -e && ! -L`); KT-15 pins it. (2) `realpath -m` is GNU-only: every BSD/macOS host refused silently, a regression of the trajectory record — the canonical-path check now runs after the directory exists with plain `realpath` on the two existing paths; KT-16 pins it. (3) grimoire-index's dead shell `san()` is removed (the awk twins are the only sanitiser; a guard asserts it). (4) The byte-cap contract names the one-true-awk second-edition limit (UTF-8 regardless of LC_ALL). Red 501278743 → fix eb5066e03, rtc VERIFIED."
+    rationale: "The FR-6 invariant 'a symlink is never written through' must hold for dangling links too; dropping -m restores the trajectory record on BSD hosts without weakening the check (both paths exist when it runs)."
+    alternatives_considered:
+      - option: "Keep -m and refuse on BSD"
+        rejected_because: "no trajectory on macOS — a silent regression relative to the pre-sprint hook"
+    consequences:
+      positive:
+        - "the hole is closed by construction"
+        - "BSD hosts record again"
+      negative:
+        - "the second-edition awk limit stays documented, not fixed (bd-6lhso)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "eb5066e0"
+    source: "grimoires/loa/a2a/sprint-285/engineer-feedback-r1.md (round 1, HIGH + MEDIUM)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T08:13:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:reviewing-code"
+        evidence: "adversarial-review-r1.json DISS-001/DISS-C-001, DISS-C-003/004/005; KT-15, KT-16; rtc-285-lead3.json"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
