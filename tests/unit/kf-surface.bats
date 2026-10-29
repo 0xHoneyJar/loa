@@ -623,3 +623,13 @@ _kf_run() { env LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" LOA
   grep -qF '# Contract (FR-9, DEC-1159): 100 bytes on every host; the cut may end inside a multi-byte UTF-8 sequence.' "$HOOK"
   grep -qF '# Contract (FR-9, DEC-1159): 160 bytes on every host; the cut may end inside a multi-byte UTF-8 sequence.' "$GEN"
 }
+
+@test "FR-8 the awk san() twins are the only sanitiser: grimoire-index.sh defines no shell san() (review DISS-C-004)" {
+  # The former shell san() (tr | sed | cut) had no callers once every emitter sanitised inside awk, and it did not carry
+  # the FR-8 control class; a third copy would drift unpinned, so it must not exist.
+  run grep -cE '^san\(\)' "$PROJECT_ROOT/.claude/scripts/grimoire-index.sh"
+  [ "$output" = "0" ]
+  # exactly one awk san() per twin
+  [ "$(grep -c 'function san(s)' "$PROJECT_ROOT/.claude/scripts/grimoire-index.sh")" = "1" ]
+  [ "$(grep -c 'function san(s)' "$PROJECT_ROOT/.claude/hooks/loa-kf-surface.sh")" = "1" ]
+}

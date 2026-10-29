@@ -248,3 +248,21 @@ _shim() {
     [ "$st" -eq 1 ]
     [ "$mk" -eq 0 ]
 }
+
+@test "KT-15 FR-6 a DANGLING symlink at the day-file path is refused: no stat -L row must still mean truly absent (review DISS-C-001)" {
+    # stat -L emits no row for a symlink whose target does not exist; before the fix the guard read that as
+    # "day file absent" and `>>` created the attacker-chosen target through the link.
+    ln -s "$V/planted-by-link" "$DAY"
+    _warn_refused
+    [ -L "$DAY" ]
+    [ ! -e "$V/planted-by-link" ]
+    _victim_unchanged
+}
+
+@test "KT-16 FR-6 a BSD-style realpath (rejects -m, canonicalises existing paths) still lets the append through (review DISS-C-003)" {
+    local real; real="$(command -v realpath)"
+    _shim realpath 'for a in "$@"; do [[ "$a" == -m ]] && { echo "realpath: illegal option -- m" >&2; exit 1; }; done; exec '"$real"' "$@"'
+    _trip_warn >/dev/null
+    [ -f "$DAY" ]
+    [ "$(wc -l < "$DAY")" -eq 1 ]
+}
