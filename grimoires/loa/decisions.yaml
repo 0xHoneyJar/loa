@@ -41627,3 +41627,191 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1171"
+    created_at: "2026-10-29T03:31:10Z"
+    updated_at: "2026-10-29T03:31:10Z"
+    phase: "sprint-planning"
+    category: "architecture"
+    summary: "cycle-138 FR-3: JSON valid excludes n/a (valid+absent+broken+not_applicable == 7); displayed V = valid + n/a keeps the healthy 7/7 line"
+    decision: "audit_chain.valid counts verified chains only (5 when healthy); not_applicable is 2; valid + absent + broken + not_applicable == total (7). The human line and audit_chain_summary use the DISPLAYED count V = valid + not_applicable, so V + A + B == 7, the healthy line is byte-identical to today's 'Audit chain: 7/7 primitives validate.' and the empty-list fixture reads '2/7 validate (5 absent, 0 broken).'; an AC asserts JSON valid == 5 on the healthy fixture."
+    rationale: "Folding n/a into the JSON valid count would perpetuate the 'absence counted valid' defect FR-3 removes; keeping the displayed 7/7 preserves every consumer of the human line and the summary string."
+    alternatives_considered:
+      - option: "Healthy line 5/5"
+        rejected_because: "changes the live line and the summary string for every consumer"
+      - option: "Keep n/a inside JSON valid"
+        rejected_because: "the Flatline blocker: the JSON would still count non-chains as valid"
+    consequences:
+      positive:
+        - "one invariant per surface, both exact"
+      negative:
+        - "two counts to explain (JSON vs display)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "87e8bd56"
+    source: "grimoires/loa/sprint.md Task 1.2; sdd.md § 5.3; prd.md FR-3"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:31:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "Flatline sprint review 2026-10-29 SKP-001 ×2, M1, M34"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1172"
+    created_at: "2026-10-29T03:31:15Z"
+    updated_at: "2026-10-29T03:31:15Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "cycle-138 halt-path ship: PR from the last COMPLETED sprint head on a fresh branch, partial landings excluded, parity + scans + TAP on that head"
+    decision: "On HALT the ship runs from the last COMPLETED sprint's reviewed_head: a fresh branch ship/cycle-138-partial at that head (creating a branch is class S; the feature branch is never reset), the halted sprint's commits are excluded by construction, the whole-head parity gate (entry points touched by the completed sprints), the secret scans, manifests check and the full-suite TAP run on that head, the last completed sprint's verdicts (already bound to it) are re-confirmed verify-only, e2e part 1 covers the shipped goals and lists the deferred beads with class-S rows, and the PR body states the halt. The T+20 h budget starts at the run start (circuit-breaker timeout.started), covers the three sprints' implement + gates (about 17 h) and reserves about 3 h for S-1 … S-6; it is enforced at task and sprint boundaries, never mid-step; mid-ship before S-3 the PR stays open unmerged with a class-S row, after S-3 the remaining steps finish (bounded, at most 1 h)."
+    rationale: "The 1.1 plan promised to ship completed sprints on HALT while § Ship required Sprint 286 COMPLETED and never defined the PR head or how partial landings are excluded."
+    alternatives_considered:
+      - option: "Reset the feature branch to the last completed head"
+        rejected_because: "a reset is a class-H action"
+      - option: "Never ship on HALT"
+        rejected_because: "the security rows of Sprint 284 would wait for an operator for no reason"
+    consequences:
+      positive:
+        - "deterministic PR head"
+        - "no destructive git"
+      negative:
+        - "a second branch name to track"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "87e8bd56"
+    source: "grimoires/loa/sprint.md § Halt and failure paths"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:31:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "Flatline sprint review SKP-002 ×2, SKP-003, M10, M15, M19, M30"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1173"
+    created_at: "2026-10-29T03:31:22Z"
+    updated_at: "2026-10-29T03:31:22Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "cycle-138: a post-gate code change re-runs tests, full TAP, manifests, whole-head parity and secret scans before both verdicts re-bind"
+    decision: "After the final sprint's COMPLETED, every code change on the PR head (a blocking Bridgebuilder finding, a CI fix) lands red-first, then the touched test files, the full tests/unit TAP, the manifest regeneration, the whole-head parity gate and the secret scans run on the new head, and only then do the review and audit verdicts re-bind verify-only to the new SHA, citing those results; the PR body's parity statement is updated. Permitted tails after the bound head are docs-only commits listed in the verdict files."
+    rationale: "Verify-only re-binding without re-running the gates would let an unparitied change merge under a verdict taken on another SHA."
+    alternatives_considered:
+      - option: "Re-bind on the diff alone"
+        rejected_because: "the parity gate and the scans are what the verdicts attest"
+    consequences:
+      positive:
+        - "verdicts always name a gated SHA"
+      negative:
+        - "about 30 min per post-gate fix"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "87e8bd56"
+    source: "grimoires/loa/sprint.md § Ship S-2; § Halt and failure paths"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:31:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "Flatline sprint review SKP-009, M13, M31"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1174"
+    created_at: "2026-10-29T03:31:30Z"
+    updated_at: "2026-10-29T03:31:30Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "cycle-138 patch landing: kickoff-head patches applied in order onto the landing head (apply --check, -3, one return round); edges = landing order"
+    decision: "Implementers return a red patch and a fix patch (or one test-only patch) cut from their worktree at the sprint's kickoff head; the lead applies them in the plan's landing order onto the current landing head with git apply --check, falling back to git apply -3 and, when that fails, returning the patch once with the new head; an intra-sprint edge (Task 1.1 → Task 1.4) is realised by landing order, and the lead re-runs the dependent task's test command and parity (land.sh) on the landing head rather than resetting the dependent's worktree."
+    rationale: "Parallel worktrees cannot see each other's landings; the landing head is the only place sequential consistency is checked."
+    alternatives_considered:
+      - option: "Reset each worktree onto the previous landing"
+        rejected_because: "serialises the implementers and their parity runs"
+    consequences:
+      positive:
+        - "parallel implementers"
+        - "one definition of done per landing"
+      negative:
+        - "a patch may need one return round"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "87e8bd56"
+    source: "grimoires/loa/sprint.md § Execution"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:31:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "Flatline sprint review M4, M33"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1175"
+    created_at: "2026-10-29T03:31:35Z"
+    updated_at: "2026-10-29T03:31:35Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "cycle-138 dissent/post-merge rules: envelope runs consume 1 of 3, then lead-only with a gap row; post-merge red → one fix-forward PR, else HALT"
+    decision: "Dissent runs: three per sprint; a run that returns an envelope (any voice count) consumes one, a run that dies before an envelope does not; once consumed, review rounds are lead-only (allowed) and the audit runs with run 3 or, if run 3 was used, lead-only with a class-S gap row; HALT is mandatory only when a lead-only review finds a blocker that cannot be fixed inside the sprint budget. Post-merge: a red CI / BATS Tests on the merge commit, a failed record push or a failed archive gets ONE red-first fix-forward via a chore PR under the same gates (class S); anything else HALTs with a class-H row and main untouched — no revert, no force-push; JACKED_OUT and the G-4 claim wait until resolved."
+    rationale: "The 1.1 plan named the budget but not what consumes it, nor what the lead may do unattended when the post-merge steps fail."
+    alternatives_considered:
+      - option: "Unlimited dissent runs"
+        rejected_because: "the operator's at-most-three rule"
+      - option: "Revert on red main CI"
+        rejected_because: "a revert rewrites main's history of the cycle — class H"
+    consequences:
+      positive:
+        - "bounded, auditable"
+      negative:
+        - "a lead-only audit is weaker (recorded)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "87e8bd56"
+    source: "grimoires/loa/sprint.md § Halt and failure paths"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:31:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "Flatline sprint review M6, M16, M24"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
