@@ -41403,3 +41403,227 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1165"
+    created_at: "2026-10-29T03:01:50Z"
+    updated_at: "2026-10-29T03:01:50Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-2: publisher bodies reach jq --rawfile through a process substitution fed by printf (no temp file, no trap); supersedes D-2.1's mechanism"
+    decision: "The three body sites use --rawfile body <(printf '%s' \"$text\"); the 1.1 helper (_pm_body_file with a RETURN trap in its own scope) is withdrawn because a function-scoped RETURN trap fires when that function returns, deleting the file before the caller's jq runs."
+    rationale: "Process substitution hands jq a /dev/fd path, so the body is never on argv, nothing is created or cleaned up and no trap scope exists to clobber; jq reads --rawfile operands while parsing arguments, so the writer never blocks."
+    alternatives_considered:
+      - option: "Caller-owned temp dir with the RETURN trap in the phase function"
+        rejected_because: "two failure paths and a cleanup that process substitution does not need"
+      - option: "Helper assembling and printing the JSON"
+        rejected_because: "three different filters; more code than the one-token change"
+    consequences:
+      positive:
+        - "zero files"
+        - "unchanged failure path"
+      negative:
+        - "bash-only construct (the orchestrator is bash)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "991bdfc8"
+    source: "grimoires/loa/sdd.md § 5.2; § 11.F B1/B4/B6"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:01:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "Flatline SDD review 2026-10-29 blockers BSKP-001 ×2, BSKP-002; sdd.md § 5.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1166"
+    created_at: "2026-10-29T03:01:55Z"
+    updated_at: "2026-10-29T03:01:55Z"
+    phase: "architecture"
+    category: "security"
+    summary: "cycle-138 C-1: trust lifetime = the process; writer creates an absent .run 0700 (mkdir, no -p); grimoire-index repairs a legacy writable .run"
+    decision: "The predicate's sampled properties (owner, mode bits, type, link count) can be changed after sampling only by the same uid or by root, both outside the threat model, and replacing .run needs write access to the checkout root (the trust root), so no re-validation per access is required; the writer still re-checks -O and ! -L with builtins before the rename. An absent .run is created by the writer with mkdir (not -p) inside the umask-077 subshell and is trusted by construction; a concurrent creation fails mkdir and the cache stays off for the process. A pre-existing writable .run is REFUSED by profile-lib and repaired by grimoire-index's existing _gi_trusted_dir tightening on its next run (the repair owner); loa_profile names the reason meanwhile."
+    rationale: "Answers the Flatline trust-lifetime and repair-owner blockers without adding a spawn or a chmod to the hook path."
+    alternatives_considered:
+      - option: "Re-stat at every cache access"
+        rejected_because: "a spawn per knob on the hottest path for a property only we can change"
+      - option: "profile-lib chmods a uid-owned writable .run"
+        rejected_because: "DEC-1157: never chmod from the hook path"
+    consequences:
+      positive:
+        - "zero spawns"
+        - "repair owner exists (grimoire-index.sh:266-270)"
+      negative:
+        - "a 775 .run keeps the cache off until grimoire-index runs"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "991bdfc8"
+    source: "grimoires/loa/sdd.md § 3, § 5.1, § 6, § 9"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:01:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "Flatline SDD review blockers BSKP-002 (tightening refs), BSKP-003; grimoire-index.sh:263-277 at fe52be893"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1167"
+    created_at: "2026-10-29T03:01:59Z"
+    updated_at: "2026-10-29T03:01:59Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-3: audit_chain JSON adds not_applicable beside valid/absent/broken/total (V still includes n/a); verify-chains contract pinned"
+    decision: "The JSON object is {valid, absent, broken, not_applicable, total, primitives[]}; the verify-chains contract the classifier depends on is written down (one record per argument {i, path, ok}; exactly one matching record per index; rc 0/1 parsed; other rc or unparsable output → every existing chain broken; empty list → call skipped)."
+    rationale: "A consumer can read verified chains as valid − not_applicable without changing the PRD's sum invariant; the contract makes the duplicate/missing-index cases testable."
+    alternatives_considered:
+      - option: "Count n/a outside valid"
+        rejected_because: "breaks the PRD 1.1 invariant and the 7/7 healthy line"
+    consequences:
+      positive:
+        - "additive"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "991bdfc8"
+    source: "grimoires/loa/sdd.md § 5.3"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:01:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "Flatline SDD review M5, M20, M25; loa-status.sh:440-452"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1168"
+    created_at: "2026-10-29T03:02:03Z"
+    updated_at: "2026-10-29T03:02:03Z"
+    phase: "architecture"
+    category: "security"
+    summary: "cycle-138 C-5: trajectory guard anchored at the canonical root, one stat over every component below it + the day file; no realpath -m → refuse"
+    decision: "_traj_trusted compares realpath -m of TRAJ_DIR with realpath -m of REPO_ROOT joined to the relative path (only components below the root are constrained), runs ONE stat -Lc '%n|%u|%a|%h' over every directory between the root and TRAJ_DIR plus the day file, requires each component to be a uid-owned non-symlink directory with no g/o write and the file to be a uid-owned regular single-link file with no g/o write, and refuses when realpath -m is unavailable; the state dir and task file keep today's -L guards (out of FR-6's scope); spawns on the warn path only."
+    rationale: "Answers the intermediate-component blocker with one spawn, keeps the hot path at zero, and states that the bats marker gate is a footgun guard, not a security boundary."
+    alternatives_considered:
+      - option: "Descriptor-relative append (openat)"
+        rejected_because: "not expressible in bash without a helper binary"
+    consequences:
+      positive:
+        - "one stat"
+        - "anchored at the trust root"
+      negative:
+        - "BSD hosts refuse the append (warning still printed)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "991bdfc8"
+    source: "grimoires/loa/sdd.md § 5.5"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:02:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "Flatline SDD review BSKP-004, M12, M13, M14, M18, M21, M24, M31; karpathy-surgical-diff-check.sh:60-62, 162-165, 214-217"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1169"
+    created_at: "2026-10-29T03:02:07Z"
+    updated_at: "2026-10-29T03:02:07Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-6: KF top-K via max linear passes (no asort), numeric id, malformed recurrence = 0, tie → file position; LC_ALL=C per awk call"
+    decision: "The row cap selects with K passes of a linear scan picking the best unselected row by (recurrence desc, numeric id desc), prints the selected rows in file order, bounds every field (id regex, integer recurrence, 100-byte symptom) so 40 rows stay under 8 KiB by construction, and pins LC_ALL=C on each awk command in both twins with a UTF-8-parent parity case; the 100-byte cap contract (DEC-1159) is unchanged."
+    rationale: "mawk, busybox and BWK have no asort; the fields' bounds make the byte ceiling a consequence rather than a check."
+    alternatives_considered:
+      - option: "Trim the cap to a UTF-8 boundary"
+        rejected_because: "DEC-1159 fixed the contract; the fixture asserts downstream tolerance"
+    consequences:
+      positive:
+        - "portable"
+      negative:
+        - "O(K·n) — trivial at 40 × 65"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "991bdfc8"
+    source: "grimoires/loa/sdd.md § 5.6"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:02:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "Flatline SDD review M2, M3, M26, M35, M36"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1170"
+    created_at: "2026-10-29T03:02:12Z"
+    updated_at: "2026-10-29T03:02:12Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-7: loa_knob kind token on the LAST line with a newline guard (empty present value stays empty); descendant clause only for keys without *"
+    decision: "jq prints the rendered value then the kind token on the last line; bash splits on the last newline only when one exists (otherwise kind = whole output, value empty); the value's trailing newlines are stripped to keep today's command-substitution bytes; the descendant clause applies to floor entries containing no * and a pre-flight over the live config asserts none is newly forbidden."
+    rationale: "Command substitution strips trailing newlines, so a first-line token loses an empty present value (M8/M30); glob entries already match through test(globre) (M37)."
+    alternatives_considered:
+      - option: "First-line token"
+        rejected_because: "present + empty value collapses to the bare token"
+      - option: "JSON-tagged result"
+        rejected_because: "a second jq per knob"
+    consequences:
+      positive:
+        - "zero spawns"
+        - "parity kept"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "991bdfc8"
+    source: "grimoires/loa/sdd.md § 5.7"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:02:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "Flatline SDD review M8, M17, M30, M37"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
