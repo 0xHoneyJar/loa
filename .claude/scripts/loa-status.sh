@@ -403,15 +403,21 @@ _an_protected_queue_depth() {
     fi
 }
 
-# Audit chain summary: count of primitive logs that validate.
-# Returns "N/M" + last verify time (or "never").
-_an_audit_chain_summary() {
-    if [[ ! -x "$AUDIT_ENVELOPE_SCRIPT" ]]; then
-        echo "0/7"
-        return 0
-    fi
-
-    # Map of primitive_id → log path candidates.
+# Audit chain classification (cycle-138 FR-3, SDD § 5.3, DEC-1171): one line per
+# primitive in L1 … L7 order, "<id> <relative path|-> <state>", state ∈
+# valid | absent | broken | n/a. Chain-bearing primitives (L1 L2 L3 L4 L6): a
+# missing file is absent; an existing file is broken until the verifier proves it
+# valid. L5 and L7 carry no chain file by design: n/a, path "-".
+#
+# verify-chains contract (cycle-137 FR-7): ONE verifier process for every
+# existing chain file, `audit-envelope.sh verify-chains <existing…>`, printing one
+# JSON record per argument {i: <0-based index>, path: <the path passed at i>,
+# ok: <bool>, error}. Fail-closed: index k is valid only when EXACTLY ONE record
+# has .i == k, .path == $p[k] and .ok == true; a duplicate, missing or unexpected
+# index is broken. Exit 0 or 1 → the records are parsed; any other exit,
+# unparsable output, or no executable verifier → every existing chain is broken
+# (absent stays absent). An empty existing list makes no verifier call.
+_an_audit_chain_classify() {
     local logs=(
         "L1:.run/panel-decisions.jsonl"
         "L2:.run/cost-budget-events.jsonl"
@@ -419,46 +425,87 @@ _an_audit_chain_summary() {
         "L4:grimoires/loa/trust-ledger.jsonl"
         "L6:grimoires/loa/handoffs/INDEX.md"
     )
-    local total=7   # 7 primitives in the cycle-098 model
-    local valid=0
-    local entry path existing=()
+    local entry path ids=() paths=() states=() existing=() i k
     for entry in "${logs[@]}"; do
         path="${entry#*:}"
-        local full="${PROJECT_ROOT}/${path}"
-        if [[ -f "$full" ]]; then
-            existing+=("$full")
+        ids+=("${entry%%:*}")
+        paths+=("$path")
+        if [[ -f "${PROJECT_ROOT}/${path}" ]]; then
+            existing+=("${PROJECT_ROOT}/${path}")
+            states+=("broken")
         else
-            # Primitive not yet emitting; counts as "validates" by absence.
-            valid=$((valid + 1))
+            states+=("absent")
         fi
     done
 
-    # cycle-137 FR-7: ONE verifier process for every existing chain file
-    # (`verify-chains`, one JSON record per path in argument order). Fail-closed:
-    # index k counts only when exactly one record for k echoes the path passed
-    # at k with ok:true; unrecorded, duplicated or malformed records count
-    # invalid, and an exit other than 0/1 or unparsable output counts NONE of
-    # the passed paths (more conservative than the per-call loop only in that
-    # abnormal-exit case).
-    if [[ ${#existing[@]} -gt 0 ]]; then
-        local records rc=0 ok_count=0
+    if [[ ${#existing[@]} -gt 0 && -x "$AUDIT_ENVELOPE_SCRIPT" ]]; then
+        local records rc=0 verdicts="" v=()
         records="$("$AUDIT_ENVELOPE_SCRIPT" verify-chains "${existing[@]}" 2>/dev/null)" || rc=$?
         if [[ "$rc" -eq 0 || "$rc" -eq 1 ]]; then
-            ok_count="$(jq -n '$ARGS.positional as $p | [inputs] as $r
+            verdicts="$(jq -nr '$ARGS.positional as $p | [inputs] as $r
                 | [range(0; $p | length) as $k | [$r[] | select(type == "object" and .i == $k)]
-                   | select(length == 1 and .[0].ok == true and .[0].path == $p[$k])] | length' \
-                --args -- "${existing[@]}" <<<"$records" 2>/dev/null)" || ok_count=0
-            [[ "$ok_count" =~ ^[0-9]+$ ]] || ok_count=0
+                   | if length == 1 and .[0].ok == true and .[0].path == $p[$k] then "valid" else "broken" end]
+                | join(" ")' \
+                --args -- "${existing[@]}" <<<"$records" 2>/dev/null)" || verdicts=""
         fi
-        valid=$((valid + ok_count))
+        read -r -a v <<<"$verdicts"
+        # Exactly one verdict per existing path, or nothing is promoted.
+        if [[ ${#v[@]} -eq ${#existing[@]} ]]; then
+            k=0
+            for i in 0 1 2 3 4; do
+                [[ "${states[$i]}" == broken ]] || continue
+                [[ "${v[$k]}" == valid ]] && states[$i]=valid
+                k=$((k + 1))
+            done
+        fi
     fi
 
-    # L5 + L7 are not chain-critical, count as validating.
-    valid=$((valid + 2))
-    if [[ "$valid" -gt "$total" ]]; then
-        valid="$total"
+    for i in 0 1 2 3; do echo "${ids[$i]} ${paths[$i]} ${states[$i]}"; done
+    echo "L5 - n/a"
+    echo "${ids[4]} ${paths[4]} ${states[4]}"
+    echo "L7 - n/a"
+}
+
+# _an_audit_chain_tally <classification> → "V A B": the DISPLAYED valid count
+# V = valid + n/a, absent A, broken B (V + A + B == 7).
+_an_audit_chain_tally() {
+    local id path state v=0 a=0 b=0
+    while read -r id path state; do
+        case "$state" in
+            valid|n/a) v=$((v + 1)) ;;
+            absent) a=$((a + 1)) ;;
+            broken) b=$((b + 1)) ;;
+        esac
+    done <<<"$1"
+    echo "$v $a $b"
+}
+
+# Audit chain summary: the displayed "V/7" (V = valid + n/a; absent and broken
+# excluded). Optional argument: a classification already computed this run (so
+# one loa-status run makes one verifier call).
+_an_audit_chain_summary() {
+    local cls v a b
+    if [[ $# -gt 0 ]]; then cls="$1"; else cls="$(_an_audit_chain_classify)"; fi
+    read -r v a b <<<"$(_an_audit_chain_tally "$cls")"
+    echo "${v}/7"
+}
+
+# _an_audit_chain_human <classification> — the Audit chain line(s): byte-identical
+# to the pre-FR-3 line when nothing is absent or broken; otherwise the counts and
+# one line per non-valid primitive (basename of its chain file).
+_an_audit_chain_human() {
+    local v a b id path state
+    read -r v a b <<<"$(_an_audit_chain_tally "$1")"
+    if [[ "$a" -eq 0 && "$b" -eq 0 ]]; then
+        echo "  Audit chain: ${v}/7 primitives validate."
+        return 0
     fi
-    echo "${valid}/${total}"
+    echo "  Audit chain: ${v}/7 validate (${a} absent, ${b} broken)."
+    while read -r id path state; do
+        case "$state" in
+            absent|broken) echo "  ${id} ${path##*/}: ${state}" ;;
+        esac
+    done <<<"$1"
 }
 
 # Display Agent-Network section (human-readable).
@@ -481,7 +528,7 @@ display_agent_network_section() {
     local tier_status pq audit_chain
     tier_status=$(_an_tier_status)
     pq=$(_an_protected_queue_depth)
-    audit_chain=$(_an_audit_chain_summary)
+    audit_chain=$(_an_audit_chain_human "$(_an_audit_chain_classify)")
 
     case "$tier_status" in
         tier-*) echo "  Tier validator: ${tier_status} -- supported." ;;
@@ -489,16 +536,17 @@ display_agent_network_section() {
         *) echo "  Tier validator: ${tier_status}" ;;
     esac
     echo "  Protected queue: ${pq} items awaiting operator action."
-    echo "  Audit chain: ${audit_chain} primitives validate."
+    echo "$audit_chain"
     echo ""
 }
 
 # JSON snippet for agent-network section.
 get_agent_network_json() {
-    local p enabled activity tier_status pq audit_chain
+    local p enabled activity tier_status pq audit_chain audit_chain_cls
     tier_status=$(_an_tier_status)
     pq=$(_an_protected_queue_depth)
-    audit_chain=$(_an_audit_chain_summary)
+    audit_chain_cls=$(_an_audit_chain_classify)
+    audit_chain=$(_an_audit_chain_summary "$audit_chain_cls")
 
     # Build primitives array via jq (safe JSON construction).
     local primitives_json="[]"
@@ -515,11 +563,20 @@ get_agent_network_json() {
         --arg tier "$tier_status" \
         --argjson pq "$pq" \
         --arg ac "$audit_chain" \
+        --arg acc "$audit_chain_cls" \
         '{
             primitives: $primitives,
             tier_validator: $tier,
             protected_queue_depth: $pq,
-            audit_chain_summary: $ac
+            audit_chain_summary: $ac,
+            audit_chain: ($acc | split("\n") | map(select(length > 0) | split(" ")
+                | {id: .[0], path: (if .[1] == "-" then null else .[1] end), state: .[2]})
+                | {valid: (map(select(.state == "valid")) | length),
+                   absent: (map(select(.state == "absent")) | length),
+                   broken: (map(select(.state == "broken")) | length),
+                   not_applicable: (map(select(.state == "n/a")) | length),
+                   total: length,
+                   primitives: .})
         }'
 }
 
