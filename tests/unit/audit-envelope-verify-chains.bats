@@ -151,10 +151,14 @@ _invariants() {
     if [[ "$p" == - ]]; then [ "$st" = n/a ] || return 1; else [ "$st" != n/a ] || return 1; fi
     n=$((n + 1))
   done <<<"$cls"
-  [ "$n" -eq 7 ] && [ "$na" -eq 2 ]
-  [ $((v + a + b + na)) -eq 7 ]                     # JSON counts: valid excludes n/a
-  [ "$sum" = "$((v + na))/7" ]                      # displayed V adds n/a back
-  [ $((v + na + a + b)) -eq 7 ]                     # V + A + B == 7
+  # Every check returns explicitly: the function is called in `||` context, where errexit is
+  # suspended and only the LAST command's status would otherwise count (Sprint 284 review, DISS-C-001).
+  [ "$n" -eq 7 ] || { echo "lines $n (want 7)" >&2; return 1; }
+  [ "$na" -eq 2 ] || { echo "n/a $na (want 2)" >&2; return 1; }
+  [ $((v + a + b + na)) -eq 7 ] || { echo "valid+absent+broken+n/a = $((v + a + b + na)) (want 7)" >&2; return 1; }   # JSON counts: valid excludes n/a
+  [ "$sum" = "$((v + na))/7" ] || { echo "summary $sum (want $((v + na))/7)" >&2; return 1; }                    # displayed V adds n/a back
+  [ $((v + na + a + b)) -eq 7 ] || { echo "V+A+B = $((v + na + a + b)) (want 7)" >&2; return 1; }              # V + A + B == 7
+  return 0
 }
 
 # _oracle <root> — the FR-3 classification, independently: one singular
