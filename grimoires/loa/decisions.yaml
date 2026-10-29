@@ -42034,3 +42034,153 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1182"
+    created_at: "2026-10-29T06:49:02Z"
+    updated_at: "2026-10-29T06:49:02Z"
+    phase: "implementation"
+    category: "process"
+    summary: "cycle-138: Sprint 285 implementers dispatched during Sprint 284's audit — side-effect-free worktrees at the 284 code head; landing waits for COMPLETED"
+    decision: "The two Sprint 285 implementers (A: Task 2.1; B: Tasks 2.2 … 2.4) start in detached worktrees at 94ada9f7b (the Sprint 284 code head) while Sprint 284's audit (dissent run 3) and final-head TAP are still running. Their work is side-effect-free (patches + reports); nothing is landed before Sprint 284 is COMPLETED, the ledger marks 284 completed and the run state advances to sprint-2. Should the audit change Sprint 284 code, the patches are re-based with git apply -3 (DEC-1174)."
+    rationale: "The gates are API- and CPU-bound waits of about an hour; the implementers' inputs (SDD 1.4, plan 1.2, the Sprint 284 code) are final, so the overlap costs nothing and saves the wall-clock the halt protocol budgets."
+    alternatives_considered:
+      - option: "Strictly sequential (dispatch after COMPLETED)"
+        rejected_because: "an hour of idle implementer time against a 20 h cycle budget"
+    consequences:
+      positive:
+        - "wall-clock saved"
+      negative:
+        - "a code-changing audit would stale their base (handled by -3 apply)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "80f86e07"
+    source: "grimoires/loa/sprint.md § Execution; NOTES 2026-10-29"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T06:49:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "agents c138-s2-impl-{a,b}; worktrees ../loa-wt-c138-s2{a,b}"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1183"
+    created_at: "2026-10-29T06:58:40Z"
+    updated_at: "2026-10-29T06:58:40Z"
+    phase: "review"
+    category: "security"
+    summary: "cycle-138 S284 audit: the two MEDIUM dissent findings (audit log 0664; symlinked .run trusted) are pre-existing → beads bd-cd3yp, bd-phtus"
+    decision: "Dissent run 3 (2/2 voices, clean) raised DISS-C-001 (the audit log file is created by >> at the ambient umask — 0664 on umask-002 hosts — inside a .run the repair leaves traversable at 755) and DISS-C-002 (the audit writers gate on [[ -d .run ]], true for a symlink, and >> follows it). Both predate Sprint 284 (the sprint changed only the creators' mkdir lines and added the repair; before the sprint .run was 775 and the file 0664 as well), neither is a Sprint 284 regression, and FR-4's scope is the directories. They are counted as MEDIUM in the audit trailer and carried as follow-up beads bd-cd3yp and bd-phtus rather than fixed inside this sprint's gates."
+    rationale: "The audit's one-way rule lets MEDIUM findings approve; fixing per-tool-call hooks under the sprint budget without measuring their trace cost would be a scope slip, and the findings are real improvements with their own red tests."
+    alternatives_considered:
+      - option: "Fix the loggers in a review round 3"
+        rejected_because: "two more per-tool-call hooks, a budget measurement and a third dissent run the sprint does not have"
+    consequences:
+      positive:
+        - "honest tally"
+        - "follow-ups with concrete scope"
+      negative:
+        - "the audit log stays 0664 on umask-002 hosts until the follow-up lands"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "80f86e07"
+    source: "grimoires/loa/a2a/sprint-284/auditor-sprint-feedback.md; adversarial-audit-r3.json"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T06:58:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "adversarial-audit-r3.json DISS-C-001/002; beads bd-cd3yp bd-phtus"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1184"
+    created_at: "2026-10-29T06:58:44Z"
+    updated_at: "2026-10-29T06:58:44Z"
+    phase: "review"
+    category: "process"
+    summary: "cycle-138 S284 audit: three LOW dissent findings → beads bd-r8pfc (RDC-1 gaps → Sprint 286 Task 3.2), bd-4xpoa (settings-cleanup temp), bd-wsfqf"
+    decision: "DISS-C-003 (the static guard accepts '( umask 077;' anywhere on the line and inventories only .claude/hooks/*.sh with three spellings) is routed to Sprint 286 Task 3.2 (test guards, bd-gxt44) through bd-r8pfc; DISS-C-004 (settings-cleanup.sh writes a fixed-name temp with > before mv) → bd-4xpoa and DISS-C-005 (the mutation-logger verb filter's known gaps) → bd-wsfqf are pre-existing LOW items."
+    rationale: "LOW findings are recorded, not blocking; the guard tightening belongs with the sprint that owns test guards."
+    alternatives_considered:
+      - option: "Tighten RDC-1 now as a test tail"
+        rejected_because: "a test change after the dissent run would need a re-run or an honest unreviewed-tail note; Task 3.2 owns the guards"
+    consequences:
+      positive:
+        - "scope kept"
+      negative:
+        - "RDC-1 stays permissive until Sprint 286"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "80f86e07"
+    source: "grimoires/loa/a2a/sprint-284/auditor-sprint-feedback.md"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T06:58:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "adversarial-audit-r3.json DISS-C-003/004/005; beads bd-r8pfc bd-4xpoa bd-wsfqf"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1185"
+    created_at: "2026-10-29T07:02:19Z"
+    updated_at: "2026-10-29T07:02:19Z"
+    phase: "implementation"
+    category: "security"
+    summary: "cycle-138 S285 FR-6: the g/o-write test is dropped for directory components (checkout dirs inherit the clone umask: 775 here); day-file checks stay;"
+    decision: "Implementer A built FR-6 to the SDD 1.4 § 5.5 pseudocode and STOPped: the component rule (( mode & 022 )) == 0 refuses the trajectory append on this host's live checkout, whose grimoires/, grimoires/loa/, grimoires/loa/a2a/ and trajectory/ are all 775 (a git checkout inherits the clone umask; this host's umask is 002 with a user-private group) — no trajectory event would ever be recorded on an umask-002 checkout. Lead decision: the group/other-write test is dropped for every DIRECTORY component (intermediate ones and TRAJ_DIR); each component still needs a row, [[ -d && ! -L ]], uid == EUID and the anchored-realpath equality (no realpath -m → refuse); every DAY-FILE check stays (regular, non-symlink, uid, one link, no g/o write); an absent TRAJ_DIR is still created under umask 077. KT-6/KT-7 flip to 'appends'."
+    rationale: "The checkout root is the trust root (DEC-1166): a group able to write grimoires/ can edit .claude/hooks/*.sh directly, so a mode test on the directories below the root adds no protection the model does not already assume, while the per-entry checks defeat every planted-entry attack (symlink, FIFO, hard link, foreign owner, writable file); refusing on every umask-002 checkout would be a functional regression of the trajectory record for no security gain."
+    alternatives_considered:
+      - option: "Keep the component mode test (refuse on umask-002 checkouts)"
+        rejected_because: "no trajectory on Debian/Ubuntu default checkouts; the race it prevents needs write access the trust-root assumption already excludes"
+      - option: "A repair owner chmod-ing uid-owned grimoire directories"
+        rejected_because: "grimoires/ is tracked source content; chmod-ing it from a hook is intrusive and DEC-1157 forbids chmod from the per-tool-call path"
+      - option: "Test the mode on TRAJ_DIR and the day file only"
+        rejected_because: "this host's trajectory dir is 775 too; same regression"
+    consequences:
+      positive:
+        - "trajectory recorded on every checkout"
+        - "entry checks keep the defence in depth"
+      negative:
+        - "a shared-group checkout keeps the symlink-swap race on the path — the unsupported layout already named in the CHANGELOG"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "80f86e07"
+    source: "loa-wt-c138-s2a/.cycle138/REPORT.md § 0; sdd.md § 5.5; prd.md FR-6"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T07:02:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "S2-A REPORT § 0 (stat of the live checkout's grimoires chain: 775 merlin ×4); KT-6/KT-7"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
