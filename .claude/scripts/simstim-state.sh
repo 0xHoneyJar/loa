@@ -64,7 +64,7 @@ error() {
 # Ensure run directory exists with proper permissions
 ensure_run_dir() {
     if [[ ! -d "$RUN_DIR" ]]; then
-        mkdir -p "$RUN_DIR"
+        ( umask 077; mkdir -p -- "$RUN_DIR" )
         chmod 700 "$RUN_DIR"
     fi
 }

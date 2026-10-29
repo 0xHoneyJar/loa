@@ -212,7 +212,7 @@ validate_bundle(){
 # --- main ---
 parse_args "$@"
 require_jq
-mkdir -p "${PROJECT_ROOT}/.run"
+( umask 077; mkdir -p -- "${PROJECT_ROOT}/.run" )
 
 case "$MODE" in
   validate) validate_bundle "$OUTPUT"; exit $? ;;

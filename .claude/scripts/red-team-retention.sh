@@ -289,7 +289,7 @@ main() {
     done
 
     _require_deps
-    mkdir -p "$(dirname "$AUDIT_LOG")"
+    ( umask 077; mkdir -p -- "$(dirname "$AUDIT_LOG")" )
     purge_expired "$dry_run" "$verbose"
     if [[ "$CONSERVATIVE_COUNT" -gt 0 ]]; then
         log "Retention DEGRADED: $CONSERVATIVE_COUNT conservative disposition(s) applied — exit 3 (#1025)"

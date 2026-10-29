@@ -429,7 +429,7 @@ render_md(){
 parse_args "$@"
 require_jq
 if [[ "$MODE" == "tsv" ]]; then collect; exit 0; fi
-mkdir -p "${PROJECT_ROOT}/.run"
+( umask 077; mkdir -p -- "${PROJECT_ROOT}/.run" )
 JSON="$(to_json)"
 
 case "$MODE" in

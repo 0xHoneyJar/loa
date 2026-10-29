@@ -46,7 +46,7 @@ if [[ "${1:-}" == "--line" ]]; then
     exit 0
 fi
 
-mkdir -p "$RUN_DIR" 2>/dev/null || true
+( umask 077; mkdir -p -- "$RUN_DIR" ) 2>/dev/null || true
 
 # Cache check: reuse an existing file if less than 1 hour old
 if [[ -f "$FEATURES_FILE" ]]; then

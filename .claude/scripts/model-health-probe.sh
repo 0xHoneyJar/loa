@@ -190,7 +190,7 @@ _emit_trajectory() {
 _emit_audit_log() {
     local action="$1"
     local detail_json="$2"
-    mkdir -p "$(dirname "$AUDIT_LOG")"
+    ( umask 077; mkdir -p -- "$(dirname "$AUDIT_LOG")" )
     local entry
     entry=$(jq -n \
         --arg ts "$(_iso_timestamp)" \
@@ -378,7 +378,7 @@ _check_bypass() {
     fi
 
     # First time bypass requested in this TTL window — record stamp.
-    mkdir -p "$LOA_CACHE_DIR"
+    ( umask 077; mkdir -p -- "$LOA_CACHE_DIR" )
     printf '%s\n' "$now_epoch" > "$sentinel"
     _emit_audit_log "probe_bypass_set" \
         "$(jq -n --arg reason "$reason" \

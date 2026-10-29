@@ -32,7 +32,7 @@ die()  { echo "ERROR: $*" >&2; exit 2; }
 
 log_audit() {
   local event_json="$1"
-  mkdir -p "$(dirname "$AUDIT_LOG")"
+  ( umask 077; mkdir -p -- "$(dirname "$AUDIT_LOG")" )
   echo "$event_json" >> "$AUDIT_LOG" 2>/dev/null || true
 }
 

@@ -82,7 +82,7 @@ case "${MODE}" in
     fi
     echo "repo-map: REPO-MAP.md consistent with .claude/ code." ;;
   write)
-    mkdir -p "${PROJECT_ROOT}/.run"
+    ( umask 077; mkdir -p -- "${PROJECT_ROOT}/.run" )
     TMPM="$(mktemp)"; TMPJ="$(mktemp)"; trap 'rm -f "$TMPM" "$TMPJ"' EXIT
     # One engine run renders both files, so md and json come from the SAME scan.
     python3 "${ENGINE}" --root "${PROJECT_ROOT}" --scan "${SCAN_SUBDIR}" \

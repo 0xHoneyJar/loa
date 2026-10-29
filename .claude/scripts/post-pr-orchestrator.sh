@@ -442,7 +442,7 @@ phase_flatline_pr() {
   # Flatline phase runs before Bridgebuilder, so any summary here is stale).
   local flatline_output="$(pwd)/.run/post-pr-flatline-pr.json"
   local degraded_summary="$(pwd)/.run/post-pr-degraded-summary.json"
-  mkdir -p "$(pwd)/.run"
+  ( umask 077; mkdir -p -- "$(pwd)/.run" )
   rm -f "$flatline_output" "$degraded_summary"
 
   # Check if Flatline is enabled
