@@ -113,11 +113,14 @@ rows="$(LC_ALL=C awk -v max="$KF_SURFACE_MAX_ROWS" '
   # The C1 and U+2028/U+2029 lines go beyond the tr reference spec above, which predates them.
   function san(s) {
     gsub(/\000/, "", s)
+    # Deletions FIRST (NUL above, then C0 / DEL): a deletion that ran after the class replacement would re-join a
+    # UTF-8 lead byte and its continuation around a deleted byte into a live C1 / U+2028 character
+    # (Sprint 285 review round 2, DISS-C-001). Replacements never re-join bytes.
+    gsub(/[\001-\010\013\014\016-\037\177]/, "", s)
     # The decisions jq `s` filter class (cycle-138 FR-8): UTF-8 C1 (U+0080-U+009F) and U+2028 /
-    # U+2029 become one space, before the C0 strip; < and > are NOT replaced in the KF twins.
+    # U+2029 become one space, after the C0 strip; < and > are NOT replaced in the KF twins.
     gsub(/\302[\200-\237]/, " ", s)
     gsub(/\342\200[\250\251]/, " ", s)
-    gsub(/[\001-\010\013\014\016-\037\177]/, "", s)
     gsub(/[\t\n\r]/, " ", s)
     gsub(/  +/, " ", s)
     sub(/^ /, "", s); sub(/ $/, "", s)

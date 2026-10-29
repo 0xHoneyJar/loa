@@ -218,19 +218,24 @@ if [[ "$OVER" == "true" ]]; then
     [[ "$FILES_MOD" =~ ^[0-9]+$ ]] || FILES_MOD=0
     [[ "$TOOL_CALLS" =~ ^[0-9]+$ ]] || TOOL_CALLS=0
     # The append goes only through a trusted path (cycle-138 FR-6, SDD § 5.5, DEC-1168): TRAJ_DIR inside the
-    # checkout and anchored at the canonical root (no symlinked component below it; plain `realpath` on the two
-    # existing paths — GNU and BSD; a failing realpath → refuse, no fallback); every directory below the root and the day file read by ONE stat (rows keyed by %n, rc
+    # checkout and anchored at the canonical root (no `.`/`..`/empty component in the relative path; no symlinked
+    # component below the root — `cd` + `pwd -P` on the two existing directories, builtins; a failing cd → refuse, no
+    # fallback); every directory below the root and the day file read by ONE stat (rows keyed by %n, rc
     # ignored: `stat -L` prints a row for each path that exists); each component a uid-owned non-symlink
     # directory (its mode is not tested: a checkout's directories inherit the clone umask, and the checkout
     # root is the trust root — DEC-1166); the day file, when present, a uid-owned regular non-symlink file
     # with one link and no group/other write. Otherwise the append is skipped silently — the warning above is
-    # printed regardless. Warn path only: realpath x2 + stat x1 (+ mkdir once when the directory is absent).
+    # printed regardless. Warn path only: two cd/pwd -P subshells (builtins) + stat x1 (+ mkdir once when the directory is absent).
     # The state directory and task file keep their -L guards above (out of FR-6's scope).
     _traj_trusted() {
         local rel root_real real comp st row name uid mode links i n
         local -a comps=() rows=()
         [[ "$TRAJ_DIR" == "$REPO_ROOT/"* ]] || return 1
         rel="${TRAJ_DIR#"$REPO_ROOT/"}"
+        # No `.`, `..` or empty component below the root (Sprint 285 review round 2, DISS-C-002): a `..` passes the
+        # prefix test above and would let the mkdir below create a directory OUTSIDE the checkout before the canonical
+        # check refused the append.
+        case "/$rel/" in *//*|*/./*|*/../*) return 1 ;; esac
         comp="$REPO_ROOT"
         while [[ -n "$rel" ]]; do
             comp="$comp/${rel%%/*}"
@@ -245,10 +250,12 @@ if [[ "$OVER" == "true" ]]; then
             done
             ( umask 077; mkdir -p -- "$TRAJ_DIR" ) 2>/dev/null || return 1
         fi
-        # Canonical path on the two EXISTING paths — plain realpath, which GNU and BSD both have (`-m` is GNU-only and
-        # made every BSD/macOS host refuse silently: Sprint 285 review DISS-C-003). A failing realpath still refuses.
-        root_real=$(realpath -- "$REPO_ROOT" 2>/dev/null) || return 1
-        real=$(realpath -- "$TRAJ_DIR" 2>/dev/null) || return 1
+        # Canonical path of the two EXISTING directories with the shell's own `cd` + `pwd -P` (builtins — no realpath(1)
+        # at all: `realpath -m` was GNU-only, plain `realpath --` fails on busybox and realpath is absent on older
+        # macOS; Sprint 285 review DISS-C-003, rounds 1 and 2). Both paths are absolute, so CDPATH never applies; a
+        # failing cd (a component without search permission) still refuses.
+        root_real=$(cd -- "$REPO_ROOT" 2>/dev/null && pwd -P) || return 1
+        real=$(cd -- "$TRAJ_DIR" 2>/dev/null && pwd -P) || return 1
         [[ -n "$root_real" && -n "$real" && "$real" == "$root_real/${TRAJ_DIR#"$REPO_ROOT/"}" ]] || return 1   # (rel was consumed by the component loop above)
         TRAJ_FILE="$TRAJ_DIR/karpathy-${TS:0:10}.jsonl"
         st=$(stat -Lc '%n|%u|%a|%h' -- "${comps[@]}" "$TRAJ_FILE" 2>/dev/null)
