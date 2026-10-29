@@ -40628,3 +40628,153 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1144"
+    created_at: "2026-10-29T02:11:39Z"
+    updated_at: "2026-10-29T02:11:39Z"
+    phase: "discovery"
+    category: "process"
+    summary: "cycle-138 planning grounded on the live REPO-MAP, finding anchors and cycle-137 gate artefacts; stale /ride reality (2026-05-04) not re-run"
+    decision: "The brownfield grounding uses the regenerated REPO-MAP (current at every System Zone commit), the exact file:line anchors each bead's finding recorded, and the cycle-137 review/audit/Bridgebuilder artefacts; the stale grimoires/loa/reality/ set is read for architecture framing only and /ride is not re-run. The PRD carries a grounding note instead of the 'skipped /ride' warning banner."
+    rationale: "Unattended: the skill asks the operator to choose between re-running /ride and proceeding on stale reality; fifteen beads with code anchors from findings less than two days old are better grounding than a 20-minute generic re-extraction, and REPO-MAP is a live structural reality."
+    alternatives_considered:
+      - option: "Run /ride --enriched first"
+        rejected_because: "20 minutes of generic extraction for beads whose anchors are already exact; unattended, it adds nothing the findings did not record"
+      - option: "Skip grounding with the warning banner"
+        rejected_because: "the work IS grounded — in finding anchors and REPO-MAP — so the banner would misstate it"
+    consequences:
+      positive:
+        - "every FR cites a file:line that a gate found"
+        - "no 20-minute detour"
+      negative:
+        - "the reality/ directory stays dated 2026-05-04"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "0f17ea02"
+    source: "grimoires/loa/context/cycle-138-brief.md; grimoires/loa/REPO-MAP.md; grimoires/loa/reality/ (2026-05-04); .claude/skills/discovering-requirements/resources/REFERENCE.md § Codebase Grounding"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:11:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "cycle-138-brief.md; REPO-MAP regenerated at fe52be893"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1145"
+    created_at: "2026-10-29T02:11:48Z"
+    updated_at: "2026-10-29T02:11:48Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "cycle-138 scope: three sprints — security + release path (bd-j34zb bd-qyvju bd-hyah6 bd-20bh1), hooks + KF surface, tests/guards — no release"
+    decision: "Fifteen beads in three sprints ordered by security exposure: Sprint 1 the two trust boundaries and the release path (profile-lib cache boundary, publisher POST argv, absent-chain third state, perf-cache umask); Sprint 2 the hooks and the KF surface (karpathy seam + symlink guards, KF row cap, C1 sanitiser, BWK/BSD verification); Sprint 3 tests, guards and the providers refactor. The cycle merges one PR; the rc.10 candidate the pipeline prepares is not published."
+    rationale: "The operator's instruction names 'the other 13 follow-up beads' after the release robot and the cache; severity order puts the per-tool-call trust surfaces first; a release is an operator decision (rc.9 is soaking) and nothing here changes user-visible behaviour."
+    alternatives_considered:
+      - option: "One sprint with all fifteen"
+        rejected_because: "fifteen red/fix pairs across hooks, libs, the publisher and tests exceed one review's attention; three gates catch more"
+      - option: "Publish rc.10 at the end"
+        rejected_because: "the operator said promote rc → 2.0.0 'later'; publishing is their call"
+    consequences:
+      positive:
+        - "security-first ordering"
+        - "each sprint has a coherent review surface"
+      negative:
+        - "three full gate passes (review + audit + dissent) for fifteen small items"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "0f17ea02"
+    source: "grimoires/loa/context/cycle-138-brief.md § Scope; grimoires/loa/context/cycle-138-followups.md"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:11:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "operator chat 2026-10-29; beads bd-j34zb … bd-qyvju (br show)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1146"
+    created_at: "2026-10-29T02:11:55Z"
+    updated_at: "2026-10-29T02:11:55Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "cycle-138: bd-aceil may close as a documented BSD byte-cap contract if no BWK awk build is obtainable; bd-0h7kq is deferrable by a class-S row"
+    decision: "bd-aceil's acceptance has two terminal forms: (a) the KF awk programs verified under a BWK awk build and BSD cut with the byte-cap contract stated, or (b) when no BWK build can be obtained on the ship host, the contract is stated in the hook's header and the fixture test, the BWK verification stays UNVERIFIED with the reason, and a bead stays open for a macOS host. bd-0h7kq (providers dispatch refactor) is the lowest priority and may be deferred by a class-S row without failing the cycle."
+    rationale: "The Sprint 281 attempt could not obtain BWK awk (no yacc, upstream unreachable); a cycle must not block on a toolchain the host lacks; the refactor has no finding behind it beyond a review observation."
+    alternatives_considered:
+      - option: "Make BWK verification a hard acceptance criterion"
+        rejected_because: "it was already shown unobtainable on this host; the cycle would end HALTED on tooling"
+    consequences:
+      positive:
+        - "bounded exits for the two beads most likely to stall"
+      negative:
+        - "macOS behaviour of the KF hook may stay unverified another cycle"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "0f17ea02"
+    source: "beads bd-aceil, bd-0h7kq; Sprint 281 audit MED-001 (DEC-1123); cycle-138-brief.md § Scope"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:11:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "DEC-1123; a2a/sprint-281/auditor-sprint-feedback.md MED-001"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1147"
+    created_at: "2026-10-29T02:12:04Z"
+    updated_at: "2026-10-29T02:12:04Z"
+    phase: "discovery"
+    category: "process"
+    summary: "cycle-138 kickoff: ledger-lib create_cycle mis-numbered the cycle as cycle-099; id corrected by a recorded hand edit (KF-065, bd-d6dr5)"
+    decision: "The new entry's id and active_cycle were set to cycle-138-hardening-followups (the shape the lib wrote is otherwise kept); a known-failure entry records the mis-numbering with the lib lines as evidence; fixing _next_cycle_id is a bead for a later /bug, not this cycle's scope."
+    rationale: "A cycle id must be unique and chronological (a cycle-099 exists); the lib's counter logic is a separate defect with its own red test, outside the fifteen beads."
+    alternatives_considered:
+      - option: "Keep cycle-099 as the id"
+        rejected_because: "collides with the existing cycle-099 record and breaks the chronological naming every artefact relies on"
+    consequences:
+      positive:
+        - "the ledger stays consistent"
+      negative:
+        - "one hand edit to the ledger (state zone, recorded here)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "0f17ea02"
+    source: ".claude/scripts/ledger-lib.sh:340-352 (_next_cycle_id); grimoires/loa/ledger.json"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:12:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "kickoff commit on feature/cycle-138-hardening-followups; KF entry"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

@@ -112,6 +112,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-062](#kf-062-bridgebuilders-claude-headless-voice-is-refused-by-the-models-safeguards-on-a-security-heavy-review-prompt-degrading-the-round) | Open — mitigation under test: exclude generated, fixture and evidence files from the review diff (round 2); if the voice still refuses, G-2 is recorded as not met and the operator decides on a split or a different voice model | .claude/skills/bridgebuilder-review (multi-model voice anthropic/claude-headless → claude -p, cli_model fable); .claude/adapters/loa_cheval/providers/claude_headless_adapter.py | 1 |
 | [KF-063](#kf-063-post-mergeyml-turns-red-on-the-publishs-own-ledger-fast-forward-the-bot-push-to-main-is-classified-as-a-cycle-merge-and---generate-aborts-with---pr-is-required) | Fixed in cycle-134 Sprint 276 (classify-merge-pr.sh trailing (#NNN) + full-pipeline guard; live confirmation at the next rc publish) | .github/workflows/post-merge.yml (Classify Merge → Prepare Release (Cycle)); .claude/scripts/post-merge-orchestrator.sh --publish ledger step (C-3, cycle-133 Sprint 272) | 1 |
 | [KF-064](#kf-064-post-merge-orchestrator---publish-release-phase-failed-on-read-back-although-the-release-was-created--github-rewrites-backslash-u-escapes-in-the-body-u0000-u001f---_-so-the-exact-body--body-comparison-never-matches-ledger--notify-phases-left-pending) | OPEN | post-merge-orchestrator.sh release phase (cycle-133 C-3 read-back identity) | 1 |
+| [KF-065](#kf-065-ledger-lib-create_cycle-numbers-a-new-cycle-by-counting-entries-cycle-099-for-the-99th-row-instead-of-taking-the-next-free-chronological-id-colliding-with-existing-cycle-099-records) | OPEN | ledger-lib.sh create_cycle / _next_cycle_id (Sprint Ledger) | 1 |
 
 ---
 
@@ -2220,6 +2221,27 @@ A red Post-Merge Pipeline whose head is the bot's chore(ledger) commit and whose
 |------|---------------|---------|----------|
 | 2026-10-28 | cycle-137 v2.0.0-rc.9: retried --publish from the approved candidate (runbook retry path); tag phase accepted the existing tag, release phase failed identically; python diff of the candidate release_body vs the API body: equal except GitHub turned the literal `\u0000-\u001f` (a commit subject quoting the sanitiser range) into `\^@-\^_` (37634 vs 37628 chars) | release and tag correct and verified by hand (peeled tag = merge, prerelease true, title v2.0.0-rc.9); the ledger archive rides the cycle archive PR; --ledger-only refuses without a deferral file. Fix direction: compare the body after a normalisation GitHub applies (or compare a hash of the sent body stored in the state) and let a body-only mismatch WARN rather than fail the phase | ~/.cache/loa/cycle-137/publish-checkout-rc9/.run/post-merge-state.json; /tmp/c137-rel.json vs candidate-rc9/post-merge-candidate.json release_body; a2a/sprint-282/publish-summary.md |
 | 2026-10-29 | sprint-bug-283 (bug 20261028-90f357): phase_release compares the read-back body after GitHub caret rewrite is applied to both the sent notes and the stored body (release_body_identical, one python3 -I process fed through temp files; identity terms exact; any other difference refuses); 7 new tests incl. the literal rc.9 pair; three review/audit dissent runs + Bridgebuilder round 1 | FIXED — merged to main in PR #1313 as fe52be893; the next publish will verify a body that quotes a backslash-u escape; the POST/notify argv exposure is bd-qyvju | PR #1313; tests/unit/post-merge-publication.bats bug-283 cases; tests/fixtures/post-merge/rc9-release-body/ |
+
+### Reading guide
+
+TODO: what a future agent should do on this symptom.
+
+## KF-065: ledger-lib create_cycle numbers a new cycle by counting entries (cycle-099 for the 99th row) instead of taking the next free chronological id, colliding with existing cycle-099 records
+
+**Status**: OPEN
+**Feature**: ledger-lib.sh create_cycle / _next_cycle_id (Sprint Ledger)
+**Symptom**: create_cycle "<label>" prints cycle-099 and sets active_cycle to cycle-099 on a ledger whose highest cycle is cycle-137 and which already holds cycle-099 and cycle-099-model-registry; _next_cycle_id does printf cycle-%03d $((count + 1)) over .cycles | length
+**First observed**: 2026-10-29
+**Recurrence count**: 1
+**Current workaround**: none yet
+**Upstream issue**: not filed
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-29 | cycle-138 kickoff: ran create_cycle, then corrected the new entry id and active_cycle to cycle-138-hardening-followups by a recorded hand edit before the kickoff commit (DEC P-138-4) | workaround only; the lib still mis-numbers. Fix direction: derive the next id from the max numeric id across cycles and bugfix_cycles (plus the archived ones), keep the -<slug> suffix the callers append, red test on a ledger with gaps and suffixed ids | grimoires/loa/ledger.json at 0f17ea02b; .claude/scripts/ledger-lib.sh:340-349 |
 
 ### Reading guide
 

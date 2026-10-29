@@ -2847,7 +2847,7 @@
       "created": "2026-10-29T02:08:47Z",
       "archived": null,
       "archive_path": null,
-      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "prd": "grimoires/loa/prd.md",
       "sdd": null,
       "sprints": []
     }
