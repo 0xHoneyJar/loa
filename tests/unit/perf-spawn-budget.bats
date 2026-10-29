@@ -138,6 +138,7 @@ _check_budget() {
   [[ "$(yq --version 2>&1)" == *mikefarah*"version v4."* ]] || skip "Mike Farah yq v4 not installed"
   local root="$W/root" g="$W/root/grimoires/loa" i
   mkdir -p "$root/x/y" "$g/lore" "$g/handoffs" "$g/visions/entries" "$root/.run"
+  chmod 700 "$root/.run"   # the cache trust boundary wants 0700; under umask 002 the first run would chmod it (a spawn the warm run must not count)
   cp "$PROJECT_ROOT/.claude/scripts/grimoire-index.sh" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$root/x/y/"
   {
     printf '# Known Failures\n\n'
@@ -164,6 +165,15 @@ _check_budget() {
   local tsv; tsv="$(bash "$root/x/y/grimoire-index.sh" --tsv)"
   [[ "$tsv" == *$'decisions\tDEC-0003'* && "$tsv" == *$'vision\tvision-001'* && "$tsv" == *$'lore\tbeta'* && "$tsv" == *$'notes\tL5'* ]]
   _check_budget "grimoire-index --tsv" 167 15   # measured: 167 trace lines (umask 002: the fixture .run is 775 and the trust check tightens it with one chmod — D-5.3; 165 under umask 022), 15 external-tool lines (was 96/11): the traced run is a decisions-cache MISS (cycle-137 FR-5: snapshot, sha256, jq --version, trust-boundary stat checks, the writer awk); a warm run skips the yq parse
+  # Warm target (cycle-138 FR-12): the cold run above wrote the decisions cache; a second run of the same
+  # fixture must take the cache-hit branch (no yq parse of decisions.yaml) within its own budget.
+  [ -s "$root/.run/perf-cache/grimoire-index-decisions.v1.tsv" ]
+  _trace "$W/empty" "$W" -- "$root/x/y/grimoire-index.sh" --tsv
+  if grep -nE '^\++ ?([A-Za-z_][A-Za-z0-9_]*=[^ ]* )*(/[^ ]*/)?yq -o=json( |$)' "$TRACE_FILE" >&2; then
+    echo "a yq -o=json parse ran on the warm path (lines above): the decisions cache was not hit" >&2
+    return 1
+  fi
+  _check_budget "grimoire-index --tsv warm" 151 12   # measured (cycle-138 FR-12, three runs identical, umask 002 and 0700 fixture .run): 151 trace lines, 12 external-tool lines on the cache-hit path (the hit drops the cold run's yq -o=json parse, jq type check, GI_DEC_JQ jq and writer awk; it keeps yq --version, jq --version, the two trust-boundary stat calls and one validating awk, plus the other families' emitters)
 }
 
 # --- (c) implement-gate.sh: Write to a grimoires/ path, no live .run.
