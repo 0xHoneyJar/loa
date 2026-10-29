@@ -453,7 +453,7 @@ _kf_c1_expected_symptoms() {
 _san_body() { awk '/function san\(/ { p = 1 } p { sub(/^[ \t]+/, ""); print } p && /^[ \t]*}[ \t]*$/ { exit }' "$1"; }
 _san_line() { printf '%s\n' "$1" | grep -nxF -- "$2" | cut -d: -f1; }
 
-@test "FR-8 drift guard: san() is identical in both twins except the cap, and strips C1 and U+2028/2029 before the C0 strip" {
+@test "FR-8 drift guard: san() is identical in both twins except the cap, and deletes C0/DEL BEFORE the C1 and U+2028/2029 replacements (review r2 DISS-C-001)" {
   local a b n1 n2 n0
   a="$(_san_body "$HOOK")"; b="$(_san_body "$GEN")"
   [[ "$a" == *'return substr(s, 1, 100)'* ]]
@@ -464,8 +464,43 @@ _san_line() { printf '%s\n' "$1" | grep -nxF -- "$2" | cut -d: -f1; }
   n2="$(_san_line "$a" 'gsub(/\342\200[\250\251]/, " ", s)')"
   n0="$(_san_line "$a" 'gsub(/[\001-\010\013\014\016-\037\177]/, "", s)')"
   [ -n "$n1" ] && [ -n "$n2" ] && [ -n "$n0" ] || { echo "missing a class line: c1=$n1 u2028=$n2 c0=$n0" >&2; false; }
-  [ "$n1" -lt "$n0" ] && [ "$n2" -lt "$n0" ]
+  # the C0/DEL deletion must come FIRST: a deletion after the class replacement re-joins a lead byte and its continuation
+  # around a deleted C0 byte into a live C1 / U+2028 character (Sprint 285 review round 2, DISS-C-001)
+  [ "$n0" -lt "$n1" ] && [ "$n0" -lt "$n2" ]
   [[ "$a" != *'‹'* && "$a" != *'›'* ]]   # < and > are NOT replaced in the KF twins (stated in san())
+}
+
+@test "FR-8 interleaved: a C0 or DEL byte between a UTF-8 lead byte and its continuation never re-joins into C1 or U+2028/2029 (review r2 DISS-C-001) — hook + index under every awk present (byte-exact)" {
+  local p="$BATS_TEST_TMPDIR/ilproj" e="$BATS_TEST_TMPDIR/il.rows" es="$BATS_TEST_TMPDIR/il.sym" a f i=0
+  mkdir -p "$p/grimoires/loa" "$p/x/y"   # real x/y dir: PROJECT_ROOT = $p
+  cp "$GEN" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$p/x/y/"
+  f="$p/grimoires/loa/known-failures.md"
+  {
+    printf '# Known Failures\n\n'
+    # NEL split by \001; U+009F split by DEL; U+2028 split by DEL; U+2029 split twice by \001 — before the fix the
+    # class gsubs missed the split sequence and the C0/DEL deletion then re-joined it into the live character.
+    printf '## KF-001: nel split\n**Status**: OPEN\n**Symptom**: a\302\001\205b\n**Recurrence count**: 1\n\n'
+    printf '## KF-002: u009f split\n**Status**: OPEN\n**Symptom**: c\302\177\237d\n**Recurrence count**: 2\n\n'
+    printf '## KF-003: u2028 split\n**Status**: OPEN\n**Symptom**: e\342\177\200\250f\n**Recurrence count**: 3\n\n'
+    printf '## KF-004: u2029 split twice\n**Status**: OPEN\n**Symptom**: g\342\001\200\001\251h\n**Recurrence count**: 4\n\n'
+  } > "$f"
+  # expected: the C0/DEL bytes are deleted FIRST, so the re-joined class character is then replaced by one space
+  printf 'a b\nc d\ne f\ng h\n' > "$es"
+  printf '  - KF-001 (rec 1): a b\n  - KF-002 (rec 2): c d\n  - KF-003 (rec 3): e f\n  - KF-004 (rec 4): g h\n' > "$e"
+  while IFS= read -r a; do
+    local d="$BATS_TEST_TMPDIR/ilshim-$i"; _awk_shim "$d" "$a"
+    env PATH="$d:$PATH" LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" \
+      LOA_KNOWN_FAILURES_FILE="$f" bash "$HOOK" > "$d/hook.out" 2> "$d/hook.err"
+    tail -n +2 "$d/hook.out" > "$d/hook.rows"
+    cmp "$e" "$d/hook.rows" || { echo "hook under $a:" >&2; od -c "$d/hook.rows" >&2; false; }
+    # no class byte sequence anywhere on stdout (a bare `! grep` would never fail the test)
+    if LC_ALL=C grep -q -e $'\302[\200-\237]' -e $'\342\200[\250\251]' "$d/hook.out"; then echo "a class character reached stdout under $a" >&2; od -c "$d/hook.out" >&2; false; fi
+    [ ! -s "$d/hook.err" ]
+    env PATH="$d:$PATH" bash "$p/x/y/grimoire-index.sh" --tsv 2>/dev/null | awk -F'\t' '$1 == "kf" { print $7 }' > "$d/tsv.sym"
+    cmp "$es" "$d/tsv.sym" || { echo "index TSV under $a:" >&2; od -c "$d/tsv.sym" >&2; false; }
+    i=$((i + 1))
+  done < <(_awks_present 3>/dev/null)
+  [ "$i" -ge 1 ]
 }
 
 @test "FR-8 live: known-failures.md carries no C1 or U+2028/U+2029 bytes (the class leaves its surfaced output unchanged)" {

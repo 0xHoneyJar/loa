@@ -10,8 +10,9 @@
 # path — TRAJ_DIR inside the checkout, no symlinked component below the root,
 # every component a uid-owned directory (its mode is not tested: a checkout's
 # directories inherit the clone umask; lead decision, option 2), the day file a
-# uid-owned regular file with one link and no group/other write; no
-# `realpath -m` → refused. A refusal skips the append silently; the warning line is printed
+# uid-owned regular file with one link and no group/other write; the canonical
+# path comes from cd + pwd -P (no realpath(1): review r2 DISS-C-003); a `.`/`..`/empty
+# component is refused before any mkdir (KT-17). A refusal skips the append silently; the warning line is printed
 # regardless (KT-1 … KT-13). The hook resolves its root from its own path
 # (../../.., physical), so every test runs a REAL mirror root under
 # BATS_TEST_TMPDIR (copies of the hook, profile-lib and the two data files) and
@@ -222,13 +223,15 @@ _shim() {
     [ "$(cat "$V/file")" = "victim-bytes" ]
 }
 
-@test "KT-13 FR-6 no realpath -m (BSD shim) → refused with the warning printed" {
-    _shim realpath 'echo "realpath: illegal option -- m" >&2; exit 1'
-    _warn_refused
-    [ ! -e "$DAY" ]
+@test "KT-13 FR-6 no realpath(1) on PATH at all (older macOS; busybox parses no --) → the append still goes through: the guard canonicalises with cd + pwd -P (review r2 DISS-C-003)" {
+    _shim realpath 'echo "realpath: not found" >&2; exit 127'
+    _trip_warn >/dev/null
+    [ -f "$DAY" ]
+    [ "$(wc -l < "$DAY")" -eq 1 ]
+    _victim_unchanged
 }
 
-@test "KT-14 FR-6 the warn path's own spawns on an existing directory: realpath x2 + one guard stat, no mkdir" {
+@test "KT-14 FR-6 the warn path's own spawns on an existing directory: no realpath(1), two cd + pwd -P builtin pairs, one guard stat, no mkdir (review r2 DISS-C-003)" {
     : > "$TMP_DIR/empty"
     local input fd
     input=$(jq -nc --arg c "$(printf 'a\nb\nc\nd\ne')" '{tool_name:"Write", tool_input:{file_path:"/tmp/x", content:$c}}')
@@ -238,13 +241,17 @@ _shim() {
     exec {fd}>&-
     grep -q 'karpathy-surgical-warn' "$TMP_DIR/stderr"
     [ "$(wc -l < "$DAY")" -eq 1 ]
-    local rp st mk
+    local rp pw st mk
     rp="$(grep -cE '^\++ ?realpath ' "$TMP_DIR/trace" || true)"
+    # the guard's two canonicalising subshells are the only `cd -- <path>` lines on the path (profile-lib's own cd/pwd -P
+    # pairs carry no `--`), so count those: `pwd -P` alone would also count profile-lib's
+    pw="$(grep -cE "^\\++ ?cd -- $M" "$TMP_DIR/trace" || true)"
     st="$(grep -cE "^\++ ?stat -Lc '%n\|%u\|%a\|%h' " "$TMP_DIR/trace" || true)"
     # (profile-lib's own cache-directory mkdir is not on the trajectory path: only a mkdir of TRAJ_DIR counts)
     mk="$(grep -cE "^\++ ?mkdir .*$M/grimoires" "$TMP_DIR/trace" || true)"
-    echo "realpath=$rp guard-stat=$st mkdir=$mk" >&2
-    [ "$rp" -eq 2 ]
+    echo "realpath=$rp guard-cd=$pw guard-stat=$st mkdir=$mk" >&2
+    [ "$rp" -eq 0 ]
+    [ "$pw" -eq 2 ]
     [ "$st" -eq 1 ]
     [ "$mk" -eq 0 ]
 }
@@ -265,4 +272,14 @@ _shim() {
     _trip_warn >/dev/null
     [ -f "$DAY" ]
     [ "$(wc -l < "$DAY")" -eq 1 ]
+}
+
+@test "KT-17 FR-6 a .. component in TRAJ_DIR (passes the prefix test) → refused BEFORE any mkdir: nothing is created outside the checkout (review r2 DISS-C-002)" {
+    # $M/../outside starts with "$M/" and its first component resolves to the uid-owned parent of the mirror root, so
+    # before the fix the ancestor check passed and `mkdir -p` created outside/trajectory OUTSIDE the root before the
+    # canonical check refused the append.
+    export KARPATHY_TRAJECTORY_DIR="$M/../outside/trajectory"
+    _warn_refused
+    [ ! -e "$TMP_DIR/outside" ]
+    _victim_unchanged
 }
