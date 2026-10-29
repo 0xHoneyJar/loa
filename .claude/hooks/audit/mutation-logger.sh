@@ -166,7 +166,7 @@ done
 if [[ "$_ml_hit" -eq 1 ]]; then
   # Create .run directory if needed (perf pass-4: [[ -d ]] guard skips the
   # mkdir spawn in the steady state where .run already exists)
-  [[ -d .run ]] || mkdir -p .run 2>/dev/null || true
+  [[ -d .run ]] || ( umask 077; mkdir -p -- .run ) 2>/dev/null || true   # 0700 regardless of umask (cycle-138 FR-4)
 
   # Append the pre-built JSONL entry (compact, one JSON object per line).
   # Extended schema includes Hounfour-ready fields (empty string when not set).

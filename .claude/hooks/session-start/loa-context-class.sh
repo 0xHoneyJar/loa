@@ -147,8 +147,21 @@ if [[ "$BASIS" == "default" && "$SOURCE" =~ ^(clear|compact|resume)$ && -f "$ROO
     [[ "$MODEL" == "null" ]] && MODEL=""
   fi
 fi
+# --- repair a legacy group/other-writable .run (cycle-138 FR-1/FR-4, Sprint 284 review DISS-C-003) --------------
+# The profile-lib trust predicate REFUSES a group/other-writable .run and never chmods from a per-tool-call hook;
+# this SessionStart hook is the automatic repair owner (grimoire-index.sh stays the on-demand one): a real,
+# non-symlink, uid-owned .run with a group/other write bit is tightened once per session — the same invariant
+# lines as grimoire-index.sh _gi_trusted_dir / profile-lib.sh _loa_pl_trusted_dir. Anything else is left alone
+# (a symlink is never followed; a foreign directory is not ours to change). One stat per session start.
+if [[ -d "$ROOT/.run" && ! -L "$ROOT/.run" ]]; then
+  _rd_st="$(stat -c '%u %a' -- "$ROOT/.run" 2>/dev/null)" || _rd_st="$(stat -f '%u %Lp' -- "$ROOT/.run" 2>/dev/null)" || _rd_st=""
+  if [[ "$_rd_st" =~ ^([0-9]+)\ ([0-7]+)$ && "${BASH_REMATCH[1]}" == "$EUID" ]] && (( (8#${BASH_REMATCH[2]} & 8#022) != 0 )); then
+    chmod go-w -- "$ROOT/.run" 2>/dev/null || true
+  fi
+fi
 # --- write .run/context-class atomically (two lines: the class, then the basis) --
-if (( KEEP == 0 )) && mkdir -p "$ROOT/.run" 2>/dev/null; then
+# (a fresh .run is created 0700 regardless of the caller's umask — cycle-138 FR-4; `umask` is a builtin)
+if (( KEEP == 0 )) && ( umask 077; mkdir -p -- "$ROOT/.run" ) 2>/dev/null; then
   tmp="$(mktemp "$ROOT/.run/.context-class.XXXXXX" 2>/dev/null || true)"
   if [[ -n "$tmp" ]]; then
     printf '%s\nbasis=%s model=%s context_window=%s ts=%s\n' "$CLASS" "$BASIS" "${MODEL:-null}" "${CW:-null}" "$TS" > "$tmp" \

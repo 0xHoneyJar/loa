@@ -151,7 +151,10 @@ _loa_pl_rows() {
 #
 # _loa_pl_cache_usable is the warm-path form: ONE regex over the raw directory and file rows (uid == EUID
 # on both, no group/other write digit, one link, the seam outside bats excluded) plus three file-type
-# tests — xtrace counts every [[ ]] primary, and the karpathy hook's budget counts trace lines. When it
+# tests — xtrace counts every [[ ]] primary, and the karpathy hook's budget counts trace lines. The bats
+# markers (BATS_TEST_FILENAME / BATS_VERSION) that let a redirected seam skip the anchored-realpath check are
+# ordinary environment variables: the gate is a footgun guard for test fixtures, not a security boundary
+# (DEC-1157, DEC-1168) — the default cache path is covered by the directory checks regardless. When it
 # does not admit, the reference ladders _loa_pl_cache_trusted && _loa_pl_cache_readable decide and name
 # the reason. The fast form admits a subset of what the ladders admit: [0145][0145] as the last two mode
 # digits is "no 022 bit"; a file row exists only when the directory resolves to a directory, and the

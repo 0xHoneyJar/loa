@@ -81,7 +81,7 @@ fi
 
 # Ensure .run/ exists (perf pass-4: [[ -d ]] guard skips the mkdir spawn in
 # the steady state where .run already exists)
-[[ -d .run ]] || mkdir -p .run 2>/dev/null
+[[ -d .run ]] || ( umask 077; mkdir -p -- .run ) 2>/dev/null   # 0700 regardless of umask (cycle-138 FR-4)
 
 AUDIT_FILE=".run/audit.jsonl"
 
