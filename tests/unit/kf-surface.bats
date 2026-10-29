@@ -465,8 +465,11 @@ _san_line() { printf '%s\n' "$1" | grep -nxF -- "$2" | cut -d: -f1; }
   n0="$(_san_line "$a" 'gsub(/[\001-\010\013\014\016-\037\177]/, "", s)')"
   [ -n "$n1" ] && [ -n "$n2" ] && [ -n "$n0" ] || { echo "missing a class line: c1=$n1 u2028=$n2 c0=$n0" >&2; false; }
   # the C0/DEL deletion must come FIRST: a deletion after the class replacement re-joins a lead byte and its continuation
-  # around a deleted C0 byte into a live C1 / U+2028 character (Sprint 285 review round 2, DISS-C-001)
-  [ "$n0" -lt "$n1" ] && [ "$n0" -lt "$n2" ]
+  # around a deleted C0 byte into a live C1 / U+2028 character (Sprint 285 review round 2, DISS-C-001).
+  # One assertion per line: in a bats test `[ a ] && [ b ]` can never fail on `a` — errexit and the ERR trap skip a
+  # command that is not the last of an && list — so the former chained order check pinned nothing (round 3, lead).
+  [ "$n0" -lt "$n1" ]
+  [ "$n0" -lt "$n2" ]
   [[ "$a" != *'‹'* && "$a" != *'›'* ]]   # < and > are NOT replaced in the KF twins (stated in san())
 }
 

@@ -581,7 +581,9 @@ _pl_planted() {
     rm -f "$LOA_PROFILE_CACHE_FILE"; ln -s "$T/nowhere" "$LOA_PROFILE_CACHE_FILE"
     [ "$(_pl_state)" = "off (file-untrusted)" ]
     knob decisions.surface_at_session_start x >/dev/null
-    [ ! -e "$T/nowhere" ] && [ -f "$LOA_PROFILE_CACHE_FILE" ] && [ ! -L "$LOA_PROFILE_CACHE_FILE" ]
+    [ ! -e "$T/nowhere" ]
+    [ -f "$LOA_PROFILE_CACHE_FILE" ]
+    [ ! -L "$LOA_PROFILE_CACHE_FILE" ]
 }
 
 @test "PL-31 (cycle-138 FR-1) a directory at the cache path is neither read nor replaced; no temp file is left behind" {
@@ -598,10 +600,12 @@ _pl_planted() {
     run timeout 5 bash "$LIB" knob decisions.surface_at_session_start x
     [ "$status" -eq 0 ] || { echo "status $status (124 = blocked on the FIFO)"; return 1; }
     [ "$output" = "$(_pl_want decisions.surface_at_session_start x)" ]
-    [ -f "$LOA_PROFILE_CACHE_FILE" ] && [ ! -p "$LOA_PROFILE_CACHE_FILE" ]
+    [ -f "$LOA_PROFILE_CACHE_FILE" ]
+    [ ! -p "$LOA_PROFILE_CACHE_FILE" ]
     mkfifo "$T/run/fifo2"; rm -f "$LOA_PROFILE_CACHE_FILE"; mv "$T/run/fifo2" "$LOA_PROFILE_CACHE_FILE"
     run timeout 5 bash -c 'source "$1"; loa_profile_cache_state' _ "$LIB"
-    [ "$status" -eq 0 ] && [ "$output" = "off (file-untrusted)" ]
+    [ "$status" -eq 0 ]
+    [ "$output" = "off (file-untrusted)" ]
 }
 
 @test "PL-33 (cycle-138 FR-1) a hard-linked cache (links 2) is not read and is replaced on write; the other name keeps its bytes" {
@@ -610,7 +614,8 @@ _pl_planted() {
     [ "$(_pl_state)" = "off (file-untrusted)" ]
     [ "$(knob decisions.surface_at_session_start x)" = "$(_pl_want decisions.surface_at_session_start x)" ]
     cmp "$T/planted" "$T/victim"
-    [ "$(stat -c %h "$LOA_PROFILE_CACHE_FILE")" = 1 ] && [ "$(stat -c %h "$T/victim")" = 1 ]
+    [ "$(stat -c %h "$LOA_PROFILE_CACHE_FILE")" = 1 ]
+    [ "$(stat -c %h "$T/victim")" = 1 ]
     [ "$(_pl_state)" = on ]
 }
 
@@ -629,22 +634,26 @@ _pl_planted() {
     [ "$status" -eq 0 ] && [ -z "$stderr" ] || { echo "status $status stderr=$stderr"; return 1; }
     [ "$output" = "$(printf 'off (dir-stat)\n%s' "$(_pl_want decisions.surface_at_session_start x)")" ] || { echo "$output"; return 1; }
     run --separate-stderr env PATH="$T/shim:$PATH" SHIM_PATH="$T/run" SHIM_UID=x bash -c 'source "$1"; loa_profile_cache_state' _ "$LIB"
-    [ "$output" = "off (dir-stat)" ] && [ -z "$stderr" ]
+    [ "$output" = "off (dir-stat)" ]
+    [ -z "$stderr" ]
     cmp "$T/planted" "$LOA_PROFILE_CACHE_FILE"                      # a refused directory: not read, not written
     # a malformed FILE row: not read (and, the directory being trusted, replaced by the rebuild — PL-34)
     run --separate-stderr env PATH="$T/shim:$PATH" SHIM_PATH="$LOA_PROFILE_CACHE_FILE" SHIM_MODE='6;0' bash -c 'source "$1"; loa_profile_cache_state; loa_knob decisions.surface_at_session_start x' _ "$LIB"
     [ "$output" = "$(printf 'off (file-untrusted)\n%s' "$(_pl_want decisions.surface_at_session_start x)")" ] && [ -z "$stderr" ] || { echo "$output / $stderr"; return 1; }
     run --separate-stderr env PATH="$T/shim:$PATH" SHIM_PATH="$LOA_PROFILE_CACHE_FILE" SHIM_LINKS=1a bash -c 'source "$1"; loa_profile_cache_state' _ "$LIB"
-    [ "$output" = "off (file-untrusted)" ] && [ -z "$stderr" ]
+    [ "$output" = "off (file-untrusted)" ]
+    [ -z "$stderr" ]
 }
 
 @test "PL-36 (cycle-138 FR-1) the mv fallback (no -T, BSD) writes the cache and still refuses a directory at the cache path" {
     _pl_shims
     PATH="$T/shim:$PATH" bash "$LIB" knob decisions.surface_at_session_start x >/dev/null
-    [ -f "$LOA_PROFILE_CACHE_FILE" ] && [ "$(stat -c %a "$LOA_PROFILE_CACHE_FILE")" = 600 ]
+    [ -f "$LOA_PROFILE_CACHE_FILE" ]
+    [ "$(stat -c %a "$LOA_PROFILE_CACHE_FILE")" = 600 ]
     rm -f "$LOA_PROFILE_CACHE_FILE"; mkdir "$LOA_PROFILE_CACHE_FILE"
     PATH="$T/shim:$PATH" bash "$LIB" knob decisions.surface_at_session_start x >/dev/null
-    [ -d "$LOA_PROFILE_CACHE_FILE" ] && [ -z "$(ls -A "$LOA_PROFILE_CACHE_FILE")" ]
+    [ -d "$LOA_PROFILE_CACHE_FILE" ]
+    [ -z "$(ls -A "$LOA_PROFILE_CACHE_FILE")" ]
     [ "$(ls -A "$T/run")" = "effective-config.json" ] || { ls -la "$T/run"; return 1; }
 }
 

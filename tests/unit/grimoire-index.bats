@@ -266,7 +266,8 @@ _kf_shapes_tsv() {
 @test "grimoire-index FR-2: fields under ## Index / ## Schema headings attach to no entry" {
   _kf_shapes_tsv
   [[ "$output" != *"index-level"* && "$output" != *"schema-level"* ]]
-  [ "$(_kf_field KF-007 8)" != "99" ] && [ "$(_kf_field KF-007 7)" != "99" ]
+  [ "$(_kf_field KF-007 8)" != "99" ]
+  [ "$(_kf_field KF-007 7)" != "99" ]
 }
 
 @test "grimoire-index FR-2: **Status**: A then **Status (original)**: B keeps status A; a lone qualified Status is not a status" {
@@ -281,7 +282,8 @@ _kf_shapes_tsv() {
 @test "grimoire-index FR-2: shape C **Recurrence count (approx)**: 4 gives recurrence 4 (list-marker form too)" {
   _kf_shapes_tsv
   [ "$(_kf_field KF-001 8)" = "4" ] || { echo "got: $(_kf_field KF-001 8)" >&2; false; }
-  [ "$(_kf_field KF-008 7)" = "listed" ] && [ "$(_kf_field KF-008 8)" = "8" ]
+  [ "$(_kf_field KF-008 7)" = "listed" ]
+  [ "$(_kf_field KF-008 8)" = "8" ]
 }
 
 # ---- cycle-137 FR-5 (bd-1mfm7): the decisions-family cache and the write-mode jq (sdd § 3, § 5.5) ----
@@ -332,7 +334,8 @@ _cold_tsv() { LOA_GRIMOIRE_INDEX_NO_CACHE=1 bash "$GIX" --tsv; }
   _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
   local cold warm; cold="$(_cold_tsv)"
   [ "$(_gi --tsv)" = "$cold" ]
-  [ -f "$CACHE" ] && [ ! -L "$CACHE" ]
+  [ -f "$CACHE" ]
+  [ ! -L "$CACHE" ]
   [ "$(head -1 "$CACHE")" = "$(_expected_key 3)" ] || { echo "key: $(head -1 "$CACHE") want $(_expected_key 3)" >&2; false; }
   [ "$(stat -c '%a' "$CACHE" 2>/dev/null || stat -f '%Lp' "$CACHE")" = "600" ]
   warm="$(_gi_trace "$BATS_TEST_TMPDIR/t" --tsv)"
@@ -430,7 +433,8 @@ _assert_not_used() {
   mkdir -p "$BATS_TEST_TMPDIR/tgt"
   mv "$CACHE" "$BATS_TEST_TMPDIR/tgt/target.tsv"; ln -s "$BATS_TEST_TMPDIR/tgt/target.tsv" "$CACHE"
   _assert_not_used "$BATS_TEST_TMPDIR/tgt/target.tsv"
-  [ -L "$CACHE" ] && [ "$(readlink "$CACHE")" = "$BATS_TEST_TMPDIR/tgt/target.tsv" ]
+  [ -L "$CACHE" ]
+  [ "$(readlink "$CACHE")" = "$BATS_TEST_TMPDIR/tgt/target.tsv" ]
   [ "$(ls -A "$CDIR")" = "grimoire-index-decisions.v1.tsv" ]
 }
 
@@ -441,7 +445,8 @@ _assert_not_used() {
   local s
   for s in AAAAAA XXXXXX 000000 "$$" tmp; do ln -s "$BATS_TEST_TMPDIR/victim" "$CACHE.$s"; done
   [ "$(_gi --tsv)" = "$(_cold_tsv)" ]
-  [ -f "$CACHE" ] && [ ! -L "$CACHE" ]
+  [ -f "$CACHE" ]
+  [ ! -L "$CACHE" ]
   [ "$(cat "$BATS_TEST_TMPDIR/victim")" = "victim" ]
   for s in AAAAAA XXXXXX 000000 "$$" tmp; do [ -L "$CACHE.$s" ]; done
   [ "$(ls -A "$CDIR" | wc -l | tr -d ' ')" -eq 6 ]   # the five planted links and the cache: no temp left
@@ -454,7 +459,8 @@ _assert_not_used() {
   chmod 500 "$CP/.run"
   local out; out="$(_gi --tsv 2>"$BATS_TEST_TMPDIR/err")"; local rc=$?
   chmod 700 "$CP/.run"
-  [ "$rc" -eq 0 ] && [ "$out" = "$cold" ]
+  [ "$rc" -eq 0 ]
+  [ "$out" = "$cold" ]
   cmp "$BATS_TEST_TMPDIR/err" "$BATS_TEST_TMPDIR/cold.err"
   [ ! -e "$CDIR" ]
 }
@@ -478,7 +484,8 @@ _assert_not_used() {
   mkdir -p "$CDIR"; chmod 775 "$CDIR"; chmod 775 "$CP/.run"
   _gi --tsv >/dev/null
   [ -f "$CACHE" ] || { echo "no cache written after tightening" >&2; ls -la "$CP/.run" "$CDIR" >&2; false; }
-  [ "$(stat -c %a "$CP/.run")" = "755" ] && [ "$(stat -c %a "$CDIR")" = "755" ]
+  [ "$(stat -c %a "$CP/.run")" = "755" ]
+  [ "$(stat -c %a "$CDIR")" = "755" ]
   local tr="$BATS_TEST_TMPDIR/trace.warm"; _gi_trace "$tr" --tsv >/dev/null
   ! _parsed_by_yq "$tr" || { echo "warm run still parsed with yq (cache not used)" >&2; false; }
 }
@@ -556,7 +563,8 @@ _assert_not_used() {
   _need_yq4; _cache_project "$BATS_TEST_TMPDIR/c"
   local cold; cold="$(_cold_tsv)"
   _gi --tsv > "$BATS_TEST_TMPDIR/o1" & _gi --tsv > "$BATS_TEST_TMPDIR/o2" & wait
-  [ "$(cat "$BATS_TEST_TMPDIR/o1")" = "$cold" ] && [ "$(cat "$BATS_TEST_TMPDIR/o2")" = "$cold" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/o1")" = "$cold" ]
+  [ "$(cat "$BATS_TEST_TMPDIR/o2")" = "$cold" ]
   [ "$(head -1 "$CACHE")" = "$(_expected_key 3)" ]
   [ "$(ls -A "$CDIR")" = "grimoire-index-decisions.v1.tsv" ]   # no temp left behind
   [ "$(_gi_trace "$BATS_TEST_TMPDIR/t" --tsv)" = "$cold" ]
@@ -592,7 +600,8 @@ _assert_not_used() {
   [ "$(grep -cF "jq -r '. as \$root" "$BATS_TEST_TMPDIR/t")" -eq 1 ]
   [ "$(grep -cE "^\++ ?jq -r (\.total|'\.total')$" "$BATS_TEST_TMPDIR/t")" -eq 0 ]
   grep -qF "($total entries)" "$BATS_TEST_TMPDIR/err"
-  [ -f "$CP/grimoires/loa/INDEX.md" ] && [ -f "$CP/.run/grimoire-index.json" ]
+  [ -f "$CP/grimoires/loa/INDEX.md" ]
+  [ -f "$CP/.run/grimoire-index.json" ]
 }
 
 # No emitter can produce an empty id today (rd() trims, san() never empties an id-shaped field), so a jq
@@ -618,7 +627,8 @@ _jq_shim() {   # _jq_shim <dir> <mode: inject|fail|three>
   run env PATH="$BATS_TEST_TMPDIR/jqshim:$PATH" bash "$GIX"
   [ "$status" -eq 1 ]
   [[ "$output" == *"::error::[GRIMOIRE-INDEX] refusing to write — 1 malformed records (id/path/family)."* ]]
-  [ ! -e "$CP/grimoires/loa/INDEX.md" ] && [ ! -e "$CP/.run/grimoire-index.json" ]
+  [ ! -e "$CP/grimoires/loa/INDEX.md" ]
+  [ ! -e "$CP/.run/grimoire-index.json" ]
 }
 
 @test "grimoire-index write mode: a failing check jq or a third output line refuses the write (exit 1, nothing written)" {
@@ -629,7 +639,8 @@ _jq_shim() {   # _jq_shim <dir> <mode: inject|fail|three>
     run env PATH="$BATS_TEST_TMPDIR/jqshim-$m:$PATH" bash "$GIX"
     [ "$status" -eq 1 ] || { echo "$m: status $status: $output" >&2; false; }
     [[ "$output" == *"refusing to write — ? malformed records"* ]]
-    [ ! -e "$CP/grimoires/loa/INDEX.md" ] && [ ! -e "$CP/.run/grimoire-index.json" ]
+    [ ! -e "$CP/grimoires/loa/INDEX.md" ]
+    [ ! -e "$CP/.run/grimoire-index.json" ]
   done
 }
 
