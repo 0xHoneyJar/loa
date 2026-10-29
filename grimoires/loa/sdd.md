@@ -262,7 +262,8 @@ lines 214-217 (the warn path only — the hot path is untouched; the state dir a
     st=$(stat -Lc '%n|%u|%a|%h|%d:%i|%F' -- "${comps[@]}")                # ONE stat -L over the components FIRST (BSD: -Lf '%N|%u|%Lp|%l|%d:%i|%HT'): nothing is opened unless the chain is trusted
     for each comp: row present, [[ -d comp && ! -L comp ]], uid == EUID — else return 1 (as before; the component MODE is not tested, DEC-1185)
     [[ -f f && ! -L f ]] → exec {FD}>>f                                   # (1.9) existing regular non-symlink file: O_APPEND
-    [[ ! -e f && ! -L f ]] → set -o noclobber; exec {FD}>f                 # (1.9) truly absent: O_CREAT|O_EXCL (never follows a planted symlink), 0600 under the hook's umask 077; a concurrent creator loses and skips
+    [[ ! -e f && ! -L f ]] → set -o noclobber; exec {FD}>f; exec {FD}>&-  # (1.9) truly absent: O_CREAT|O_EXCL (never follows a planted symlink), 0600 under the hook's umask 077; then CLOSED and
+                                                                            #       reopened O_APPEND by the branch above (`>` sits at offset zero — review r1 DISS-001); a loser of the O_EXCL race also takes the append branch
     else → return 1                                                        # (1.9) symlink, dangling symlink (1.6), FIFO, directory: refused UNOPENED
     row=$(stat -Lc '%n|%u|%a|%h|%d:%i|%F' -- /dev/fd/$FD)                 # (1.9) the DESCRIPTOR's row — the fstat of what we hold
     pathrow=$(stat -c '%d:%i|%F' -- f)                                     # (1.9) lstat of the path: must be regular*file on the SAME device:inode as the descriptor
