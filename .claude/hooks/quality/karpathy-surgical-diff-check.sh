@@ -35,8 +35,9 @@
 #
 # Seams (tests): LOA_CONFIG_OVERRIDE (config), KARPATHY_STATE_DIR,
 # KARPATHY_SUMMARY_FILE, KARPATHY_LEGACY_STATE, KARPATHY_TRAJECTORY_DIR,
-# KARPATHY_CHECKPOINT_CMD (default .claude/scripts/run-checkpoint.sh, which
-# itself honours LOA_RUN_DIR), KARPATHY_STATE_KEEP (default 20).
+# KARPATHY_CHECKPOINT_CMD (honoured only under a bats marker, BATS_TEST_FILENAME
+# or BATS_VERSION; otherwise .claude/scripts/run-checkpoint.sh, which itself
+# honours LOA_RUN_DIR), KARPATHY_STATE_KEEP (default 20).
 #
 # Design note: the session-long state file grew without bound, which is what
 # the earlier perf passes (config-token and state-aggregate caches) existed
@@ -59,7 +60,12 @@ STATE_DIR="${KARPATHY_STATE_DIR:-$DEFAULT_STATE_DIR}"
 SUMMARY="${KARPATHY_SUMMARY_FILE:-$REPO_ROOT/.run/karpathy-surgical-summary.json}"
 LEGACY="${KARPATHY_LEGACY_STATE:-$REPO_ROOT/.run/karpathy-task-state.jsonl}"
 TRAJ_DIR="${KARPATHY_TRAJECTORY_DIR:-$REPO_ROOT/grimoires/loa/a2a/trajectory}"
-CHECKPOINT="${KARPATHY_CHECKPOINT_CMD:-$REPO_ROOT/.claude/scripts/run-checkpoint.sh}"
+CHECKPOINT="$REPO_ROOT/.claude/scripts/run-checkpoint.sh"
+# KARPATHY_CHECKPOINT_CMD redirects the command this hook runs, so it is honoured only under a bats marker;
+# outside bats it is ignored silently (no stderr: the output stays byte-identical) — cycle-138 FR-5, DEC-1158.
+# The marker is a footgun guard for test fixtures, not a security boundary: the same uid already owns the
+# session (DEC-1168).
+[[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${KARPATHY_CHECKPOINT_CMD:-}" ]] && CHECKPOINT="$KARPATHY_CHECKPOINT_CMD"
 KEEP="${KARPATHY_STATE_KEEP:-20}"
 [[ "$KEEP" =~ ^[0-9]{1,4}$ && "$KEEP" -ge 1 ]] || KEEP=20
 
@@ -211,10 +217,64 @@ if [[ "$OVER" == "true" ]]; then
     FILES_MOD="${counts%% *}"; TOOL_CALLS="${counts##* }"
     [[ "$FILES_MOD" =~ ^[0-9]+$ ]] || FILES_MOD=0
     [[ "$TOOL_CALLS" =~ ^[0-9]+$ ]] || TOOL_CALLS=0
-    [[ -d "$TRAJ_DIR" ]] || mkdir -p "$TRAJ_DIR" 2>/dev/null || exit 0
-    printf '{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"%s","files_modified":%s,"lines_total":%s,"threshold":%s,"verdict":"warn","tool_call_count":%s,"session_id":%s}\n' \
+    # The append goes only through a trusted path (cycle-138 FR-6, SDD § 5.5, DEC-1168): TRAJ_DIR inside the
+    # checkout and anchored at the canonical root (no symlinked component below it; no `realpath -m` → refuse,
+    # no fallback); every directory below the root and the day file read by ONE stat (rows keyed by %n, rc
+    # ignored: `stat -L` prints a row for each path that exists); each component a uid-owned non-symlink
+    # directory (its mode is not tested: a checkout's directories inherit the clone umask, and the checkout
+    # root is the trust root — DEC-1166); the day file, when present, a uid-owned regular non-symlink file
+    # with one link and no group/other write. Otherwise the append is skipped silently — the warning above is
+    # printed regardless. Warn path only: realpath x2 + stat x1 (+ mkdir once when the directory is absent).
+    # The state directory and task file keep their -L guards above (out of FR-6's scope).
+    _traj_trusted() {
+        local rel root_real real comp st row name uid mode links i n
+        local -a comps=() rows=()
+        [[ "$TRAJ_DIR" == "$REPO_ROOT/"* ]] || return 1
+        rel="${TRAJ_DIR#"$REPO_ROOT/"}"
+        root_real=$(realpath -m -- "$REPO_ROOT" 2>/dev/null) || return 1
+        real=$(realpath -m -- "$TRAJ_DIR" 2>/dev/null) || return 1
+        [[ -n "$root_real" && -n "$real" && "$real" == "$root_real/$rel" ]] || return 1
+        comp="$REPO_ROOT"
+        while [[ -n "$rel" ]]; do
+            comp="$comp/${rel%%/*}"
+            comps+=("$comp")
+            [[ "$rel" == */* ]] && rel="${rel#*/}" || rel=""
+        done
+        if [[ ! -d "$TRAJ_DIR" ]]; then
+            # the existing ancestors first (builtins; their modes are read by the stat below): a real directory owned by us
+            for comp in "${comps[@]}"; do
+                [[ -e "$comp" || -L "$comp" ]] || break
+                [[ -d "$comp" && ! -L "$comp" && -O "$comp" ]] || return 1
+            done
+            ( umask 077; mkdir -p -- "$TRAJ_DIR" ) 2>/dev/null || return 1
+        fi
+        TRAJ_FILE="$TRAJ_DIR/karpathy-${TS:0:10}.jsonl"
+        st=$(stat -Lc '%n|%u|%a|%h' -- "${comps[@]}" "$TRAJ_FILE" 2>/dev/null)
+        [[ -n "$st" ]] || st=$(stat -Lf '%N|%u|%Lp|%l' -- "${comps[@]}" "$TRAJ_FILE" 2>/dev/null)
+        while IFS= read -r row; do rows+=("$row"); done <<< "$st"
+        n=${#comps[@]}
+        (( ${#rows[@]} == n || ${#rows[@]} == n + 1 )) || return 1
+        i=0
+        for row in "${rows[@]}"; do
+            links="${row##*|}"; row="${row%|*}"
+            mode="${row##*|}"; row="${row%|*}"
+            uid="${row##*|}"; name="${row%|*}"
+            [[ "$uid" =~ ^[0-9]+$ && "$mode" =~ ^[0-7]+$ && "$links" =~ ^[0-9]+$ ]] || return 1
+            [[ "$uid" == "$EUID" ]] || return 1
+            if (( i < n )); then
+                [[ "$name" == "${comps[i]}" && -d "$name" && ! -L "$name" ]] || return 1
+            else
+                [[ "$name" == "$TRAJ_FILE" && -f "$name" && ! -L "$name" && "$links" == 1 ]] || return 1
+                (( (8#$mode & 8#022) == 0 )) || return 1
+            fi
+            i=$((i + 1))
+        done
+        return 0
+    }
+    TRAJ_FILE=""
+    _traj_trusted && printf '{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"%s","files_modified":%s,"lines_total":%s,"threshold":%s,"verdict":"warn","tool_call_count":%s,"session_id":%s}\n' \
         "$TS" "$FILES_MOD" "$RUNNING" "$THRESHOLD" "$TOOL_CALLS" "$SESSION_JSON" \
-        >> "$TRAJ_DIR/karpathy-${TS:0:10}.jsonl" 2>/dev/null || true
+        >> "$TRAJ_FILE" 2>/dev/null || true
 fi
 
 exit 0
