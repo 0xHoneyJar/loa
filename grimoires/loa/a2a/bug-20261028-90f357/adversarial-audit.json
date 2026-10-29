@@ -1,0 +1,150 @@
+{
+  "findings": [
+    {
+      "id": "DISS-C-001",
+      "severity": "LOW",
+      "category": "input-validation",
+      "anchor": ".claude/scripts/post-merge-orchestrator.sh:release_body_identical",
+      "anchor_type": "line",
+      "anchor_line": 1199,
+      "anchor_line_end": 1204,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The python half of release_body_identical coerces three non-conforming read-backs into a comparable body instead of exiting non-zero. (a) A non-object JSON document (array, string, number, null) yields body None, then '' (lines 1199-1201), so python prints `differ N 0`, or `equal` when the sent notes are empty; the refusal then depends solely on the later jq identity step erroring on `.id` (unreadable) or failing the id term. (b) A dict with `body: null` is likewise treated as '' and compares equal to empty notes, where the previous `.body == $body` jq test refused null. (c) `body.encode('utf-8', 'surrogateescape')` (line 1204) maps lone surrogates U+DC80..U+DCFF in the read-back JSON onto raw bytes 0x80..0xFF, so a read-back body spelled `\"\\udcc3\\udca9\"` compares equal to a sent body containing `é`. GitHub's API cannot return lone surrogates today, and the jq step covers (a), so none of this is exploitable; it is a tolerance wider than the single caret rewrite the helper is documented to accept, and it leans on a second guard that a later jq edit (e.g. `.id?`) would silently remove.",
+      "failure_mode": "A read-back that is not a release object, or that carries lone surrogates, is normalised into a comparable body by python rather than refused there; correctness of the refusal rests on the separate jq identity check rather than on the helper that owns the body comparison.",
+      "suggested_fix": "In the python program: `if not isinstance(rb, dict): raise SystemExit('read-back is not an object')`; treat `body is None` the same way as a non-string (refuse) unless the sent notes are also empty, or compare against b'' only when `rb.get('body') in ('', None)` AND `sent == b''`; encode with `'strict'` so lone surrogates raise UnicodeEncodeError and refuse. Add a bats case for an array read-back and one for a `\\udc80` body to pin the behaviour.",
+      "anchor_status": "valid",
+      "failure_scenario": "A read-back that is not a release object, or that carries lone surrogates, is normalised into a comparable body by python rather than refused there; correctness of the refusal rests on the separate jq identity check rather than on the helper that owns the body comparison.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/scripts/post-merge-orchestrator.sh:release_body_identical",
+      "anchor_type": "line",
+      "anchor_line": 1193,
+      "anchor_line_end": 1206,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The helper creates `${TMPDIR:-/tmp}/release-body.XXXXXX/` (mode 0700, unpredictable name, so no symlink or pre-placement attack is possible from another user) and removes it with `rm -rf` only on the normal return path. There is no `trap ... RETURN/EXIT/INT/TERM`, so SIGKILL, SIGTERM from the CI runner, or a `set -e` abort inside the helper leaves `sent` (the full release notes) and `readback` (the full GitHub release JSON) on disk. The caller's `body_err` file (line 1304) has the same lifecycle gap. Contents are public release text and the directory is owner-only, so exposure is nil on a shared sticky /tmp; this is hygiene, not disclosure.",
+      "failure_mode": "Abrupt termination of the orchestrator leaves per-run temp files containing the release body and read-back JSON under TMPDIR indefinitely.",
+      "suggested_fix": "Install `trap 'rm -rf \"$dir\"' RETURN` immediately after the successful `mktemp -d` (bash supports RETURN traps in functions), or register the directory in a script-level cleanup list consumed by an EXIT trap; do the same for `$body_err`. SIGKILL cannot be trapped, so optionally sweep `release-body.*` older than a day at script start.",
+      "anchor_status": "valid",
+      "failure_scenario": "Abrupt termination of the orchestrator leaves per-run temp files containing the release body and read-back JSON under TMPDIR indefinitely.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "LOW",
+      "category": "other",
+      "anchor": ".claude/scripts/post-merge-orchestrator.sh:phase_release",
+      "anchor_type": "line",
+      "anchor_line": 1304,
+      "anchor_line_end": 1304,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`body_err=$(mktemp \"${TMPDIR:-/tmp}/release-body-err.XXXXXX\")` has no `|| ...` branch. The surrounding comment says the script runs under `set -e`; a failing command substitution in a plain assignment terminates the shell. At this point the release POST has already succeeded (lines 1288-1292), so an ENOSPC or unwritable TMPDIR here aborts the orchestrator with the release phase still recorded as in_progress and no `fail_phase` receipt explaining why. Nothing downstream (ledger push, notify) runs, so it is fail-closed in effect, but the state receipt the sprint is explicitly trying to make explanatory is not written. Not exploitable; a robustness gap in the new fail-closed wrapper.",
+      "failure_mode": "mktemp failure after the release has been created exits the script without a recorded phase failure, leaving the state file inconsistent with GitHub.",
+      "suggested_fix": "`body_err=$(mktemp ...) || { fail_phase release \"Release body comparison failed: cannot create stderr capture file; release not verified\"; return 1; }`. Alternatively capture python's stderr into a variable via process substitution or `2>&1 >/dev/null` inside the helper so no second temp file is needed.",
+      "anchor_status": "valid",
+      "failure_scenario": "mktemp failure after the release has been created exits the script without a recorded phase failure, leaving the state file inconsistent with GitHub.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "LOW",
+      "category": "config",
+      "anchor": "tests/unit/post-merge-publication.bats:bug-283 r2 (DISS-001) release_body_identical compares a 200 000-byte body",
+      "anchor_type": "hunk",
+      "anchor_line": 632,
+      "anchor_line_end": 734,
+      "scope": "cross_file",
+      "trigger_anchor": ".claude/scripts/post-merge-orchestrator.sh:release_body_identical",
+      "cross_file_justification": "The orchestrator's new helper (post-merge-orchestrator.sh:1193) and caller (:1304) write under `${TMPDIR:-/tmp}`; the new bats cases invoke them via `publish` and via direct `source`, so the test run writes outside `$CASE_DIR` unless the harness exports TMPDIR.",
+      "description": "Reviewer concern 6 asks whether anything is written outside the case directory. The explicit test artefacts (`$CASE_DIR/big.txt`, `$CASE_DIR/big-rb.json`, `${GH_LOG}.release`, `$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh`) stay inside the per-case tree. However every new case that reaches the release phase or calls `release_body_identical` directly causes the code under test to create `release-body.XXXXXX/` and `release-body-err.XXXXXX` under the real `${TMPDIR:-/tmp}` of the test host. Bats does not set TMPDIR by default (it uses BATS_TMPDIR for its own files), so unless the suite's setup exports TMPDIR into the case directory, the publish tests touch the shared system temp directory and, on a killed test run, leave the two files described in DISS-R3-002 behind. The stub's python branch is correctly single-quoted and runs with `-I`; the fixtures are literal public text; nothing else leaks out of the case tree.",
+      "failure_mode": "Test runs write transient files to the host's shared temp directory rather than the isolated case directory, and an interrupted run leaves them there.",
+      "suggested_fix": "In the bats `setup` (or in the `publish` helper), `export TMPDIR=\"$CASE_DIR/tmp\"; mkdir -p \"$TMPDIR\"` so the orchestrator's mktemp calls land under the case tree and are removed with it. Optionally assert at the end of the bug-283 cases that `$TMPDIR` is empty, which also pins the helper's cleanup.",
+      "anchor_status": "valid",
+      "failure_scenario": "Test runs write transient files to the host's shared temp directory rather than the isolated case directory, and an interrupted run leaves them there.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "audit",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-bug-283",
+    "timestamp": "2026-10-29T00:04:31Z",
+    "status": "clean",
+    "status_note": "no findings met the BLOCKING/ADVISORY bar — not an approval of unreviewed surface",
+    "degraded": false,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "model_attempts": [
+      "gpt-5.5-pro:clean"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "rejected_summary": [],
+    "rejected_count": 0,
+    "cost_usd": 0,
+    "tokens_input": 2,
+    "tokens_output": 30685,
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "0d3b22d9d0f9a46b269ac8a9453788297f184544e01d091495e68c9015cf542c",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

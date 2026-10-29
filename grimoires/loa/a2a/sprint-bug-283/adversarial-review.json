@@ -1,0 +1,176 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/post-merge-orchestrator.sh:release_body_identical",
+      "anchor_type": "function",
+      "anchor_line": 1182,
+      "scope": "diff",
+      "description": "Passing the entire read-back JSON through `--argjson rb \"$2\"` introduces a per-argument size limit. On Linux with 4 KiB pages, a single argument must be smaller than 131072 bytes ([execve documentation](https://man7.org/linux/man-pages/man2/execve.2.html)). A supported body containing 70000 double quotes occupies roughly 140000 bytes when JSON-escaped, exceeding that limit even though the decoded body fits comfortably.",
+      "failure_mode": "jq cannot start and returns E2BIG. Python receives no JSON, and publication fails with 'Release body comparison unavailable' even when GitHub stored the exact expected body. The previous implementation supplied read-back JSON through stdin, so this introduces a failure for previously verifiable releases.",
+      "suggested_fix": "Pass read-back JSON through stdin or a file descriptor instead of argv, and perform normalization and equality on the decoded strings. Add coverage where the decoded body fits the supported limit but its JSON representation exceeds 128 KiB.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "failure_scenario": "jq cannot start and returns E2BIG. Python receives no JSON, and publication fails with 'Release body comparison unavailable' even when GitHub stored the exact expected body. The previous implementation supplied read-back JSON through stdin, so this introduces a failure for previously verifiable releases.",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/post-merge-orchestrator.sh:release_body_identical",
+      "anchor_type": "line",
+      "anchor_line": 1182,
+      "anchor_line_end": 1182,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`jq -nc --arg sent \"$1\" --argjson rb \"$2\"` places the ENTIRE sent body and the ENTIRE read-back release JSON into argv as two single strings. jq has no size limit, but the Linux kernel enforces MAX_ARG_STRLEN = 131072 bytes per individual argv string (execve fails with E2BIG; bash prints 'Argument list too long'). GitHub accepts bodies up to 125,000 characters; in UTF-8 the project's own notes are em-dash/ellipsis heavy (3 bytes each), and the read-back is the body plus JSON escaping (every newline/quote/backslash doubles) plus the release envelope (~2-4 KB, plus ~1.5 KB per asset). A legitimately large release therefore crosses 128 KiB on the read-back side well before GitHub's character limit. The old code had the same class of limit (two `--arg` of normalised-body size); the new code lowers the threshold further by shipping the whole envelope. On the reviewer's UTF-8 question: the parser of the read-back is jq, not python. jq replaces invalid UTF-8 and lone surrogates with U+FFFD on both `--arg` and `--argjson` rather than erroring, so `json.load` never sees them and the 'raises -> refusal' path does not exist; equality is judged on jq-sanitised strings and is fail-safe only because any asymmetry still differs.",
+      "failure_mode": "For a near-limit body (or a release with many assets), execve of jq fails with E2BIG, jq produces no output, python raises JSONDecodeError on empty stdin, and the phase refuses with 'Release body comparison unavailable (python3 and jq required)'. Fail-closed, but the release can never be published and the receipt blames tool availability rather than size.",
+      "suggested_fix": "Do not pass bodies through argv. Write `$1` and `$2` to files under the run directory (or use process substitution, which Bash 3.2 supports) and load them with `--rawfile sent <path>` / `--slurpfile rb <path>` (`$rb[0].body // \"\"`), or feed one of them on jq's stdin. Keep the same single-process python comparison afterwards.",
+      "anchor_status": "valid",
+      "failure_scenario": "For a near-limit body (or a release with many assets), execve of jq fails with E2BIG, jq produces no output, python raises JSONDecodeError on empty stdin, and the phase refuses with 'Release body comparison unavailable (python3 and jq required)'. Fail-closed, but the release can never be published and the receipt blames tool availability rather than size.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/post-merge-orchestrator.sh:phase_release",
+      "anchor_type": "line",
+      "anchor_line": 1286,
+      "anchor_line_end": 1287,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`release_body_identical ... 2>/dev/null` discards every diagnostic from jq and python, and the single `fail_phase` text attributes all non-zero exits to a missing interpreter. Distinct causes that now collapse into that one message: (a) `$rb.body` not a string (number/object) -> python TypeError in `re.sub`; (b) E2BIG from DISS-001; (c) `--argjson` rejecting a malformed or multi-value read-back; (d) `json.load(sys.stdin)` decoding stdin in the LOCALE encoding — jq emits raw UTF-8 (no `-a`), so on Python < 3.7 with a C/POSIX or non-UTF-8 locale every body containing an em-dash fails with UnicodeDecodeError; on 3.7+ only C/POSIX is coerced to UTF-8, a Latin-1 locale decodes to mojibake on both sides (equality survives, reported lengths do not). The old code left the normaliser's stderr visible. Separately, `differ N N` (same lengths) is a correct refusal but gives the operator nothing to act on.",
+      "failure_mode": "Operator sees 'python3 and jq required' and investigates tool installation while the real cause is body size, a non-string body field, or a locale/decoding problem; the state receipt no longer 'explains the refusal' as the surrounding comment promises.",
+      "suggested_fix": "Capture stderr to a variable or `$RUN_DIR` file instead of /dev/null and append its last line to the `fail_phase` message. In the python snippet read bytes, not text: `d = json.load(sys.stdin.buffer)` (json accepts bytes since 3.6 and auto-detects UTF-8), making the production comparator as locale-independent as the bytes-only sibling. Extend the verdict to `differ <len_a> <len_b> <first_diff_offset>` so same-length differences are locatable.",
+      "anchor_status": "valid",
+      "failure_scenario": "Operator sees 'python3 and jq required' and investigates tool installation while the real cause is body size, a non-string body field, or a locale/decoding problem; the state receipt no longer 'explains the refusal' as the surrounding comment promises.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/post-merge-publication.bats:@test bug-283 r1 (DISS-C-003) release_body_normalize maps the REAL rc.9 candidate line",
+      "anchor_type": "line",
+      "anchor_line": 699,
+      "anchor_line_end": 700,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "`! cmp -s \"$fx/candidate-line.txt\" \"$fx/github-line.txt\"` can never fail the test. Bash's `set -e` and the ERR trap that Bats relies on are both suppressed for a command whose status is inverted with `!` (and Bats documents this as a known gotcha). If the two fixtures were ever made identical, the guard would silently pass and the following 'normalised candidate == GitHub line' assertion would be trivially true, so the fixture test would still go green. The preceding `[ -s a ] && [ -s b ]` has the same partial problem: a failing first `-s` is the non-final command of an `&&` list and does not trip `set -e`/ERR, so only the second file's non-emptiness is actually asserted.",
+      "failure_mode": "The 'pair really differs before normalisation' precondition is vacuous; a regenerated or accidentally equalised fixture would not be caught, and the rc.9 mapping assertion would pass without proving anything.",
+      "suggested_fix": "Use `run cmp -s \"$a\" \"$b\"; [ \"$status\" -ne 0 ]` (or `[ \"$(cat \"$a\")\" != \"$(cat \"$b\")\" ]`), and split the size check into two separate `[ -s ... ]` lines.",
+      "anchor_status": "valid",
+      "failure_scenario": "The 'pair really differs before normalisation' precondition is vacuous; a regenerated or accidentally equalised fixture would not be caught, and the rc.9 mapping assertion would pass without proving anything.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-004",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": ".claude/scripts/post-merge-orchestrator.sh:release_body_identical",
+      "anchor_type": "line",
+      "anchor_line": 1186,
+      "anchor_line_end": 1189,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The caret regex and mapping now exist twice: a bytes implementation in `release_body_normalize` (lines 1171-1174) and an independently typed str implementation inside `release_body_identical` (lines 1186-1189). Only the bytes copy is pinned against the real rc.9 capture and the caret table; the str copy — the one that actually gates publication — is exercised solely through the gh mock's `GH_BODY_REWRITE=caret`, which (per the test bodies written at lines 673-674 and 688-689) is a fixed-string `\\u0000-\\u001f -> \\^@-\\^_` substitution, not the captured GitHub behaviour. There is also no direct 'differs inside the normalised region' refusal case (e.g. read-back `\\^A` where `\\u0000` was sent), which the reviewer's item 4 asked about: current coverage is CRLF, appended newlines, and the mapping table, none of which prove the production comparator refuses a one-caret shift.",
+      "failure_mode": "A future edit to one copy (for instance widening the class or changing the DEL case) leaves the other unchanged; the fixture test keeps passing on the helper nobody in production calls while `release_body_identical` drifts. The one-caret-shift refusal is assumed rather than demonstrated.",
+      "suggested_fix": "Hoist the python caret source into one shell variable (or one python snippet file) consumed by both functions, so there is a single regex and mapping. Extend the fixture test to call `release_body_identical \"$(cat candidate-line.txt)\" \"$(jq -n --rawfile b github-line.txt '{body:$b}')\"` and assert `equal`, then mutate the stored line (`\\^@` -> `\\^A`) and assert the verdict starts with `differ`.",
+      "anchor_status": "valid",
+      "failure_scenario": "A future edit to one copy (for instance widening the class or changing the DEL case) leaves the other unchanged; the fixture test keeps passing on the helper nobody in production calls while `release_body_identical` drifts. The one-caret-shift refusal is assumed rather than demonstrated.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-bug-283",
+    "timestamp": "2026-10-28T23:38:31Z",
+    "tokens_input": 120606,
+    "tokens_output": 29551,
+    "cost_usd": 0,
+    "latency_ms": 40740,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-bug-283/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 1,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-bug-283/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "cc2a783e6dc60f55a4e0966f676ba6575abe36c846bb3af4e1b1ab56d4f8001e",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

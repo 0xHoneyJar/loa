@@ -76,7 +76,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-019](#kf-019-confabulated-absence--an-agent-asserts-a-governed-capability-is-absent-when-the-config-sot-declares-it-present) | DOCUMENTED 2026-06-19 — detector shipped (sensing-confabulated-absence) | agent reasoning over capability availability (headless terminals + Flatline routing) | 1 |
 | [KF-020](#kf-020-claude--p-subscription-oauth--potential-per-token-billing-via-the-43333-auth-detection-bug-metering-policy-was-announced-then-paused) | OPEN — external/upstream; live exposure UNCONFIRMED | cheval claude-headless adapter — #43333 auth-detection bug surfacing/mitigation | 0 |
 | [KF-021](#kf-021-842968-copy-set-silently-drifts--gitignored--check-mode-content-blind) | OPEN → resolved by cycle-117 Wave-1 item G (#1177) | update-loa.sh / mount-submodule.sh submodule copy set | 1 |
-| [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 5 |
+| [KF-022](#kf-022-br-sync-dirty-tracking-split-brain---status-counts-dirty-issues-the---flush-only-export-reads-as-dirty_count0) | OPEN-UPSTREAM | beads_rust (br) sync | 6 |
 | [KF-023](#kf-023-flatline-counts-schema-invalid-exit-0-content-as-a-successful-voice) | RESOLVED-IN-FLIGHT 2026-07-18 (#1227 / sprint-bug-227) | Flatline Phase 1 content qualification | 1 downstream mechanical reproduction |
 | [KF-024](#kf-024-ledger-lib-_write_ledger-accepts-empty-content--ledgerjson-truncated-to-1-byte-with-exit-0) | RESOLVED-IN-FLIGHT 2026-08-08 (fix/ledger-lib-blank-write; seen bd-ed9b7) | ledger-lib.sh _write_ledger + all 6 call sites (sprint ledger integrity) | 1 |
 | [KF-032](#kf-032-post-merge-preparation-dirties-its-own-checkout-before-the-clean-tree-gate) | OPEN — local repair verified; hosted confirmation pending | Post-Merge Pipeline preparation | 1 |
@@ -84,7 +84,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-034](#kf-034-post-merge-publicationbats-reads-red-on-hosts-whose-global-git-config-forces-annotatedsigned-tags) | open | release pipeline tests | 7 |
 | [KF-035](#kf-035-modelinv-audit-emit-fails-soft-when-the-cryptography-module-is-missing--model-invokejsonl-is-silently-not-written) | OPEN | loa_cheval/audit/modelinv.py emit_model_invoke_complete (audit fail-soft default) | 1 |
 | [KF-036](#kf-036-bridgebuilder-personatestts-exits-at-the-api-key-precondition-in-a-shell-without-anthropic_api_key-presence) | OPEN | .claude/skills/bridgebuilder-review/resources/__tests__/persona.test.ts (imports main.js; main's config path runs createLocalAdapters' precondition) | 5 |
-| [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable--exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 12 |
+| [KF-037](#kf-037-a-claude-headless-dissent-hop-exceeds-chevals-610-s-claude--p-timeout-when-another-claude-cli-workload-shares-the-host-cheval-reports-it-as-provider_unavailable--exit-1) | OPEN | .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout | 13 |
 | [KF-038](#kf-038-the-companion-voices-claude--p-hits-the-operators-plan-rate-limit-window-mid-run-rate_limited-the-anthropicheadless-breaker-opens-every-later-chunk-runs-single-voice) | open — structural (the account window, not a code defect); the run mode is to re-run the single-voice chunks after the window resets | adversarial-review.sh companion voice (claude-headless via cheval headless adapter) | 2 |
 | [KF-039](#kf-039-claude-headless-companion-fails-at-execve-with-e2big-on-a-prompt-over-128-kib) | RESOLVED (398859ad) | cheval claude-headless adapter / adversarial-review companion voice | 2 |
 | [KF-040](#kf-040-subscription-claude--p-hop-refused-with-a-geo-400-unsupported-countries-regions-or-territories-claude-fallback-does-not-fall-back) | OPEN — environmental (host network egress); Bedrock route unaffected | cheval claude-headless adapter / ~/.local/bin/claude-fallback | 1 |
@@ -111,6 +111,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-061](#kf-061-home-scope-the-dissent-fails-inside-the-sandbox-project-root-resolved-under-home-headless-clis-refuse-to-prepare-a-run) | Fixed in 7d2119477 (s3-a3: LOA_PROJECT_ROOT wrapping R6-R8, R5 slash-only, persona.md surface); live confirmation = the Task 3.5 verification rerun | evals/harness/lib/sandbox-mount.sh mount_home_scope transform; evals/harness/pipeline-run.sh home-scope launch; adversarial-review.sh / cheval inside the sandbox | 1 |
 | [KF-062](#kf-062-bridgebuilders-claude-headless-voice-is-refused-by-the-models-safeguards-on-a-security-heavy-review-prompt-degrading-the-round) | Open — mitigation under test: exclude generated, fixture and evidence files from the review diff (round 2); if the voice still refuses, G-2 is recorded as not met and the operator decides on a split or a different voice model | .claude/skills/bridgebuilder-review (multi-model voice anthropic/claude-headless → claude -p, cli_model fable); .claude/adapters/loa_cheval/providers/claude_headless_adapter.py | 1 |
 | [KF-063](#kf-063-post-mergeyml-turns-red-on-the-publishs-own-ledger-fast-forward-the-bot-push-to-main-is-classified-as-a-cycle-merge-and---generate-aborts-with---pr-is-required) | Fixed in cycle-134 Sprint 276 (classify-merge-pr.sh trailing (#NNN) + full-pipeline guard; live confirmation at the next rc publish) | .github/workflows/post-merge.yml (Classify Merge → Prepare Release (Cycle)); .claude/scripts/post-merge-orchestrator.sh --publish ledger step (C-3, cycle-133 Sprint 272) | 1 |
+| [KF-064](#kf-064-post-merge-orchestrator---publish-release-phase-failed-on-read-back-although-the-release-was-created--github-rewrites-backslash-u-escapes-in-the-body-u0000-u001f---_-so-the-exact-body--body-comparison-never-matches-ledger--notify-phases-left-pending) | OPEN | post-merge-orchestrator.sh release phase (cycle-133 C-3 read-back identity) | 1 |
 
 ---
 
@@ -1232,7 +1233,7 @@ Fleet evidence: crate+ledger settings.json stuck at 374 rules vs 382-rule pin (m
 **Feature**: beads_rust (br) sync
 **Symptom**: br sync --status reports 'Dirty issues: N / Database is newer (export recommended)' while br sync --flush-only exits 'Nothing to export (no dirty issues)' (verbose shows dirty_count=0); newly created issues are stranded in the DB and never reach issues.jsonl — silent data-loss risk if a later --rebuild/--import-only treats JSONL as authoritative. The status dirty counter also stays sticky AFTER a successful --force export.
 **First observed**: 2026-07-11 agent-ergonomics pass 1 (epic bd-m1o6 stranded)
-**Recurrence count**: 5
+**Recurrence count**: 6
 **Current workaround**: br sync --flush-only --force exports everything (verified bd-m1o6 landed in JSONL); ignore the sticky --status dirty counter afterwards. beads-health.sh (R-003) now probes content currency instead of trusting mtime alone.
 **Upstream issue**: beads_rust v0.2.6 — same family as the known br list --json under-report; needs an upstream issue
 **Related visions / lore**: none
@@ -1246,6 +1247,7 @@ Fleet evidence: crate+ledger settings.json stuck at 374 rules vs 382-rule pin (m
 | 2026-07-29 | br sync + br sync --flush-only after 25 creates (br 0.2.6, cycle-121 kickoff) | Both report 'current/nothing to export' while all 25 cycle-121 ids are DB-only (issues.jsonl has 0). Proceeded per Reading guide: DB authoritative, NO --rebuild/--import-only, JSONL export deferred. | run-20260729-68d1b75c |
 | 2026-09-17 | framework review session: br sync --status vs beads-health on branch feature/cycle-123-bug-burndown (br 0.2.6) | --status reports 'Dirty issues: 1 / Database is newer' while beads-health reports JSONL 1607h stale; not chased per Reading guide | framework-review-2026-09-17.md §3.4 (grimoires/loa/a2a/); local HEAD 65e0c4a0 |
 | 2026-10-15 | cycle-130 kickoff: 44 br create (5 epics, 39 tasks) left issues.jsonl at its 2026-10-13 mtime; --status said Dirty issues: 1 while --flush-only exported nothing; --flush-only --force once | ids landed in .beads/issues.jsonl (verified by grep); Dirty issues: 1 persists after the force; also br create --parent fails on this DB (no such column: last_child in table child_counters) so tasks carry epic:<id> labels and the epic depends on its tasks | grimoires/loa/NOTES.md 2026-10-15 kickoff entry; ~/.cache/loa/cycle-130/seed-beads.sh; cycle-130 plan commit |
+| 2026-10-28 | cycle-137 close-out: br sync --flush-only reports "Nothing to export (no dirty issues)" while br sync --status says Dirty issues: 1 / Database is newer; br close on five sprint-282 beads answered "already closed or not found" while br show said OPEN (br doctor: sqlite integrity WARN page 2 never used) | closed the five via br update --status closed (worked); comments carry the SHIPPED facts; export still reports one dirty issue — split-brain persists | NOTES.md 2026-10-28 close-out entry; br doctor output in the session transcript |
 
 ### Reading guide
 
@@ -1586,7 +1588,7 @@ A single BB test-file failure at :1:1 with a Fatal credential line is this entry
 **Feature**: .claude/scripts/adversarial-review.sh companion voice (any claude-headless hop); cheval CLI adapter timeout
 **Symptom**: adversarial-review.json: companion_voice.status failed with last_error 'claude -p timed out after 610s' (failure_class timeout since sprint-248 round 1f; model_unavailable on older envelopes); the MODELINV row's models_failed[].message_redacted reads RETRIES_EXHAUSTED … PROVIDER_UNAVAILABLE … timed out. The same hop answers in ~384 s when the CLI is otherwise idle (sprint-247/248 round 0).
 **First observed**: 2026-09-25 (cycle-126 sprint-248 review re-run while the Sprint 3 baseline eval ran claude -p at concurrency 2)
-**Recurrence count**: 12
+**Recurrence count**: 13
 **Current workaround**: Run dissents and other claude CLI workloads (eval harness, Bridgebuilder claude-headless) serially — pause the eval before a review/audit; or raise flatline_protocol.<block>.timeout_seconds (the companion wait cap follows it: timeout × hops + 30 s). The dissent still completes on the primary (voices_planned 2, voices_succeeded 1).
 **Upstream issue**: cycle-126 residue: cheval could report a CLI-hop timeout as TIMEOUT (exit 3) rather than PROVIDER_UNAVAILABLE (exit 1); a host-level claude CLI concurrency budget would make the contention visible before the call
 **Related visions / lore**: KF-010 (google CLI hops under a concurrent BB sweep), KF-035
@@ -1610,6 +1612,7 @@ A single BB test-file failure at :1:1 with a Fatal credential line is this entry
 | 2026-10-15 | cycle-130 Sprint 259 review dissent run 1 on 6be23186: code-only diff of 166 files / 10,298 lines incl. 16 task fixtures; codex-headless gpt-5.5-pro primary succeeded (3 findings), claude-headless companion timed out after 910s (PROVIDER_UNAVAILABLE) → DEGRADED 1/2 | degraded envelope accepted for review round 1 (the primary delivered); run 2 excludes tasks/*/fixture and tasks/*/hidden from the dissent diff so the companion sees the ~3.5k-line harness diff only | grimoires/loa/a2a/sprint-259/adversarial-review.json; ~/.cache/loa/cycle-130/logs/dissent-s2-review.log |
 | 2026-10-24 | cycle-133 Sprint 273 review dissent run 1: companion claude-headless failed with 'RETRIES_EXHAUSTED PROVIDER_UNAVAILABLE timed out after 910s' on a 320 KB code diff; primary gpt-5.5-pro completed (2 findings) | run counted as dissent run 1 of 3 with one voice; no retry (the primary's findings drive the round) | grimoires/loa/a2a/sprint-273/adversarial-review.json companion_voice.last_error; ~/.cache/loa/cycle-133/dissent/s2-review-run1.log |
 | 2026-10-24 | cycle-133 Sprint 273 audit dissent run 2: companion claude-headless failed again (failure_class model_unavailable, api_failure) while the primary gpt-5.5-pro completed with 0 findings; same session as the review run's 910 s timeout | run counted as dissent run 2 of 3 with one voice; the lead's own audit pass stands in for the companion | grimoires/loa/a2a/sprint-273/adversarial-audit.json metadata.companion_voice |
+| 2026-10-28 | cycle-137 PR #1309 Bridgebuilder rounds 1 and 2 (codex-headless primary): the anthropic/claude-headless voice failed PROVIDER_UNAVAILABLE (claude -p timeout) in both rounds while three foreign zsh processes held ~3 cores; the review r1 companion timed out the same way under the full unit suite | degraded 1/2 both rounds; proceeded under the plan degraded exit (no blocking finding; DEC SH-1); the operator should kill the runaway shells (ps -C zsh --sort=-pcpu, started 2026-10-23) | ~/.cache/loa/cycle-137/logs/bb-1309-r1.log, bb-1309-r2.log; a2a/sprint-282/evidence/dissent/adv-review-282.json (r1 companion timeout 910 s) |
 
 ### Reading guide
 
@@ -2199,3 +2202,24 @@ Read the voice's error text in the BB log before assuming a timeout or an auth p
 ### Reading guide
 
 A red Post-Merge Pipeline whose head is the bot's chore(ledger) commit and whose failing step prints '--pr is required' is this entry, not a broken release: check 'gh release view <tag>' and 'git branch -r --contains <tag>' instead. Fix lives in the classify job (route non-PR pushes to a no-op), not in the orchestrator.
+
+## KF-064: post-merge-orchestrator --publish: release phase FAILED on read-back although the release was created — GitHub rewrites backslash-u escapes in the body (`\u0000-\u001f` → `\^@-\^_`), so the exact `.body == $body` comparison never matches; ledger + notify phases left pending
+
+**Status**: OPEN
+**Feature**: post-merge-orchestrator.sh release phase (cycle-133 C-3 read-back identity)
+**Symptom**: publish output: [TAG] Verified v2.0.0-rc.9 at <merge>; gh: Not Found (HTTP 404) (the pre-POST GET by tag); [release] Release identifier or read-back mismatch; publish rc=1; the release exists with the right tag/title/prerelease; post-merge-state.json release: failed, ledger/notify: pending
+**First observed**: 2026-10-28
+**Recurrence count**: 1
+**Current workaround**: none yet
+**Upstream issue**: not filed
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-28 | cycle-137 v2.0.0-rc.9: retried --publish from the approved candidate (runbook retry path); tag phase accepted the existing tag, release phase failed identically; python diff of the candidate release_body vs the API body: equal except GitHub turned the literal `\u0000-\u001f` (a commit subject quoting the sanitiser range) into `\^@-\^_` (37634 vs 37628 chars) | release and tag correct and verified by hand (peeled tag = merge, prerelease true, title v2.0.0-rc.9); the ledger archive rides the cycle archive PR; --ledger-only refuses without a deferral file. Fix direction: compare the body after a normalisation GitHub applies (or compare a hash of the sent body stored in the state) and let a body-only mismatch WARN rather than fail the phase | ~/.cache/loa/cycle-137/publish-checkout-rc9/.run/post-merge-state.json; /tmp/c137-rel.json vs candidate-rc9/post-merge-candidate.json release_body; a2a/sprint-282/publish-summary.md |
+
+### Reading guide
+
+TODO: what a future agent should do on this symptom.

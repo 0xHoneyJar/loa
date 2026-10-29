@@ -1161,6 +1161,57 @@ phase_tag() {
   echo "[TAG] Verified ${tag} at ${target}"
 }
 
+# GitHub's release storage rewrites a literal backslash-u escape of a C0 control (U+0000-U+001F) or DEL (U+007F)
+# into caret notation (\^@ ... \^_, \^?). ONE python definition of that rewrite serves both helpers below
+# (sprint-bug-283, KF-064; review r2 DISS-C-004: no second copy to drift). python3 is already a publication
+# dependency (jcs-helper.py); -I isolates it from the caller's site and environment.
+RELEASE_BODY_CARET_PY='
+import re
+def _caret_b(m):
+    v = int(m.group(1), 16)
+    return b"\\^" + (b"?" if v == 0x7f else bytes([v + 64]))
+def normalize_bytes(b):
+    return re.sub(rb"\\u00([01][0-9a-fA-F]|7[fF])", _caret_b, b)
+'
+
+# release_body_normalize: bytes in, bytes out (no newline translation, nothing stripped) — the rewrite alone, for
+# direct callers and the fixture test.
+release_body_normalize() {
+  python3 -I -c "${RELEASE_BODY_CARET_PY}
+import sys
+sys.stdout.buffer.write(normalize_bytes(sys.stdin.buffer.read()))"
+}
+
+# release_body_identical <sent notes> <read-back JSON>: the rewrite and the equality test in ONE python process
+# (review r1 DISS-001). Both inputs travel through temp files written by the printf builtin — never on argv, so a
+# body near GitHub's 125 000-character limit (and its larger JSON read-back) is compared instead of failing with
+# E2BIG (review r2 DISS-001) — and python reads bytes, so no locale or newline translation touches them. Prints
+# `equal` or `differ <sent_len> <read_len>` (normalised lengths); any other outcome (python3 missing, unparsable
+# read-back, a non-string body) exits non-zero with the reason on stderr, which the caller turns into a refusal.
+release_body_identical() {
+  local dir rc=0
+  dir=$(mktemp -d "${TMPDIR:-/tmp}/release-body.XXXXXX") || return 1
+  # the directory goes with the function on every path (audit DISS-C-002); a SIGKILL cannot be trapped and may leave
+  # two files of public release-note text under TMPDIR
+  # shellcheck disable=SC2064
+  trap "rm -rf -- '${dir}'" RETURN
+  printf '%s' "$1" > "$dir/sent" && printf '%s' "$2" > "$dir/readback" || return 1
+  python3 -I -c "${RELEASE_BODY_CARET_PY}
+import json, sys
+sent = open(sys.argv[1], 'rb').read()
+rb = json.loads(open(sys.argv[2], 'rb').read())
+if not isinstance(rb, dict):
+    raise SystemExit('read-back is not a release object')
+body = rb.get('body')
+if body is None:
+    body = ''
+if not isinstance(body, str):
+    raise SystemExit('read-back body is not a string')
+a, b = normalize_bytes(sent), normalize_bytes(body.encode('utf-8', 'surrogateescape'))
+print('equal' if a == b else 'differ %d %d' % (len(a), len(b)))" "$dir/sent" "$dir/readback" || rc=$?
+  return "$rc"
+}
+
 phase_release() {
   update_phase "release" "in_progress"
 
@@ -1240,15 +1291,45 @@ phase_release() {
     fi
   fi
   if ! id=$(jq -er '.id | select(type == "number" and . > 0)' <<< "$response") ||
-      ! readback=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/releases/${id}") ||
-      ! jq -e --argjson id "$id" --arg tag "$tag" --arg body "$notes" --argjson pre "$prerelease" \
-        --arg title "$RELEASE_TITLE" \
-        '.id == $id and .tag_name == $tag and .body == $body and .draft == false and .prerelease == $pre
-         and ($title == "" or .name == $title)' <<< "$readback" >/dev/null; then
+      ! readback=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/releases/${id}"); then
     fail_phase release "Release identifier or read-back mismatch"
     return 1
   fi
-  update_phase release completed "$(jq -nc --argjson id "$id" --arg tag "$tag" --argjson pre "$prerelease" '{id:$id,tag:$tag,prerelease:$pre,verified:true}')"
+  # sprint-bug-283 (KF-064): GitHub stores a literal \u00XX escape of a C0 control or DEL in a release body as
+  # caret notation (\u0000 -> \^@, \u001f -> \^_, \u007f -> \^?), so the body it returns is not byte-equal to the
+  # body that was sent whenever the notes quote such an escape (a commit subject about a sanitiser range did). The
+  # body is compared after applying that one rewrite to BOTH sides; id, tag_name, draft, prerelease and name stay
+  # exact, the sealed candidate is never rewritten (its digest guards it), and any other body difference still
+  # refuses. The mismatch names the failing terms so the state receipt explains the refusal.
+  local body_verdict mismatch body_err
+  # The comparison's own failure (no python3, a crash, an unparsable read-back, a non-string body) refuses
+  # explicitly instead of aborting the script under set -e — never a pass by accident (review r1 DISS-C-001);
+  # the last stderr line names the cause so the receipt does not blame tool availability for a size or
+  # decoding problem (review r2 DISS-C-002).
+  if ! body_err=$(mktemp "${TMPDIR:-/tmp}/release-body-err.XXXXXX"); then
+    fail_phase release "Release body comparison failed: cannot create the stderr capture file; release not verified"
+    return 1
+  fi
+  if ! body_verdict=$(release_body_identical "$notes" "$readback" 2>"$body_err") || [[ "$body_verdict" != equal && "$body_verdict" != differ\ * ]]; then
+    local cause; cause=$(tail -n 1 "$body_err" 2>/dev/null | tr -d '\r' | cut -c1-200); rm -f -- "$body_err"
+    fail_phase release "Release body comparison failed: ${cause:-no diagnostic (is python3 installed?)}; release not verified"
+    return 1
+  fi
+  rm -f -- "$body_err"
+  mismatch=$(jq -r --argjson id "$id" --arg tag "$tag" --arg body "$body_verdict" \
+      --argjson pre "$prerelease" --arg title "$RELEASE_TITLE" \
+      '[ (if .id != $id then "id" else empty end),
+         (if .tag_name != $tag then "tag_name" else empty end),
+         (if $body != "equal" then ("body (" + $body + ")") else empty end),
+         (if .draft != false then "draft" else empty end),
+         (if .prerelease != $pre then "prerelease" else empty end),
+         (if ($title != "" and .name != $title) then "name" else empty end) ] | join(",")' <<< "$readback" 2>/dev/null) || mismatch="unreadable"
+  if [[ -n "$mismatch" ]]; then
+    fail_phase release "Release identifier or read-back mismatch (terms: ${mismatch}; normalised lengths sent/read where the body differs)"
+    return 1
+  fi
+  # verified means: identity terms byte-exact, body equal after GitHub's caret rewrite is applied to both sides (DEC-1141)
+  update_phase release completed "$(jq -nc --argjson id "$id" --arg tag "$tag" --argjson pre "$prerelease" '{id:$id,tag:$tag,prerelease:$pre,verified:true,body_match:"equal-after-caret-normalisation"}')"
   increment_metric phases_completed
   echo "[RELEASE] Verified release ${id}"
 }

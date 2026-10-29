@@ -7,19 +7,21 @@
     }
   ],
   "cycle": "cycle-137-performance-followups",
-  "head": "a1360dac2efcab4c9e4f6ac6ddea98a4f05b95e9",
+  "head": "fe52be89373a3c81ecc417541ba8f2705aa7451e",
   "lite_tree": null,
   "paths": [
     "grimoires/loa/a2a/sprint-281",
     "grimoires/loa/a2a/sprint-282",
+    "grimoires/loa/a2a/bug-20261028-90f357",
+    "grimoires/loa/a2a/sprint-bug-283",
     "grimoires/loa/a2a/audits/2026-10-28",
     "grimoires/loa/a2a/flatline",
     "grimoires/loa/a2a/prompts",
     "grimoires/loa/NOTES.md",
     "grimoires/loa/archive/notes"
   ],
-  "prev": "5610a68ba5ab39b72b2e329c77c46a661975f404",
+  "prev": "082e9f58e9698aabf88855e18c58ff816cabd55d",
   "results_roots": [],
-  "scan_tree": "6f67eda56b378b34a5588dada8e26b78a6a0dfc2",
-  "stage": "stage 2"
+  "scan_tree": "d309a131baa1ca8a05873b21fa8965ba48872749",
+  "stage": "stage 3"
 }

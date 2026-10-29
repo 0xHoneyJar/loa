@@ -1,0 +1,40 @@
+{
+  "queued_learnings": [
+    {
+      "id": "learning-20261028T031134-447075c4",
+      "source": "invisible_retrospective",
+      "skill": "reviewing-code",
+      "queued_at": "2026-10-28T03:11:34+00:00"
+    },
+    {
+      "id": "learning-20261028T031134-ab425dc9",
+      "source": "invisible_retrospective",
+      "skill": "reviewing-code",
+      "queued_at": "2026-10-28T03:11:34+00:00"
+    },
+    {
+      "id": "learning-20261028T031134-0de04667",
+      "source": "invisible_retrospective",
+      "skill": "reviewing-code",
+      "queued_at": "2026-10-28T03:11:34+00:00"
+    },
+    {
+      "id": "learning-20261028T032415-cdbd1ced",
+      "source": "invisible_retrospective",
+      "skill": "auditing-security",
+      "queued_at": "2026-10-28T03:24:15+00:00"
+    },
+    {
+      "id": "learning-20261028T032415-cf529039",
+      "source": "invisible_retrospective",
+      "skill": "auditing-security",
+      "queued_at": "2026-10-28T03:24:15+00:00"
+    },
+    {
+      "id": "learning-20261028T032415-9db5b79b",
+      "source": "invisible_retrospective",
+      "skill": "auditing-security",
+      "queued_at": "2026-10-28T03:24:15+00:00"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+[adversarial-review] adversarial review run started 2026-10-28T23:37:49Z (if it leaves no record: --record-fallback failed --since <this time>)
+[adversarial-review] Starting adversarial review review for sprint-bug-283
+[adversarial-review] Model: gpt-5.5-pro, Budget: 300c, Timeout: 600s
+[adversarial-review] budget: estimate 62c over 2 planned voice(s) (primary gpt-5.5-pro 48c, companion claude-headless 14c)
+[adversarial-review] Dissenter input: model=gpt-5.5-pro estimated_input_tokens=4272 primary_budget=24000 max_output_tokens=16000
+[adversarial-review] Size cap: skipping .claude/scripts/post-merge-orchestrator.sh (2596 lines, 111399 bytes)
+[adversarial-review] Fallback chain: gpt-5.5-pro gpt-5.5 gemini-3.1-pro claude-headless
+WARN: the agy route is available here (a Google/Gemini key is set) but not planned: hounfour.headless.agy_opt_in is not true — opt in only knowingly (the prompt travels on the CLI's argv, readable by local users; the CLI must be OAuth-authed)
+[adversarial-review] Companion voice (anthropic family): claude-headless (wait cap 940s)
+[model-adapter:shim] Using model-invoke (cheval) dispatch (cycle-109 T3.6 unconditional)
+[model-adapter:shim] Mode 'dissent' → Agent 'flatline-dissenter'
+[model-adapter:shim] Model: gpt-5.5-pro → openai:gpt-5.5-pro, Phase: review
+[adversarial-review] WARN: `failure_mode` is an alias of `failure_scenario`; removed in 2.1.0 (1 finding(s) named only failure_mode)
+[adversarial-review] Companion voice: claude-headless succeeded
+[adversarial-review] Output written: /home/merlin/Documents/thj/code/loa/grimoires/loa/a2a/sprint-bug-283/adversarial-review.json

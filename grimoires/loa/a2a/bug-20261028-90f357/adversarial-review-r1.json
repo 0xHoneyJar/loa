@@ -1,0 +1,158 @@
+{
+  "findings": [
+    {
+      "id": "DISS-001",
+      "severity": "BLOCKING",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/post-merge-orchestrator.sh:phase_release",
+      "anchor_type": "function",
+      "anchor_line": 1268,
+      "scope": "diff",
+      "description": "The new comparison tolerates newline changes beyond the approved escape rewrite. Python's text-mode stdin converts CRLF and bare CR to LF, while command substitution removes all trailing LF characters. For example, sent notes `hello` and a read-back body `hello\\n\\n` now compare equal; internal CRLF versus LF differences also disappear.",
+      "failure_mode": "A release with a body different from the approved notes passes verification and publication proceeds, violating the requirement that every other body difference refuse.",
+      "suggested_fix": "Perform the escape rewrite and equality comparison within one process using strings decoded directly from JSON, without universal-newline input conversion or shell command substitution of body text. Preserve all other characters, including trailing newlines.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "failure_scenario": "A release with a body different from the approved notes passes verification and publication proceeds, violating the requirement that every other body difference refuse.",
+      "voice": "gpt-5.5-pro",
+      "answered_by": "codex-headless"
+    },
+    {
+      "id": "DISS-C-001",
+      "severity": "BLOCKING",
+      "category": "error-handling",
+      "anchor": ".claude/scripts/post-merge-orchestrator.sh:phase_release",
+      "anchor_type": "line",
+      "anchor_line": 1267,
+      "anchor_line_end": 1268,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Neither normaliser invocation checks its exit status or guards against an empty result for a non-empty input. `sent_norm=$(release_body_normalize <<< \"$notes\")` and `read_norm=$(jq -r '.body // \"\"' <<< \"$readback\" | release_body_normalize)` both yield an empty string if python3 is absent, not on PATH, or exits non-zero (e.g. UnicodeDecodeError on stdin under a non-UTF-8 locale; `-I` also discards PYTHONIOENCODING so the operator cannot override). The subsequent jq then evaluates `$sent != $read` as `\"\" != \"\"` → false, so \"body\" is NOT added to the mismatch list and the phase proceeds to `update_phase release completed ... verified:true`. If `set -e` is active and phase_release is called in a context where errexit is honoured, the script instead aborts mid-phase without `fail_phase`, leaving the receipt at in_progress with no reason. If phase_release is invoked via `||`/`if`/`&&` (the usual orchestrator pattern), errexit is suppressed inside the function and the fail-open path is taken. The old code (`jq -e '.body == $body'`) could not degrade this way; the diff introduces a tool-failure → accept-anything path in a publication gate.",
+      "failure_mode": "python3 unavailable or crashing causes the release read-back check to report the body as identical regardless of content; the release is marked verified and the ledger/notify phases run on an unverified release. Alternatively an unexplained hard abort with no fail_phase reason in the state receipt.",
+      "suggested_fix": "Capture status and refuse on failure or on empty-for-non-empty: e.g. `if ! sent_norm=$(release_body_normalize <<< \"$notes\") || { [[ -n \"$notes\" && -z \"$sent_norm\" ]]; }; then fail_phase release \"Release body normaliser failed\"; return 1; fi`, and likewise for read_norm (use `set -o pipefail` locally or split the jq step into its own variable so the python status is observable). Optionally have the helper emit a trailing sentinel so a truncated/empty transform is distinguishable from an empty body.",
+      "anchor_status": "valid",
+      "anchor_stability": "symbol",
+      "failure_scenario": "python3 unavailable or crashing causes the release read-back check to report the body as identical regardless of content; the release is marked verified and the ledger/notify phases run on an unverified release. Alternatively an unexplained hard abort with no fail_phase reason in the state receipt.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-002",
+      "severity": "ADVISORY",
+      "category": "spec-violation",
+      "anchor": ".claude/scripts/post-merge-orchestrator.sh:phase_release",
+      "anchor_type": "line",
+      "anchor_line": 1267,
+      "anchor_line_end": 1268,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "Both sides are now routed through `$(...)`, which strips ALL trailing newlines (the here-string adds one on the sent side; `jq -r` adds one on the read side). The comparison is therefore equality modulo trailing newlines, not the \"one rewrite only, any other body difference still refuses\" invariant stated in the comment and the sprint note. Previously `jq -e '.body == $body'` was byte-exact. Internal `\\r\\n` IS preserved symmetrically (Python on POSIX opens stdin/stdout with newline=\"\\n\", no translation), so this is confined to trailing newline runs. Not a security concern, but the documented contract and the Case B test (\"differs in any other way still fails\") overstate what is enforced.",
+      "failure_mode": "A pre-existing release whose body equals the candidate plus/minus trailing newlines is accepted as identical; the receipt claims exact identity on the other terms.",
+      "suggested_fix": "Avoid the strip: feed with `printf '%s' \"$notes\" | release_body_normalize` and have the helper print JSON (`json.dumps`) so you can compare via `--argjson`, or append a sentinel (`; printf x`) and strip it with `${var%x}`. At minimum amend the comment to state that trailing newlines are also tolerated.",
+      "anchor_status": "valid",
+      "failure_scenario": "A pre-existing release whose body equals the candidate plus/minus trailing newlines is accepted as identical; the receipt claims exact identity on the other terms.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    },
+    {
+      "id": "DISS-C-003",
+      "severity": "ADVISORY",
+      "category": "other",
+      "anchor": "tests/unit/post-merge-publication.bats:gh-stub",
+      "anchor_type": "line",
+      "anchor_line": 77,
+      "anchor_line_end": 77,
+      "scope": "diff",
+      "trigger_anchor": null,
+      "cross_file_justification": null,
+      "description": "The stub's GH_BODY_REWRITE=caret path uses the identical regex and replacement as release_body_normalize, so a shared modelling error cannot be detected by the suite. The only regex-independent pins are the `contains(\"\\\\^@-\\\\^_\")` assertion and Case B's `sed` (both hard-code just the two observed points \\u0000 and \\u001f). The DEL branch (`7[fF]` → `\\^?`), uppercase hex, and the 0x1c case are unpinned by any observed GitHub output. Note also that chr(0x1c+64) is a backslash, so `\\u001c` normalises to `\\^\\` and the transform is not idempotent (`\\u001cu0000` → `\\^\\u0000`, which a second pass would rewrite again); whether GitHub chains the same way is unknown, so a body quoting \\u001c may still fail read-back after this fix (fail-closed, not a security issue). The real rc.9 sent/stored pair was compared by hand outside the suite.",
+      "failure_mode": "A regression or misunderstanding of GitHub's rewrite that is replicated in both the stub and the fix passes CI while real publishes still fail read-back (or, worse, over-tolerate) for escape values not covered by the two observed points.",
+      "suggested_fix": "Add a fixture carrying the actual v2.0.0-rc.9 candidate body and the body returned by `gh api repos/.../releases/<id>` (both as literal files, not regenerated), and assert `release_body_normalize` maps both to the same string. Hard-code a small table of expected caret forms (\\u0000, \\u0009, \\u001c, \\u001f, \\u007f, \\u001F) in the test rather than reusing the fix's regex in the stub.",
+      "anchor_status": "valid",
+      "failure_scenario": "A regression or misunderstanding of GitHub's rewrite that is replicated in both the stub and the fix passes CI while real publishes still fail read-back (or, worse, over-tolerate) for escape values not covered by the two observed points.",
+      "voice": "claude-headless",
+      "answered_by": "claude-headless"
+    }
+  ],
+  "metadata": {
+    "type": "review",
+    "model": "gpt-5.5-pro",
+    "sprint_id": "sprint-bug-283",
+    "timestamp": "2026-10-28T23:21:26Z",
+    "tokens_input": 116501,
+    "tokens_output": 20286,
+    "cost_usd": 0,
+    "latency_ms": 40414,
+    "status": "reviewed",
+    "degraded": false,
+    "rejected_count": 0,
+    "rejected_summary": [],
+    "rejected_sidecar": "grimoires/loa/a2a/sprint-bug-283/adversarial-rejected-review.jsonl",
+    "repaired_count": 0,
+    "schema_enforced": false,
+    "parse_path": "normalized",
+    "repair_budget_exhausted": 0,
+    "repair_skipped_no_hop": 0,
+    "repair_wall_seconds": 0,
+    "repair_wall_budget_seconds": 6000,
+    "repair_hops_skipped": [],
+    "model_attempts": [
+      "gpt-5.5-pro:reviewed"
+    ],
+    "final_model": "gpt-5.5-pro",
+    "companion_voice": {
+      "planned": true,
+      "family": "anthropic",
+      "family_basis": "configured_primary",
+      "chain": [
+        "claude-headless"
+      ],
+      "shared_hops": [
+        "claude-headless"
+      ],
+      "model": "claude-headless",
+      "answered_by": "claude-headless",
+      "status": "succeeded",
+      "failure_class": null,
+      "cost_cents": 0,
+      "attempts": [
+        "claude-headless:reviewed"
+      ],
+      "independent": true,
+      "counted_as": "independent_voice",
+      "primary_succeeded_model": "codex-headless",
+      "rejected_sidecar": null
+    },
+    "rejected_sidecars": [
+      "grimoires/loa/a2a/sprint-bug-283/adversarial-rejected-review.jsonl"
+    ],
+    "hallucination_filter": {
+      "applied": true,
+      "downgraded": 0
+    },
+    "scope": {
+      "diff_range": null,
+      "diff_oids": null,
+      "diff_sha256": "86c125f407452ea591f1ec90afc03d915c47e74c1dd2cfe2ec3fe5c0fa6cf370",
+      "run_tag": null
+    }
+  },
+  "verdict_quality": {
+    "consensus_outcome": "consensus",
+    "truncation_waiver_applied": false,
+    "voices_planned": 2,
+    "voices_succeeded": 2,
+    "voices_succeeded_ids": [
+      "codex-headless",
+      "claude-headless"
+    ],
+    "voices_dropped": [],
+    "chain_health": "ok",
+    "confidence_floor": "high",
+    "rationale": "multi-voice aggregate (2/2 succeeded); chain_health=ok",
+    "single_voice_call": false,
+    "status": "APPROVED"
+  }
+}

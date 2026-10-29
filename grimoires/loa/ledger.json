@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": "cycle-137-performance-followups",
+  "active_cycle": null,
   "cycles": [
     {
       "id": "cycle-036",
@@ -2817,10 +2817,10 @@
     {
       "id": "cycle-137-performance-followups",
       "label": "cycle-137 — performance: the 22-pass extreme-software-optimization loop through the formal gates (Sprint 281), its six follow-up beads bd-atk7q bd-gv5jf bd-h5tcn bd-1mfm7 bd-wctli bd-09z1i (Sprint 282), and the v2.0.0-rc.9 release",
-      "status": "active",
+      "status": "archived",
       "created": "2026-10-28T01:42:19Z",
-      "archived": null,
-      "archive_path": null,
+      "archived": "2026-10-28T09:29:32Z",
+      "archive_path": "grimoires/loa/archive/cycle-137-performance-followups",
       "prd": "grimoires/loa/prd.md",
       "sdd": "grimoires/loa/sdd.md",
       "sprints": [
@@ -2841,7 +2841,7 @@
       ]
     }
   ],
-  "global_sprint_counter": 282,
+  "global_sprint_counter": 283,
   "bugfix_cycles": [
     {
       "id": "cycle-bug-20260418-i554-00a529",
@@ -3295,6 +3295,21 @@
       "triage": "grimoires/loa/a2a/bug-20261025-826c6b/triage.md",
       "sprint_plan": "grimoires/loa/a2a/bug-20261025-826c6b/sprint.md",
       "completed_at": "2026-10-26T00:52:50Z"
+    },
+    {
+      "id": "cycle-bug-20261028-90f357",
+      "label": "Bug Fix — post-merge publisher: release read-back fails when GitHub rewrites backslash-u control escapes in the release body (KF-064)",
+      "type": "bugfix",
+      "status": "completed",
+      "source_issue": null,
+      "created_at": "2026-10-28T23:06:02Z",
+      "sprints": [
+        "sprint-bug-283"
+      ],
+      "triage": "grimoires/loa/a2a/bug-20261028-90f357/triage.md",
+      "sprint_plan": "grimoires/loa/a2a/bug-20261028-90f357/sprint.md",
+      "completed_at": "2026-10-29T00:21:26Z",
+      "reviewed_head": "af514ab6a"
     }
   ],
   "bugfixes": [
@@ -3312,6 +3327,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 283,
-  "last_updated": "2026-10-28T06:59:09Z"
+  "next_sprint_number": 284,
+  "last_updated": "2026-10-29T00:21:26Z"
 }
