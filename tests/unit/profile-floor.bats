@@ -200,3 +200,99 @@ PY
     [ "$(jq -r '.profile' "$T/run/cache-lean.json")" = "lean" ]
     [ "$(jq -c '.profile_keys' "$T/run/cache-lean.json")" = "$(jq -c '.profile_keys' "$T/run/cache-standard.json")" ]
 }
+
+# ---- cycle-138 FR-10 (Task 3.1, bd-7utms): the descendants of a MAPPING-LEVEL floor key are floor keys too ----
+# A floor entry without `*` names a key and everything below it; a glob entry is matched by its glob alone
+# (DEC-1170, M37). Fixtures: a profiles.yaml copy (LOA_PROFILES_FILE), a tmp cache, a config with no such key.
+_pf8_setup() {   # <yq edit of the profiles.yaml copy> [floor file]
+    cp "$PROFILES" "$T/profiles.yaml"
+    yq -i "$1" "$T/profiles.yaml"
+    export LOA_PROFILES_FILE="$T/profiles.yaml"
+    export LOA_PROFILE_CONFIG_FILE="$T/cfg.yaml"
+    export LOA_PROFILE_CACHE_FILE="$T/run/effective-config.json"
+    [[ -z "${2:-}" ]] || export LOA_PROFILE_FLOOR_FILE="$2"
+    printf 'loa:\n  profile: standard\n' > "$T/cfg.yaml"
+    run --separate-stderr bash "$LIB" json
+    [ "$status" -eq 0 ]
+    printf '%s\n' "$output" > "$T/doc.json"
+}
+_pf8_dropped() {  # <key> — absent from the resolved document, with the WARN
+    [ "$(jq -r --arg k "$1" '(.profile_keys | index([$k])) == null and (.knobs | has($k) | not)' "$T/doc.json")" = true ] \
+        || { echo "$1 is resolved"; return 1; }
+    [[ "$stderr" == *"profiles.yaml key $1 names a floor key; ignored"* ]] || { echo "no WARN for $1: $stderr"; return 1; }
+}
+_pf8_kept() {   # <key> <profile|cached> — resolved, no WARN
+    local q='.profile_keys | index([$k]) != null'
+    [[ "$2" == cached ]] && q='.knobs[$k].source == "absent"'
+    [ "$(jq -r --arg k "$1" "$q" "$T/doc.json")" = true ] || { echo "$1 is not resolved"; return 1; }
+    [[ "$stderr" != *"profiles.yaml key $1 names"* ]] || { echo "a WARN for $1"; return 1; }
+}
+
+@test "PF-8 a child, a grandchild and a cached key below a mapping-level floor key are dropped with the WARN" {
+    _pf8_setup '.profiles.standard["flatline_protocol.code_review.enabled.extra"] = true
+              | .profiles.standard["flatline_protocol.code_review.enabled.extra.deep"] = true
+              | .cached_keys += ["flatline_protocol.security_audit.enabled.x", "hounfour.locality.a.b"]'
+    _pf8_dropped flatline_protocol.code_review.enabled.extra
+    _pf8_dropped flatline_protocol.code_review.enabled.extra.deep
+    _pf8_dropped flatline_protocol.security_audit.enabled.x
+    _pf8_dropped hounfour.locality.a.b
+    # (the knob reads as if profiles.yaml did not name it: the config's value, else the fallback)
+    [ "$(bash "$LIB" knob flatline_protocol.code_review.enabled.extra FB 2>/dev/null)" = FB ]
+}
+
+@test "PF-9 the PRD fixture: floor entry safety.block_destructive drops its child, grandchild and cached key; the _x sibling is kept" {
+    printf 'floor_keys:\n  - safety.block_destructive\n' > "$T/floor.yaml"
+    _pf8_setup '.profiles.standard["safety.block_destructive.enabled"] = true
+              | .profiles.standard["safety.block_destructive.rules.rm"] = true
+              | .profiles.standard["safety.block_destructive_x"] = true
+              | .cached_keys += ["safety.block_destructive.cached", "safety.block_destructive_y.cached"]' "$T/floor.yaml"
+    _pf8_dropped safety.block_destructive.enabled
+    _pf8_dropped safety.block_destructive.rules.rm
+    _pf8_dropped safety.block_destructive.cached
+    _pf8_kept safety.block_destructive_x profile
+    _pf8_kept safety.block_destructive_y.cached cached
+    # (the ancestor rule is unchanged: `safety` itself is still forbidden)
+    printf 'floor_keys:\n  - safety.block_destructive\n' > "$T/floor.yaml"
+    _pf8_setup '.profiles.standard["safety"] = true' "$T/floor.yaml"
+    _pf8_dropped safety
+}
+
+@test "PF-10 a sibling that only shares a floor key's prefix is kept (no false positive)" {
+    _pf8_setup '.profiles.standard["flatline_protocol.code_review_extra.enabled"] = true
+              | .profiles.standard["flatline_protocol.code_review.enabledx"] = true
+              | .cached_keys += ["hounfour.localityx"]'
+    _pf8_kept flatline_protocol.code_review_extra.enabled profile
+    _pf8_kept flatline_protocol.code_review.enabledx profile
+    _pf8_kept hounfour.localityx cached
+}
+
+@test "PF-11 a glob floor entry is not widened: only its glob forbids (prefix siblings and glob-tail descendants are kept)" {
+    _pf8_setup '.profiles.standard["destructive_command_guard_x.y"] = true
+              | .profiles.standard["implement_gatex"] = true
+              | .profiles.standard["flatline_protocol.x.companion_voice.y"] = true
+              | .profiles.standard["flatline_protocol.x.companion_voice"] = true
+              | .profiles.standard["destructive_command_guard.a.b"] = true'
+    _pf8_kept destructive_command_guard_x.y profile
+    _pf8_kept implement_gatex profile
+    _pf8_kept flatline_protocol.x.companion_voice.y profile
+    # (the glob itself still forbids, at any depth its .+ spans)
+    _pf8_dropped flatline_protocol.x.companion_voice
+    _pf8_dropped destructive_command_guard.a.b
+}
+
+@test "PF-12 pre-flight: no key of the live config or profiles.yaml is newly forbidden; the floor's forbidden list is identical" {
+    run --separate-stderr bash -c '{ yq -o=json "." "$1"; yq -o=json "." "$2"; yq -o=json ".floor_keys // []" "$3"; } | jq -rs "
+      def globre: \"^\" + (split(\"*\") | map(gsub(\"\\\\.\"; \"\\\\.\")) | join(\".+\")) + \"\$\";
+      (.[2] | map(select(type == \"string\"))) as \$floor |
+      def old(\$k): any(\$floor[]; . as \$f | (\$k | test(\$f | globre)) or ((\$f | split(\"*\")[0]) | startswith(\$k + \".\")));
+      def new(\$k): old(\$k) or any(\$floor[]; . as \$f | (\$f | contains(\"*\") | not) and (\$k | startswith(\$f + \".\")));
+      ([.[1].profiles[] | objects | keys[]] + (.[1].cached_keys // [] | map(select(type == \"string\")))
+       + [.[0] | paths | map(tostring) | join(\".\")]) | unique as \$cand |
+      (\$cand | map(select(new(.))) - (\$cand | map(select(old(.))))) | if length == 0 then \"none\" else join(\" \") end"' \
+        _ "$R/.loa.config.yaml" "$PROFILES" "$FLOOR"
+    [ "$status" -eq 0 ] || { echo "$stderr"; return 1; }
+    [ "$output" = none ] || { echo "newly forbidden: $output"; return 1; }
+    # and the lib's resolution of the live config warns about no floor key (the live floor list is untouched)
+    LOA_PROFILE_CONFIG_FILE="$R/.loa.config.yaml" LOA_PROFILE_CACHE_FILE="$T/run/c.json" run --separate-stderr bash "$LIB" json
+    [[ "$stderr" != *"names a floor key"* ]] || { echo "$stderr"; return 1; }
+}

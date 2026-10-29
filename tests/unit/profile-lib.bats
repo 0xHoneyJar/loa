@@ -848,3 +848,94 @@ SH
     chmod 775 "$T/run"
     [ "$(PATH="$T/bsd:$PATH" _pl_state)" = "off (dir-writable)" ]
 }
+
+# ---- cycle-138 FR-11 (Task 3.1, bd-y5fy4): presence travels as a kind token on the LAST line, never a sentinel ----
+# The three read paths of a cached key: WARM (a fresh process, the cache file), MEMO (the same process after a
+# resolution: _LOA_PL_JSON) and LIVE (_loa_pl_live: yq | jq on the config). Each fixture gets its own mtime.
+_pl45_cfg() {  # <n> <yaml value> → the config sets the cached key to it
+    printf 'karpathy_principles:\n  diff_lines_per_task: %s\n' "$2" > "$CFG"
+    touch -d "@$(( 1790002000 + $1 ))" "$CFG"
+}
+_pl45_memo() { bash -c 'source "$1"; loa_profile >/dev/null; loa_knob "$2" "$3"' _ "$LIB" "$@"; }
+_pl45_jq_lines() { grep -cE '^\++ ?([A-Za-z_][A-Za-z0-9_]*=[^ ]* )*(/[^ ]*/)?jq( |$)' "$T/trace" || true; }
+_pl45_three() {  # <n> <yaml value> <expected stdout> — warm (one jq, no yq), memo and live all print it
+    local k=karpathy_principles.diff_lines_per_task got
+    _pl45_cfg "$1" "$2"
+    got=$(_pl20_live "$k" FB);  [ "$got" = "$3" ] || { echo "live <$2>: got '$got' want '$3'"; return 1; }
+    knob "$k" FB >/dev/null    # build the cache
+    got=$(_pl20_trace knob "$k" FB); [ "$got" = "$3" ] || { echo "warm <$2>: got '$got' want '$3'"; return 1; }
+    [ "$(_pl20_yq_lines)" = 0 ] || { echo "warm <$2>: the read went live"; return 1; }
+    [ "$(_pl45_jq_lines)" = 1 ] || { echo "warm <$2>: $(_pl45_jq_lines) jq calls (fell through to a rebuild)"; return 1; }
+    got=$(_pl45_memo "$k" FB);  [ "$got" = "$3" ] || { echo "memo <$2>: got '$got' want '$3'"; return 1; }
+}
+
+@test "PL-45 (cycle-138 FR-11) a value equal to the former ABSENT sentinel round-trips on the warm, memo and live paths" {
+    # (before: warm and memo printed the fallback FB; live printed the value)
+    _pl45_three 1 '"__LOA_PL_ABSENT__"' '__LOA_PL_ABSENT__'
+}
+
+@test "PL-46 (cycle-138 FR-11) a value equal to the former MISS sentinel round-trips on the warm, memo and live paths" {
+    # (before: all three printed the fallback FB — warm took a live read, which misread it again)
+    _pl45_three 2 '"__LOA_PL_MISS__"' '__LOA_PL_MISS__'
+}
+
+@test "PL-47 (cycle-138 FR-11) a value equal to the former STALE sentinel round-trips, and the warm read does not fall through" {
+    # (before: the value printed on every path, but the warm read treated it as a stale cache — 3 jq, not 1)
+    _pl45_three 3 '"__LOA_PL_STALE__"' '__LOA_PL_STALE__'
+}
+
+@test "PL-48 (cycle-138 FR-11) an EMPTY present value prints what it printed before on all three paths: the fallback" {
+    # (pinned bytes: a configured "" is not a usable value — the warm read falls through, the memo read goes
+    # live, the live read prints the fallback; this is unchanged by the kind token)
+    local k=karpathy_principles.diff_lines_per_task v n=10
+    for v in '""' "''"; do
+        n=$((n + 1)); _pl45_cfg "$n" "$v"
+        [ "$(_pl20_live "$k" FB)" = FB ] || { echo "live <$v>"; return 1; }
+        knob "$k" FB >/dev/null
+        [ "$(knob "$k" FB)" = FB ] || { echo "warm <$v>"; return 1; }
+        [ "$(_pl45_memo "$k" FB)" = FB ] || { echo "memo <$v>"; return 1; }
+        [ "$(knob "$k" '')" = '' ] || { echo "warm <$v>, empty fallback"; return 1; }
+    done
+}
+
+@test "PL-49 (cycle-138 FR-11) trailing newlines are stripped as before on all three paths; an all-newline value is empty" {
+    local k=karpathy_principles.diff_lines_per_task
+    # (pinned bytes: command substitution stripped the trailing newlines, printf added one)
+    _pl45_three 21 '"line one\nline two\n\n"' $'line one\nline two'
+    _pl45_three 22 '"\nlead\n"' $'\nlead'
+    _pl45_three 23 '|
+    alpha
+    beta' $'alpha\nbeta'
+    # an all-newline value strips to empty → the empty rule (PL-48): the fallback on every path
+    _pl45_cfg 24 '"\n\n"'
+    [ "$(_pl20_live "$k" FB)" = FB ]
+    knob "$k" FB >/dev/null
+    [ "$(knob "$k" FB)" = FB ]
+    [ "$(_pl45_memo "$k" FB)" = FB ]
+    # (the exact bytes: one value line + printf's newline)
+    _pl45_cfg 25 '"x\n\n\n"'; knob "$k" FB >/dev/null
+    [ "$(knob "$k" FB | od -An -c | tr -d ' \n')" = 'x\n' ]
+}
+
+@test "PL-50 (cycle-138 FR-11) values equal to the kind tokens, or ending in one, are values on all three paths" {
+    _pl45_three 31 'present' 'present'
+    _pl45_three 32 'absent' 'absent'
+    _pl45_three 33 'miss' 'miss'
+    _pl45_three 34 'stale' 'stale'
+    _pl45_three 35 '"x\nmiss"' $'x\nmiss'
+    _pl45_three 36 '"x\nabsent\n"' $'x\nabsent'
+    _pl45_three 37 '"\npresent"' $'\npresent'
+}
+
+@test "PL-51 (cycle-138 FR-11) structural: no __LOA_PL_ sentinel string is left in profile-lib.sh" {
+    run grep -c '__LOA_PL_' "$LIB"
+    [ "$output" = 0 ] || { grep -n '__LOA_PL_' "$LIB"; return 1; }
+}
+
+@test "PL-52 (cycle-138 FR-11) a multi-document config: a key null in every document reads the fallback live; set keys print one line per document" {
+    # (before: each null document leaked a __LOA_PL_MISS__ line into the printed value)
+    printf 'a: 1\n---\nb: 2\n' > "$CFG"
+    [ "$(_pl20_live run_mode.enabled FB)" = FB ] || { echo "got '$(_pl20_live run_mode.enabled FB)'"; return 1; }
+    printf 'run_mode:\n  enabled: one\n---\nrun_mode:\n  enabled: two\n' > "$CFG"
+    [ "$(_pl20_live run_mode.enabled FB)" = $'one\ntwo' ]
+}
