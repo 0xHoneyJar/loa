@@ -1,9 +1,10 @@
 # Software Design Document: Hardening follow-ups (cycle-138)
 
-**Version:** 1.0
+**Version:** 1.1
 **Date:** 2026-10-29
+**Revision:** 1.1 carries PRD 1.1's Flatline integration into the design (§ 11.G): the profile-lib trust predicate covers the cache file and refuses a writable `.run` with zero added spawns; the publisher's body files have checked failure paths and their own trap scope; the chain summary classifies every primitive; the trajectory guard covers components, ownership, type and links; the KF cap separates selection from display with a byte ceiling and the full control class; FR-9 needs a prebuilt-BWK attempt before form (b).
 **Author:** Architect Agent (Claude Fable 5.1, unattended)
-**PRD Reference:** `grimoires/loa/prd.md` (1.0, FR-1 … FR-16, G-1 … G-4)
+**PRD Reference:** `grimoires/loa/prd.md` (1.1, FR-1 … FR-16, G-1 … G-4, Appendix D)
 **Status:** Draft — autonomous cycle on the operator's instruction of 2026-10-29
 **Cycle:** `cycle-138-hardening-followups`, branch `feature/cycle-138-hardening-followups` from `main` fe52be893
 **Integration context:** `grimoires/loa/a2a/integration-context.md` is absent; the cycle-137 and sprint-bug-283 artefacts (`grimoires/loa/archive/cycle-137-performance-followups/`, `grimoires/loa/a2a/sprint-282/`, `grimoires/loa/a2a/bug-20261028-90f357/`) are the prior art every component below cites.
@@ -110,10 +111,10 @@ No database. One existing file cache changes its trust rules (C-1) and one direc
 
 | File | Owner | Reader | Writer rule (C-1) | Trust rule (C-1) |
 |---|---|---|---|---|
-| `.run/effective-config.json` (`schema_version 1`, `id`, `knobs`, `profile_keys`, `overrides`, `warnings`) | `profile-lib.sh` | `_loa_pl_load`, `loa_knob` warm path | `umask 077` subshell; `mktemp "$cache.XXXXXX"` beside the cache; `[[ ! -L cache ]]` re-check; `mv -f -T` (fallback `mv -f` only when the target is neither a directory nor a symlink); failure removes the temp and leaves the cache untouched | read and write only when `.run` is a real directory (`-d && ! -L`), owned by `$EUID` (`[[ -O ]]`), with no group/other write bit; a uid-owned directory carrying such a bit is tightened `chmod go-w` and trusted when the chmod succeeds (DEC-1126 pattern); the cache file itself must be `-f && ! -L`; anything else → cache off, live read (today's fallback) |
+| `.run/effective-config.json` (`schema_version 1`, `id`, `knobs`, `profile_keys`, `overrides`, `warnings`) | `profile-lib.sh` | `_loa_pl_load`, `loa_knob` warm path | `umask 077` subshell; `mktemp "$cache.XXXXXX"` beside the cache; `[[ ! -L cache ]]` re-check; `mv -f -T` (fallback `mv -f` only when the target is neither a directory nor a symlink); the rename replaces a planted file or hard link, never truncates through it; failure removes the temp and leaves the cache untouched | **trust predicate** (PRD 1.1 FR-1, DEC-1157): (a) the cache's directory is a real directory (`-d && ! -L`), owned by `$EUID`, with no group/other write bit — a writable or foreign directory is REFUSED (cache off, live read); profile-lib never `chmod`s from the hook path (the D-5.3 tightening stays in `grimoire-index.sh`); (b) the cache file, when present, is a regular non-symlink file owned by `$EUID`, no group/other write bit, link count 1 — else not read, replaced on the next write; (c) a redirected `LOA_PROFILE_CACHE_FILE` outside bats keeps its WARN and its directory must satisfy (a) with no symlinked path component (`realpath -m` equals the literal path); the predicate is evaluated once per process from the stat rows below; a directory that becomes trusted again does not have its existing cache read (rebuild) |
 | `.run/perf-cache/` | `zone-write-guard.sh` (first creator on a fresh mount), grimoire-index (`_gi_dec_write`, already 077) | the caches of cycle-137 | created inside `( umask 077; mkdir -p … )` by every creator (C-4) | unchanged readers (`_gi_trusted_dir`) |
 
-**Spawn budget for C-1.** `_loa_pl_id` already runs one `stat -Lc '%n|%y|%s'` over the three source files; the trust check extends THAT call with `.run` as a fourth path and `|%a|%u` (BSD: `stat -Lf '%N|%Fm|%z|%Lp|%u'`), parses the directory's row for mode and uid, and excludes that row from the cache `id` (so ids stay stable and the cache is not rebuilt by a mode change). Ownership can also be tested by the `[[ -O ]]` builtin; the mode needs the stat. Net: **zero additional spawns** on the warm karpathy path; the `chmod go-w` tightening is one spawn on the first run after a group-writable directory appears (budget line reason, as D-5.3 did for grimoire-index).
+**Spawn budget for C-1.** `_loa_pl_id` already runs one `stat -Lc '%n|%y|%s'` over the three source files; the trust predicate extends THAT call with the cache's directory and the cache file as fourth and fifth paths and the format `|%a|%u|%h` (mode, uid, link count; BSD: `stat -Lf '%N|%Fm|%z|%Lp|%u|%l'`), parses the two extra rows (a missing cache file simply yields no row), and excludes them from the cache `id` (ids stay byte-identical to today's, so the cache is not rebuilt by a mode change). Ownership is read from the stat row rather than `[[ -O ]]` so the fixtures can shim it. Net: **zero additional spawns** on the warm karpathy path (budget stays 196 / 9); no `chmod` is ever issued from profile-lib (DEC-1157). The `realpath -m` check for a redirected cache path runs only when `LOA_PROFILE_CACHE_FILE` is set outside bats (one spawn on that seam path only).
 
 > Sources: `.claude/scripts/lib/profile-lib.sh:50-83, 181-222`; `.claude/scripts/grimoire-index.sh:263-331`; `.claude/hooks/safety/zone-write-guard.sh:255-264`; DEC-1126
 
@@ -144,31 +145,36 @@ No network API changes. The "APIs" here are the shell-function contracts each co
 ```
 _loa_pl_paths():            unchanged (root, cfg, prof, floor, cache path; LOA_PROFILE_CACHE_FILE seam)
 _loa_pl_id():
-  st = stat -Lc '%n|%y|%s|%a|%u' -- cfg prof floor "$root/.run"      # GNU; BSD: -Lf '%N|%Fm|%z|%Lp|%u'
-  rows = split(st, "\n"); dirrow = rows[last]; rows = rows[0..2]       # the dir row never enters the id
-  _LOA_PL_CUR_ID = "v1|cfg|prof|floor|" join(rows with |%a|%u stripped, ";")   # id bytes identical to today
-  _LOA_PL_DIR_MODE = dirrow.mode; _LOA_PL_DIR_UID = dirrow.uid           # "" when the dir is missing
-_loa_pl_cache_trusted():   # 0 → cache may be read/written; 1 → cache off
+  st = stat -Lc '%n|%y|%s|%a|%u|%h' -- cfg prof floor "$cachedir" "$cache"   # GNU; BSD: -Lf '%N|%Fm|%z|%Lp|%u|%l'; a missing cache yields no row
+  rows = split(st, "\n"); src = rows for cfg/prof/floor; dirrow = the row for cachedir; filerow = the row for cache (may be absent)
+  _LOA_PL_CUR_ID = "v1|cfg|prof|floor|" join(src with |%a|%u|%h stripped, ";")      # id bytes identical to today
+  _LOA_PL_DIR = {mode, uid} from dirrow; _LOA_PL_FILE = {mode, uid, links} from filerow
+_loa_pl_cache_trusted():   # 0 → cache may be read/written; 1 → cache off (reason in _LOA_PL_CACHE_OFF for loa_profile)
   [[ -n cache ]] || return 1
   dir = cache's directory
-  [[ -d dir && ! -L dir ]] || return 1
-  [[ "$_LOA_PL_DIR_UID" == "$EUID" ]] || return 1                        # (or [[ -O dir ]] when the stat row is missing)
-  (( (8#mode & 8#022) == 0 )) && return 0
-  chmod go-w -- dir 2>/dev/null                                          # tighten a dir we own (DEC-1126); failure → 1
+  [[ -d dir && ! -L dir ]] || { reason=dir-not-plain; return 1; }
+  [[ "$_LOA_PL_DIR.uid" == "$EUID" ]] || { reason=dir-foreign; return 1; }
+  (( (8#$_LOA_PL_DIR.mode & 8#022) == 0 )) || { reason=dir-writable; return 1; }          # REFUSE — never chmod from here (DEC-1157)
+  if seam set outside bats: [[ "$(realpath -m -- dir)" == "$dir" ]] || { reason=dir-symlinked-component; return 1; }
+  return 0
+_loa_pl_cache_readable():  # the file half of the predicate, for reads only
+  [[ -f cache && ! -L cache ]] || return 1
+  [[ "$_LOA_PL_FILE.uid" == "$EUID" && (( (8#$_LOA_PL_FILE.mode & 8#022) == 0 )) && "$_LOA_PL_FILE.links" == 1 ]] || { reason=file-untrusted; return 1; }
 _loa_pl_load():
-  … if cache set and id set and _loa_pl_cache_trusted and [[ -f cache && ! -L cache ]]:
-       j = jq -c 'if .schema_version == 1 and .id == $id then . else empty end' < cache   # read through a redirect of the checked path
+  … if cache set and id set and _loa_pl_cache_trusted and _loa_pl_cache_readable:
+       j = jq -c 'if .schema_version == 1 and .id == $id then . else empty end' < cache   # the predicate just established the dir is not adversary-mutable
   … else build; _loa_pl_write_cache
-loa_knob() warm path: the same guard before the jq read of the cache file
+loa_knob() warm path: the same two guards before the jq read of the cache file
 _loa_pl_write_cache():
-  _loa_pl_cache_trusted || return 0
+  _loa_pl_cache_trusted || return 0                                      # an untrusted FILE is still replaced below (rename, never truncate)
   ( umask 077
     tmp = mktemp "$cache.XXXXXX" || exit 1
     printf '%s\n' "$_LOA_PL_JSON" > tmp && [[ ! -L cache ]] &&
       { mv -f -T tmp cache 2>/dev/null || { [[ ! -d cache && ! -L cache ]] && mv -f tmp cache; }; } || rm -f tmp )
   return 0
+loa_profile (human + --json): reports cache: on | off (<reason>)       # the only observability; hooks stay silent
 ```
-Inside bats the `LOA_PROFILE_CACHE_FILE` seam keeps today's semantics (its directory is a 0700 `mktemp -d`, so the trust check passes); outside bats a redirected cache obeys the same check. A drift-guard test asserts the mode arithmetic line and the symlink/`-f` checks are the same in `profile-lib.sh` and `grimoire-index.sh` (the KF twins' technique: extract both function bodies, compare the invariant lines) — D-1.1.
+Inside bats the `LOA_PROFILE_CACHE_FILE` seam keeps today's semantics (its directory is a 0700 `mktemp -d`, so the predicate passes); outside bats a redirected cache obeys the predicate and the `realpath` component check. The check-then-use argument is written into the code comment: a race between the predicate and the open needs write access to the directory the predicate just refused to trust. A drift-guard test asserts the mode arithmetic, the uid comparison and the symlink/`-f` checks are the same in `profile-lib.sh` and `grimoire-index.sh` (the KF twins' technique: extract both function bodies, compare the invariant lines) — D-1.1 (DEC-1148), DEC-1157.
 
 > Sources: `profile-lib.sh:50-83, 181-262`; `grimoire-index.sh:263-280, 319-331`; `grimoires/loa/a2a/sprint-282/auditor-sprint-feedback.md` MED-001
 
@@ -183,23 +189,24 @@ phase_release (1286):  dir = mktemp -d; trap 'rm -rf "$dir"' RETURN
 phase_notify (1488, 1502): the same for "$summary": --rawfile body for the POST; the read-back comparison
   jq -e --argjson id "$id" --rawfile body "$dir/body" --arg issue "$issue_url" '.id == $id and .body == $body and .issue_url == $issue'
 ```
-`printf '%s'` writes no trailing newline, so `--rawfile` yields exactly the string `--arg` carried; the comparison semantics are unchanged (byte-exact for the comment; the release body goes through `release_body_identical` as of sprint-bug-283, which already takes files). No other `--arg` in the publisher carries body text (`grep -n -- '--arg body'` after the change must show none) — D-2.1.
+`printf '%s'` writes no trailing newline, so `--rawfile` yields exactly the string `--arg` carried; the comparison semantics are unchanged (byte-exact for the comment; the release body goes through `release_body_identical` as of sprint-bug-283, which already takes files). The assembled JSON still reaches `gh api … --input -` on stdin. Temp storage per PRD 1.1 FR-2: `mktemp -d` (0700) checked — failure is `fail_phase <phase> "cannot create the request body file"`; the body written by the `printf` builtin, write failure recorded the same way; the directory removed on every return by a `RETURN` trap set inside a dedicated helper function (`_pm_body_file <phase> <text>` prints the path; its own scope owns the trap, so no caller's `RETURN` trap is clobbered). The SDD's implementation task enumerates every argv-borne body site with `grep -n -- '--arg body\|--arg summary\|--arg notes' post-merge-orchestrator.sh` (three at fe52be893: 1286, 1488, 1502) and converts each; after the change the grep shows none. Tests assert the stub-recorded argv of every publish-path command contains no body marker (replacing a `bash -x` grep) — D-2.1 (DEC-1149).
 
 > Sources: `post-merge-orchestrator.sh:1286, 1488-1502` at fe52be893; `grimoires/loa/a2a/bug-20261028-90f357/engineer-feedback-r2.md` § Observations 4; `getconf ARG_MAX` 2 097 152, per-argument 131 072
 
 ### 5.3 Chain summary third state (C-3, `loa-status.sh:408-461, 481-522`)
 
 ```
-_an_audit_chain_summary():   prints "V A B" (three integers) — callers format
-  existing = chain files present; absent = 5 - |existing|          # L1 L2 L3 L4 L6 are the chain files; L5 L7 counted valid (not chain-critical), as today
-  records = audit-envelope.sh verify-chains existing… (rc 0 or 1); ok_count via the index-keyed jq (unchanged); abnormal rc → ok_count 0
-  valid = ok_count + 2 (L5, L7); broken = |existing| - ok_count
-  print "$valid $absent $broken"
-display: if absent == 0 && broken == 0 → "Audit chain: ${valid}/7 primitives validate."   # byte-identical to today in the healthy case
-         else → "Audit chain: ${valid}/7 validate (${absent} absent, ${broken} broken)."
-JSON: audit_chain_summary: "${valid}/7" (string kept; V excludes absent), audit_chain: {valid, absent, broken, total: 7}
+_an_audit_chain_classify():  prints one line per primitive: "<id> <path|-> <state>"   state ∈ valid | absent | broken | n/a
+  for L1 L2 L3 L4 L6 (chain-bearing): missing file → absent; present → verified below
+  records = audit-envelope.sh verify-chains <existing…> (rc 0 or 1 → per-index records; any other rc or unparsable output → every existing chain broken)
+  per existing path: ok:true → valid; else (fails, unreadable, malformed, no record) → broken
+  L5, L7 (no chain file by design) → n/a           # counted inside valid for the totals
+_an_audit_chain_summary():   prints "V A B" with V = valid + n/a, A = absent, B = broken; V + A + B == 7 always (asserted in tests per fixture)
+display: if A == 0 && B == 0 → "Audit chain: ${V}/7 primitives validate."                  # byte-identical to today in the healthy case
+         else → "Audit chain: ${V}/7 validate (${A} absent, ${B} broken)." then one line per non-valid primitive: "  ${id} ${basename}: ${state}"
+JSON: audit_chain_summary: "${V}/7" (string kept; V excludes absent), audit_chain: {valid: V, absent: A, broken: B, total: 7, primitives: [{id, path, state}]}
 ```
-Behaviour change (intended, enumerated): an absent chain file no longer counts as valid, so `7/7` requires every file to exist and verify — D-3.1.
+Behaviour change (intended, enumerated): an absent chain file no longer counts as valid, so `7/7` requires every chain-bearing file to exist and verify; the non-healthy line names each absent or broken primitive — D-3.1 (DEC-1150).
 
 > Sources: `loa-status.sh:408-461, 481-522`; `tests/unit/loa-status-providers.bats` LS-1 (`none`, `r3-partial`, `_oracle`)
 
@@ -213,12 +220,20 @@ Behaviour change (intended, enumerated): an absent chain file no longer counts a
 line 62:  CHECKPOINT="$REPO_ROOT/.claude/scripts/run-checkpoint.sh"
           [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${KARPATHY_CHECKPOINT_CMD:-}" ]] && CHECKPOINT="$KARPATHY_CHECKPOINT_CMD"
           # outside bats the variable is ignored (no stderr: the hook's output stays byte-identical)
-lines 214-217:  [[ -L "$TRAJ_DIR" ]] && exit 0
-                [[ -d "$TRAJ_DIR" ]] || mkdir -p "$TRAJ_DIR" 2>/dev/null || exit 0
-                f="$TRAJ_DIR/karpathy-${TS:0:10}.jsonl"; [[ -L "$f" ]] && exit 0
-                printf … >> "$f" 2>/dev/null || true
+lines 214-217 (the warn path only — the hot path is untouched):
+  _traj_trusted():                                           # one stat on the warn path; nothing on the hot path
+    [[ -L "$TRAJ_DIR" ]] && return 1
+    [[ "$(realpath -m -- "$TRAJ_DIR")" == "$TRAJ_DIR" ]] || return 1        # no symlinked component
+    [[ -d "$TRAJ_DIR" ]] || { ( umask 077; mkdir -p -- "$TRAJ_DIR" ) 2>/dev/null || return 1; }
+    read uid mode < <(stat -Lc '%u %a' -- "$TRAJ_DIR") ; [[ "$uid" == "$EUID" && (( (8#mode & 8#022) == 0 )) ]] || return 1
+    f="$TRAJ_DIR/karpathy-${TS:0:10}.jsonl"
+    if [[ -e "$f" || -L "$f" ]]; then
+      [[ -f "$f" && ! -L "$f" ]] || return 1                             # FIFO, device, directory, symlink → refuse
+      read fuid flinks < <(stat -Lc '%u %h' -- "$f"); [[ "$fuid" == "$EUID" && "$flinks" == 1 ]] || return 1
+    fi
+  _traj_trusted && printf … >> "$f" 2>/dev/null || true                    # the warning line is printed regardless
 ```
-The seam is honoured only under a bats marker (the quieter of the two options FR-5 allows: no WARN on a per-tool-call hook); `perf-spawn-budget.bats` adds `BATS_TEST_FILENAME` to its `env -i` allowlist for the karpathy target so its stub checkpoint still applies — D-5.1. The symlink refusals mirror lines 162 and 165 (state dir and task file).
+The seam is honoured only under a bats marker and otherwise ignored silently (PRD 1.1 FR-5, DEC-1158); `perf-spawn-budget.bats` adds `BATS_TEST_FILENAME` to its `env -i` allowlist for the karpathy target so its stub checkpoint still applies — D-5.1 (DEC-1152). The trajectory refusals extend lines 162 and 165 (state dir and task file) to every path component, directory ownership and mode, file type, ownership and link count (PRD 1.1 FR-6); the trust root is the checkout.
 
 > Sources: `karpathy-surgical-diff-check.sh:38-62, 153-165, 205-220`; `profile-lib.sh:57-67` (seam precedent); `perf-spawn-budget.bats:275`
 
@@ -226,13 +241,17 @@ The seam is honoured only under a bats marker (the quieter of the two options FR
 
 ```
 san(s):   gsub(/\000/, "", s)
-          gsub(/\302[\200-\237]/, " ", s)          # NEW: UTF-8 C1 (U+0080–U+009F) → space, as the decisions jq `s` filter does
+          gsub(/\302[\200-\237]/, " ", s)          # NEW: UTF-8 C1 (U+0080–U+009F) → space — the decisions jq `s` class
+          gsub(/\342\200[\250\251]/, " ", s)       # NEW: U+2028, U+2029 → space — the rest of that class; `<>` are NOT replaced here (stated)
           gsub(/[\001-\010\013\014\016-\037\177]/, "", s)
           gsub(/[\t\n\r]/, " ", s); gsub(/  +/, " ", s); sub(/^ /, "", s); sub(/ $/, "", s)
-          return substr(s, 1, 100)                 # BYTE cap under LC_ALL=C (the contract: bytes, on every host; BSD cut used to cap characters)
-rows:     collected as today; at END: sort by recurrence desc, then id desc (a stable insertion sort in awk — ≤ 100 rows); print the first KF_SURFACE_MAX_ROWS (40); if n > 40 print "  … and " n-40 " more — see grimoires/loa/known-failures.md"
+          return substr(s, 1, 100)                 # BYTE cap under LC_ALL=C: 100 bytes on every host, may end inside a multi-byte sequence (advisory text) — the FR-9 contract
+rows:     collected in file order with (recurrence as the leading integer, 0 when absent; id); at END:
+          if n <= max: print all rows in file order                                    # byte-identical to today
+          else: select the max rows ranked by recurrence desc, then id desc; print the SELECTED rows in file order;
+                print "  … and " n-max " more — see grimoires/loa/known-failures.md"
 ```
-`KF_SURFACE_MAX_ROWS=40` is a shell constant passed with `-v max=`; no config key (PRD § Constraints); the live file (65 entries) changes from 65 rows to 40 + 1 line — the enumerated diff for FR-7's parity criterion. The drift guard keeps `san()` and `SAN_AWK` identical; the three-awk parity test runs mawk, busybox and `gawk --posix`; form (a) adds BWK awk when a build exists (`~/.cache/loa/bwk-awk/awk/a.out` is where Sprint 281 looked) — D-6.1, D-6.2.
+`KF_SURFACE_MAX_ROWS=40` is a shell constant passed with `-v max=`; no config key (PRD § Constraints); selection and display order are separate (DEC-1159) so the live file (65 entries) changes only by its 25 elided rows plus one line — the enumerated diff for FR-7's parity criterion; worst-case rows (100-byte symptoms, 3-digit recurrence) keep the table under 8 KiB (fixture). The drift guard keeps `san()` and `SAN_AWK` identical; the three-awk parity test runs mawk, busybox and `gawk --posix`; FR-9 form (a) adds a BWK awk — a prebuilt one first (`original-awk` package, `nawk`, a container), the source build second — and BSD `cut` semantics; form (b) only after the prebuilt attempt is recorded, closing bd-aceil with the contract landed and opening a linked macOS bead — D-6.1 (DEC-1153), D-6.2 (DEC-1154), DEC-1159.
 
 > Sources: `loa-kf-surface.sh:88-140`; `grimoire-index.sh` `SAN_AWK`; `grep -c '^## KF-' known-failures.md` = 65; DEC-1123; DEC-1146
 
@@ -356,5 +375,8 @@ Each sprint: implementer patches land red → fix under the marker with manifest
 ### 11.E Grounding reads
 `.claude/scripts/lib/profile-lib.sh:50-83, 125-145, 181-288`; `.claude/scripts/grimoire-index.sh:263-331`; `.claude/scripts/post-merge-orchestrator.sh:1160-1330, 1480-1510`; `.claude/scripts/loa-status.sh:408-461, 481-522`; `.claude/hooks/safety/zone-write-guard.sh:225-264`; `.claude/hooks/quality/karpathy-surgical-diff-check.sh:38-62, 150-165, 205-220`; `.claude/hooks/loa-kf-surface.sh:88-140`; `.claude/adapters/loa_cheval/providers/__init__.py:20-62`; `tests/unit/perf-spawn-budget.bats:119-275`; `tests/unit/adversarial-review-companion.bats:1678-1691`; `tests/unit/loa-decisions-surface.bats:124-140`; `tests/unit/loa-status-providers.bats` (LS-1); cycle-137 SDD § 3, § 5.5, § 7; `grimoires/loa/a2a/bug-20261028-90f357/reviewer.md`.
 
+### 11.G PRD 1.1 integration (Flatline PRD review carried into the design)
+The PRD's Flatline review (Appendix D there) changed six design points, all reflected above: the profile-lib predicate covers the cache file and REFUSES a writable `.run` (§ 3, § 5.1; DEC-1157); the publisher's temp storage has checked failure paths and its own trap scope, and tests assert stub-recorded argv (§ 5.2); the chain summary classifies every primitive with a sum invariant and names the non-valid ones (§ 5.3); the trajectory guard covers components, ownership, type and links on the warn path (§ 5.5); the KF cap separates selection from display and states the byte ceiling and the full control class (§ 5.6); FR-9 form (b) needs a prebuilt-BWK attempt first (§ 5.6, DEC-1159). The halt protocol (DEC-1160) and verdict binding (DEC-1161) are process rules the sprint plan carries.
+
 ### 11.F Flatline SDD review dispositions
-(filled in 1.1 after `/flatline-review sdd`)
+(filled in 1.2 after `/flatline-review sdd`)

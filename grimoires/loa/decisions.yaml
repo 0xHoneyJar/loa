@@ -41108,3 +41108,186 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1157"
+    created_at: "2026-10-29T02:31:14Z"
+    updated_at: "2026-10-29T02:31:14Z"
+    phase: "discovery"
+    category: "security"
+    summary: "PRD 1.1: profile-lib refuses a group/world-writable .run (cache off, live read), never chmods from the hook path; cache file uid-owned, 1 link"
+    decision: "FR-1's trust predicate refuses a writable .run instead of tightening it: profile-lib runs on the PostToolUse path and must not mutate a shared directory; the D-5.3 chmod go-w stays in grimoire-index.sh (a script). The cache file itself must be uid-owned, not group/other-writable, a regular non-symlink file with one link; after a directory becomes trusted again the existing cache is not read (rebuild)."
+    rationale: "A read path that chmods a shared directory is a surprising side effect on every edit; refusing costs one live read. Hard links and foreign files were raised by both Flatline voices."
+    alternatives_considered:
+      - option: "Tighten from profile-lib as grimoire-index does"
+        rejected_because: "a mutation from a per-tool-call read path"
+    consequences:
+      positive:
+        - "no side effects on hooks"
+        - "simpler predicate"
+      negative:
+        - "a group-writable .run keeps the profile cache off until fixed by a script or the operator"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d00d5475"
+    source: "Flatline PRD review (cycle-138-prd-review.json) gpt item 'may FR-1 mutate .run from a read-path hook'; prd.md FR-1"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:31:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "prd.md 1.1 FR-1; Appendix D rows B1, B2, B4"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1158"
+    created_at: "2026-10-29T02:31:20Z"
+    updated_at: "2026-10-29T02:31:20Z"
+    phase: "discovery"
+    category: "security"
+    summary: "PRD 1.1: KARPATHY_CHECKPOINT_CMD ignored in production; bats-marker gate is a same-uid test seam; the profile config seam keeps its WARN"
+    decision: "No WARN-and-honour option: outside bats the variable is ignored silently; inside bats it is honoured. The PRD states that BATS_* markers are ambient and defend only against accidental honouring, which is the seam's purpose; the profile-lib config redirection keeps its once-per-process WARN because it redirects a read, not a command."
+    rationale: "A hostile same-uid environment already controls the hook; the seam must not become command execution in production."
+    alternatives_considered:
+      - option: "WARN once and honour"
+        rejected_because: "still executes an arbitrary command from the environment"
+    consequences:
+      positive:
+        - "seam closed outside tests"
+      negative:
+        - "no non-bats consumer possible"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d00d5475"
+    source: "Flatline PRD review blocker B3 and gpt seam items; prd.md FR-5"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:31:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "prd.md 1.1 FR-5"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1159"
+    created_at: "2026-10-29T02:31:28Z"
+    updated_at: "2026-10-29T02:31:28Z"
+    phase: "discovery"
+    category: "architecture"
+    summary: "PRD 1.1: KF cap selects by recurrence/id but displays in file order; byte ceiling ≤ 8 KiB; FR-9 form (b) only after a prebuilt BWK attempt"
+    decision: "The 40 selected rows print in today's file order so ≤ 40 entries are byte-identical and > 40 differs only by elided rows plus one line; the row cap implies a byte ceiling (≤ 8 KiB, worst-case rows tested). FR-9 form (b) may be invoked only after an attempt to obtain a prebuilt BWK awk (original-awk package, nawk, container) is recorded; form (b) closes bd-aceil with the contract landed and opens a linked macOS verification bead."
+    rationale: "Separating selection from presentation keeps the parity criterion exact; a source build was the only attempt last time."
+    alternatives_considered:
+      - option: "Display in ranked order"
+        rejected_because: "changes every line's position even when nothing is elided"
+    consequences:
+      positive:
+        - "byte-identical ≤ 40"
+        - "bounded context cost"
+      negative:
+        - "the elided set is not visibly ranked"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d00d5475"
+    source: "Flatline PRD review items on FR-7 ordering/byte bound and FR-9 prebuilt BWK; prd.md FR-7, FR-9"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:31:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "prd.md 1.1 FR-7, FR-9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1160"
+    created_at: "2026-10-29T02:31:34Z"
+    updated_at: "2026-10-29T02:31:34Z"
+    phase: "discovery"
+    category: "process"
+    summary: "PRD 1.1: unattended halt protocol — gates missed after the dissent budget or T+20 h HALT at the sprint boundary; PR ships completed sprints"
+    decision: "When a sprint's review or audit does not reach All good / APPROVED within the dissent budget, or the one-day budget is exceeded, the run HALTs at the sprint boundary with the HALT checkpoint written; the PR is opened with the completed sprints only; the remaining beads stay open with a class-S row naming the stop; schedule slip may defer FR-13, FR-15 and FR-9 by a row with a successor bead, and the zero-open-beads KPI counts deferred-with-row as closed for this cycle."
+    rationale: "The cycle must have a defined end that is not 'keep retrying'."
+    alternatives_considered:
+      - option: "Retry gates until green"
+        rejected_because: "unbounded unattended spend and no operator checkpoint"
+    consequences:
+      positive:
+        - "bounded"
+        - "every stop recorded"
+      negative:
+        - "a HALTed cycle ships less than planned"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d00d5475"
+    source: "Flatline PRD review gpt item 'unattended halt protocol'; cycle-137 sprint plan § Execution"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:31:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "prd.md 1.1 § Constraints and FR-16"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1161"
+    created_at: "2026-10-29T02:31:38Z"
+    updated_at: "2026-10-29T02:31:38Z"
+    phase: "discovery"
+    category: "process"
+    summary: "PRD 1.1: each sprint's verdicts bind to its head; the final sprint binds to the PR head after a whole-head parity gate over every touched entry"
+    decision: "G-3 and FR-16 require: sprint N's All good and APPROVED on sprint N's head (docs-only tails allowed and listed); the last sprint's gates run on the PR head and include the whole-head parity gate (old mirror = the pre-cycle head, new mirror = the PR head) over every entry point any sprint touched; the merge gate compares git diff --quiet <PR head> <merge commit>."
+    rationale: "Later sprints change files earlier sprints reviewed; the final gate re-validates the aggregate without re-running three reviews."
+    alternatives_considered:
+      - option: "Require every sprint head to equal the merged code"
+        rejected_because: "impossible with three sequential sprints"
+    consequences:
+      positive:
+        - "one explicit final revalidation"
+      negative:
+        - "the last sprint's review is the largest"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d00d5475"
+    source: "Flatline PRD review opus item 880 (final-head revalidation); DEC-1134 pattern"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:31:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "prd.md 1.1 G-3, FR-16"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
