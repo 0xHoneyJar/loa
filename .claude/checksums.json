@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-29T08:37:02Z",
+  "generated": "2026-10-29T09:42:20Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1184,7 +1184,7 @@
     ".claude/scripts/lib/normalize-json.sh": "374f2facdd8e8cc6a9b6b304324e91819d6c3d51a5cc92d6f8749d622c29259b",
     ".claude/scripts/lib/overlay-source-helper.sh": "30a852a84c7c7d1b979db192eca40b30aeaca7439d6de982c92234ff6c5538da",
     ".claude/scripts/lib/portable-realpath.sh": "29aa07387dbbd705554504a7a854e2fedcf1789bf57e02564398c092be47e5ce",
-    ".claude/scripts/lib/profile-lib.sh": "5e4397ea6cb2eda7ebc491298d258e5f06ce82b748600440cc369b6ea4cd035c",
+    ".claude/scripts/lib/profile-lib.sh": "4c1a95cbe51295deecc4d59d3ff797094b78fdf34ec75e8f979a7b7eb7ca10af",
     ".claude/scripts/lib/protected-class-router.sh": "df56642ad9daf054b8b2e927401fa755c340c9778168df818a0ee2e6fd237b1e",
     ".claude/scripts/lib/push-notify-lib.sh": "4d22fca7f6c99553f5ab032d232d44e629fcdefb61b5aaa78cc0eee9c6592424",
     ".claude/scripts/lib/repo_map.py": "e59af99ca2e1ea15287e4c54b7e7311cbc95ed54d3a37c89a30b2349ed8b67c6",

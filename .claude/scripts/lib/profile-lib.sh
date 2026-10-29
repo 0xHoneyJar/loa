@@ -275,7 +275,11 @@ _loa_pl_build() {
     (.[2] | if type == "array" then map(select(type == "string")) else [] end) as $floor |
     ($pf.profiles | if type == "object" then . else {} end) as $profiles |
     ([$profiles[] | objects | keys[]] | unique) as $all |
-    def forbidden($k): any($floor[]; . as $f | ($k | test($f | globre)) or (($f | split("*")[0]) | startswith($k + ".")));
+    # A floor entry forbids the keys its glob matches, every ANCESTOR of it, and — for a MAPPING-LEVEL entry
+    # (no `*`) — every DESCENDANT of it at any depth (cycle-138 FR-10, SDD § 5.7); a glob entry relies on its
+    # glob alone (M37: `destructive_command_guard_x.y` and `flatline_protocol.a.companion_voice.b` are not floor keys).
+    def forbidden($k): any($floor[]; . as $f | ($k | test($f | globre)) or (($f | split("*")[0]) | startswith($k + "."))
+                                        or (($f | contains("*") | not) and ($k | startswith($f + "."))));
     ($all | map(select(forbidden(.)))) as $bad |
     ($all - $bad) as $keys |
     # cycle-137 FR-4 (SDD § 5.4): profiles.yaml `cached_keys` — non-profile knobs read on hot paths. A listed
@@ -378,12 +382,26 @@ _loa_pl_load() {
   return 0
 }
 
-# Live read of one explicit key (non-profile keys, or no resolution available).
+# Presence travels as a KIND TOKEN, never as a value (cycle-138 FR-11, SDD § 5.7, D-7.2): each knob read's jq
+# prints `absent`, `miss` or `stale` alone, or the rendered value followed by a LAST line `present`. Only a
+# present result contains a newline, so `case` on the whole output classifies it (xtrace does not trace `case`:
+# the warm path's trace lines are unchanged); a present value then loses the token and — as $(…) did before —
+# its trailing newlines. An empty present value keeps the empty rule (the warm read falls through, the memo read
+# goes live, the live read prints the fallback).
+# Live read of one explicit key (non-profile keys, or no resolution available). `-n` + `[inputs]`: one token for
+# a multi-document config, whose documents print one line each as before; a key null in EVERY document is a miss
+# (the fallback, as for one document — before, each document leaked a sentinel line into the value).
 _loa_pl_live() {
   local key="$1" fallback="$2" v
   if [[ -f "${_LOA_PL_CFG:-}" ]] && command -v yq >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
-    v=$(yq -o=json ".$key" "$_LOA_PL_CFG" 2>/dev/null | jq -r 'if . == null then "__LOA_PL_MISS__" elif type == "string" then . elif type == "object" or type == "array" then tojson else tostring end' 2>/dev/null) || v=""
-    if [[ -n "$v" && "$v" != "__LOA_PL_MISS__" ]]; then
+    v=$(yq -o=json ".$key" "$_LOA_PL_CFG" 2>/dev/null | jq -rn '[inputs] | if . == [] then empty elif all(.[]; . == null) then "miss"
+          else (map(if type == "string" then . elif type == "object" or type == "array" then tojson else tostring end)
+                | join("\n")) + "\npresent" end' 2>/dev/null) || v=""
+    case "$v" in
+      *$'\n'present) v="${v%$'\n'present}"; v="${v%"${v##*[!$'\n']}"}" ;;
+      *) v="" ;;
+    esac
+    if [[ -n "$v" ]]; then
       printf '%s\n' "$v"
       return 0
     fi
@@ -408,22 +426,24 @@ loa_knob() {
     v=$(jq -r --arg id "$_LOA_PL_CUR_ID" --arg k "$key" '
           if .schema_version == 1 and .id == $id then
             (if (.knobs | has($k)) then
-               (if .knobs[$k].source == "absent" then "__LOA_PL_ABSENT__" else .knobs[$k].value
-                | (if type == "string" then . elif type == "object" or type == "array" then tojson else tostring end) end)
-             else "__LOA_PL_MISS__" end)
-          else "__LOA_PL_STALE__" end' "$_LOA_PL_CACHE" 2>/dev/null) || v="__LOA_PL_STALE__"
-    if [[ "$v" == "__LOA_PL_ABSENT__" ]]; then   # (cycle-137 FR-4: a cached key the config does not set — no live read)
-      printf '%s\n' "$fallback"
-      return 0
-    fi
-    if [[ "$v" == "__LOA_PL_MISS__" ]]; then
-      _loa_pl_live "$key" "$fallback"
-      return 0
-    fi
-    if [[ -n "$v" && "$v" != "__LOA_PL_STALE__" ]]; then
-      printf '%s\n' "$v"
-      return 0
-    fi
+               (if .knobs[$k].source == "absent" then "absent" else (.knobs[$k].value
+                | (if type == "string" then . elif type == "object" or type == "array" then tojson else tostring end)) + "\npresent" end)
+             else "miss" end)
+          else "stale" end' "$_LOA_PL_CACHE" 2>/dev/null) || v=stale
+    case "$v" in
+      absent)   # (cycle-137 FR-4: a cached key the config does not set — no live read)
+        printf '%s\n' "$fallback"
+        return 0 ;;
+      miss)
+        _loa_pl_live "$key" "$fallback"
+        return 0 ;;
+      *$'\n'present)
+        v="${v%$'\n'present}"; v="${v%"${v##*[!$'\n']}"}"
+        if [[ -n "$v" ]]; then
+          printf '%s\n' "$v"
+          return 0
+        fi ;;
+    esac   # (stale, an unreadable cache, or an empty present value: resolve below)
   fi
   if ! _loa_pl_load; then
     _loa_pl_live "$key" "$fallback"
@@ -431,18 +451,21 @@ loa_knob() {
   fi
   v=$(printf '%s' "$_LOA_PL_JSON" | jq -r --arg k "$key" '
         if (.knobs | has($k)) then
-          (if .knobs[$k].source == "absent" then "__LOA_PL_ABSENT__" else .knobs[$k].value
-           | (if type == "string" then . elif type == "object" or type == "array" then tojson else tostring end) end)
-        else "__LOA_PL_MISS__" end' 2>/dev/null) || v="__LOA_PL_MISS__"
-  if [[ "$v" == "__LOA_PL_ABSENT__" ]]; then
-    printf '%s\n' "$fallback"
-    return 0
-  fi
-  if [[ -z "$v" || "$v" == "__LOA_PL_MISS__" ]]; then
-    _loa_pl_live "$key" "$fallback"
-    return 0
-  fi
-  printf '%s\n' "$v"
+          (if .knobs[$k].source == "absent" then "absent" else (.knobs[$k].value
+           | (if type == "string" then . elif type == "object" or type == "array" then tojson else tostring end)) + "\npresent" end)
+        else "miss" end' 2>/dev/null) || v=miss
+  case "$v" in
+    absent)
+      printf '%s\n' "$fallback"
+      return 0 ;;
+    *$'\n'present)
+      v="${v%$'\n'present}"; v="${v%"${v##*[!$'\n']}"}"
+      if [[ -n "$v" ]]; then
+        printf '%s\n' "$v"
+        return 0
+      fi ;;
+  esac   # (miss, a failed read, or an empty present value: the live read)
+  _loa_pl_live "$key" "$fallback"
   return 0
 }
 
