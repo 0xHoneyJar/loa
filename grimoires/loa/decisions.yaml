@@ -41291,3 +41291,115 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1162"
+    created_at: "2026-10-29T02:50:03Z"
+    updated_at: "2026-10-29T02:50:03Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "cycle-138 sprint plan: three sprints by exposure (284 trust boundaries + release path; 285 hooks + KF surface; 286 guards/refactor + PR-head gates)"
+    decision: "Sprint 284 lands C-4, C-3, C-2, C-1 (FR-1 … FR-4); Sprint 285 lands C-5 and C-6 (FR-5 … FR-9); Sprint 286 lands C-7, C-8, C-9 (FR-10 … FR-15), the whole-head parity gate and the final verdicts bound to the PR head; the ship section runs after Sprint 286 COMPLETED."
+    rationale: "The profile-lib and publisher findings carry the highest exposure and the KF cap changes live output; closing them first means a halt after any sprint still ships the security rows (DEC-1160)."
+    alternatives_considered:
+      - option: "One sprint per component"
+        rejected_because: "ten gate pairs for fifteen small beads"
+      - option: "Two sprints"
+        rejected_because: "the final sprint would mix the parity gate with four System Zone changes"
+    consequences:
+      positive:
+        - "halt-safe ordering"
+        - "one implementer per file per sprint"
+      negative:
+        - "Sprint 3 waits on two gate pairs"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "006e6f11"
+    source: "grimoires/loa/sprint.md § Sprint Overview"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:50:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "grimoires/loa/sprint.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1163"
+    created_at: "2026-10-29T02:50:08Z"
+    updated_at: "2026-10-29T02:50:08Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "cycle-138 Task 3.2 (test guards only) lands as one commit exempt from the red/fix pair; its one-off red runs are recorded in the report"
+    decision: "FR-12, FR-13 and FR-14 change only tests; the guard commit proves itself by one-off red runs (a mutation of headroom + 1 spawns; a reaper never invoked; a missing skip-list entry) recorded with command and output in the Sprint 3 report rather than by a committed red test of a test."
+    rationale: "A red test for a test guard would need a mutated copy of the guard in the tree; the one-off run gives the same evidence without the artefact."
+    alternatives_considered:
+      - option: "Commit the mutated guard as a red commit"
+        rejected_because: "a knowingly broken guard in history"
+    consequences:
+      positive:
+        - "evidence kept"
+        - "no broken commit"
+      negative:
+        - "the red evidence lives in a report, not in CI"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "006e6f11"
+    source: "grimoires/loa/sprint.md Task 3.2"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:50:08Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "grimoires/loa/sprint.md Task 3.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1164"
+    created_at: "2026-10-29T02:50:12Z"
+    updated_at: "2026-10-29T02:50:12Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "cycle-138 beads: three epics + 23 tasks with blocking edges in execution order, cross-sprint edges gate→next prep, ship bead last (no parent edges)"
+    decision: "Epics bd-fm8qc (284), bd-ei4dy (285), bd-685o9 (286); tasks created flat with sprint labels and blocked-by edges (no parent-child edges, KF-005); the fifteen follow-up beads stay open until their task lands and are closed provisionally with the landing sha."
+    rationale: "Parent-child edges fail on this database; blocking edges give br ready a usable order across the whole cycle."
+    alternatives_considered:
+      - option: "Reuse the fifteen follow-up beads as the sprint tasks"
+        rejected_because: "a task maps to one to three beads and carries lead work the beads do not"
+    consequences:
+      positive:
+        - "schedulable graph"
+      negative:
+        - "26 extra beads to close"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "006e6f11"
+    source: "~/.cache/loa/cycle-138/beads-map.txt"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:50:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "beads-map.txt"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
