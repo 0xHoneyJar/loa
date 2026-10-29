@@ -7,7 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_(nothing yet — rc.9 was cut on 2026-10-28)_
+### Security (cycle-138 "hardening follow-ups", Sprint 284)
+
+- **profile-lib cache trust predicate** (`profile-lib.sh`, bd-j34zb): the profile cache `.run/effective-config.json` is read and written only when `.run` is a uid-owned, non-writable, non-symlinked directory and the file a uid-owned, single-link, non-writable regular file — sampled by the one existing `stat` (zero added spawns). Anything else is REFUSED: not read, the live read answers with identical output, nothing is chmod-ed from the hook path; the writer creates an absent `.run` 0700, re-checks ownership with builtins right before the rename and never writes through a planted symlink, FIFO or hard link (the rename replaces the entry; a directory at the cache path is left alone). A pre-existing group/other-writable `.run` is repaired by `grimoire-index.sh`'s tightening on its next run; until then `/loa`'s Profile line says `profile cache off (<reason>)` (new `loa_profile_cache_state`). Enumerated: a refused `.run` behaves as cache-off, so the per-process WARNs a warm cache used to suppress (unknown profile, unparsable config) appear on every call; a host without `.loa.config.yaml` rebuilds its cache once (the old id came from GNU `stat -f`'s filesystem fallback).
+- **Post-merge publisher bodies leave argv** (`post-merge-orchestrator.sh`, bd-qyvju): the release POST, the comment POST and its read-back comparison hand jq their bodies through `--rawfile body <(printf '%s' …)` (process substitution) instead of `--arg`, so bodies above the 131 072-byte per-argument limit publish; no temporary files, byte-identical request JSON.
+- **Every framework creator makes `.run/perf-cache` — and a fresh `.run` — 0700 regardless of the caller's umask** (`zone-write-guard.sh`, bd-20bh1): `( umask 077; mkdir -p … )` around the cache writer (today 0775 under umask 002); the karpathy state dir was already covered by that hook's global umask; the trajectory directory follows with FR-6.
+
+### Changed (cycle-138 "hardening follow-ups", Sprint 284)
+
+- **`loa-status`**: the Audit chain line classifies every primitive — valid / absent / broken / n/a — from the one `verify-chains` call; an absent chain file is reported as absent instead of counting as valid, and when anything is absent or broken the line reads `Audit chain: V/7 validate (A absent, B broken).` followed by one `  Lx <file>: absent|broken` line each (the healthy `7/7` line is unchanged); `--json` adds `agent_network.audit_chain {valid, absent, broken, not_applicable, total, primitives[]}` where `valid` excludes the two n/a primitives and `valid + absent + broken + not_applicable == 7` (bd-hyah6). On a checkout without the four `.run`/ledger chain files the line now reads `2/7 validate (4 absent, …)`.
 
 ## [2.0.0-rc.9] — 2026-10-28 — Performance follow-ups (release candidate)
 
