@@ -65,6 +65,7 @@ san(){ printf '%s' "${1-}" | tr -d '\000-\010\013\014\016-\037\177' | tr '\t\n\r
 SAN_AWK='
 # Byte cap: under LC_ALL=C substr() caps BYTES. GNU cut -c was already byte-based on Linux, so Linux
 # output is unchanged; BSD cut hosts formerly capped characters.
+# Contract (FR-9, DEC-1159): 160 bytes on every host; the cut may end inside a multi-byte UTF-8 sequence.
 function san(s) {
   gsub(/\000/, "", s)
   # The decisions jq `s` filter class (cycle-138 FR-8): UTF-8 C1 (U+0080-U+009F) and U+2028 /

@@ -30,6 +30,14 @@
 #   field is control-byte-sanitized + length-capped before reaching session
 #   context; body prose is NEVER interpreted as instructions (CLAUDE.md
 #   agent-network universal invariant).
+#
+# BYTE-CAP CONTRACT (cycle-138 FR-9, DEC-1159): a surfaced symptom is capped at
+#   100 BYTES on every host (160 in the grimoire-index TSV) — substr() under
+#   LC_ALL=C counts bytes, never characters, and no cut(1) is involved (BSD
+#   cut -c counts characters; the shell reference spec below is documentation
+#   only) — so a capped symptom may end inside a multi-byte UTF-8 sequence. The table is
+#   advisory text, never parsed as a value; the session context tolerates the
+#   split sequence. tests/unit/kf-surface.bats pins the boundary bytes.
 # =============================================================================
 set -uo pipefail
 
@@ -97,6 +105,7 @@ KF_SURFACE_MAX_ROWS=40   # rows surfaced at most; the rest are named by one elis
 rows="$(LC_ALL=C awk -v max="$KF_SURFACE_MAX_ROWS" '
   # Byte cap: under LC_ALL=C substr() caps BYTES. GNU cut -c was already byte-based on Linux, so Linux
   # output is unchanged; BSD cut hosts formerly capped characters.
+  # Contract (FR-9, DEC-1159): 100 bytes on every host; the cut may end inside a multi-byte UTF-8 sequence.
   # The C1 and U+2028/U+2029 lines go beyond the tr reference spec above, which predates them.
   function san(s) {
     gsub(/\000/, "", s)

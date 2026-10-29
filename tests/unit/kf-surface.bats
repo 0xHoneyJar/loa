@@ -591,3 +591,35 @@ _kf_run() { env LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" LOA
     [ "$(printf '%s\n' "$out" | grep -c '^  - KF-')" -eq "$n" ]
   fi
 }
+
+# ---- cycle-138 FR-9 (bd-aceil): the byte-cap contract (DEC-1159) ----
+# The symptom cap is 100 BYTES on every host (160 in the index TSV) and may end inside a multi-byte UTF-8
+# sequence. Fixtures put a 3-byte character (U+2014, \342\200\224) across each cap; the expected bytes are
+# written by printf and compared with cmp (no shell string comparison of partial UTF-8).
+@test "FR-9 byte-cap contract: a 3-byte UTF-8 symptom crossing the cap ends mid-sequence at exactly 100 bytes (hook) and 160 bytes (index), under every awk present" {
+  local p="$BATS_TEST_TMPDIR/capb" x98 x158 a i=0
+  mkdir -p "$p/grimoires/loa" "$p/x/y"
+  cp "$GEN" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$p/x/y/"
+  x98="$(printf 'x%.0s' $(seq 1 98))"; x158="$(printf 'y%.0s' $(seq 1 158))"
+  { printf '# Known Failures\n\n'
+    printf '## KF-001: hook cap\n**Status**: OPEN\n**Symptom**: %s\342\200\224tail\n**Recurrence count**: 1\n\n' "$x98"
+    printf '## KF-002: index cap\n**Status**: OPEN\n**Symptom**: %s\342\200\224tail\n**Recurrence count**: 2\n\n' "$x158"; } > "$p/grimoires/loa/known-failures.md"
+  # hook row KF-001: 98 x then the first two bytes of U+2014 (bytes 99 and 100); the third byte is cut
+  printf '  - KF-001 (rec 1): %s\342\200\n' "$x98" > "$BATS_TEST_TMPDIR/hook.expected"
+  # index TSV symptom of KF-002: 158 y then \342\200
+  printf '%s\342\200\n' "$x158" > "$BATS_TEST_TMPDIR/tsv.expected"
+  while IFS= read -r a; do
+    local d="$BATS_TEST_TMPDIR/capbshim-$i"; _awk_shim "$d" "$a"
+    env PATH="$d:$PATH" LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" \
+      LOA_KNOWN_FAILURES_FILE="$p/grimoires/loa/known-failures.md" bash "$HOOK" 2>/dev/null | LC_ALL=C awk 'index($0, "  - KF-001 (") == 1' > "$d/hook.row"
+    cmp "$BATS_TEST_TMPDIR/hook.expected" "$d/hook.row" || { echo "hook under $a:" >&2; od -c "$d/hook.row" | tail -3 >&2; false; }
+    env PATH="$d:$PATH" bash "$p/x/y/grimoire-index.sh" --tsv 2>/dev/null | awk -F'\t' '$1 == "kf" && $2 == "KF-002" { print $7 }' > "$d/tsv.sym"
+    cmp "$BATS_TEST_TMPDIR/tsv.expected" "$d/tsv.sym" || { echo "index under $a:" >&2; od -c "$d/tsv.sym" | tail -3 >&2; false; }
+    i=$((i + 1))
+  done < <(_awks_present 3>/dev/null)
+  [ "$i" -ge 1 ]
+  # the contract is stated in the hook header and beside both san() twins
+  grep -qF '100 BYTES on every host (160 in the grimoire-index TSV)' "$HOOK"
+  grep -qF '# Contract (FR-9, DEC-1159): 100 bytes on every host; the cut may end inside a multi-byte UTF-8 sequence.' "$HOOK"
+  grep -qF '# Contract (FR-9, DEC-1159): 160 bytes on every host; the cut may end inside a multi-byte UTF-8 sequence.' "$GEN"
+}
