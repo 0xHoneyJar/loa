@@ -40778,3 +40778,333 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1148"
+    created_at: "2026-10-29T02:26:33Z"
+    updated_at: "2026-10-29T02:26:33Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-1: profile-lib trust check duplicated inline (no new sourced lib on the hot path) with a drift guard; dir mode from the existing stat c…"
+    decision: "The profile-lib cache trust check mirrors _gi_trusted_dir inside profile-lib.sh (ten lines) rather than through a new shared library sourced by every hook; a drift-guard test compares the invariant lines of both copies; the directory's mode and uid come from _loa_pl_id's existing stat extended with .run as a fourth path (the row is excluded from the cache id)."
+    rationale: "A new sourced file costs a read on every PostToolUse; the decisions cache set the pattern and the KF twins set the drift-guard technique; extending the stat keeps the karpathy warm path at its current spawn count."
+    alternatives_considered:
+      - option: "A shared cache-trust-lib.sh sourced by both"
+        rejected_because: "one more file read per hook invocation for ten lines"
+      - option: "A separate stat for the directory"
+        rejected_because: "one more spawn on the hottest path in the framework"
+    consequences:
+      positive:
+        - "zero added spawns"
+        - "two copies pinned identical"
+      negative:
+        - "ten duplicated lines"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 3, § 5.1"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "sdd.md § 3 spawn-budget paragraph"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1149"
+    created_at: "2026-10-29T02:26:36Z"
+    updated_at: "2026-10-29T02:26:36Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-2: publisher request bodies via jq --rawfile from printf-written temp files (sprint-bug-283 temp-dir pattern); no --arg body anywhere"
+    decision: "Release POST, notify POST and the notify read-back comparison build their JSON with --rawfile over a file written by the printf builtin inside a mktemp -d directory removed by a RETURN trap."
+    rationale: "The read-back side was fixed this way in sprint-bug-283; the per-argument cap is 131 072 bytes; printf '%s' yields byte-exact content."
+    alternatives_considered:
+      - option: "Feed the body on jq's stdin"
+        rejected_because: "the request JSON is already piped to gh api --input -; two stdin consumers complicate the pipeline"
+    consequences:
+      positive:
+        - "no argv-borne bodies"
+      negative:
+        - "a temp directory per request"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 5.2"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "post-merge-orchestrator.sh:1286, 1488, 1502"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1150"
+    created_at: "2026-10-29T02:26:40Z"
+    updated_at: "2026-10-29T02:26:40Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-3: loa-status keeps audit_chain_summary as a string (valid excludes absent) and adds audit_chain {valid, absent, broken, total}; health…"
+    decision: "An absent chain file is reported as absent, never valid; the human line is byte-identical when nothing is absent or broken and otherwise reads 'V/7 validate (A absent, B broken)'; the JSON keeps the string and gains the object."
+    rationale: "Consumers parsing the string keep working; the integrity view can no longer be silenced by deleting a file."
+    alternatives_considered:
+      - option: "Change the string format"
+        rejected_because: "breaks any consumer of audit_chain_summary"
+    consequences:
+      positive:
+        - "additive JSON"
+        - "exact human wording only when healthy"
+      negative:
+        - "7/7 becomes rarer on machines missing chain files"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 4, § 5.3"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "loa-status.sh:425-434, 517-522"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1151"
+    created_at: "2026-10-29T02:26:43Z"
+    updated_at: "2026-10-29T02:26:43Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-4: every mkdir that can create .run/perf-cache runs inside a ( umask 077; … ) subshell — a builtin, no spawn"
+    decision: "zone-write-guard.sh:261 and any other creator found by grep wrap the mkdir in a umask-077 subshell so a fresh directory is 0700 regardless of the user's umask."
+    rationale: "The D-5.3 tightening exists because the creator inherited umask 002; fixing the creator removes the need on fresh mounts."
+    alternatives_considered:
+      - option: "chmod after mkdir"
+        rejected_because: "a spawn on a hook path and a window between create and chmod"
+    consequences:
+      positive:
+        - "no spawn"
+        - "no window"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 5.4"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "zone-write-guard.sh:255-264"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1152"
+    created_at: "2026-10-29T02:26:47Z"
+    updated_at: "2026-10-29T02:26:47Z"
+    phase: "architecture"
+    category: "security"
+    summary: "cycle-138 C-5: KARPATHY_CHECKPOINT_CMD honoured only under a bats marker, ignored silently otherwise; perf-spawn-budget passes the marker"
+    decision: "The checkpoint seam applies only when BATS_TEST_FILENAME or BATS_VERSION is set; outside bats the ambient variable is ignored with no stderr; the spawn-budget test adds the marker to its env -i allowlist."
+    rationale: "A WARN on a per-tool-call hook is noise; the seam has no non-bats consumer (grep)."
+    alternatives_considered:
+      - option: "WARN once and honour it"
+        rejected_because: "still executes an arbitrary same-uid command from the environment"
+    consequences:
+      positive:
+        - "seam closed outside tests"
+        - "no new output"
+      negative:
+        - "a non-bats consumer would need the marker"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 5.5"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "karpathy-surgical-diff-check.sh:62; perf-spawn-budget.bats:275"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1153"
+    created_at: "2026-10-29T02:26:51Z"
+    updated_at: "2026-10-29T02:26:51Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-6: KF SessionStart surface capped at a constant 40 rows ordered recurrence desc then id desc, plus one elision line; no config key"
+    decision: "KF_SURFACE_MAX_ROWS=40 inside the hook; rows sorted in awk; ' … and K more — see grimoires/loa/known-failures.md' when elided; output byte-identical when the file has ≤ 40 entries."
+    rationale: "A volume bound was an audit finding; recurrence-first ordering keeps structural failures visible; the PRD forbids new config keys without need."
+    alternatives_considered:
+      - option: "A loa_knob-read cap"
+        rejected_because: "a config key for a one-line constant nobody has asked to tune"
+    consequences:
+      positive:
+        - "bounded context cost"
+        - "deterministic"
+      negative:
+        - "the live file's 65 entries change to 40 + 1 line (enumerated)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 4, § 5.6"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "loa-kf-surface.sh:88-140; known-failures.md 65 entries"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1154"
+    created_at: "2026-10-29T02:26:54Z"
+    updated_at: "2026-10-29T02:26:54Z"
+    phase: "architecture"
+    category: "security"
+    summary: "cycle-138 C-6: the UTF-8 C1 pair \\302[\\200-\\237] becomes a space in san() and SAN_AWK, before the C0 strip, matching the decisions jq s filter"
+    decision: "One gsub added to both awk twins; the drift guard keeps them identical; mawk, busybox and gawk --posix parity on the fixture set."
+    rationale: "The decisions family already maps C1 to spaces; the KF twins let them through to the session context."
+    alternatives_considered:
+      - option: "Strip C1 to nothing"
+        rejected_because: "diverges from the jq filter's space; word boundaries matter in a one-line symptom"
+    consequences:
+      positive:
+        - "aligned sanitisers"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 5.6"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "loa-kf-surface.sh:97-104"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1155"
+    created_at: "2026-10-29T02:26:58Z"
+    updated_at: "2026-10-29T02:26:58Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-7: loa_knob presence travels as a first-line kind token (present|absent|miss|stale) before the rendered value — no sentinel strings, no…"
+    decision: "The jq reads print a kind line then the value; bash splits on the first newline; a value equal to a former sentinel is a value because the kind says present."
+    rationale: "Removes the collision class without a second jq call or a JSON decode per knob."
+    alternatives_considered:
+      - option: "JSON-tagged result decoded by a second jq"
+        rejected_because: "one more spawn per knob on the hot path"
+    consequences:
+      positive:
+        - "zero spawns"
+        - "19 call sites untouched"
+      negative:
+        - "a multi-line value keeps today's command-substitution semantics (trailing newlines stripped)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 5.7"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "profile-lib.sh:236-288"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1156"
+    created_at: "2026-10-29T02:27:01Z"
+    updated_at: "2026-10-29T02:27:01Z"
+    phase: "architecture"
+    category: "scope"
+    summary: "cycle-138 C-9: the providers dispatch refactor is implemented only within a 60-line diff with every provider test green; otherwise deferred by a cl…"
+    decision: "A bound keeps the lowest-priority item from consuming a review round; the refactor's observable is pinned by one test or the row records the deferral."
+    rationale: "No finding beyond a review observation stands behind the bead."
+    alternatives_considered:
+      - option: "Drop the bead"
+        rejected_because: "the operator listed all follow-ups for this cycle"
+    consequences:
+      positive:
+        - "bounded"
+      negative:
+        - "may ship nothing for FR-15"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 5.9; DEC-1146"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:27:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "providers/__init__.py:26-60"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
