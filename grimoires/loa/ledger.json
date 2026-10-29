@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": null,
+  "active_cycle": "cycle-138-hardening-followups",
   "cycles": [
     {
       "id": "cycle-036",
@@ -2839,6 +2839,17 @@
           "completed": "2026-10-28T06:59:09Z"
         }
       ]
+    },
+    {
+      "id": "cycle-138-hardening-followups",
+      "label": "cycle-138 — hardening follow-ups: the fifteen beads left by cycle-137 and sprint-bug-283 (profile-lib cache trust boundary, publisher POST argv, absent-chain state, umask; hooks and the KF surface; tests, guards and one refactor); no release",
+      "status": "active",
+      "created": "2026-10-29T02:08:47Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "/home/merlin/Documents/thj/code/loa/grimoires/loa/prd.md",
+      "sdd": null,
+      "sprints": []
     }
   ],
   "global_sprint_counter": 283,
@@ -3328,5 +3339,5 @@
     }
   ],
   "next_sprint_number": 284,
-  "last_updated": "2026-10-29T00:21:26Z"
+  "last_updated": "2026-10-29T02:09:42Z"
 }
