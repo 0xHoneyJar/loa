@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-29T07:35:28Z",
+  "generated": "2026-10-29T07:36:09Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -672,7 +672,7 @@
     ".claude/hooks/compliance/implement-gate.sh": "ee9f935922532f7c1cb4bc81e66f95e8d4119f6a139966559f6e70c3daf39ba9",
     ".claude/hooks/hook-guard.sh": "b27e449099e59d6283a10300e9620e7d8d7ac764447b5ef8d0ea86af18cfc6f9",
     ".claude/hooks/hygiene/settings-cleanup.sh": "7ca96db472a475262e23cf35d56d46d135a528a45030bf42dc4a2085b96894af",
-    ".claude/hooks/loa-kf-surface.sh": "b44df869b66e997c1d51ffb48e39cb6ed04362733af2681b73ee773bbfa5a961",
+    ".claude/hooks/loa-kf-surface.sh": "67a918267450f57e31a482a4d4d5ac5f0c96e000077c44741343f69ad1c6b689",
     ".claude/hooks/post-compact-reminder.sh": "4ba6fa34c9555b03b826cbe1349ce6281dff08c2c7fecb1914cb1d341bf1decc",
     ".claude/hooks/post-merge/cycle-108-rollout-watch.sh": "699b7a5234b018874ccc60cb99c096568d6f8ec6111633620fee0ebe3e789335",
     ".claude/hooks/post-session-limit-reminder.sh": "abc573c7c5e72dbcf5abd55e23a8b4c494a1f6e156bd7ca2273a7bd6606d7e35",
@@ -1110,7 +1110,7 @@
     ".claude/scripts/gpt-review-api.sh": "778e7d8b58b706b481f4537b8bca877dce03a96894cf1cc62d317a8ccc982771",
     ".claude/scripts/gpt-review-hook.sh": "d7443d6a00ddc615a74a1c694b2aef0ab02d8d2b634aa788789505d4320bbc61",
     ".claude/scripts/gpt-review-toggle.sh": "5cf303cf1ea4452ded31178eb2fe5c339fd700cb84503b6768f4c1148003bb35",
-    ".claude/scripts/grimoire-index.sh": "8ae1849f8129a871d73522132136fe7145b8dab5d869624d07d606dd1bcd87c5",
+    ".claude/scripts/grimoire-index.sh": "5689cc302e7434e43b298611d7927a0e7bc5745ca9f4822d2f578a816230e0b9",
     ".claude/scripts/ground-truth-gen.sh": "3e2b6b9cc4f4cece10665be21208a18fff82f1a6d8203d31840a6165c7243e2e",
     ".claude/scripts/grounding-check.sh": "9dff13aafa30dd6767f2f5f86326939a4d80e1a07d4a154338ede9a79979a1f9",
     ".claude/scripts/guard-yield.sh": "2836b110058bcc2008348b520188749e763572c4c9218f1d10b6fbbd9f0f6551",

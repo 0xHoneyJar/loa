@@ -94,8 +94,13 @@ fi
 rows="$(LC_ALL=C awk '
   # Byte cap: under LC_ALL=C substr() caps BYTES. GNU cut -c was already byte-based on Linux, so Linux
   # output is unchanged; BSD cut hosts formerly capped characters.
+  # The C1 and U+2028/U+2029 lines go beyond the tr reference spec above, which predates them.
   function san(s) {
     gsub(/\000/, "", s)
+    # The decisions jq `s` filter class (cycle-138 FR-8): UTF-8 C1 (U+0080-U+009F) and U+2028 /
+    # U+2029 become one space, before the C0 strip; < and > are NOT replaced in the KF twins.
+    gsub(/\302[\200-\237]/, " ", s)
+    gsub(/\342\200[\250\251]/, " ", s)
     gsub(/[\001-\010\013\014\016-\037\177]/, "", s)
     gsub(/[\t\n\r]/, " ", s)
     gsub(/  +/, " ", s)
