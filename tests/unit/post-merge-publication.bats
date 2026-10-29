@@ -641,12 +641,13 @@ assert_nothing_published() {
     export GH_MODE=ok GH_BODY_REWRITE=caret
     run publish
     [ "$status" -eq 0 ] || { echo "publish status=$status"; printf '%s\n' "$output" | tail -5; return 1; }
-    jq -e '.state == "DONE" and .phases.release.status == "completed" and .phases.release.result.verified == true and .phases.release.result.id == 81' "$PROJECT_ROOT/.run/post-merge-state.json"
+    jq -e '.state == "DONE" and .phases.release.status == "completed" and .phases.release.result.verified == true and .phases.release.result.id == 81 and .phases.release.result.body_match == "equal-after-caret-normalisation"' "$PROJECT_ROOT/.run/post-merge-state.json"
     [ "$(grep -c -- '--method POST repos/test/repo/releases ' "$GH_LOG")" = 1 ]
     [ "$(remote_git rev-parse refs/heads/main)" = "$(ledger_new)" ]
     # the stored body really was rewritten (the stub did its job) and the sealed candidate was never touched
     jq -e '.body | contains("\\^@-\\^_")' "${GH_LOG}.release" >/dev/null
     [ "$(sha256sum "$CANDIDATE" | cut -d' ' -f1)" = "$DIGEST" ]
+    [ -z "$(ls -A "$TMPDIR" | grep '^release-body' || true)" ]   # the comparison and its stderr capture left nothing behind (BB F-004)
 }
 
 @test "bug-283 (KF-064): under the same rewrite, a pre-existing release whose body differs in any other way still fails read-back" {
@@ -664,6 +665,7 @@ assert_nothing_published() {
     jq -e '.state == "FAILED" and .phases.release.status == "failed" and .phases.ledger.status == "pending"' "$PROJECT_ROOT/.run/post-merge-state.json"
     [ "$(grep -c -- '--method POST repos/test/repo/releases ' "$GH_LOG")" = 0 ]
     [ "$(remote_git rev-parse refs/heads/main)" = "$SHA" ]
+    [ -z "$(ls -A "$TMPDIR" | grep '^release-body' || true)" ]   # the comparison and its stderr capture left nothing behind (BB F-004)
 }
 
 @test "bug-283 r1 (DISS-001): under the caret rewrite, a pre-existing release whose body differs only by CRLF line endings still fails read-back" {
@@ -679,6 +681,7 @@ assert_nothing_published() {
     [ "$status" -eq 1 ] || { echo "CRLF body accepted as identical (status=$status)"; return 1; }
     jq -e '.state == "FAILED" and .phases.release.status == "failed" and .phases.ledger.status == "pending"' "$PROJECT_ROOT/.run/post-merge-state.json"
     [ "$(remote_git rev-parse refs/heads/main)" = "$SHA" ]
+    [ -z "$(ls -A "$TMPDIR" | grep '^release-body' || true)" ]   # the comparison and its stderr capture left nothing behind (BB F-004)
 }
 
 @test "bug-283 r1 (DISS-001/C-002): under the caret rewrite, a pre-existing release whose body has extra trailing newlines still fails read-back" {
@@ -693,6 +696,7 @@ assert_nothing_published() {
     [ "$status" -eq 1 ] || { echo "trailing-newline body accepted as identical (status=$status)"; return 1; }
     jq -e '.phases.release.status == "failed" and .phases.ledger.status == "pending"' "$PROJECT_ROOT/.run/post-merge-state.json"
     [ "$(remote_git rev-parse refs/heads/main)" = "$SHA" ]
+    [ -z "$(ls -A "$TMPDIR" | grep '^release-body' || true)" ]   # the comparison and its stderr capture left nothing behind (BB F-004)
 }
 
 @test "bug-283 r1 (DISS-C-003): release_body_normalize maps the REAL rc.9 candidate line onto GitHub's stored line, and a caret table" {

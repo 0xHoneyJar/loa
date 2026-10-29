@@ -1312,7 +1312,7 @@ phase_release() {
   fi
   if ! body_verdict=$(release_body_identical "$notes" "$readback" 2>"$body_err") || [[ "$body_verdict" != equal && "$body_verdict" != differ\ * ]]; then
     local cause; cause=$(tail -n 1 "$body_err" 2>/dev/null | tr -d '\r' | cut -c1-200); rm -f -- "$body_err"
-    fail_phase release "Release body comparison failed (python3 required): ${cause:-no diagnostic}; release not verified"
+    fail_phase release "Release body comparison failed: ${cause:-no diagnostic (is python3 installed?)}; release not verified"
     return 1
   fi
   rm -f -- "$body_err"
@@ -1328,7 +1328,8 @@ phase_release() {
     fail_phase release "Release identifier or read-back mismatch (terms: ${mismatch}; normalised lengths sent/read where the body differs)"
     return 1
   fi
-  update_phase release completed "$(jq -nc --argjson id "$id" --arg tag "$tag" --argjson pre "$prerelease" '{id:$id,tag:$tag,prerelease:$pre,verified:true}')"
+  # verified means: identity terms byte-exact, body equal after GitHub's caret rewrite is applied to both sides (DEC-1141)
+  update_phase release completed "$(jq -nc --argjson id "$id" --arg tag "$tag" --argjson pre "$prerelease" '{id:$id,tag:$tag,prerelease:$pre,verified:true,body_match:"equal-after-caret-normalisation"}')"
   increment_metric phases_completed
   echo "[RELEASE] Verified release ${id}"
 }
