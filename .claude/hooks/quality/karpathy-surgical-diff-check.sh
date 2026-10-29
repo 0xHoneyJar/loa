@@ -223,12 +223,14 @@ if [[ "$OVER" == "true" ]]; then
     # fallback); every directory below the root and the day file read by ONE stat (rows keyed by %n, rc
     # ignored: `stat -L` prints a row for each path that exists); each component a uid-owned non-symlink
     # directory (its mode is not tested: a checkout's directories inherit the clone umask, and the checkout
-    # root is the trust root — DEC-1166); the day file, when present, a uid-owned regular non-symlink file
-    # with one link and no group/other write. Otherwise the append is skipped silently — the warning above is
-    # printed regardless. Warn path only: two cd/pwd -P subshells (builtins) + stat x1 (+ mkdir once when the directory is absent).
+    # root is the trust root — DEC-1166); the day file is opened FIRST (O_APPEND, or O_CREAT|O_EXCL under noclobber
+    # when truly absent) and the OPENED descriptor verified — uid-owned regular file, one link, no group/other write,
+    # same device:inode as the path's lstat row (Sprint 285 audit DISS-001). Otherwise the append is skipped silently
+    # — the warning above is printed regardless. Warn path only: two cd/pwd -P subshells (builtins) + stat x2 (+ mkdir
+    # once when the directory is absent).
     # The state directory and task file keep their -L guards above (out of FR-6's scope).
     _traj_trusted() {
-        local rel root_real real comp st row name uid mode links i n
+        local rel root_real real comp st row name uid mode links i n ftype ino pathrow pt rc nc
         local -a comps=() rows=()
         [[ "$TRAJ_DIR" == "$REPO_ROOT/"* ]] || return 1
         rel="${TRAJ_DIR#"$REPO_ROOT/"}"
@@ -258,35 +260,67 @@ if [[ "$OVER" == "true" ]]; then
         real=$(cd -- "$TRAJ_DIR" 2>/dev/null && pwd -P) || return 1
         [[ -n "$root_real" && -n "$real" && "$real" == "$root_real/${TRAJ_DIR#"$REPO_ROOT/"}" ]] || return 1   # (rel was consumed by the component loop above)
         TRAJ_FILE="$TRAJ_DIR/karpathy-${TS:0:10}.jsonl"
-        st=$(stat -Lc '%n|%u|%a|%h' -- "${comps[@]}" "$TRAJ_FILE" 2>/dev/null)
-        [[ -n "$st" ]] || st=$(stat -Lf '%N|%u|%Lp|%l' -- "${comps[@]}" "$TRAJ_FILE" 2>/dev/null)
+        # (1) The directory chain FIRST — ONE `stat -L` over the components; nothing is opened or created unless every
+        #     component is a uid-owned real directory (rows keyed by %n, in argument order).
+        st=$(stat -Lc '%n|%u|%a|%h|%d:%i|%F' -- "${comps[@]}" 2>/dev/null)
+        [[ -n "$st" ]] || st=$(stat -Lf '%N|%u|%Lp|%l|%d:%i|%HT' -- "${comps[@]}" 2>/dev/null)
         while IFS= read -r row; do rows+=("$row"); done <<< "$st"
         n=${#comps[@]}
-        (( ${#rows[@]} == n || ${#rows[@]} == n + 1 )) || return 1
-        # No row for the day file means it must be truly absent: a DANGLING symlink has no `stat -L` row either, and
-        # `>>` would create and write through it (Sprint 285 review DISS-C-001 / DISS-001).
-        if (( ${#rows[@]} == n )); then [[ ! -e "$TRAJ_FILE" && ! -L "$TRAJ_FILE" ]] || return 1; fi
+        (( ${#rows[@]} == n )) || return 1
         i=0
         for row in "${rows[@]}"; do
-            links="${row##*|}"; row="${row%|*}"
-            mode="${row##*|}"; row="${row%|*}"
-            uid="${row##*|}"; name="${row%|*}"
-            [[ "$uid" =~ ^[0-9]+$ && "$mode" =~ ^[0-7]+$ && "$links" =~ ^[0-9]+$ ]] || return 1
-            [[ "$uid" == "$EUID" ]] || return 1
-            if (( i < n )); then
-                [[ "$name" == "${comps[i]}" && -d "$name" && ! -L "$name" ]] || return 1
-            else
-                [[ "$name" == "$TRAJ_FILE" && -f "$name" && ! -L "$name" && "$links" == 1 ]] || return 1
-                (( (8#$mode & 8#022) == 0 )) || return 1
-            fi
+            _traj_row "$row" || return 1
+            [[ "$uid" == "$EUID" && "$name" == "${comps[i]}" && -d "$name" && ! -L "$name" ]] || return 1
             i=$((i + 1))
         done
+        # (2) Open FIRST, verify the OPENED file after (Sprint 285 audit DISS-001, bd-7ihly, DEC-1192): a check-then-`>>`
+        #     pair let a party able to write the directory swap the checked file for a symlink in between. Builtin
+        #     pre-checks (lstat semantics) choose the open: an existing regular non-symlink file is opened O_APPEND; a
+        #     truly absent path is created under noclobber (O_CREAT|O_EXCL — never follows a symlink planted in the
+        #     window), 0600 under the hook's umask 077; anything else (symlink, dangling symlink, FIFO, directory) is
+        #     refused unopened. A concurrent creator loses the O_EXCL race and skips its event.
+        if [[ -f "$TRAJ_FILE" && ! -L "$TRAJ_FILE" ]]; then
+            { exec {TRAJ_FD}>>"$TRAJ_FILE"; } 2>/dev/null || return 1
+        elif [[ ! -e "$TRAJ_FILE" && ! -L "$TRAJ_FILE" ]]; then
+            nc=0; [[ -o noclobber ]] && nc=1
+            set -o noclobber; { exec {TRAJ_FD}>"$TRAJ_FILE"; } 2>/dev/null; rc=$?; (( nc )) || set +o noclobber
+            (( rc == 0 )) || return 1
+        else
+            return 1
+        fi
+        # (3) The DESCRIPTOR's row (/dev/fd/N — the fstat of what we hold: uid, regular, one link, no g/o write) and an
+        #     lstat of the path, which must still name a regular file on the same device:inode — so the bytes go to the
+        #     file the path names and never to something a swap substituted. Residual: a symlink planted in the
+        #     pre-check→open window makes the O_APPEND open create its (empty) target before the mismatch refuses — a 0600
+        #     empty file with no content, and only for a party already able to write inside the trust root.
+        row=$(stat -Lc '%n|%u|%a|%h|%d:%i|%F' -- "/dev/fd/$TRAJ_FD" 2>/dev/null) || row=$(stat -Lf '%N|%u|%Lp|%l|%d:%i|%HT' -- "/dev/fd/$TRAJ_FD" 2>/dev/null) || return 1
+        pathrow=$(stat -c '%d:%i|%F' -- "$TRAJ_FILE" 2>/dev/null) || pathrow=$(stat -f '%d:%i|%HT' -- "$TRAJ_FILE" 2>/dev/null) || return 1
+        _traj_row "$row" || return 1
+        # GNU stat prints "regular empty file" for a 0-byte file (the one we just created), BSD "Regular File"
+        [[ "$name" == "/dev/fd/$TRAJ_FD" && "$uid" == "$EUID" && "${ftype,,}" == regular*file && "$links" == 1 ]] || return 1
+        (( (8#$mode & 8#022) == 0 )) || return 1
+        pt="${pathrow##*|}"
+        [[ "$pathrow" == "$ino|"* && "${pt,,}" == regular*file ]] || return 1
         return 0
     }
-    TRAJ_FILE=""
-    _traj_trusted && printf '{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"%s","files_modified":%s,"lines_total":%s,"threshold":%s,"verdict":"warn","tool_call_count":%s,"session_id":%s}\n' \
-        "$TS" "$FILES_MOD" "$RUNNING" "$THRESHOLD" "$TOOL_CALLS" "$SESSION_JSON" \
-        >> "$TRAJ_FILE" 2>/dev/null || true
+    # _traj_row <row>: split `name|uid|mode|links|dev:ino|type` from the right (a name may hold `|`) into the caller's
+    # name uid mode links ino ftype; validates the numeric fields. Dynamic scoping: the caller's locals receive them.
+    _traj_row() {
+        local r="$1"
+        ftype="${r##*|}"; r="${r%|*}"
+        ino="${r##*|}"; r="${r%|*}"
+        links="${r##*|}"; r="${r%|*}"
+        mode="${r##*|}"; r="${r%|*}"
+        uid="${r##*|}"; name="${r%|*}"
+        [[ "$uid" =~ ^[0-9]+$ && "$mode" =~ ^[0-7]+$ && "$links" =~ ^[0-9]+$ && "$ino" =~ ^[0-9]+:[0-9]+$ ]]
+    }
+    TRAJ_FILE=""; TRAJ_FD=""
+    if _traj_trusted; then
+        printf '{"phase":"karpathy_check","principle":"surgical_changes","timestamp":"%s","files_modified":%s,"lines_total":%s,"threshold":%s,"verdict":"warn","tool_call_count":%s,"session_id":%s}\n' \
+            "$TS" "$FILES_MOD" "$RUNNING" "$THRESHOLD" "$TOOL_CALLS" "$SESSION_JSON" \
+            >&"$TRAJ_FD" 2>/dev/null || true
+    fi
+    [[ -n "$TRAJ_FD" ]] && { exec {TRAJ_FD}>&-; } 2>/dev/null
 fi
 
 exit 0
