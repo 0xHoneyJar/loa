@@ -42490,3 +42490,117 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1194"
+    created_at: "2026-10-29T10:30:39Z"
+    updated_at: "2026-10-29T10:30:39Z"
+    phase: "implementation"
+    category: "design"
+    summary: "cycle-138 S286 3.1: FR-10 descendant clause = SDD form (no-glob entries only); plan's older split(\"*\") text corrected — it would have widened glob"
+    decision: "The FR-10 descendant clause is the SDD 1.5 § 5.7 form `($f | contains(\"*\") | not) and ($k | startswith($f + \".\"))` — a mapping-level floor entry (no glob) forbids every descendant at any depth; a glob entry relies on its glob alone. The sprint plan's Task 3.1 text quoted an older form `startswith(($f | split(\"*\")[0] | rtrimstr(\".\")) + \".\")` that would have widened glob entries (`destructive_command_guard_x.y`, `flatline_protocol.x.companion_voice.y` would become floor keys — M37); the plan text is corrected at landing (sprint.md 1.4). Pre-flight on the live config: 428 candidates, nothing newly forbidden."
+    rationale: "The SDD is the design authority; the plan line was a stale paste from SDD 1.2. M37 names exactly the keys the older form would have broken."
+    alternatives_considered:
+      - option: "Implement the plan's quoted form"
+        rejected_because: "widens glob floor entries to their literal prefix: PF-11 (glob entries not widened) would fail and three resolvable profile keys would be dropped"
+    consequences:
+      positive:
+        - "glob entries unchanged"
+        - "live floor list identical (PF-12)"
+      negative:
+        - "two documents disagreed until landing"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "4ac49f24"
+    source: "Sprint 286 Task 3.1 implementer A report § FR-10 (spec discrepancy flagged)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T10:30:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "PF-8 … PF-12; .cycle138/fixtures/preflight-result.txt (A); sdd.md § 5.7"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1195"
+    created_at: "2026-10-29T10:30:42Z"
+    updated_at: "2026-10-29T10:30:42Z"
+    phase: "implementation"
+    category: "design"
+    summary: "cycle-138 S286 3.1: empty present knob value keeps today's fallback (plan AC corrected); case-dispatch keeps the karpathy budget at 210/9"
+    decision: "An EMPTY present knob value keeps today's observable behaviour — the fallback — on the warm, memo and live paths (PL-48 pins it). The sprint plan's FR-11 acceptance line 'an empty present value prints empty' contradicted the PRD FR-11 AC ('round-trip as today') and the existing PL-22 row (`\"\"` → fallback); the SDD's 'empty present value stays empty' describes the internal split value before the unchanged empty rule applies. The plan line is corrected at landing. The kind token is dispatched with `case` on the whole jq output (only a present result contains a newline), not the brief's if/split, because xtrace does not trace `case` and the karpathy warm path would otherwise project to ~216 trace lines (ceiling 215): measured 210 / 9 before and after."
+    rationale: "FR-11 removes the sentinel COLLISION, not the empty rule; changing the empty rule would alter every caller that relies on the fallback for an empty config value. The spawn budget is a hard ceiling."
+    alternatives_considered:
+      - option: "Print empty for an empty present value"
+        rejected_because: "a behaviour change outside FR-11's scope that PL-22 forbids and no caller asked for"
+      - option: "The brief's if/split form"
+        rejected_because: "~216 traced lines on the karpathy warm path, over the 215 ceiling"
+    consequences:
+      positive:
+        - "public contract unchanged (PL-22 matrix, PL-48 … PL-50)"
+        - "budget 210 / 9 unchanged"
+      negative:
+        - "a multi-document config whose key is null in every document now yields the fallback instead of leaking a sentinel line per document (the one enumerated change besides the three sentinels)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "4ac49f24"
+    source: "Sprint 286 Task 3.1 implementer A report § FR-11 (spec discrepancy flagged)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T10:30:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "PL-45 … PL-51; .cycle138/parity-out/base-result.txt (24 intended diffs of 120); perf-spawn-budget 210/9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1196"
+    created_at: "2026-10-29T10:30:45Z"
+    updated_at: "2026-10-29T10:30:45Z"
+    phase: "implementation"
+    category: "design"
+    summary: "cycle-138 S286 3.3: get_adapter keeps one-type resolution (SDD § 5.9 read as shared cache, not full registry); 50-line diff; 10 types → 9 modules"
+    decision: "`get_adapter` and `adapter_class_for_type` keep resolving ONE type through `_adapter_class` (the shared globals() class cache) instead of building the full `_registry()`: SDD § 5.9's 'one `_registry()` … used by `get_adapter`' is read as 'the same cached classes', not 'import every adapter on cheval's normal path' — the literal reading would import all nine adapter modules per invocation, an import-cost regression against FR-15's 'behaviour and import cost unchanged' and the eso-loop pass-17 gain. `cli_adapter_types()` reads the static `_AUTH_KIND` table (no import); the registry-parity test pins `_ADAPTER_REGISTRY[t] is adapter_class_for_type(t)`. Diff 31+19 = 50 ≤ 60. Ten provider types map to NINE adapter modules (`gemini-headless` → `AgyHeadlessAdapter`); the brief said ten. SDD 1.8 § 5.9 records the reading."
+    rationale: "FR-15 is a performance refactor with a parity pin; a reading that regresses import cost defeats it."
+    alternatives_considered:
+      - option: "Literal § 5.9: get_adapter → _registry()"
+        rejected_because: "imports every adapter module on the normal one-adapter path (nine imports instead of one)"
+    consequences:
+      positive:
+        - "cli_adapter_types imports nothing"
+        - "one class object per adapter on every path"
+        - "50-line diff inside the bound"
+      negative:
+        - "two code paths resolve a class (both through the same cache)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "4ac49f24"
+    source: "Sprint 286 Task 3.3 implementer C report (judgment call against SDD § 5.9's wording)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T10:30:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "test_providers_registry.py (4 tests); .cycle138/fixtures/parity.sh outputs; hyperfine −13.6 % / −4.1 %; git diff --numstat 31 19"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
