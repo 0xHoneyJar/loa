@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-29T10:18:07Z",
+  "generated": "2026-10-29T10:24:09Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -38,7 +38,7 @@
     ".claude/adapters/loa_cheval/metering/rate_limiter.py": "14cb4323e515bd640846f7add2993e6e727cdb505a940ef99ba1fc298b462486",
     ".claude/adapters/loa_cheval/metering/reprice.py": "bbbc48115863f5b4b7e03b69e7e431885dc4f23de5eb0619fed991f32b96f7a6",
     ".claude/adapters/loa_cheval/metering/rollup.py": "1af4d22faa27c7ab27eacbfc88cdffbc4f31834aa83b9ba18b43561b959f2845",
-    ".claude/adapters/loa_cheval/providers/__init__.py": "d09f4254401061a0eb4b79f2114c282141ab80bdf455fe0ab67482d302ecfbca",
+    ".claude/adapters/loa_cheval/providers/__init__.py": "70ade69444349a990a0dd612178b323a57ea024828df547d2bb8b2ff49d7cae7",
     ".claude/adapters/loa_cheval/providers/__pycache__/__init__.cpython-312.pyc": "b080fa9eb0726f3c5a2df00f058ff2ab897cd93272299e8b69c08889f0a2d71d",
     ".claude/adapters/loa_cheval/providers/__pycache__/anthropic_adapter.cpython-312.pyc": "da3eadeec227de24d9c8c025dff68038cc4a9a0a2aa64eea1f5c82ca54a93e94",
     ".claude/adapters/loa_cheval/providers/__pycache__/base.cpython-312.pyc": "b19680e0a40443c816135f5b448fdb088e26c1addbd240a8fb4ac2d937330648",
@@ -238,6 +238,7 @@
     ".claude/adapters/tests/test_pricing_resolution_ladder.py": "b9b0ae635c7e291305fc6e6ab8ea547cbe30c51525e36361ce12d02544002e4c",
     ".claude/adapters/tests/test_provider_stream_error_classification.py": "948733de3cb7b571c957eed94e49a21d9bba363990184b520a831dfd909ba8b7",
     ".claude/adapters/tests/test_providers.py": "614055b44b054676bfd64bd772edf39202c1d437afbed660fe3fcd30d76cb6c7",
+    ".claude/adapters/tests/test_providers_registry.py": "045a39f13ca3ce3ab1f30d7377895c333d52c2b335a840b7c7c2d4d135a11103",
     ".claude/adapters/tests/test_redact_payload_nested.py": "a2ddd7d99eab17c9532f137485a87523fb8dfc53d50df17a7fba36655692aeda",
     ".claude/adapters/tests/test_redaction.py": "4047506d17427a701908439dcfba24a9700210b9f93a1bfa55c7b944f10744f8",
     ".claude/adapters/tests/test_reprice_ledger_file.py": "e5f1715b0752f41059a9b816479dccb5d118283a1a532a7e09b06eec3f4cae77",
