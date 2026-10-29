@@ -187,7 +187,9 @@ PY
     for f in .claude/hooks/settings.deny.json .claude/data/user-invoked-commands.txt .claude/rules/zone-system.md .claude/data/floor.yaml; do
         before=$(bash -c 'source "$1/.claude/scripts/compat-lib.sh"; sha256_portable "$1/$2"' _ "$R" "$f" | cut -d' ' -f1)
         for p in lean standard; do
-            LOA_PROFILE_CONFIG_FILE="$T/$p.yaml" LOA_PROFILE_CACHE_FILE="$T/cache-$p.json" bash "$LIB" json >/dev/null
+            # (cycle-138 FR-1: the cache lives in a directory the writer creates 0700 — bats' own 775 test
+            # directory under umask 002 is refused by the trust predicate)
+            LOA_PROFILE_CONFIG_FILE="$T/$p.yaml" LOA_PROFILE_CACHE_FILE="$T/run/cache-$p.json" bash "$LIB" json >/dev/null
         done
         after=$(bash -c 'source "$1/.claude/scripts/compat-lib.sh"; sha256_portable "$1/$2"' _ "$R" "$f" | cut -d' ' -f1)
         [ "$before" = "$after" ]
@@ -195,6 +197,6 @@ PY
     # The lib reads exactly three inputs and writes only its cache.
     ! grep -Eq 'settings\.deny|user-invoked-commands|zone-system' "$LIB"
     # The resolved documents differ only in the profile name and the profile-sourced values.
-    [ "$(jq -r '.profile' "$T/cache-lean.json")" = "lean" ]
-    [ "$(jq -c '.profile_keys' "$T/cache-lean.json")" = "$(jq -c '.profile_keys' "$T/cache-standard.json")" ]
+    [ "$(jq -r '.profile' "$T/run/cache-lean.json")" = "lean" ]
+    [ "$(jq -c '.profile_keys' "$T/run/cache-lean.json")" = "$(jq -c '.profile_keys' "$T/run/cache-standard.json")" ]
 }
