@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-29T07:36:09Z",
+  "generated": "2026-10-29T07:36:53Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -672,7 +672,7 @@
     ".claude/hooks/compliance/implement-gate.sh": "ee9f935922532f7c1cb4bc81e66f95e8d4119f6a139966559f6e70c3daf39ba9",
     ".claude/hooks/hook-guard.sh": "b27e449099e59d6283a10300e9620e7d8d7ac764447b5ef8d0ea86af18cfc6f9",
     ".claude/hooks/hygiene/settings-cleanup.sh": "7ca96db472a475262e23cf35d56d46d135a528a45030bf42dc4a2085b96894af",
-    ".claude/hooks/loa-kf-surface.sh": "67a918267450f57e31a482a4d4d5ac5f0c96e000077c44741343f69ad1c6b689",
+    ".claude/hooks/loa-kf-surface.sh": "228cd07aa580efc9d9460085690070dfe5e6046710db388363871f8b5d41f73e",
     ".claude/hooks/post-compact-reminder.sh": "4ba6fa34c9555b03b826cbe1349ce6281dff08c2c7fecb1914cb1d341bf1decc",
     ".claude/hooks/post-merge/cycle-108-rollout-watch.sh": "699b7a5234b018874ccc60cb99c096568d6f8ec6111633620fee0ebe3e789335",
     ".claude/hooks/post-session-limit-reminder.sh": "abc573c7c5e72dbcf5abd55e23a8b4c494a1f6e156bd7ca2273a7bd6606d7e35",

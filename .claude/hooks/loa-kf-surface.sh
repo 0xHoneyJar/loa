@@ -91,7 +91,10 @@ fi
 # keeps the remainder). Keep san() and the reference spec in lock-step.
 # LC_ALL=C pins substr/length to BYTES, matching `cut -c` (GNU cut -c is
 # byte-based in every locale), so old and new agree under UTF-8 and C alike.
-rows="$(LC_ALL=C awk '
+# Row cap (cycle-138 FR-7, DEC-1153/DEC-1159/DEC-1169): at most KF_SURFACE_MAX_ROWS rows. A constant,
+# never read from the environment or the config (no knob, no seam).
+KF_SURFACE_MAX_ROWS=40   # rows surfaced at most; the rest are named by one elision line
+rows="$(LC_ALL=C awk -v max="$KF_SURFACE_MAX_ROWS" '
   # Byte cap: under LC_ALL=C substr() caps BYTES. GNU cut -c was already byte-based on Linux, so Linux
   # output is unchanged; BSD cut hosts formerly capped characters.
   # The C1 and U+2028/U+2029 lines go beyond the tr reference spec above, which predates them.
@@ -134,14 +137,32 @@ rows="$(LC_ALL=C awk '
     if (sy[cur] == "") { v = fieldval($0, "Symptom");          if (v != "") { sy[cur] = v; next } }
     if (rc[cur] == "") { v = fieldval($0, "Recurrence count"); if (v != "") { rc[cur] = v; next } }
   }
+  # Rows are built in file order. At most max rows print: when n > max the selection is the top max by
+  # (recurrence key desc, numeric id desc) — key = the leading integer of the recurrence field when it has at
+  # most 9 digits, else 0 (absent, malformed, oversized); numeric id = substr(id, 4) + 0; an exact tie keeps
+  # the earlier file position (strict comparisons in a file-order scan). No asort (mawk, busybox and BWK
+  # awk have none): max linear passes over the unselected rows. The selected rows print in FILE order,
+  # then one elision line. Every field is bounded (id and recurrence text by the parser and san(),
+  # symptom 100 bytes), so the table stays small; n <= max prints the uncapped bytes.
   END {
     for (i = 1; i <= n; i++) {
       id = order[i]; r = rc[id]; num = "?"; v = r
       gsub(/^([>=~ ]|\342\211\245)+/, "", v)
       if (match(v, /^[0-9]+/)) num = substr(v, RSTART, RLENGTH)
       sym = sy[id]; gsub(/\000/, "", sym); sub(/^\t+/, "", sym); sub(/\t+$/, "", sym)
-      printf "  - %s (rec %s): %s\n", san(id), san(num), san(sym)
+      row[i] = sprintf("  - %s (rec %s): %s", san(id), san(num), san(sym))
+      key[i] = (num != "?" && length(num) <= 9) ? num + 0 : 0
+      idn[i] = substr(id, 4) + 0
     }
+    if (n <= max) { for (i = 1; i <= n; i++) print row[i]; exit }
+    for (k = 1; k <= max; k++) {
+      b = 0
+      for (i = 1; i <= n; i++)
+        if (!(i in sel) && (b == 0 || key[i] > key[b] || (key[i] == key[b] && idn[i] > idn[b]))) b = i
+      sel[b] = 1
+    }
+    for (i = 1; i <= n; i++) if (i in sel) print row[i]
+    printf "  … and %d more — see grimoires/loa/known-failures.md\n", n - max
   }
 ' "$KF_FILE" 2>/dev/null || true)"
 
@@ -151,9 +172,14 @@ if [[ -z "$rows" ]]; then
 fi
 
 # --- healthy: emit a compact, sanitized symptom -> KF table to stdout --------
-# ($rows already holds the sanitized "  - ID (rec N): symptom" lines, one per entry.)
+# ($rows already holds the sanitized "  - ID (rec N): symptom" lines, one per surfaced entry, and the
+# elision line when the table is capped.)
 # stdout so the SessionStart contract injects it as context (see STREAM ROUTING).
-kf_count="$(printf '%s\n' "$rows" | grep -c . || true)"
+# Counts the non-empty lines (as `grep -c .` did); a capped table's elision line counts as the K entries it
+# names, so the header keeps the full entry count. Rows start "  - KF-" (san() leaves no newline in a field),
+# so only the hook's own elision line can match the second pattern. No san() and no substr() here, so no
+# locale pin is needed: a literal match and blank-separated fields read the same in every locale.
+kf_count="$(printf '%s\n' "$rows" | awk '/./ { c++ } /^  … and [0-9]+ more / { c += $3 - 1 } END { print c + 0 }')"
 {
   echo "[KF-SURFACE] ${kf_count} known-failure entries (symptom -> KF · recurrence). Read grimoires/loa/known-failures.md before triaging; recurrence >= 3 = structural."
   printf '%s\n' "$rows"
