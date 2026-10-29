@@ -99,16 +99,20 @@ fi
 SH
     chmod +x "$CASE_DIR/bin/gh"
     # bd-qyvju: a jq logging wrapper records the argv of every jq call (the publish path's request bodies must not
-    # be on it); JQ_FAIL_RAWFILE=1 fails any call that reads a --rawfile (the jq-failure fixture). The real binary is
-    # resolved once, before the stub directory is prepended.
+    # be on it); JQ_FAIL_RAWFILE=1 fails only a call that reads the publisher's `--rawfile body` operand (the jq-failure
+    # fixture) — the suite's own `--rawfile b` helpers keep working (Sprint 284 review round 2, DISS-C-003). The log
+    # append is skipped when JQ_LOG is unset (a callee that scrubs the environment would otherwise get an `ambiguous
+    # redirect` on stderr). The real binary is resolved once, before the stub directory is prepended.
     JQ_REAL="$(command -v jq)"
     export JQ_REAL JQ_LOG="$CASE_DIR/jq.log"
     cat > "$CASE_DIR/bin/jq" <<'SH'
 #!/usr/bin/env bash
-printf '%s\n' "$*" >> "$JQ_LOG"
+[[ -n "${JQ_LOG:-}" ]] && printf '%s\n' "$*" >> "$JQ_LOG"
 if [[ "${JQ_FAIL_RAWFILE:-}" == 1 ]]; then
+    prev=""
     for a in "$@"; do
-        if [[ "$a" == --rawfile ]]; then echo "simulated jq failure" >&2; exit 2; fi
+        if [[ "$prev" == --rawfile && "$a" == body ]]; then echo "simulated jq failure" >&2; exit 2; fi
+        prev="$a"
     done
 fi
 exec "$JQ_REAL" "$@"
