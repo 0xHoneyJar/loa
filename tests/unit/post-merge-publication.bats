@@ -7,6 +7,8 @@ setup() {
     # tags (or sets hooksPath / followTags) must not change this suite.
     : > "$CASE_DIR/gitconfig"
     export GIT_CONFIG_GLOBAL="$CASE_DIR/gitconfig" GIT_CONFIG_NOSYSTEM=1
+    # sprint-bug-283 audit DISS-C-004: the orchestrator's temp files (release-body comparison) land in the case tree
+    mkdir -p "$CASE_DIR/tmp"; export TMPDIR="$CASE_DIR/tmp"
     export PROJECT_ROOT="$CASE_DIR/repo"
     mkdir -p "$PROJECT_ROOT/.claude/scripts/lib" "$PROJECT_ROOT/lib" "$PROJECT_ROOT/grimoires/loa" "$PROJECT_ROOT/.run" "$CASE_DIR/bin"
     cp "$ROOT/.claude/scripts/"{bootstrap.sh,path-lib.sh,post-merge-orchestrator.sh,semver-bump.sh,release-notes-gen.sh} "$PROJECT_ROOT/.claude/scripts/"
@@ -719,6 +721,7 @@ assert_nothing_published() {
     run bash -c 'source "$1"; release_body_identical "$(cat "$2")" "$(cat "$3")"' _ "$PROJECT_ROOT/.claude/scripts/source-orchestrator.sh" "$big" "$CASE_DIR/big-rb.json"
     [ "$status" -eq 0 ] || { echo "status=$status output=${output:0:200}"; return 1; }
     [ "$output" = equal ] || { echo "verdict: $output"; return 1; }
+    [ -z "$(ls -A "$TMPDIR" | grep '^release-body' || true)" ]   # the comparison cleaned up after itself (audit DISS-C-002)
 }
 
 @test "bug-283 r2 (DISS-C-004): release_body_identical itself maps the REAL rc.9 pair to equal and refuses a one-caret shift inside the normalised region" {

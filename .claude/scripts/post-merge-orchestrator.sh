@@ -1191,19 +1191,24 @@ sys.stdout.buffer.write(normalize_bytes(sys.stdin.buffer.read()))"
 release_body_identical() {
   local dir rc=0
   dir=$(mktemp -d "${TMPDIR:-/tmp}/release-body.XXXXXX") || return 1
-  printf '%s' "$1" > "$dir/sent" && printf '%s' "$2" > "$dir/readback" || { rm -rf "$dir"; return 1; }
+  # the directory goes with the function on every path (audit DISS-C-002); a SIGKILL cannot be trapped and may leave
+  # two files of public release-note text under TMPDIR
+  # shellcheck disable=SC2064
+  trap "rm -rf -- '${dir}'" RETURN
+  printf '%s' "$1" > "$dir/sent" && printf '%s' "$2" > "$dir/readback" || return 1
   python3 -I -c "${RELEASE_BODY_CARET_PY}
 import json, sys
 sent = open(sys.argv[1], 'rb').read()
 rb = json.loads(open(sys.argv[2], 'rb').read())
-body = rb.get('body') if isinstance(rb, dict) else None
+if not isinstance(rb, dict):
+    raise SystemExit('read-back is not a release object')
+body = rb.get('body')
 if body is None:
     body = ''
 if not isinstance(body, str):
     raise SystemExit('read-back body is not a string')
 a, b = normalize_bytes(sent), normalize_bytes(body.encode('utf-8', 'surrogateescape'))
 print('equal' if a == b else 'differ %d %d' % (len(a), len(b)))" "$dir/sent" "$dir/readback" || rc=$?
-  rm -rf "$dir"
   return "$rc"
 }
 
@@ -1301,13 +1306,16 @@ phase_release() {
   # explicitly instead of aborting the script under set -e — never a pass by accident (review r1 DISS-C-001);
   # the last stderr line names the cause so the receipt does not blame tool availability for a size or
   # decoding problem (review r2 DISS-C-002).
-  body_err=$(mktemp "${TMPDIR:-/tmp}/release-body-err.XXXXXX")
+  if ! body_err=$(mktemp "${TMPDIR:-/tmp}/release-body-err.XXXXXX"); then
+    fail_phase release "Release body comparison failed: cannot create the stderr capture file; release not verified"
+    return 1
+  fi
   if ! body_verdict=$(release_body_identical "$notes" "$readback" 2>"$body_err") || [[ "$body_verdict" != equal && "$body_verdict" != differ\ * ]]; then
-    local cause; cause=$(tail -n 1 "$body_err" 2>/dev/null | tr -d '\r' | cut -c1-200); rm -f "$body_err"
+    local cause; cause=$(tail -n 1 "$body_err" 2>/dev/null | tr -d '\r' | cut -c1-200); rm -f -- "$body_err"
     fail_phase release "Release body comparison failed (python3 required): ${cause:-no diagnostic}; release not verified"
     return 1
   fi
-  rm -f "$body_err"
+  rm -f -- "$body_err"
   mismatch=$(jq -r --argjson id "$id" --arg tag "$tag" --arg body "$body_verdict" \
       --argjson pre "$prerelease" --arg title "$RELEASE_TITLE" \
       '[ (if .id != $id then "id" else empty end),
