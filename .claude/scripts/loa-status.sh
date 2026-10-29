@@ -1065,7 +1065,10 @@ display_profile_line() {
     gn=""
     [[ "$(loa_knob guardrails.input.enabled false 2>/dev/null)" == true ]] || gn="input guardrails off"
     [[ "$(loa_knob guardrails.danger_level.enforce false 2>/dev/null)" == true ]] || gn="${gn:+$gn, }danger-level enforcement off"
-    printf '%s (%sexplicit overrides: %s)%s' "${name:-standard}" "$note" "${ov:-none}" "${gn:+ · $gn}"
+    # cycle-138 FR-1: name a refused profile cache (the line is unchanged while the cache is on).
+    cs=$(loa_profile_cache_state 2>/dev/null) || cs=""
+    [[ "$cs" == "off ("*")" ]] || cs=""
+    printf '%s (%sexplicit overrides: %s)%s%s' "${name:-standard}" "$note" "${ov:-none}" "${gn:+ · $gn}" "${cs:+ · profile cache $cs}"
   ) || line=""
   echo -e "${BOLD}Profile:${NC} ${line:-standard (explicit overrides: unavailable)}"
   return 0

@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-29T05:02:33Z",
+  "generated": "2026-10-29T05:10:23Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -1184,7 +1184,7 @@
     ".claude/scripts/lib/normalize-json.sh": "374f2facdd8e8cc6a9b6b304324e91819d6c3d51a5cc92d6f8749d622c29259b",
     ".claude/scripts/lib/overlay-source-helper.sh": "30a852a84c7c7d1b979db192eca40b30aeaca7439d6de982c92234ff6c5538da",
     ".claude/scripts/lib/portable-realpath.sh": "29aa07387dbbd705554504a7a854e2fedcf1789bf57e02564398c092be47e5ce",
-    ".claude/scripts/lib/profile-lib.sh": "a1043afd5dae9635e4a734455fb3f2ed8221cbc44e2600efda5920e5483eff85",
+    ".claude/scripts/lib/profile-lib.sh": "fc3a66aa18be9a6edbc0a6ced9e95d90b22905b9c8c19f01a695bd8dbc7b2c60",
     ".claude/scripts/lib/protected-class-router.sh": "df56642ad9daf054b8b2e927401fa755c340c9778168df818a0ee2e6fd237b1e",
     ".claude/scripts/lib/push-notify-lib.sh": "4d22fca7f6c99553f5ab032d232d44e629fcdefb61b5aaa78cc0eee9c6592424",
     ".claude/scripts/lib/repo_map.py": "e59af99ca2e1ea15287e4c54b7e7311cbc95ed54d3a37c89a30b2349ed8b67c6",
@@ -1215,7 +1215,7 @@
     ".claude/scripts/loa-learnings-index.sh": "946a17b59146614c8c8e233fb77daffc0b2f45c6cc52133f270f1468475c3853",
     ".claude/scripts/loa-migrate-model-config.py": "ddbbee30bea5f37bed78fe6a651b41ed9020e08a54b990742cd0d64dbffedc3b",
     ".claude/scripts/loa-setup-check.sh": "2872f31e1f9a54f29e255d7ee0cae20dba56351c6ef2fe9954d98d7b7b5086a3",
-    ".claude/scripts/loa-status.sh": "a9f0ac9c4d20d2bbfce0790899aeebf1c2773d300c5deb2eeccee1f45e6b0460",
+    ".claude/scripts/loa-status.sh": "25fde82bb03d7995dee9f8509469a6d6cc84af1e4bec19cb2ba63513c80b5bb5",
     ".claude/scripts/loa-substrate-doctor.sh": "601f9aff35afe80d2a01d1a6be4676bf8757d233f28a0b369e44bb0a107973d1",
     ".claude/scripts/loa-substrate-health.sh": "e243e02e2b8d05bca0ca6ec3809da229922f0c160a3693535fe36e9243534c23",
     ".claude/scripts/loa-substrate-recalibrate.sh": "1bc6599f46d1b8cbd5ae2507e98b91d776e9cf0c74dbf53e56463c18d9f99814",
