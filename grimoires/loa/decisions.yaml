@@ -42184,3 +42184,75 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1186"
+    created_at: "2026-10-29T07:39:59Z"
+    updated_at: "2026-10-29T07:39:59Z"
+    phase: "implementation"
+    category: "portability"
+    summary: "cycle-138 S285: FR-9 lands as form (a) awk half — BWK one-true-awk 20220912 verified in a Debian container; BSD cut half UNVERIFIED → linked macOS"
+    decision: "The prebuilt-BWK attempt (DEC-1159) succeeded through a container: original-awk 2022-09-12 in debian:bookworm-slim ran the hook and the index programs on ten fixtures plus the live file — 30/30 identical to the host's busybox awk, and identical to mawk except the pre-existing NUL fixture. The BSD cut half (a macOS host) was not reachable; the contract text (100 bytes on every host, 160 in the TSV, may end mid-sequence; no cut involved) is landed with a boundary test, bd-aceil closes with it, and bd-6lhso records the macOS verification as the linked bead."
+    rationale: "PRD FR-9 form (a) with one half verified and one honestly UNVERIFIED beats form (b); the hook no longer uses cut at all, so the remaining risk is documentation-grade."
+    alternatives_considered:
+      - option: "Form (b) only"
+        rejected_because: "a BWK binary was obtainable without host changes"
+    consequences:
+      positive:
+        - "awk portability proven"
+      negative:
+        - "macOS still unverified"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "646a2ddb"
+    source: "a2a/sprint-285/evidence/b-REPORT.md § BWK attempt log; b-bwk-parity.txt"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T07:39:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "b-bwk-versions.txt; b-bwk-parity.txt"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1187"
+    created_at: "2026-10-29T07:40:02Z"
+    updated_at: "2026-10-29T07:40:02Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "cycle-138 S285 B judgment calls accepted: five SAN_AWK sites pinned (not three); the capped header keeps the full entry count; the live file carries"
+    decision: "The generator has five `awk \"$SAN_AWK\"` sites (emit_kf/vision/lore/handoff/notes) — all pinned with LC_ALL=C (the SDD named three by line number); the KF header reports the full entry count when the table is capped (an awk in the former grep's pipeline slot credits the elision line with the K entries it names), so the header stays a count of entries, not of printed lines; the 8 KiB bound is stated within the parser's 9-digit id/recurrence bounds; the live known-failures.md has 66 `## KF-` headings for 65 entries (KF-002 appears twice) — the parsers dedup and a follow-up tidies the ledger file."
+    rationale: "Each call keeps the stated invariants (byte-identical uncapped output; the header's meaning) and was recorded in the report for review."
+    alternatives_considered:
+      - option: "Header counts printed lines (41)"
+        rejected_because: "the header is the entry count consumers read"
+    consequences:
+      positive:
+        - "consistent header"
+        - "complete locale pin"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "646a2ddb"
+    source: "a2a/sprint-285/evidence/b-REPORT.md § Judgment calls"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T07:40:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "b-REPORT.md; loa-kf-surface.sh header count awk"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
