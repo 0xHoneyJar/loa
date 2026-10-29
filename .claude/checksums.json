@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-29T06:11:45Z",
+  "generated": "2026-10-29T06:36:02Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -685,7 +685,7 @@
     ".claude/hooks/safety/run-mode-stop-guard.sh": "ecafbab34072771898db073f3a4b4a8af39bc6863e14ad4e096edf92e5e46846",
     ".claude/hooks/safety/spiral-dispatch-guard.sh": "12134d330f06a3f91b7a13b9a72add7c59d31d42556dac8c7be770101fb04a96",
     ".claude/hooks/safety/spiral-skill-sentinel.sh": "59a67c91e1dffa2681e34ecf371077e5b4edbaa22e86e6e6374e255257c0df03",
-    ".claude/hooks/safety/stop-input-probe.sh": "9471de198926bacacf4a2c9885ffbda0ee7ed6abea6a571c23be88c433ae8014",
+    ".claude/hooks/safety/stop-input-probe.sh": "2761f2aa1c6ebe2360bb5b38d489b056e6a25b66da263c30c86a4385b20f6b91",
     ".claude/hooks/safety/team-role-guard-write.sh": "83dbd411381253a4149b3a545bab59405eea0d243159369de40ed65c8b30ab74",
     ".claude/hooks/safety/team-role-guard.sh": "b0cf1163f37089f0109408c2011e9b3bdde2d61441473e394ff2b05902107caf",
     ".claude/hooks/safety/team-skill-guard.sh": "145dd55c6cab1975721b379f9cd2684a481d9e414b03932b51be9f047daf2496",

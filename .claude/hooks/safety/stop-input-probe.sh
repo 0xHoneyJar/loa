@@ -27,7 +27,7 @@ set -uo pipefail
 
 PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
 RUN_DIR="${PROJECT_ROOT}/.run"
-mkdir -p "$RUN_DIR" 2>/dev/null || true
+( umask 077; mkdir -p -- "$RUN_DIR" ) 2>/dev/null || true   # 0700 regardless of umask (cycle-138 FR-4; found by the RDC-1 guard, review round 2)
 PROBE_LOG="${RUN_DIR}/stop-input-probe.jsonl"
 
 STOP_INPUT=""
