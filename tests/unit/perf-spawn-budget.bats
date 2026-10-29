@@ -289,9 +289,11 @@ EOF
   printf '{"tool_name":"Write","session_id":"perf-spawn-budget","tool_input":{"file_path":"%s/a.md","content":"x\\ny"}}\n' "$root" >"$W/in.json"
   # warm the profile cache with one untraced call (same environment as the traced one)
   ( cd "$root" && env -i PATH="$PATH" HOME="$W/home" TMPDIR="$W" LANG=C KARPATHY_CHECKPOINT_CMD="$W/ck.sh" \
-      LOA_RUN_DIR="$root/.run" bash "$hook" <"$W/in.json" >/dev/null 2>&1 ) || true
+      BATS_TEST_FILENAME="$BATS_TEST_FILENAME" LOA_RUN_DIR="$root/.run" bash "$hook" <"$W/in.json" >/dev/null 2>&1 ) || true
   jq -e '.knobs["karpathy_principles.diff_lines_per_task"].source == "absent"' "$root/.run/effective-config.json" >/dev/null
-  _trace "$W/in.json" "$root" KARPATHY_CHECKPOINT_CMD="$W/ck.sh" LOA_RUN_DIR="$root/.run" -- "$hook"
+  # cycle-138 FR-5 (D-5.1, DEC-1152): the hook honours KARPATHY_CHECKPOINT_CMD only under a bats marker, and env -i
+  # drops the ambient one, so the marker is passed explicitly (above and here).
+  _trace "$W/in.json" "$root" KARPATHY_CHECKPOINT_CMD="$W/ck.sh" BATS_TEST_FILENAME="$BATS_TEST_FILENAME" LOA_RUN_DIR="$root/.run" -- "$hook"
   # Sanity: the fixture reaches the per-task state write (not an early exit).
   [ -s "$root/.run/karpathy-surgical/bd-perf.jsonl" ]
   grep -q 'loa_knob karpathy_principles.diff_lines_per_task' "$TRACE_FILE"
