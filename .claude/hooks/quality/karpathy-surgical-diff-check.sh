@@ -226,8 +226,8 @@ if [[ "$OVER" == "true" ]]; then
     # root is the trust root — DEC-1166); the day file is opened FIRST (O_APPEND, or O_CREAT|O_EXCL under noclobber
     # when truly absent) and the OPENED descriptor verified — uid-owned regular file, one link, no group/other write,
     # same device:inode as the path's lstat row (Sprint 285 audit DISS-001). Otherwise the append is skipped silently
-    # — the warning above is printed regardless. Warn path only: two cd/pwd -P subshells (builtins) + stat x2 (+ mkdir
-    # once when the directory is absent).
+    # — the warning above is printed regardless. Warn path only: two cd/pwd -P subshells (builtins) + stat x3 (the
+    # component chain; the descriptor; the path lstat) (+ mkdir once when the directory is absent).
     # The state directory and task file keep their -L guards above (out of FR-6's scope).
     _traj_trusted() {
         local rel root_real real comp st row name uid mode links i n ftype ino pathrow pt rc nc
@@ -278,13 +278,19 @@ if [[ "$OVER" == "true" ]]; then
         #     pre-checks (lstat semantics) choose the open: an existing regular non-symlink file is opened O_APPEND; a
         #     truly absent path is created under noclobber (O_CREAT|O_EXCL — never follows a symlink planted in the
         #     window), 0600 under the hook's umask 077; anything else (symlink, dangling symlink, FIFO, directory) is
-        #     refused unopened. A concurrent creator loses the O_EXCL race and skips its event.
-        if [[ -f "$TRAJ_FILE" && ! -L "$TRAJ_FILE" ]]; then
-            { exec {TRAJ_FD}>>"$TRAJ_FILE"; } 2>/dev/null || return 1
-        elif [[ ! -e "$TRAJ_FILE" && ! -L "$TRAJ_FILE" ]]; then
+        #     refused unopened. The exclusive create has no O_APPEND (`>`), so after it the descriptor is CLOSED and
+        #     the now-existing regular file is reopened O_APPEND — otherwise a sibling hook's `>>` event written between
+        #     our create and our write would be overwritten at offset zero (Sprint 286 review DISS-001); step (3) still
+        #     verifies what was reopened. A creator that loses the O_EXCL race (EEXIST) takes the append branch on the
+        #     file it lost to instead of dropping its event (DISS-C-002).
+        if [[ ! -e "$TRAJ_FILE" && ! -L "$TRAJ_FILE" ]]; then
             nc=0; [[ -o noclobber ]] && nc=1
             set -o noclobber; { exec {TRAJ_FD}>"$TRAJ_FILE"; } 2>/dev/null; rc=$?; (( nc )) || set +o noclobber
-            (( rc == 0 )) || return 1
+            if (( rc == 0 )); then { exec {TRAJ_FD}>&-; } 2>/dev/null; TRAJ_FD=""; fi
+            # rc != 0: EEXIST from a sibling's create, or a planted entry — the append branch below decides
+        fi
+        if [[ -f "$TRAJ_FILE" && ! -L "$TRAJ_FILE" ]]; then
+            { exec {TRAJ_FD}>>"$TRAJ_FILE"; } 2>/dev/null || return 1
         else
             return 1
         fi

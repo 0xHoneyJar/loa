@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-29T10:24:42Z",
+  "generated": "2026-10-29T10:55:09Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -679,7 +679,7 @@
     ".claude/hooks/post-session-limit-reminder.sh": "abc573c7c5e72dbcf5abd55e23a8b4c494a1f6e156bd7ca2273a7bd6606d7e35",
     ".claude/hooks/pre-commit/bb-dist-check.sh": "7cf2ecfd1cd0481e9413626f4170d8044db11777abbef7b54c8e3dbae39ff01c",
     ".claude/hooks/pre-compact-marker.sh": "d2856a32eda2a602ed3a01303aa0f12998b101df62f2a61bbfecd1518c3da0fc",
-    ".claude/hooks/quality/karpathy-surgical-diff-check.sh": "ed8772dc1ddb34e8f6ed8c4982e1633d8afaec8ff011695a9580cac9a4de5636",
+    ".claude/hooks/quality/karpathy-surgical-diff-check.sh": "0ccb32fc4f990fcb93f6ed5476afbaa007e430a1cdbc5ac9c267925f378a73c0",
     ".claude/hooks/safety/adversarial-review-gate.sh": "8ab1f1ed3cc1b580b4850c8aa75ab8e278afd903bb1b69269884745d05504823",
     ".claude/hooks/safety/block-destructive-bash.sh": "bee315dcde0bffaf0d7f13ad25f154a3dce6f053b34e34f3d67711e42336a3c2",
     ".claude/hooks/safety/notes-size-guard.sh": "79389896db0aeb09d3921eba084b3a78a6ebd84e01f52254522feb259d0ddd11",
