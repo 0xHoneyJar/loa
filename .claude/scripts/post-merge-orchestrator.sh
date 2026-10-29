@@ -1283,7 +1283,7 @@ phase_release() {
 
   local response id readback
   if ! response=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/releases/tags/${tag}"); then
-    if ! response=$(jq -nc --arg tag "$tag" --arg body "$notes" --arg title "$release_title" --argjson pre "$prerelease" \
+    if ! response=$(jq -nc --arg tag "$tag" --rawfile body <(printf '%s' "$notes") --arg title "$release_title" --argjson pre "$prerelease" \
       '{tag_name:$tag,name:$title,body:$body,draft:false,prerelease:$pre}' |
       gh api --hostname "$GITHUB_HOST" --method POST "repos/${GITHUB_REPOSITORY}/releases" --input -); then
       fail_phase release "Release creation failed"
@@ -1485,7 +1485,7 @@ phase_notify() {
   fi
   id=$(jq -r '.id // empty' <<< "$previous")
   if [[ -z "$id" ]]; then
-    if ! response=$(jq -nc --arg body "$summary" '{body:$body}' |
+    if ! response=$(jq -nc --rawfile body <(printf '%s' "$summary") '{body:$body}' |
         gh api --hostname "$GITHUB_HOST" --method POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --input -); then
       fail_phase notify "Comment creation failed"
       return 1
@@ -1499,7 +1499,7 @@ phase_notify() {
     update_phase notify in_progress "$(jq -nc --argjson id "$id" '{id:$id, verified:false}')"
   fi
   if ! readback=$(gh api --hostname "$GITHUB_HOST" "repos/${GITHUB_REPOSITORY}/issues/comments/${id}") ||
-      ! jq -e --argjson id "$id" --arg body "$summary" --arg issue "$issue_url" \
+      ! jq -e --argjson id "$id" --rawfile body <(printf '%s' "$summary") --arg issue "$issue_url" \
         '.id == $id and .body == $body and .issue_url == $issue' <<< "$readback" >/dev/null; then
     fail_phase notify "Comment read-back mismatch"
     return 1
