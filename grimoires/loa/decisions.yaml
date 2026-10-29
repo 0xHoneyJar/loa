@@ -42329,3 +42329,83 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1190"
+    created_at: "2026-10-29T08:44:32Z"
+    updated_at: "2026-10-29T08:44:32Z"
+    phase: "review"
+    category: "security"
+    summary: "cycle-138 S285 review r2: sanitiser deletes C0/DEL BEFORE the C1/U+2028 replacements (interleaved-byte re-join closed); guard refuses ./../empty"
+    decision: "Sprint 285 review round 2 (dissent run 2, both voices BLOCKING on one defect): (1) the FR-8 sanitiser twins (loa-kf-surface.sh san(), grimoire-index.sh SAN_AWK san()) ran the C0/DEL DELETION after the C1 / U+2028 / U+2029 REPLACEMENTS, so a C0 or DEL byte planted between a UTF-8 lead byte and its continuation defeated the class match and the deletion re-joined the bytes into a live control character on the surface (`a\\302\\001\\205b` → NEL; verified under mawk). Deletions now come first, replacements after (a replacement never re-joins bytes); the drift guard's order assertion is flipped (it pinned the vulnerable order); a new FR-8 test feeds four split fixtures to both twins under every awk present; BWK re-verified in the container (27/27 SAME vs mawk and busybox). (2) The trajectory guard refuses a relative path with a `.`, `..` or empty component BEFORE any mkdir — a `..` in KARPATHY_TRAJECTORY_DIR (honoured in production) passed the prefix test and created a 0700 directory outside the checkout before the canonical check refused the append (KT-17). (3) The guard canonicalises the two existing directories with the shell's own `cd` + `pwd -P` (builtins) instead of realpath(1): `realpath -m` was GNU-only (round 1), plain `realpath --` fails on busybox and realpath is absent on older macOS (round 2); KT-13 rewritten (no realpath on PATH → appended), KT-14 counts zero realpath spawns. Round 3 is a lead-only verification (run 3 is the audit's)."
+    rationale: "Order matters in a sanitiser that mixes deletions and replacements: every deletion must precede every byte-class replacement, or the deletion manufactures the class it was meant to remove. Builtin canonicalisation removes the last external dependency of the guard and the whole realpath portability class."
+    alternatives_considered:
+      - option: "Keep the order and add a second class pass after the deletion"
+        rejected_because: "two passes still leave a window for a third interleaving (a deleted byte between two replacement passes); deletions-first is correct by construction"
+      - option: "Keep realpath and drop only the -- (busybox)"
+        rejected_because: "older macOS still has no realpath; cd + pwd -P are builtins in every bash and cover both"
+    consequences:
+      positive:
+        - "the sanitiser is correct by construction (all deletions precede all replacements)"
+        - "the guard has no external dependency beyond stat(1) and mkdir(1)"
+        - "no directory is ever created outside the checkout by the guard"
+      negative:
+        - "KT-13's former BSD-shim case is replaced (the shim is no longer reachable)"
+        - "a third review round without a dissent run (the budget's third run is the audit's)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "3ac2545a"
+    source: "grimoires/loa/a2a/sprint-285/engineer-feedback-r2.md (round 2: 1 HIGH, 1 MEDIUM, 1 LOW)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T08:44:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:reviewing-code"
+        evidence: "adversarial-review-r2.json DISS-C-001/002/003; kf-surface.bats FR-8 interleaved + drift guard; KT-13, KT-14, KT-17; evidence/lead-bwk-r2.txt; red/fix shas in reviewer.md § 3c"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1191"
+    created_at: "2026-10-29T08:44:35Z"
+    updated_at: "2026-10-29T08:44:35Z"
+    phase: "review"
+    category: "testing"
+    summary: "cycle-138 S285 review r3: `[ a ] && [ b ]` never fails a bats test on a — drift guard + 19 sibling chains split one-per-line; 21+291 elsewhere → bead"
+    decision: "In a bats test `[ a ] && [ b ]` can never fail on `a`: errexit and the ERR trap skip a command that is not the last of an && list, so the FR-8 drift guard's chained order assertion pinned nothing (it stayed green with the assertion flipped against the vulnerable order). Round 3 splits that chain and the 19 other `[ a ] && [ b ]` assertion lines in grimoire-index.bats (11, cycle-137 FR-5) and profile-lib.bats (8, Sprint 284) into one assertion per line (test-only commit, DEC-1163 exemption; one-off red recorded: the drift guard fails on the pre-fix order). All 125 cases of the three files stay green, so no hidden failure was masked. The 21 remaining chains in 17 other files and the 291 bare `! cmd` assertion lines across tests/unit are a follow-up bead (not this sprint's files)."
+    rationale: "An assertion that cannot fail is worse than none: it documents a guarantee the suite does not hold (the Sprint 284 `_invariants` finding and the NOTES learning on bare negated commands are the same class)."
+    alternatives_considered:
+      - option: "Fix only the drift guard"
+        rejected_because: "the 19 sibling chains in files this cycle touched carry the same silent gap; the split is mechanical and the suites prove nothing was masked"
+      - option: "Sweep all of tests/unit now"
+        rejected_because: "312 lines in 20+ files outside this sprint's scope; a bead with the counts routes it"
+    consequences:
+      positive:
+        - "every left-hand assertion in the three files now enforces"
+        - "the class is named in the test comment and the bead"
+      negative:
+        - "21 chains + 291 bare negations elsewhere still pass vacuously until the bead lands"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "3ac2545a"
+    source: "Sprint 285 review round 3 (lead verification; the round-2 red log showed the flipped drift-guard assertion green on the pre-fix order)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T08:44:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:reviewing-code"
+        evidence: "evidence/lead-one-off-red-drift-guard-r3.txt; task-2.R3.patch; green log 125/125; the grep counts in the bead"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
