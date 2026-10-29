@@ -41995,3 +41995,42 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1181"
+    created_at: "2026-10-29T05:46:53Z"
+    updated_at: "2026-10-29T05:46:53Z"
+    phase: "review"
+    category: "security"
+    summary: "cycle-138 S284 review: context-class (SessionStart) repairs a legacy writable .run with chmod go-w once per session; all hook creators umask 077"
+    decision: "On an umask-002 host the first creator of .run on a fresh checkout is the SessionStart context-class hook, which made it 775 — refused by the FR-1 predicate from the first session with no automatic repair (grimoire-index runs only on demand). Fix: loa-context-class.sh tightens a real, non-symlink, uid-owned, group/other-writable .run with chmod go-w once per session (the _gi_trusted_dir invariant lines; one stat per session start) and creates a fresh .run under umask 077; the audit loggers, the stop guard, the fence and settings-cleanup wrap their .run mkdir in ( umask 077; … ); a static guard test (run-dir-creators.bats RDC-1) pins every hook creator and dynamic ones (RDC-2 … RDC-5) prove the modes, the repair (775 → 755), the symlink refusal and the no-op on a 700 dir."
+    rationale: "DEC-1157 forbids chmod from the per-tool-call hook path; a once-per-session repair at SessionStart keeps that rule while closing the regression the dissent named for every umask-002 install."
+    alternatives_considered:
+      - option: "profile-lib chmods a uid-owned writable .run"
+        rejected_because: "DEC-1157"
+      - option: "document that the cache stays off until grimoire-index runs"
+        rejected_because: "a shipped per-tool-call regression for every umask-002 user (the dissent's DISS-C-003)"
+    consequences:
+      positive:
+        - "automatic repair"
+        - "fresh checkouts 0700 from the first hook"
+      negative:
+        - "one stat per session start"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "90b3172e"
+    source: "grimoires/loa/a2a/sprint-284/engineer-feedback.md (round 1, HIGH)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T05:46:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:reviewing-code"
+        evidence: "adversarial-review-r1.json DISS-C-003; run-dir-creators.bats; host umask 002"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
