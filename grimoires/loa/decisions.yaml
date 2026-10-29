@@ -42256,3 +42256,39 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1188"
+    created_at: "2026-10-29T07:48:47Z"
+    updated_at: "2026-10-29T07:48:47Z"
+    phase: "implementation"
+    category: "process"
+    summary: "cycle-138: Sprint 286 implementers dispatched during Sprint 285's review (same overlap as DEC-1182); landing waits for Sprint 285 COMPLETED"
+    decision: "The three Sprint 286 implementers (A: Task 3.1; B: Task 3.2 + bd-r8pfc; C: Task 3.3) start in detached worktrees at ef82f088c (the Sprint 285 code head + its docs) while Sprint 285's review (dissent run 1) and final-head TAP are still running — the same side-effect-free overlap as DEC-1182; nothing lands before Sprint 285 is COMPLETED and the run state advances to sprint-3; a code-changing Sprint 285 review re-bases their patches with git apply -3 (DEC-1174)."
+    rationale: "The implementers' inputs are final; the gates are hour-long waits."
+    alternatives_considered:
+      - option: "Dispatch after Sprint 285 COMPLETED"
+        rejected_because: "an hour of idle implementer time against the 20 h budget"
+    consequences:
+      positive:
+        - "wall-clock saved"
+      negative:
+        - "a code-changing review would stale their base"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "ef82f088"
+    source: "grimoires/loa/sprint.md § Execution; DEC-1182"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T07:48:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "agents c138-s3-impl-{a,b,c}; worktrees ../loa-wt-c138-s3{a,b,c}"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
