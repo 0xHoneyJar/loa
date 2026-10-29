@@ -36,22 +36,31 @@ _mode() { stat -c '%a' -- "$1" 2>/dev/null || stat -f '%Lp' -- "$1"; }
 # `$LOA_CACHE_DIR` (model-health-probe: defaults to $PROJECT_ROOT/.run). A bare `CACHE_DIR` is NOT a spelling: under
 # .claude/scripts it names ~/.loa/cache or .claude/cache (anthropic-oracle, cache-manager, check-updates, condense,
 # constructs-browse), never .run; LOA_STATUS_RUN_DIR (loa-status.sh) is a read-only bats seam with no mkdir.
-RDC_INVENTORY_RE='^[^#]*\bmkdir\b[^#]*(\.run|AUDIT_LOG|RUN_DIR|LOA_CACHE_DIR)'
+RDC_INVENTORY_RE='(^|[^[:alnum:]_])mkdir([^[:alnum:]_]).*(\.run|AUDIT_LOG|RUN_DIR|LOA_CACHE_DIR)'   # no `#` exclusion: a parameter expansion's `#` is not a comment (review r2 DISS-C-002); comments are stripped in _unguarded; POSIX classes (bash =~ on a BSD libc has no \b)
 # RDC_SUBSHELL_RE: the mkdir itself sits inside the `( umask 077; … )` subshell — no `)` between the `umask 077;` and
 # the mkdir word (POSIX classes, no \b: bash's =~ on a BSD libc has no \b).
 RDC_SUBSHELL_RE='\([[:space:]]*umask[[:space:]]+077;([^)]*[^[:alnum:]_)])?mkdir([^[:alnum:]_]|$)'
 
+# _rdc_strip <code>: drop a shell comment — a `#` at the start of the line or after whitespace — but never the `#` of a
+# `${var#…}` / `${var##…}` expansion (review r2 DISS-C-002). _rdc_nosubst <code>: additionally drop non-nested `$(…)`
+# substitutions, so an inner `)` does not end the `( umask 077; … )` subshell for RDC_SUBSHELL_RE (the inventory test runs
+# on the comment-stripped line, where `$(dirname "$AUDIT_LOG")` still names its spelling).
+_rdc_strip() { printf '%s' "$1" | sed -E 's/(^|[[:space:]])#.*$//'; }
+_rdc_nosubst() { printf '%s' "$1" | sed -E 's/\$\([^()]*\)//g'; }
+
 # _unguarded <dir-or-file>...: print every inventoried `mkdir` line (RDC_INVENTORY_RE) under the given directories
 # (recursive, *.sh) or in the given files that is NOT inside a `( umask 077; … mkdir … )` subshell on the same line,
-# nor in a file that sets `umask 077` at top level before it. Comments are stripped before matching, so a trailing
-# `# umask 077` does not count. Exit 0 when nothing is unguarded, 2 on an empty inventory.
+# nor in a file that sets `umask 077` at top level before it. Comments are stripped with _rdc_strip before matching, so
+# a trailing `# umask 077` does not count and a comment-only mention is not inventoried. Exit 0 when nothing is
+# unguarded, 2 on an empty inventory.
 _unguarded() {
   local hits line f n code file_umask bad=0
   hits="$(grep -rnHE "$RDC_INVENTORY_RE" "$@" --include='*.sh' || true)"
   [ -n "$hits" ] || { echo "empty inventory under $*" >&2; return 2; }
   while IFS= read -r line; do
-    f="${line%%:*}"; n="${line#*:}"; n="${n%%:*}"; code="${line#*:*:}"; code="${code%%#*}"
-    if [[ "$code" =~ $RDC_SUBSHELL_RE ]]; then continue; fi
+    f="${line%%:*}"; n="${line#*:}"; n="${n%%:*}"; code="$(_rdc_strip "${line#*:*:}")"
+    [[ "$code" =~ $RDC_INVENTORY_RE ]] || continue          # the spelling sat in a comment
+    if [[ "$(_rdc_nosubst "$code")" =~ $RDC_SUBSHELL_RE ]]; then continue; fi
     file_umask="$(awk -v n="$n" 'NR < n && /^umask 077/ { found = 1 } END { print found + 0 }' "$f")"
     if [[ "$file_umask" != 1 ]]; then echo "unguarded .run creator: $line"; bad=1; fi
   done <<<"$hits"
@@ -143,6 +152,9 @@ _rdc_tree() { _unguarded "$PROJECT_ROOT/.claude/hooks" "$PROJECT_ROOT"/.claude/s
   printf '#!/usr/bin/env bash\n[[ -d .run ]] || ( umask 077; mkdir -p -- .run ) 2>/dev/null\n' > "$fx/c/subshell.sh"
   printf '#!/usr/bin/env bash\numask 077\nmkdir -p .run/state\n' > "$fx/d/global.sh"
   printf '#!/usr/bin/env bash\n( umask 077; : ); mkdir -p .run\n' > "$fx/e/neighbour.sh"
+  mkdir -p "$fx/f" "$fx/g"
+  printf '#!/usr/bin/env bash\nROOT=./x\nmkdir -p -- "${ROOT#./}/.run"\n' > "$fx/f/expansion.sh"                       # the `#` of a parameter expansion is not a comment (review r2 DISS-C-002)
+  printf '#!/usr/bin/env bash\nX=.run/a/b\n( umask 077; d=$(dirname "$X"); mkdir -p -- "$d/.run" )\n' > "$fx/g/inner.sh"   # an inner $(…) does not end the guarded subshell
   run _unguarded "$fx"
   [ "$status" -eq 1 ]
   [[ "$output" == *"a/indirect.sh:3:"* ]]
@@ -150,6 +162,8 @@ _rdc_tree() { _unguarded "$PROJECT_ROOT/.claude/hooks" "$PROJECT_ROOT"/.claude/s
   [[ "$output" != *"c/subshell.sh"* ]]
   [[ "$output" != *"d/global.sh"* ]]
   [[ "$output" == *"e/neighbour.sh:2:"* ]]   # the umask subshell ends before the mkdir: flagged (bd-r8pfc)
+  [[ "$output" == *"f/expansion.sh:3:"* ]]   # inventoried although a `#` precedes the .run spelling (review r2 DISS-C-002)
+  [[ "$output" != *"g/inner.sh"* ]]          # guarded although an inner `)` sits between `umask 077;` and the mkdir
   # the real tree is clean
   run _rdc_tree
   [ "$status" -eq 0 ]
