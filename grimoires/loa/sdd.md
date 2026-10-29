@@ -264,7 +264,8 @@ lines 214-217 (the warn path only — the hot path is untouched; the state dir a
     [[ -f f && ! -L f ]] → exec {FD}>>f                                   # (1.9) existing regular non-symlink file: O_APPEND
     [[ ! -e f && ! -L f ]] → set -o noclobber; exec {FD}>f; exec {FD}>&-  # (1.9) truly absent: O_CREAT|O_EXCL (never follows a planted symlink), 0600 under the hook's umask 077; then CLOSED and
                                                                             #       reopened O_APPEND by the branch above (`>` sits at offset zero — review r1 DISS-001); a loser of the O_EXCL race also takes the append branch
-    else → return 1                                                        # (1.9) symlink, dangling symlink (1.6), FIFO, directory: refused UNOPENED
+    else → return 1                                                        # (1.9) symlink, dangling symlink (1.6), FIFO, directory PRESENT at the pre-check: refused UNOPENED; planted INSIDE the pre-check→open
+                                                                            #       window (trust-root party only): a symlink leaves an empty 0600 target, a FIFO blocks the open until the hook timeout (r2 DISS-C-001)
     row=$(stat -Lc '%n|%u|%a|%h|%d:%i|%F' -- /dev/fd/$FD)                 # (1.9) the DESCRIPTOR's row — the fstat of what we hold
     pathrow=$(stat -c '%d:%i|%F' -- f)                                     # (1.9) lstat of the path: must be regular*file on the SAME device:inode as the descriptor
     # (the component loop moved above the open in 1.9 — see the pseudocode lines after the chain stat) umask)
