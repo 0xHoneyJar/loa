@@ -113,6 +113,8 @@ actually tried, not just what someone *said* was tried.
 | [KF-063](#kf-063-post-mergeyml-turns-red-on-the-publishs-own-ledger-fast-forward-the-bot-push-to-main-is-classified-as-a-cycle-merge-and---generate-aborts-with---pr-is-required) | Fixed in cycle-134 Sprint 276 (classify-merge-pr.sh trailing (#NNN) + full-pipeline guard; live confirmation at the next rc publish) | .github/workflows/post-merge.yml (Classify Merge → Prepare Release (Cycle)); .claude/scripts/post-merge-orchestrator.sh --publish ledger step (C-3, cycle-133 Sprint 272) | 1 |
 | [KF-064](#kf-064-post-merge-orchestrator---publish-release-phase-failed-on-read-back-although-the-release-was-created--github-rewrites-backslash-u-escapes-in-the-body-u0000-u001f---_-so-the-exact-body--body-comparison-never-matches-ledger--notify-phases-left-pending) | OPEN | post-merge-orchestrator.sh release phase (cycle-133 C-3 read-back identity) | 1 |
 | [KF-065](#kf-065-ledger-lib-create_cycle-numbers-a-new-cycle-by-counting-entries-cycle-099-for-the-99th-row-instead-of-taking-the-next-free-chronological-id-colliding-with-existing-cycle-099-records) | OPEN | ledger-lib.sh create_cycle / _next_cycle_id (Sprint Ledger) | 1 |
+| [KF-066](#kf-066-strace-cannot-trace-a-hook-on-this-host-ptrace_traceme-eperm-under-yama-ptrace_scope-2-also-inside-the-bash-tool-evidence-traces-need-a-container-with-cap_sys_ptrace) | Open (worked around) | evidence gathering / strace -f -e trace=%file on hooks and scripts | 1 |
+| [KF-067](#kf-067-wall-clock-test-cycle-125-corpus-hook-runtime-over-the-corpus-stays-within-15-the-recorded-baseline-fails-in-a-full-testsunit-run-under-host-load-passes-in-isolation) | Open (worked around) | tests/unit/block-destructive-bash.bats group Z (cycle-125 corpus runtime bound); full tests/unit TAP runs on a shared host | 1 |
 
 ---
 
@@ -2248,3 +2250,45 @@ TODO: what a future agent should do on this symptom.
 ### Reading guide
 
 TODO: what a future agent should do on this symptom.
+
+## KF-066: strace cannot trace a hook on this host: PTRACE_TRACEME EPERM under Yama ptrace_scope 2 (also inside the Bash tool); evidence traces need a container with CAP_SYS_PTRACE
+
+**Status**: Open (worked around)
+**Feature**: evidence gathering / strace -f -e trace=%file on hooks and scripts
+**Symptom**: strace -o trace -e trace=%file <cmd> prints 'strace: test_ptrace_get_syscall_info: PTRACE_TRACEME: Operation not permitted' and 'strace: ptrace(PTRACE_TRACEME, ...): Operation not permitted'; the trace file holds one line ('+++ exited with 1 +++') and the traced command never ran; /proc/sys/kernel/yama/ptrace_scope is 2 (admin-only attach — unprivileged PTRACE_TRACEME is refused too); the same happens inside a container once the process drops to an unprivileged uid
+**First observed**: 2026-10-30T02:05Z, cycle-138 Sprint 286 audit round-1 fix evidence (karpathy hook before/after traces)
+**Recurrence count**: 1
+**Current workaround**: run strace as root inside a disposable container with CAP_SYS_PTRACE on fixture roots only: docker run --rm --cap-add SYS_PTRACE -v <fixtures>:/fx debian:bookworm-slim, apt-get install strace jq, then strace -f -e trace=%file -o /fx/trace.raw bash <hook> as root (uid checks that need a second uid run separately via chroot --userspec=1000:1000 / without strace); copy the hook + its lib + data into the fixture root — never mount the repo
+**Upstream issue**: none — host policy (Yama), not a framework defect; a sysctl change needs the operator
+**Related visions / lore**: cycle-138 Sprint 286 audit round 1 (bd-ooymp); feedback_mutation_never_disables_the_redirect (evidence must come from the system's own record)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-30 | strace on the host from the Bash tool (plain, under env -i, and as uid 1000 inside the container) | all refused with PTRACE_TRACEME EPERM; root inside docker --cap-add SYS_PTRACE traced the hook (550–600 file syscalls per run) | grimoires/loa/a2a/sprint-286/evidence/lead-strace-{before,after}-{clean,planted}.txt; fix commit c07b543b0; ~/.cache/loa/cycle-138/scripts/evidence-3.7-container.sh |
+
+### Reading guide
+
+When a trace file has one line and strace printed PTRACE_TRACEME EPERM, check /proc/sys/kernel/yama/ptrace_scope: 2 or 3 means no unprivileged tracing anywhere on the host — do not retry with env -i, sudo-less wrappers or dangerouslyDisableSandbox; go straight to the --cap-add SYS_PTRACE container recipe on fixture roots, and run any second-uid check in the same container without strace
+
+## KF-067: wall-clock test 'cycle-125 corpus: hook runtime over the corpus stays within 1.5× the recorded baseline' fails in a full tests/unit run under host load, passes in isolation
+
+**Status**: Open (worked around)
+**Feature**: tests/unit/block-destructive-bash.bats group Z (cycle-125 corpus runtime bound); full tests/unit TAP runs on a shared host
+**Symptom**: not ok … cycle-125 corpus: hook runtime over the corpus stays within 1.5× the recorded baseline — '[ "$now" -le "$limit" ]' failed (block-destructive-bash.bats:1619) with a diagnostic like 'runtime: 25863ms over 288 rows (baseline 4061ms over 73 rows → scaled 16021ms, limit 24031ms)' while /proc/loadavg read 28–47 on 8 cores from other agent sessions; the same file re-run alone at load ≈ 6 passes (291/291)
+**First observed**: 2026-10-30T03:2xZ, cycle-138 Sprint 286 final TAP on cfece1a7f (7418 ok / 4 not ok / 136 skips: the semver trio + this test)
+**Recurrence count**: 1
+**Current workaround**: re-run tests/unit/block-destructive-bash.bats alone when the 1-minute load average is below the core count and keep BOTH TAPs as evidence (the full run with the failure, the isolated green run); note the load in the TAP text of the gate files; do not raise the 1.5× bound to fit a loaded host
+**Upstream issue**: none yet — candidate: replace the wall-clock bound with the spawn/CPU proxy perf-spawn-budget.bats uses (its own header says wall-clock tests are flaky in CI), or skip the bound when loadavg exceeds nproc
+**Related visions / lore**: KF-034 / the R-4 allowed-failure set (semver evidence trio); perf-spawn-budget.bats rationale
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-30 | re-ran tests/unit/block-destructive-bash.bats alone after the full run (load 5.3 → 7.8) | 291 ok / 0 not ok; the corpus runtime test green; finalize-286.sh accepts the full run's failure only with this green re-run present | ~/.cache/loa/cycle-138/logs/unit-cfece1a7f.tap (not ok 1108); grimoires/loa/a2a/sprint-286/evidence/lead-tap-rerun-block-destructive-bash.tap; docs tail cfece1a7f |
+
+### Reading guide
+
+A single wall-clock not-ok in an otherwise clean full TAP is a load artefact when /proc/loadavg at run time exceeded the core count: re-run the file alone, and if it is green record both TAPs instead of treating the suite as red; two consecutive isolated failures at low load are a real regression
