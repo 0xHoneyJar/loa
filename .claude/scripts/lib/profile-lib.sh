@@ -103,7 +103,11 @@ _loa_pl_paths() {
 # disables the cache (no id); the predicate then reads both rows as malformed.
 # The raw rows stay in _LOA_PL_ST ("x" + one "\n<row>" per existing path).
 _loa_pl_id() {
-  _LOA_PL_ST=x$'\n'$(stat -Lc '%n|%y|%s|%a|%u|%h' -- "$_LOA_PL_CFG" "$_LOA_PL_PROF" "$_LOA_PL_FLOOR" "${_LOA_PL_CACHE%/*}" "$_LOA_PL_CACHE" 2>/dev/null)
+  # `|| true`: stat exits non-zero when any path is missing (an absent cache on the first call, an absent config) after
+  # printing the rows that exist — the partial rows are the intended input, and the status must not reach a caller's
+  # `set -e` (a direct `loa_knob` call from an errexit shell left the shell; `$(loa_knob …)` callers never saw it because
+  # bash does not inherit errexit into command substitutions) — cycle-138 Bridgebuilder round 1 R001, PL-53.
+  _LOA_PL_ST=x$'\n'$(stat -Lc '%n|%y|%s|%a|%u|%h' -- "$_LOA_PL_CFG" "$_LOA_PL_PROF" "$_LOA_PL_FLOOR" "${_LOA_PL_CACHE%/*}" "$_LOA_PL_CACHE" 2>/dev/null) || true
   if ! _loa_pl_rows; then
     if [[ "$_LOA_PL_ST" == x$'\n' ]]; then
       _loa_pl_id_bsd || return 0               # (it sets the id when the BSD form printed no row either)
@@ -121,7 +125,7 @@ _loa_pl_id() {
 # rule (no id when the config or profiles.yaml exists — no usable stat — else the id of three absent
 # files) and 1; 0 → parse the BSD rows.
 _loa_pl_id_bsd() {
-  _LOA_PL_ST=x$'\n'$(stat -Lf '%N|%Fm|%z|%Lp|%u|%l' -- "$_LOA_PL_CFG" "$_LOA_PL_PROF" "$_LOA_PL_FLOOR" "${_LOA_PL_CACHE%/*}" "$_LOA_PL_CACHE" 2>/dev/null)
+  _LOA_PL_ST=x$'\n'$(stat -Lf '%N|%Fm|%z|%Lp|%u|%l' -- "$_LOA_PL_CFG" "$_LOA_PL_PROF" "$_LOA_PL_FLOOR" "${_LOA_PL_CACHE%/*}" "$_LOA_PL_CACHE" 2>/dev/null) || true   # (R001, as above)
   [[ "$_LOA_PL_ST" == x$'\n' ]] || return 0
   if [[ -e "$_LOA_PL_CFG" || -e "$_LOA_PL_PROF" ]]; then
     _LOA_PL_CUR_ID=""

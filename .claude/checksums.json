@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-30T02:02:26Z",
+  "generated": "2026-10-30T05:33:07Z",
   "algorithm": "sha256",
   "files": {
     ".claude/adapters/cheval.py": "e0f9ec96c301e08fc25d4769df92ef38f5c7c00e4f174ea13968979626609882",
@@ -673,7 +673,7 @@
     ".claude/hooks/compliance/implement-gate.sh": "ee9f935922532f7c1cb4bc81e66f95e8d4119f6a139966559f6e70c3daf39ba9",
     ".claude/hooks/hook-guard.sh": "b27e449099e59d6283a10300e9620e7d8d7ac764447b5ef8d0ea86af18cfc6f9",
     ".claude/hooks/hygiene/settings-cleanup.sh": "7ca96db472a475262e23cf35d56d46d135a528a45030bf42dc4a2085b96894af",
-    ".claude/hooks/loa-kf-surface.sh": "3abb572dae88470f0aa10ee2a93f68d1e0a27ebf7e98d2e24b969328e88316c5",
+    ".claude/hooks/loa-kf-surface.sh": "0d94043bd99fcf620e57532923234a74409fafb06b757b7424edf307219ffabc",
     ".claude/hooks/post-compact-reminder.sh": "4ba6fa34c9555b03b826cbe1349ce6281dff08c2c7fecb1914cb1d341bf1decc",
     ".claude/hooks/post-merge/cycle-108-rollout-watch.sh": "699b7a5234b018874ccc60cb99c096568d6f8ec6111633620fee0ebe3e789335",
     ".claude/hooks/post-session-limit-reminder.sh": "abc573c7c5e72dbcf5abd55e23a8b4c494a1f6e156bd7ca2273a7bd6606d7e35",
@@ -681,7 +681,7 @@
     ".claude/hooks/pre-compact-marker.sh": "d2856a32eda2a602ed3a01303aa0f12998b101df62f2a61bbfecd1518c3da0fc",
     ".claude/hooks/quality/karpathy-surgical-diff-check.sh": "41a413bcf40decabf2a1324b4416f958bca01e593b2fd09525c9d1c08d2edea4",
     ".claude/hooks/safety/adversarial-review-gate.sh": "8ab1f1ed3cc1b580b4850c8aa75ab8e278afd903bb1b69269884745d05504823",
-    ".claude/hooks/safety/block-destructive-bash.sh": "bee315dcde0bffaf0d7f13ad25f154a3dce6f053b34e34f3d67711e42336a3c2",
+    ".claude/hooks/safety/block-destructive-bash.sh": "ea9bf7b104c6dde465474d689159c7452dfb7d887328a2c8ff23eab695a31c85",
     ".claude/hooks/safety/notes-size-guard.sh": "79389896db0aeb09d3921eba084b3a78a6ebd84e01f52254522feb259d0ddd11",
     ".claude/hooks/safety/run-mode-stop-guard.sh": "ecafbab34072771898db073f3a4b4a8af39bc6863e14ad4e096edf92e5e46846",
     ".claude/hooks/safety/spiral-dispatch-guard.sh": "12134d330f06a3f91b7a13b9a72add7c59d31d42556dac8c7be770101fb04a96",
@@ -1185,7 +1185,7 @@
     ".claude/scripts/lib/normalize-json.sh": "374f2facdd8e8cc6a9b6b304324e91819d6c3d51a5cc92d6f8749d622c29259b",
     ".claude/scripts/lib/overlay-source-helper.sh": "30a852a84c7c7d1b979db192eca40b30aeaca7439d6de982c92234ff6c5538da",
     ".claude/scripts/lib/portable-realpath.sh": "29aa07387dbbd705554504a7a854e2fedcf1789bf57e02564398c092be47e5ce",
-    ".claude/scripts/lib/profile-lib.sh": "4c1a95cbe51295deecc4d59d3ff797094b78fdf34ec75e8f979a7b7eb7ca10af",
+    ".claude/scripts/lib/profile-lib.sh": "c0b3f3fd4a02307babbe6262b5fee1f30897e4eaab5ee6466b49aeffebc63028",
     ".claude/scripts/lib/protected-class-router.sh": "df56642ad9daf054b8b2e927401fa755c340c9778168df818a0ee2e6fd237b1e",
     ".claude/scripts/lib/push-notify-lib.sh": "4d22fca7f6c99553f5ab032d232d44e629fcdefb61b5aaa78cc0eee9c6592424",
     ".claude/scripts/lib/repo_map.py": "e59af99ca2e1ea15287e4c54b7e7311cbc95ed54d3a37c89a30b2349ed8b67c6",

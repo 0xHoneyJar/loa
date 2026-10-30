@@ -195,7 +195,7 @@ fi
 # names, so the header keeps the full entry count. Rows start "  - KF-" (san() leaves no newline in a field),
 # so only the hook's own elision line can match the second pattern. No san() and no substr() here, so no
 # locale pin is needed: a literal match and blank-separated fields read the same in every locale.
-kf_count="$(printf '%s\n' "$rows" | awk '/./ { c++ } /^  … and [0-9]+ more / { c += $3 - 1 } END { print c + 0 }')"
+kf_count="$(printf '%s\n' "$rows" | LC_ALL=C awk '/./ { c++ } /^  … and [0-9]+ more / { c += $3 - 1 } END { print c + 0 }')"   # LC_ALL=C like every awk in this hook (cycle-138 BB round 1 F-009)
 {
   echo "[KF-SURFACE] ${kf_count} known-failure entries (symptom -> KF · recurrence). Read grimoires/loa/known-failures.md before triaging; recurrence >= 3 = structural."
   printf '%s\n' "$rows"

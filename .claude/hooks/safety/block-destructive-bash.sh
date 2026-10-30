@@ -1275,7 +1275,7 @@ emit_block() {
       sanitized_match="${sanitized_match:0:256}[...TRUNCATED]"
     fi
 
-    ( umask 077; mkdir -p -- "${LOA_REPO_ROOT:-.}/.run" ) 2>/dev/null || true
+    [[ -d "${LOA_REPO_ROOT:-.}/.run" ]] || ( umask 077; mkdir -p -- "${LOA_REPO_ROOT:-.}/.run" ) 2>/dev/null || true   # guard first: no fork when .run exists (cycle-138 BB round 1 F-007)
 
     # perf pass-2: UTC timestamp via bash strftime (was `date -u` spawn);
     # cwd via $PWD (bash keeps it identical to the pwd builtin's output).
@@ -2163,7 +2163,7 @@ if [[ "$command" == *".run/"* || "$command" == *"grimoires/loa/skills"* ]] \
       _sz_redactor="${LOA_REPO_ROOT:-.}/.claude/scripts/lib/log-redactor.sh"
       _sz_cmd=$(printf '%s' "$command" | "$_sz_redactor" 2>/dev/null) || _sz_cmd="[REDACTOR-FAILED]"
       [[ ${#_sz_cmd} -gt 2048 ]] && _sz_cmd="${_sz_cmd:0:2048}[...TRUNCATED]"
-      ( umask 077; mkdir -p -- "${LOA_REPO_ROOT:-.}/.run" ) 2>/dev/null || true
+      [[ -d "${LOA_REPO_ROOT:-.}/.run" ]] || ( umask 077; mkdir -p -- "${LOA_REPO_ROOT:-.}/.run" ) 2>/dev/null || true   # guard first: no fork when .run exists (cycle-138 BB round 1 F-007)
       TZ=UTC0 printf -v _sz_ts '%(%Y-%m-%dT%H:%M:%SZ)T' -1
       # @guard fence:FR-SZ
       jq -cn --arg ts "$_sz_ts" --arg cmd "$_sz_cmd" --arg cwd "$PWD" --arg replay "${LOA_AUDIT_REPLAY:-}" \
