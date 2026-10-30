@@ -30,8 +30,10 @@
 # Safety (NFR-Sec-1): tool_input.content / new_string never reach state,
 # summary or trajectory — only line counts, the file path (JSON-encoded by
 # jq) and the sanitised key. Missing jq or yq, a missing config or a
-# malformed payload is a silent no-op. A symlinked state directory or state
-# file is not written through.
+# malformed payload is a silent no-op. A symlinked or foreign-owned state
+# directory, a symlinked state file, a summary directory that is not a real
+# uid-owned directory, or a planted entry at the summary's temp name is not
+# written through (Sprint 286 audit, bd-ooymp).
 #
 # Seams (tests): LOA_CONFIG_OVERRIDE (config), KARPATHY_STATE_DIR,
 # KARPATHY_SUMMARY_FILE, KARPATHY_LEGACY_STATE, KARPATHY_TRAJECTORY_DIR,
@@ -167,6 +169,10 @@ fi
 # --- append to the task's file ------------------------------------------------
 [[ -L "$STATE_DIR" ]] && exit 0
 [[ -d "$STATE_DIR" ]] || mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
+# The state directory must be OURS (Sprint 286 audit DISS-C-002, bd-ooymp): a directory owned by another uid — however
+# writable — is refused before anything is read or appended (one builtin stat; the file keeps its -L guard below). The
+# same-directory check→`>>` race inside a writable uid-owned directory stays with bd-ooymp (the Task 3.6 fd pattern).
+[[ -O "$STATE_DIR" ]] || exit 0
 TASK_FILE="$STATE_DIR/$KEY.jsonl"
 [[ -L "$TASK_FILE" ]] && exit 0
 
@@ -196,14 +202,45 @@ OVER=false
 (( RUNNING > THRESHOLD )) && OVER=true
 sum_dir="${SUMMARY%/*}"
 [[ "$sum_dir" == "$SUMMARY" ]] && sum_dir="."
-if [[ -d "$sum_dir" ]] || mkdir -p "$sum_dir" 2>/dev/null; then
-    tmp="$SUMMARY.tmp.$$"
+# Sprint 286 audit DISS-C-001 (bd-ooymp). The temp file was opened with `>` — open(O_WRONLY|O_CREAT|O_TRUNC), which
+# follows a symlink at the name — after a `-d` test on its directory alone, so a symlink planted at the predictable
+# `<summary>.tmp.<pid>` was truncated, overwritten with the JSON and then renamed over the summary path (rename(2)
+# renames the link itself). The root cause is the open's flags and the directory's trust, not the name: an
+# unpredictable name would only hide the window. Builtins only, no spawn added, in `_summary_write`:
+#   (1) the directory is a real, uid-owned, non-symlink directory and the summary path is not a directory (`mv` would
+#       move the temp INTO one);
+#   (2) the temp name is truly absent — lstat (`-L`) and stat (`-e`): a dangling symlink, a FIFO, a device or a
+#       regular file already there is not ours and is left alone;
+#   (3) the open runs under noclobber: bash's noclobber_open (redir.c) stat()s the name and, when nothing is there,
+#       opens O_WRONLY|O_CREAT|O_EXCL — open(2): with O_CREAT|O_EXCL a symbolic link at the name fails the open
+#       "regardless of where the symbolic link points" — and refuses a regular file that appeared in between;
+#   (4) the bytes go through the descriptor we hold, and before the rename the path must still be the regular
+#       non-symlink uid-owned file we created (a swap in the write→rename window is refused and the temp removed);
+#   (5) `mv -f` is rename(2): a symlink at the summary path is replaced by our file, never followed.
+# Any refusal skips the summary write silently (exit 0: the warning below still prints and the state append above has
+# already happened). Residual, as for the trajectory guard (Task 3.6): noclobber adds O_EXCL only when bash's own stat
+# fails, so a symlink to a FIFO or a device planted INSIDE the lstat→open window is opened without O_EXCL (pure bash
+# has no O_NOFOLLOW); step (2) refuses one present before it, step (4) refuses the rename after it.
+_summary_write() {
+    local tmp="$SUMMARY.tmp.$$" nc=0 rc=1 fd=""
+    [[ -d "$sum_dir" && ! -L "$sum_dir" && -O "$sum_dir" && ! -d "$SUMMARY" ]] || return 1
+    [[ ! -L "$tmp" && ! -e "$tmp" ]] || return 1
+    [[ -o noclobber ]] && nc=1
+    set -o noclobber; { exec {fd}>"$tmp"; } 2>/dev/null; rc=$?; (( nc )) || set +o noclobber
+    (( rc == 0 )) || return 1
     if printf '{"task":"%s","lines":%s,"threshold":%s,"over":%s,"updated_at":"%s"}\n' \
-            "$KEY" "$RUNNING" "$THRESHOLD" "$OVER" "$TS" > "$tmp" 2>/dev/null; then
+            "$KEY" "$RUNNING" "$THRESHOLD" "$OVER" "$TS" >&"$fd" 2>/dev/null \
+       && [[ -f "$tmp" && ! -L "$tmp" && -O "$tmp" ]]; then
+        { exec {fd}>&-; } 2>/dev/null
         mv -f -- "$tmp" "$SUMMARY" 2>/dev/null || rm -f -- "$tmp" 2>/dev/null
     else
+        { exec {fd}>&-; } 2>/dev/null
         rm -f -- "$tmp" 2>/dev/null
     fi
+    return 0
+}
+if [[ -d "$sum_dir" ]] || mkdir -p "$sum_dir" 2>/dev/null; then
+    _summary_write
 fi
 
 # --- warning + trajectory event -----------------------------------------------

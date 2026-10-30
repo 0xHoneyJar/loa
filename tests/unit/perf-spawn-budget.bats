@@ -312,5 +312,5 @@ EOF
     echo "a yq ran on the warm path (lines above): the cached_keys entry is not being used" >&2
     return 1
   fi
-  _check_budget "karpathy" 196 9   # measured (cycle-137 Task 2.4, three runs identical): 196 trace lines, 9 external-tool lines on the warm path; before cached_keys the same fixture took the live read of diff_lines_per_task (one yq + one jq more)
+  _check_budget "karpathy" 230 9   # measured (Sprint 286 audit round-1 fix, three runs identical): 230 trace lines, 9 external-tool lines on the warm path — the summary temp is opened O_CREAT|O_EXCL under noclobber behind a trusted-directory and absent-name test and re-checked before the rename, and the state directory must be uid-owned (`_summary_write`, bd-ooymp): +20 BUILTIN lines over the 210 measured at 4ac49f24f, zero external-tool lines added; wall-clock delta measured with hyperfine in a2a/sprint-286/evidence/lead-hyperfine-karpathy-warm.md. cycle-137 Task 2.4 measured 196 / 9; before cached_keys the same fixture took the live read of diff_lines_per_task (one yq + one jq more)
 }
