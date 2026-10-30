@@ -42686,3 +42686,43 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1199"
+    created_at: "2026-10-30T02:22:40Z"
+    updated_at: "2026-10-30T02:22:40Z"
+    phase: "implementation"
+    category: "design"
+    summary: "cycle-138 S286 audit fix: karpathy warm trace budget re-measured 210 → 230 (ext 9 → 9), builtins only; cost 15 stat syscalls, CPU Δ within σ"
+    decision: "The karpathy warm-path trace budget is re-measured 210 → 230 lines (external-tool lines 9 → 9) for the Sprint 286 audit round-1 fix and the measured value is pinned in the same commit (c07b543b0). The increase is builtins only; it is accepted on the evidence rather than trimmed: strace on the clean path counts 550 → 565 file syscalls (15 stat-class calls per Write/Edit), and hyperfine (warmup 5, 30 runs, three passes) puts the fix's CPU-time delta against the pre-fix head at −1.5 / +3.8 / +0.9 ms, inside one σ each time; wall-clock (σ 7–74 ms under a host load of 28–47 on 8 cores from other sessions) cannot resolve it."
+    rationale: "G-2 forbids hot-path regressions in spawns; the trace-line budget is a proxy whose own doc says to re-measure and state why when the change is intended. Every added line is a builtin test or the exclusive open; removing the save/restore of noclobber or the post-write re-check would save two to three lines at the cost of the write→rename window or of mirroring Task 3.6."
+    alternatives_considered:
+      - option: "trim the guard to stay under the old 215 ceiling"
+        rejected_because: "the only removable lines are the noclobber save/restore (semantics) and the post-write re-check (the write→rename window)"
+      - option: "widen the +10 % headroom rule instead of re-measuring"
+        rejected_because: "the suite's convention is a measured value per target; a wider headroom hides one-spawn regressions everywhere"
+    consequences:
+      positive:
+        - "the budget again pins the measured path (three runs identical)"
+        - "the cost is stated in syscalls and CPU time, not only trace lines"
+      negative:
+        - "+20 builtin lines / +15 stat-class syscalls on every Write/Edit"
+        - "wall-clock evidence is noise-bound on this host"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/2c0f271e-b880-4273-a2f9-139dfd3d9da3"
+    commit: "c07b543b"
+    source: "tests/unit/perf-spawn-budget.bats (karpathy target); a2a/sprint-286/evidence/lead-hyperfine-karpathy-warm.md; evidence/lead-strace-{before,after}-clean.txt"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-30T02:22:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "perf-spawn-budget.bats:315 at c07b543b0; evidence/lead-hyperfine-karpathy-warm.md (3 passes); evidence/lead-strace-*-clean.txt"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
