@@ -42726,3 +42726,45 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1200"
+    created_at: "2026-10-30T05:36:46Z"
+    updated_at: "2026-10-30T05:36:46Z"
+    phase: "review"
+    category: "process"
+    summary: "cycle-138 BB round 1 (#1314): non-degraded under FR-16; R001/F-007/F-009/F-008 fixed red-first (Task 3.8); F-001/F-002 + LOWs → bd-i420n"
+    decision: "Bridgebuilder round 1 on PR #1314 (2/2 voices, 17 findings, 0 blockers, Verdict Quality APPROVED; exit 3 only because the enrichment writer's output was rejected by the tool_grammar guard) counts as a NON-degraded round under FR-16 (degraded = a voice outage or timeout only), so no ten-minute retry is owed. Four findings are fixed red-first as Task 3.8 (R001 real: profile-lib's stat sampling leaked its status to a set -e caller's direct loa_knob; F-007 block-path fork; F-009 kf_count awk pin; F-008 CHANGELOG contradiction), the two MEDIUMs on the foreign-owned .run (F-001, F-002) and the LOWs are recorded in bd-i420n under the DEC-1166 trust-root reasoning, F-010 is DEC-1158/1168 by design. The gate files gain a post-gate addendum and bind to the fixed head (DEC-1161); round 2 reviews that head."
+    rationale: "FR-16's own definition makes the round valid; the four fixes are small, each with a red test and a probe, and leaving a real set -e exit in a sourced library unfixed in the cycle that introduced it would ship a regression. The recorded MEDIUMs change the trust-root policy (surfacing a foreign-owned .run) and belong to a planned follow-up, not a ship-time patch."
+    alternatives_considered:
+      - option: "treat the enrichment-guard exit 3 as a degraded round and retry after ten minutes"
+        rejected_because: "FR-16 defines degraded as a voice outage or timeout; both voices completed and the findings are intact — a retry would spend a round for nothing"
+      - option: "fix F-001 / F-002 now (stderr line on a foreign-owned .run)"
+        rejected_because: "changes the hook's parity promise and the DEC-1166 trust-root policy; needs the bd-ooymp fd-anchored design, not a ship-time edit"
+      - option: "record R001 without fixing"
+        rejected_because: "a sourced library that exits a set -e caller on a first run is a regression introduced by this cycle's Sprint 284 rewrite"
+    consequences:
+      positive:
+        - "one real regression caught and fixed before merge"
+        - "verdicts bind to the PR head as DEC-1161 requires"
+      negative:
+        - "a second CI run and a second Bridgebuilder round"
+        - "the audit/review files carry an addendum after their recorded approval"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "reviewing-code/2c0f271e-b880-4273-a2f9-139dfd3d9da3"
+    commit: "0746d30c"
+    source: "PR #1314 Bridgebuilder round 1 comments (2026-10-30T04:40Z); ~/.cache/loa/cycle-138/ship/bb-r1-triage.md; PRD FR-16 degraded-exit procedure"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-30T05:36:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:reviewing-code"
+        evidence: "PR #1314 comments; evidence/rtc-286-lead38a.json, rtc-286-lead38b.json; probe-r001.sh; red 64dd9cfde → fix 0746d30c7"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

@@ -102,7 +102,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-052](#kf-052-host-reboot-kills-a-detached-ablation-batch-runner-setsid-nohup-run-ablationsh-mid-batch-in-flight-sessions-and-trials-end-without-a-record-or-row) | OPEN — infrastructure event, not a harness defect; the runner's --resume contract is the whole recovery | evals/harness/run-ablation.sh batch driver launched detached (setsid nohup) from a Claude session; cycle-132 driver ~/.cache/loa/cycle-132/scripts/batch-c132.sh | 3 |
 | [KF-053](#kf-053-took-effect-no_audit_rows-fails-on-a-bare-session-because-the-agent-ran-the-prs-own-hook-or-audit-script-which-wrote-sandboxrunauditjsonl-the-runner-pauses-the-arm-and-exits-with-cells-unrun) | OPEN — registered rule applied as written in cycle-132; guard-vs-PR-content family (addenda 1, 4, 7, 8); fix belongs to the next harness cycle | evals/harness/took-effect.sh rule no_audit_rows (bare arms); run-ablation.sh arm pause on took-effect FAIL (DEC-0418) | 1 |
 | [KF-054](#kf-054-bridgebuilder-aborts-on-a-large-pr-gh-api-pullsnfiles-exceeds-the-adapters-fixed-10-mib-maxbuffer-err_child_process_stdio_maxbuffer-before-any-exclude-or-truncation-applies) | OPEN — upstream fix filed as bead bd-ra4im; cycle-132 ran a patched copy from the cache (no .claude/ edit) | .claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts gh() maxBuffer: 10 * 1024 * 1024; getPRFiles() /pulls/N/files?per_page=100 (patch field included) | 1 |
-| [KF-055](#kf-055-bridgebuilder-consensus-enrichment-posts-a-tool-call-transcript-instead-of-the-review-the-body-derived-verdict-reads-unknown-and-mergeblocked-true-even-when-the-consensus-json-says-comment) | OPEN — upstream fix filed as bead bd-cpvc6; cycle-132 read the per-voice JSON blocks and the round-1 consensus JSON directly | .claude/skills/bridgebuilder-review (multi-model enrichment writer anthropic/claude-headless; body-derived verdict in the summary JSON) | 2 |
+| [KF-055](#kf-055-bridgebuilder-consensus-enrichment-posts-a-tool-call-transcript-instead-of-the-review-the-body-derived-verdict-reads-unknown-and-mergeblocked-true-even-when-the-consensus-json-says-comment) | OPEN — upstream fix filed as bead bd-cpvc6; cycle-132 read the per-voice JSON blocks and the round-1 consensus JSON directly | .claude/skills/bridgebuilder-review (multi-model enrichment writer anthropic/claude-headless; body-derived verdict in the summary JSON) | 3 |
 | [KF-056](#kf-056-dec-rows-written-during-planning-carry-the-previous-cycles-id) | Open (fix candidate on bead bd-d7dwt; Sprint 4 sweep) | dec-write-lib.sh default_cycle / decisions.yaml cycle field | 1 |
 | [KF-057](#kf-057-bats-tests-that-spawn-a-nested-bats-via-npx-pass-locally-and-fail-in-ci) | Fixed for tests/unit/quarantine-expiry.bats (a0624b285); pattern to follow in any test that runs a nested bats | tests/unit/*.bats nested bats runs; .github/workflows/bats-tests.yml (bats-core v1.13.0 installed on PATH) | 1 |
 | [KF-058](#kf-058-an---internal-docker-network-still-reaches-the-hosts-bridge-gateway-address) | Fixed (874fc64a9) | evals/harness/lib/egress-proxy.sh egress block; evals/tests/egress-proxy.bats EGR-8/EGR-12; evals/harness/Dockerfile.proxy | 1 |
@@ -115,6 +115,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-065](#kf-065-ledger-lib-create_cycle-numbers-a-new-cycle-by-counting-entries-cycle-099-for-the-99th-row-instead-of-taking-the-next-free-chronological-id-colliding-with-existing-cycle-099-records) | OPEN | ledger-lib.sh create_cycle / _next_cycle_id (Sprint Ledger) | 1 |
 | [KF-066](#kf-066-strace-cannot-trace-a-hook-on-this-host-ptrace_traceme-eperm-under-yama-ptrace_scope-2-also-inside-the-bash-tool-evidence-traces-need-a-container-with-cap_sys_ptrace) | Open (worked around) | evidence gathering / strace -f -e trace=%file on hooks and scripts | 1 |
 | [KF-067](#kf-067-wall-clock-test-cycle-125-corpus-hook-runtime-over-the-corpus-stays-within-15-the-recorded-baseline-fails-in-a-full-testsunit-run-under-host-load-passes-in-isolation) | Open (worked around) | tests/unit/block-destructive-bash.bats group Z (cycle-125 corpus runtime bound); full tests/unit TAP runs on a shared host | 1 |
+| [KF-068](#kf-068-template-protection-fails-on-a-cycle-pr-because-grimoiresloanotesmd-was-committed-on-the-cycle-branch-a-newly-added-forbidden-file-vs-main-notesmd-belongs-on-the-record-branch-never-in-the-pr-tree) | Open (worked around) | ship / cycle PR / .github CI 'Template Protection' (ci.yml: forbidden template files, diff-filter=A vs the merge base) | 1 |
 
 ---
 
@@ -2018,7 +2019,7 @@ The overflow is in the fetch, before exclude_patterns, max_files_per_pr or max_d
 **Feature**: .claude/skills/bridgebuilder-review (multi-model enrichment writer anthropic/claude-headless; body-derived verdict in the summary JSON)
 **Symptom**: bb-<pr>.out: '[multi-model] Enrichment complete' with a small enrichedBytes; the posted [3/3] consensus comment contains 'I will check whether the repository is available locally…' and <invoke name="Bash"> blocks instead of ## Summary / ## Findings; summary JSON verdict UNKNOWN, highestSeverity set, mergeBlocked true, voices band APPROVED
 **First observed**: 2026-10-23T16:42Z cycle-132 PR #1289 Bridgebuilder round 2 (comment 6369941557); round 1 on the same PR enriched correctly (34 KB) but still parsed UNKNOWN
-**Recurrence count**: 2
+**Recurrence count**: 3
 **Current workaround**: Read the findings from the per-voice <!-- bridge-findings --> JSON blocks and, when present, the consensus block's verdict field; treat the posted markup as the writer's failure, not a review; triage and record the verdict in the PR comment yourself; file the run id.
 **Upstream issue**: bead bd-cpvc6: enrichment writer with tools disabled and an output guard (reject invoke markup / missing findings block, fall back to the un-enriched consensus); verdict from the consensus JSON; exit 3 DEGRADED on enrichment failure
 **Related visions / lore**: KF-054 (large-PR maxBuffer, bd-ra4im); KF-037/KF-038 (claude -p headless companion failures); feedback_post_pr_shortcut
@@ -2029,6 +2030,7 @@ The overflow is in the fetch, before exclude_patterns, max_files_per_pr or max_d
 |------|---------------|---------|----------|
 | 2026-10-23 | bb-large-pr.sh 1289 r2 (patched copy; voices gpt-5.5-pro + claude-headless) | voices fine (13 unique, 0 blocker); enrichment posted tool-call markup; verdict UNKNOWN | ~/.cache/loa/cycle-132/logs/bb-1289-r2.out; PR #1289 comment 6369941557 |
 | 2026-10-26 | PR #1302 Bridgebuilder round 2: enrichment writer (anthropic/claude-headless) output rejected by the tool_grammar guard (line 1: xml tag invoke), enrichedBytes 308; un-enriched consensus posted (round 1 enriched fine) | degraded enrichment only; verdict and findings intact | ~/.cache/loa/cycle-135/bb/round2.out; PR #1302 comment 6411401569 |
+| 2026-10-30 | cycle-138 PR #1314 Bridgebuilder round 1 (codex-headless; 2/2 voices): the enrichment writer (anthropic/claude-headless) output was rejected by the tool_grammar guard ('line 4: xml tag invoke') and the un-enriched consensus was posted; exit 3 DEGRADED enrichment_guard_rejected | the guard worked: verdict and the 17 findings intact (Verdict Quality APPROVED, 0 blockers); FR-16 counts the round as non-degraded (not a voice outage); no retry | ~/.cache/loa/cycle-138/ship/bb-r1.out; PR #1314 comments 2026-10-30T04:40Z–04:41Z; DEC-1200 |
 
 ### Reading guide
 
@@ -2292,3 +2294,24 @@ When a trace file has one line and strace printed PTRACE_TRACEME EPERM, check /p
 ### Reading guide
 
 A single wall-clock not-ok in an otherwise clean full TAP is a load artefact when /proc/loadavg at run time exceeded the core count: re-run the file alone, and if it is green record both TAPs instead of treating the suite as red; two consecutive isolated failures at low load are a real regression
+
+## KF-068: Template Protection fails on a cycle PR because grimoires/loa/NOTES.md was committed on the cycle branch (a NEWLY ADDED forbidden file vs main); NOTES.md belongs on the record branch, never in the PR tree
+
+**Status**: Open (worked around)
+**Feature**: ship / cycle PR / .github CI 'Template Protection' (ci.yml: forbidden template files, diff-filter=A vs the merge base)
+**Symptom**: CI check 'Template Protection' completed/failure on the PR head and 'Validate Framework Files', 'Lint Markdown', 'Lint YAML' skipped behind it; the job log lists 'The following files must NOT be committed to the loa template: - grimoires/loa/NOTES.md'; git diff --name-only --diff-filter=A <base>...HEAD shows grimoires/loa/NOTES.md; NOTES.md is NOT gitignored, main carries none (deleted long ago), and a session committed it with a docs commit (here 8a3d0cd9f, Sprint 285 COMPLETED)
+**First observed**: 2026-10-30T04:26Z, cycle-138 PR #1314 at 1d45765c1
+**Recurrence count**: 1
+**Current workaround**: git rm --cached grimoires/loa/NOTES.md (the file stays on disk, untracked) in a chore commit that says why, push, re-check; the record branch's manifest (record-branch.sh: grimoires/loa/NOTES.md, grimoires/loa/archive/notes) carries NOTES.md as in every previous cycle (cycle-137's PR head 3215c141f had none); before opening a PR run: git diff --name-only --diff-filter=A <base>...HEAD | grep -E 'grimoires/loa/(prd|sdd|sprint|NOTES)\.md|ledger\.json|a2a/sprint-' and expect nothing
+**Upstream issue**: none yet — candidates: a pre-push check in run-mode-ice.sh push (same list as the CI job), or gitignoring NOTES.md on cycle branches; the Template Protection list itself is correct
+**Related visions / lore**: KF-034 (Template Protection sibling checks); feedback_release_candidate_before_stable (ship recipes)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-30 | git rm --cached grimoires/loa/NOTES.md + chore commit 604b5fa5d, pushed through the ICE wrapper | Template Protection success on 604b5fa5d; the three dependent checks ran and passed; NOTES.md still on disk for the record branch | PR #1314 check runs on 1d45765c1 (failure) and 604b5fa5d (success); commit 604b5fa5d; ci.yml Template Protection step |
+
+### Reading guide
+
+When Template Protection fails, read the job log for the file list and run the diff-filter=A command locally — the fix is to drop the file from the PR TREE (git rm --cached), never to add [skip-template-guard]; the planning docs (prd/sdd/sprint) exist on main and are only MODIFIED, so they never trip it; NOTES.md and a2a/ do when newly added
