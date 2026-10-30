@@ -138,6 +138,7 @@ _check_budget() {
   [[ "$(yq --version 2>&1)" == *mikefarah*"version v4."* ]] || skip "Mike Farah yq v4 not installed"
   local root="$W/root" g="$W/root/grimoires/loa" i
   mkdir -p "$root/x/y" "$g/lore" "$g/handoffs" "$g/visions/entries" "$root/.run"
+  chmod 700 "$root/.run"   # the cache trust boundary wants 0700; under umask 002 the first run would chmod it (a spawn the warm run must not count)
   cp "$PROJECT_ROOT/.claude/scripts/grimoire-index.sh" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$root/x/y/"
   {
     printf '# Known Failures\n\n'
@@ -163,7 +164,16 @@ _check_budget() {
   # sanity: all six families reach the index, so the trace covers every emitter
   local tsv; tsv="$(bash "$root/x/y/grimoire-index.sh" --tsv)"
   [[ "$tsv" == *$'decisions\tDEC-0003'* && "$tsv" == *$'vision\tvision-001'* && "$tsv" == *$'lore\tbeta'* && "$tsv" == *$'notes\tL5'* ]]
-  _check_budget "grimoire-index --tsv" 167 15   # measured: 167 trace lines (umask 002: the fixture .run is 775 and the trust check tightens it with one chmod — D-5.3; 165 under umask 022), 15 external-tool lines (was 96/11): the traced run is a decisions-cache MISS (cycle-137 FR-5: snapshot, sha256, jq --version, trust-boundary stat checks, the writer awk); a warm run skips the yq parse
+  _check_budget "grimoire-index --tsv" 172 15   # measured 2026-10-29 (cycle-138 Sprint 286 review r1 DISS-C-004): 172 trace lines, three runs identical, umask 002 and 022 alike — the fixture .run is created 0700 above so the trust check no longer chmods (the former 167 carried that chmod and two lines of slack); the extra traced lines are the cycle-138 umask-077 creator subshell and the profile-lib kind-token reads; 15 external-tool lines (was 96/11): the traced run is a decisions-cache MISS (cycle-137 FR-5: snapshot, sha256, jq --version, trust-boundary stat checks, the writer awk); a warm run skips the yq parse (the warm target below)
+  # Warm target (cycle-138 FR-12): the cold run above wrote the decisions cache; a second run of the same
+  # fixture must take the cache-hit branch (no yq parse of decisions.yaml) within its own budget.
+  [ -s "$root/.run/perf-cache/grimoire-index-decisions.v1.tsv" ]
+  _trace "$W/empty" "$W" -- "$root/x/y/grimoire-index.sh" --tsv
+  if grep -nE '^\++ ?([A-Za-z_][A-Za-z0-9_]*=[^ ]* )*(/[^ ]*/)?yq -o=json( |$)' "$TRACE_FILE" >&2; then
+    echo "a yq -o=json parse ran on the warm path (lines above): the decisions cache was not hit" >&2
+    return 1
+  fi
+  _check_budget "grimoire-index --tsv warm" 151 12   # measured (cycle-138 FR-12, three runs identical, umask 002 and 0700 fixture .run): 151 trace lines, 12 external-tool lines on the cache-hit path (the hit drops the cold run's yq -o=json parse, jq type check, GI_DEC_JQ jq and writer awk; it keeps yq --version, jq --version, the two trust-boundary stat calls and one validating awk, plus the other families' emitters)
 }
 
 # --- (c) implement-gate.sh: Write to a grimoires/ path, no live .run.
@@ -275,6 +285,10 @@ EOF
 @test "spawn budget: karpathy-surgical-diff-check.sh on a Write payload with a warm profile cache" {
   local root="$W/root" hook
   mkdir -p "$root/.claude/hooks/quality" "$root/.claude/scripts/lib" "$root/.claude/data" "$root/.run" "$root/grimoires/loa/a2a/trajectory"
+  # cycle-138 FR-1: the profile cache is read and written only under a uid-owned, non-writable .run; every framework
+  # creator now makes .run 0700 regardless of umask (FR-4), so the fixture does the same (a 775 .run from an
+  # umask-002 host would be refused and the warm-cache precondition below could never hold).
+  chmod 700 "$root/.run"
   cp "$PROJECT_ROOT/.claude/hooks/quality/karpathy-surgical-diff-check.sh" "$root/.claude/hooks/quality/"
   cp "$PROJECT_ROOT/.claude/scripts/lib/profile-lib.sh" "$root/.claude/scripts/lib/"
   cp "$PROJECT_ROOT/.claude/data/profiles.yaml" "$PROJECT_ROOT/.claude/data/floor.yaml" "$root/.claude/data/"
@@ -285,9 +299,11 @@ EOF
   printf '{"tool_name":"Write","session_id":"perf-spawn-budget","tool_input":{"file_path":"%s/a.md","content":"x\\ny"}}\n' "$root" >"$W/in.json"
   # warm the profile cache with one untraced call (same environment as the traced one)
   ( cd "$root" && env -i PATH="$PATH" HOME="$W/home" TMPDIR="$W" LANG=C KARPATHY_CHECKPOINT_CMD="$W/ck.sh" \
-      LOA_RUN_DIR="$root/.run" bash "$hook" <"$W/in.json" >/dev/null 2>&1 ) || true
+      BATS_TEST_FILENAME="$BATS_TEST_FILENAME" LOA_RUN_DIR="$root/.run" bash "$hook" <"$W/in.json" >/dev/null 2>&1 ) || true
   jq -e '.knobs["karpathy_principles.diff_lines_per_task"].source == "absent"' "$root/.run/effective-config.json" >/dev/null
-  _trace "$W/in.json" "$root" KARPATHY_CHECKPOINT_CMD="$W/ck.sh" LOA_RUN_DIR="$root/.run" -- "$hook"
+  # cycle-138 FR-5 (D-5.1, DEC-1152): the hook honours KARPATHY_CHECKPOINT_CMD only under a bats marker, and env -i
+  # drops the ambient one, so the marker is passed explicitly (above and here).
+  _trace "$W/in.json" "$root" KARPATHY_CHECKPOINT_CMD="$W/ck.sh" BATS_TEST_FILENAME="$BATS_TEST_FILENAME" LOA_RUN_DIR="$root/.run" -- "$hook"
   # Sanity: the fixture reaches the per-task state write (not an early exit).
   [ -s "$root/.run/karpathy-surgical/bd-perf.jsonl" ]
   grep -q 'loa_knob karpathy_principles.diff_lines_per_task' "$TRACE_FILE"
@@ -296,5 +312,5 @@ EOF
     echo "a yq ran on the warm path (lines above): the cached_keys entry is not being used" >&2
     return 1
   fi
-  _check_budget "karpathy" 196 9   # measured (cycle-137 Task 2.4, three runs identical): 196 trace lines, 9 external-tool lines on the warm path; before cached_keys the same fixture took the live read of diff_lines_per_task (one yq + one jq more)
+  _check_budget "karpathy" 230 9   # measured (Sprint 286 audit round-1 fix, three runs identical): 230 trace lines, 9 external-tool lines on the warm path — the summary temp is opened O_CREAT|O_EXCL under noclobber behind a trusted-directory and absent-name test and re-checked before the rename, and the state directory must be uid-owned (`_summary_write`, bd-ooymp): +20 BUILTIN lines over the 210 measured at 4ac49f24f, zero external-tool lines added; wall-clock delta measured with hyperfine in a2a/sprint-286/evidence/lead-hyperfine-karpathy-warm.md. cycle-137 Task 2.4 measured 196 / 9; before cached_keys the same fixture took the live read of diff_lines_per_task (one yq + one jq more)
 }

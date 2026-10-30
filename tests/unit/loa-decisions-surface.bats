@@ -124,15 +124,15 @@ ledger(){ { printf 'schema_version: 1\ndecisions:\n'; cat; } > "$LEDGER"; }
 _path_without() {
   local d="$BATS_TEST_TMPDIR/pw-$(printf '%s' "$*" | tr ' ' '-')" p f b t skip
   mkdir -p "$d"
+  local -a skips=("$@")   # taken before IFS=: below: a word list built from "$*" would never split under it (cycle-138 FR-14)
   local IFS=:
-  local skipwords; skipwords=$(IFS=' '; echo "$*")   # once, not a subshell per file
   local -a batch
   for p in $PATH; do
     [[ -d "$p" ]] || continue
     batch=()
     for f in "$p"/*; do
       b="${f##*/}"; skip=0
-      for t in $skipwords; do [[ "$b" == "$t" ]] && skip=1; done
+      for t in "${skips[@]}"; do [[ "$b" == "$t" ]] && skip=1; done
       [[ $skip -eq 1 || -e "$d/$b" ]] && continue
       batch+=("$f")
     done
@@ -140,6 +140,19 @@ _path_without() {
     (( ${#batch[@]} )) && { ln -s -- "${batch[@]}" "$d/" 2>/dev/null || true; }
   done
   printf '%s' "$d"
+}
+
+@test "decisions surface _path_without: two tools named at once are both left out (cycle-138 FR-14)" {
+  command -v yq >/dev/null 2>&1 || skip "yq not installed"
+  command -v jq >/dev/null 2>&1 || skip "jq not installed"
+  local p; p="$(_path_without yq jq)"
+  run env PATH="$p" bash -c 'command -v yq'
+  [ "$status" -ne 0 ]
+  run env PATH="$p" bash -c 'command -v jq'
+  [ "$status" -ne 0 ]
+  # every other command still resolves through the stripped PATH
+  run env PATH="$p" bash -c 'command -v bash'
+  [ "$status" -eq 0 ]
 }
 
 @test "decisions surface F-014: enabled but yq v4 or jq missing prints one WARNING naming the tool" {

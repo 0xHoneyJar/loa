@@ -299,7 +299,7 @@ if [[ -n "$_push_sprint_cand" || -n "$_push_bridge_cand" || -n "$_push_simstim_c
         # Write the marker FIRST — a failed/slow command still counts as
         # attempted once, so a permanently broken operator command cannot
         # cause a retry storm on every subsequent Stop.
-        mkdir -p .run 2>/dev/null
+        ( umask 077; mkdir -p -- .run ) 2>/dev/null   # 0700 regardless of umask (cycle-138 FR-4)
         _push_tmp="$(mktemp .run/push-last-state.json.XXXXXX 2>/dev/null || true)"
         if [[ -n "$_push_tmp" ]]; then
           if jq --arg k "$_push_src" --arg v "$_push_fp" '.[$k]=$v' "$_push_marker" 2>/dev/null > "$_push_tmp" \

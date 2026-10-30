@@ -222,7 +222,7 @@ lock_path(){ # target -> lock file under .run, keyed by the target's absolute pa
 }
 acquire_lock(){ # target
   local lp; lp="$(lock_path "$1")"
-  mkdir -p "${PROJECT_ROOT}/.run"
+  ( umask 077; mkdir -p -- "${PROJECT_ROOT}/.run" )
   if command -v flock >/dev/null 2>&1 && [[ "${LOA_DEC_NO_FLOCK:-0}" != "1" ]]; then
     exec 9>"$lp"
     flock -w "$LOCK_WAIT" 9 || die "lock busy: another writer holds ${lp} (waited ${LOCK_WAIT}s); retry"
@@ -755,7 +755,7 @@ op_context(){
   if has set-unattended; then
     local reason; reason="$(san1 "$(o reason)")"; [[ -n "$reason" ]] || usage "context --set-unattended needs --reason"
     command -v jq >/dev/null 2>&1 || die "context: jq is required"
-    mkdir -p "${PROJECT_ROOT}/.run"
+    ( umask 077; mkdir -p -- "${PROJECT_ROOT}/.run" )
     local m="${PROJECT_ROOT}/.run/unattended.json" t
     t="$(mktemp "${m}.XXXXXX")"
     jq -n --arg r "$reason" --arg s "$(session_id)" --arg c "$(now_utc)" '{reason: $r, session_id: $s, created_at: $c}' > "$t"

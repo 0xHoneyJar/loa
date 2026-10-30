@@ -88,7 +88,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-038](#kf-038-the-companion-voices-claude--p-hits-the-operators-plan-rate-limit-window-mid-run-rate_limited-the-anthropicheadless-breaker-opens-every-later-chunk-runs-single-voice) | open — structural (the account window, not a code defect); the run mode is to re-run the single-voice chunks after the window resets | adversarial-review.sh companion voice (claude-headless via cheval headless adapter) | 2 |
 | [KF-039](#kf-039-claude-headless-companion-fails-at-execve-with-e2big-on-a-prompt-over-128-kib) | RESOLVED (398859ad) | cheval claude-headless adapter / adversarial-review companion voice | 2 |
 | [KF-040](#kf-040-subscription-claude--p-hop-refused-with-a-geo-400-unsupported-countries-regions-or-territories-claude-fallback-does-not-fall-back) | OPEN — environmental (host network egress); Bedrock route unaffected | cheval claude-headless adapter / ~/.local/bin/claude-fallback | 1 |
-| [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 11 |
+| [KF-041](#kf-041-flatline-phase-2-cross-scoring-degrades-to-one-scorer-the-codex-headless-scorer-returns-null-scores-for-every-item-while-its-phase-1-review-succeeded) | Open | flatline-orchestrator.sh Phase 2 / scoring-engine | 13 |
 | [KF-042](#kf-042-claude-code-auto-mode-permission-classifier-denies-loa-cycle-operations-as-self-modification) | open | run mode / planning kickoff (harness permission mode) | 1 |
 | [KF-043](#kf-043-invoking-a-skill-with-disallowed-tools-in-the-main-session-removes-writeeditnotebookedit-for-the-whole-session-including-subagents) | active | skill frontmatter disallowed-tools (cycle-114 FR-4; cycle-129 FR-4(b) probe) | 1 |
 | [KF-044](#kf-044-codex-on-a-chatgpt-plan-refuses-every-gpt-5x-model-the-codex-headless-hop-cli_model-gpt-55-fails-and-the-dissent-falls-to-one-voice) | active | codex-headless hop (cheval codex adapter; flatline secondary; dissent primary on hounfour.headless.mode cli-only) | 1 |
@@ -102,7 +102,7 @@ actually tried, not just what someone *said* was tried.
 | [KF-052](#kf-052-host-reboot-kills-a-detached-ablation-batch-runner-setsid-nohup-run-ablationsh-mid-batch-in-flight-sessions-and-trials-end-without-a-record-or-row) | OPEN — infrastructure event, not a harness defect; the runner's --resume contract is the whole recovery | evals/harness/run-ablation.sh batch driver launched detached (setsid nohup) from a Claude session; cycle-132 driver ~/.cache/loa/cycle-132/scripts/batch-c132.sh | 3 |
 | [KF-053](#kf-053-took-effect-no_audit_rows-fails-on-a-bare-session-because-the-agent-ran-the-prs-own-hook-or-audit-script-which-wrote-sandboxrunauditjsonl-the-runner-pauses-the-arm-and-exits-with-cells-unrun) | OPEN — registered rule applied as written in cycle-132; guard-vs-PR-content family (addenda 1, 4, 7, 8); fix belongs to the next harness cycle | evals/harness/took-effect.sh rule no_audit_rows (bare arms); run-ablation.sh arm pause on took-effect FAIL (DEC-0418) | 1 |
 | [KF-054](#kf-054-bridgebuilder-aborts-on-a-large-pr-gh-api-pullsnfiles-exceeds-the-adapters-fixed-10-mib-maxbuffer-err_child_process_stdio_maxbuffer-before-any-exclude-or-truncation-applies) | OPEN — upstream fix filed as bead bd-ra4im; cycle-132 ran a patched copy from the cache (no .claude/ edit) | .claude/skills/bridgebuilder-review/resources/adapters/github-cli.ts gh() maxBuffer: 10 * 1024 * 1024; getPRFiles() /pulls/N/files?per_page=100 (patch field included) | 1 |
-| [KF-055](#kf-055-bridgebuilder-consensus-enrichment-posts-a-tool-call-transcript-instead-of-the-review-the-body-derived-verdict-reads-unknown-and-mergeblocked-true-even-when-the-consensus-json-says-comment) | OPEN — upstream fix filed as bead bd-cpvc6; cycle-132 read the per-voice JSON blocks and the round-1 consensus JSON directly | .claude/skills/bridgebuilder-review (multi-model enrichment writer anthropic/claude-headless; body-derived verdict in the summary JSON) | 2 |
+| [KF-055](#kf-055-bridgebuilder-consensus-enrichment-posts-a-tool-call-transcript-instead-of-the-review-the-body-derived-verdict-reads-unknown-and-mergeblocked-true-even-when-the-consensus-json-says-comment) | OPEN — upstream fix filed as bead bd-cpvc6; cycle-132 read the per-voice JSON blocks and the round-1 consensus JSON directly | .claude/skills/bridgebuilder-review (multi-model enrichment writer anthropic/claude-headless; body-derived verdict in the summary JSON) | 3 |
 | [KF-056](#kf-056-dec-rows-written-during-planning-carry-the-previous-cycles-id) | Open (fix candidate on bead bd-d7dwt; Sprint 4 sweep) | dec-write-lib.sh default_cycle / decisions.yaml cycle field | 1 |
 | [KF-057](#kf-057-bats-tests-that-spawn-a-nested-bats-via-npx-pass-locally-and-fail-in-ci) | Fixed for tests/unit/quarantine-expiry.bats (a0624b285); pattern to follow in any test that runs a nested bats | tests/unit/*.bats nested bats runs; .github/workflows/bats-tests.yml (bats-core v1.13.0 installed on PATH) | 1 |
 | [KF-058](#kf-058-an---internal-docker-network-still-reaches-the-hosts-bridge-gateway-address) | Fixed (874fc64a9) | evals/harness/lib/egress-proxy.sh egress block; evals/tests/egress-proxy.bats EGR-8/EGR-12; evals/harness/Dockerfile.proxy | 1 |
@@ -112,6 +112,10 @@ actually tried, not just what someone *said* was tried.
 | [KF-062](#kf-062-bridgebuilders-claude-headless-voice-is-refused-by-the-models-safeguards-on-a-security-heavy-review-prompt-degrading-the-round) | Open — mitigation under test: exclude generated, fixture and evidence files from the review diff (round 2); if the voice still refuses, G-2 is recorded as not met and the operator decides on a split or a different voice model | .claude/skills/bridgebuilder-review (multi-model voice anthropic/claude-headless → claude -p, cli_model fable); .claude/adapters/loa_cheval/providers/claude_headless_adapter.py | 1 |
 | [KF-063](#kf-063-post-mergeyml-turns-red-on-the-publishs-own-ledger-fast-forward-the-bot-push-to-main-is-classified-as-a-cycle-merge-and---generate-aborts-with---pr-is-required) | Fixed in cycle-134 Sprint 276 (classify-merge-pr.sh trailing (#NNN) + full-pipeline guard; live confirmation at the next rc publish) | .github/workflows/post-merge.yml (Classify Merge → Prepare Release (Cycle)); .claude/scripts/post-merge-orchestrator.sh --publish ledger step (C-3, cycle-133 Sprint 272) | 1 |
 | [KF-064](#kf-064-post-merge-orchestrator---publish-release-phase-failed-on-read-back-although-the-release-was-created--github-rewrites-backslash-u-escapes-in-the-body-u0000-u001f---_-so-the-exact-body--body-comparison-never-matches-ledger--notify-phases-left-pending) | OPEN | post-merge-orchestrator.sh release phase (cycle-133 C-3 read-back identity) | 1 |
+| [KF-065](#kf-065-ledger-lib-create_cycle-numbers-a-new-cycle-by-counting-entries-cycle-099-for-the-99th-row-instead-of-taking-the-next-free-chronological-id-colliding-with-existing-cycle-099-records) | OPEN | ledger-lib.sh create_cycle / _next_cycle_id (Sprint Ledger) | 1 |
+| [KF-066](#kf-066-strace-cannot-trace-a-hook-on-this-host-ptrace_traceme-eperm-under-yama-ptrace_scope-2-also-inside-the-bash-tool-evidence-traces-need-a-container-with-cap_sys_ptrace) | Open (worked around) | evidence gathering / strace -f -e trace=%file on hooks and scripts | 1 |
+| [KF-067](#kf-067-wall-clock-test-cycle-125-corpus-hook-runtime-over-the-corpus-stays-within-15-the-recorded-baseline-fails-in-a-full-testsunit-run-under-host-load-passes-in-isolation) | Open (worked around) | tests/unit/block-destructive-bash.bats group Z (cycle-125 corpus runtime bound); full tests/unit TAP runs on a shared host | 1 |
+| [KF-068](#kf-068-template-protection-fails-on-a-cycle-pr-because-grimoiresloanotesmd-was-committed-on-the-cycle-branch-a-newly-added-forbidden-file-vs-main-notesmd-belongs-on-the-record-branch-never-in-the-pr-tree) | Open (worked around) | ship / cycle PR / .github CI 'Template Protection' (ci.yml: forbidden template files, diff-filter=A vs the merge base) | 1 |
 
 ---
 
@@ -1693,7 +1697,7 @@ Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry
 **Feature**: flatline-orchestrator.sh Phase 2 / scoring-engine
 **Symptom**: A two-voice Flatline run (codex-headless + claude-headless, voices 2/2, Phase 1 reviews fine: 21 + 12 items) ends 'Cross-scoring degraded; qualified review denominator retained', '[scoring-engine] Consensus: HIGH=0 DISPUTED=0 LOW=0 BLOCKERS=4 (0% agreement)', every item carries gpt_score null / scorers_available 1 / source opus_scored, status DEGRADED, confidence degraded, exit 6, and no HIGH_CONSENSUS set is produced; Phase 2 reports 'Total cost: 0 cents' and the final JSON's execution block carries no per-call scorer status, so the cause (empty content, schema rejection, timeout) is not recorded
 **First observed**: 2026-10-07 cycle-127 planning reviews (prd run flatline-28236-11307, sdd run flatline-19206-31034, sprint run — all three identical shape)
-**Recurrence count**: 11
+**Recurrence count**: 13
 **Current workaround**: Treat the run's raw per-voice improvements as unscored input and integrate by lead judgment (cycle-127 did; SDD §1.5). Re-run with --keep-temp to capture the Phase 2 scorer outputs before triaging.
 **Upstream issue**: https://github.com/0xHoneyJar/loa/issues/1281 (filed 2026-10-14, cycle-129 Task 1.10) — candidate: record each Phase 2 scorer call's failure_class in the final JSON execution block (the vq-aggregate envelope already names voices; scorers are invisible)
 **Related visions / lore**: KF-002 (reasoning-class empty content), KF-004 (schema-rejected payloads), KF-015 (gate reports success on degraded runs)
@@ -1711,6 +1715,8 @@ Not a cheval defect: the 400 is classified non-retryable correctly. Do not retry
 | 2026-10-23 | cycle-133 Flatline PRD review (flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --budget 300): claude-headless + gpt-5.5 | same shape: Phase 1 both voices answered; cross-scoring degraded; HIGH=0 DISPUTED=0 LOW=0 BLOCKERS=19 (0 % agreement), 477 s, 0 cents | ~/.cache/loa/cycle-133/logs/flatline-prd.{out,err}; a2a/flatline/cycle-133-prd-review.json |
 | 2026-10-23 | cycle-133 Flatline SDD review (--phase sdd --budget 300): claude-headless + gpt-5.5 | same shape: both voices answered (41 + 31 items); cross-scoring degraded; HIGH=0 DISPUTED=0 BLOCKERS=16 (two CRITICAL), 569 s, 0 cents | ~/.cache/loa/cycle-133/logs/flatline-sdd.{out,err}; a2a/flatline/cycle-133-sdd-review.json |
 | 2026-10-23 | cycle-133 Flatline sprint review (--phase sprint --budget 300): claude-headless + gpt-5.5 | same shape: both voices answered; cross-scoring degraded; BLOCKERS=18, 538 s, 0 cents | ~/.cache/loa/cycle-133/logs/flatline-sprint.{out,err}; a2a/flatline/cycle-133-sprint-review.json |
+| 2026-10-29 | cycle-138 Flatline PRD review (flatline-orchestrator.sh --doc grimoires/loa/prd.md --phase prd --json): claude-headless + gpt-5.5 | same shape: both voices answered (5 blockers, 48 medium items); cross-scoring degraded (HIGH=0 DISPUTED=0, scoring_degraded true); 0 cents; read by judgment per the reading guide → prd.md 1.1 Appendix D (006e6f114); no re-run | ~/.cache/loa/cycle-138/logs/flatline-prd.json; grimoires/loa/prd.md Appendix D |
+| 2026-10-29 | cycle-138 Flatline SDD review (--doc grimoires/loa/sdd.md --phase sdd --json): claude-headless + gpt-5.5 | same shape: voices 2/2 (6 blockers, 37 medium items), verdict_quality DEGRADED (scoring_degraded true, confidence_floor low), 640 s, 0 cents; read by judgment → sdd.md 1.2 § 11.F; no re-run | ~/.cache/loa/cycle-138/logs/flatline-sdd.json; grimoires/loa/sdd.md § 11.F |
 
 ### Reading guide
 
@@ -2013,7 +2019,7 @@ The overflow is in the fetch, before exclude_patterns, max_files_per_pr or max_d
 **Feature**: .claude/skills/bridgebuilder-review (multi-model enrichment writer anthropic/claude-headless; body-derived verdict in the summary JSON)
 **Symptom**: bb-<pr>.out: '[multi-model] Enrichment complete' with a small enrichedBytes; the posted [3/3] consensus comment contains 'I will check whether the repository is available locally…' and <invoke name="Bash"> blocks instead of ## Summary / ## Findings; summary JSON verdict UNKNOWN, highestSeverity set, mergeBlocked true, voices band APPROVED
 **First observed**: 2026-10-23T16:42Z cycle-132 PR #1289 Bridgebuilder round 2 (comment 6369941557); round 1 on the same PR enriched correctly (34 KB) but still parsed UNKNOWN
-**Recurrence count**: 2
+**Recurrence count**: 3
 **Current workaround**: Read the findings from the per-voice <!-- bridge-findings --> JSON blocks and, when present, the consensus block's verdict field; treat the posted markup as the writer's failure, not a review; triage and record the verdict in the PR comment yourself; file the run id.
 **Upstream issue**: bead bd-cpvc6: enrichment writer with tools disabled and an output guard (reject invoke markup / missing findings block, fall back to the un-enriched consensus); verdict from the consensus JSON; exit 3 DEGRADED on enrichment failure
 **Related visions / lore**: KF-054 (large-PR maxBuffer, bd-ra4im); KF-037/KF-038 (claude -p headless companion failures); feedback_post_pr_shortcut
@@ -2024,6 +2030,7 @@ The overflow is in the fetch, before exclude_patterns, max_files_per_pr or max_d
 |------|---------------|---------|----------|
 | 2026-10-23 | bb-large-pr.sh 1289 r2 (patched copy; voices gpt-5.5-pro + claude-headless) | voices fine (13 unique, 0 blocker); enrichment posted tool-call markup; verdict UNKNOWN | ~/.cache/loa/cycle-132/logs/bb-1289-r2.out; PR #1289 comment 6369941557 |
 | 2026-10-26 | PR #1302 Bridgebuilder round 2: enrichment writer (anthropic/claude-headless) output rejected by the tool_grammar guard (line 1: xml tag invoke), enrichedBytes 308; un-enriched consensus posted (round 1 enriched fine) | degraded enrichment only; verdict and findings intact | ~/.cache/loa/cycle-135/bb/round2.out; PR #1302 comment 6411401569 |
+| 2026-10-30 | cycle-138 PR #1314 Bridgebuilder round 1 (codex-headless; 2/2 voices): the enrichment writer (anthropic/claude-headless) output was rejected by the tool_grammar guard ('line 4: xml tag invoke') and the un-enriched consensus was posted; exit 3 DEGRADED enrichment_guard_rejected | the guard worked: verdict and the 17 findings intact (Verdict Quality APPROVED, 0 blockers); FR-16 counts the round as non-degraded (not a voice outage); no retry | ~/.cache/loa/cycle-138/ship/bb-r1.out; PR #1314 comments 2026-10-30T04:40Z–04:41Z; DEC-1200 |
 
 ### Reading guide
 
@@ -2219,7 +2226,92 @@ A red Post-Merge Pipeline whose head is the bot's chore(ledger) commit and whose
 | Date | What we tried | Outcome | Evidence |
 |------|---------------|---------|----------|
 | 2026-10-28 | cycle-137 v2.0.0-rc.9: retried --publish from the approved candidate (runbook retry path); tag phase accepted the existing tag, release phase failed identically; python diff of the candidate release_body vs the API body: equal except GitHub turned the literal `\u0000-\u001f` (a commit subject quoting the sanitiser range) into `\^@-\^_` (37634 vs 37628 chars) | release and tag correct and verified by hand (peeled tag = merge, prerelease true, title v2.0.0-rc.9); the ledger archive rides the cycle archive PR; --ledger-only refuses without a deferral file. Fix direction: compare the body after a normalisation GitHub applies (or compare a hash of the sent body stored in the state) and let a body-only mismatch WARN rather than fail the phase | ~/.cache/loa/cycle-137/publish-checkout-rc9/.run/post-merge-state.json; /tmp/c137-rel.json vs candidate-rc9/post-merge-candidate.json release_body; a2a/sprint-282/publish-summary.md |
+| 2026-10-29 | sprint-bug-283 (bug 20261028-90f357): phase_release compares the read-back body after GitHub caret rewrite is applied to both the sent notes and the stored body (release_body_identical, one python3 -I process fed through temp files; identity terms exact; any other difference refuses); 7 new tests incl. the literal rc.9 pair; three review/audit dissent runs + Bridgebuilder round 1 | FIXED — merged to main in PR #1313 as fe52be893; the next publish will verify a body that quotes a backslash-u escape; the POST/notify argv exposure is bd-qyvju | PR #1313; tests/unit/post-merge-publication.bats bug-283 cases; tests/fixtures/post-merge/rc9-release-body/ |
 
 ### Reading guide
 
 TODO: what a future agent should do on this symptom.
+
+## KF-065: ledger-lib create_cycle numbers a new cycle by counting entries (cycle-099 for the 99th row) instead of taking the next free chronological id, colliding with existing cycle-099 records
+
+**Status**: OPEN
+**Feature**: ledger-lib.sh create_cycle / _next_cycle_id (Sprint Ledger)
+**Symptom**: create_cycle "<label>" prints cycle-099 and sets active_cycle to cycle-099 on a ledger whose highest cycle is cycle-137 and which already holds cycle-099 and cycle-099-model-registry; _next_cycle_id does printf cycle-%03d $((count + 1)) over .cycles | length
+**First observed**: 2026-10-29
+**Recurrence count**: 1
+**Current workaround**: none yet
+**Upstream issue**: not filed
+**Related visions / lore**: none
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-29 | cycle-138 kickoff: ran create_cycle, then corrected the new entry id and active_cycle to cycle-138-hardening-followups by a recorded hand edit before the kickoff commit (DEC P-138-4) | workaround only; the lib still mis-numbers. Fix direction: derive the next id from the max numeric id across cycles and bugfix_cycles (plus the archived ones), keep the -<slug> suffix the callers append, red test on a ledger with gaps and suffixed ids | grimoires/loa/ledger.json at 0f17ea02b; .claude/scripts/ledger-lib.sh:340-349 |
+
+### Reading guide
+
+TODO: what a future agent should do on this symptom.
+
+## KF-066: strace cannot trace a hook on this host: PTRACE_TRACEME EPERM under Yama ptrace_scope 2 (also inside the Bash tool); evidence traces need a container with CAP_SYS_PTRACE
+
+**Status**: Open (worked around)
+**Feature**: evidence gathering / strace -f -e trace=%file on hooks and scripts
+**Symptom**: strace -o trace -e trace=%file <cmd> prints 'strace: test_ptrace_get_syscall_info: PTRACE_TRACEME: Operation not permitted' and 'strace: ptrace(PTRACE_TRACEME, ...): Operation not permitted'; the trace file holds one line ('+++ exited with 1 +++') and the traced command never ran; /proc/sys/kernel/yama/ptrace_scope is 2 (admin-only attach — unprivileged PTRACE_TRACEME is refused too); the same happens inside a container once the process drops to an unprivileged uid
+**First observed**: 2026-10-30T02:05Z, cycle-138 Sprint 286 audit round-1 fix evidence (karpathy hook before/after traces)
+**Recurrence count**: 1
+**Current workaround**: run strace as root inside a disposable container with CAP_SYS_PTRACE on fixture roots only: docker run --rm --cap-add SYS_PTRACE -v <fixtures>:/fx debian:bookworm-slim, apt-get install strace jq, then strace -f -e trace=%file -o /fx/trace.raw bash <hook> as root (uid checks that need a second uid run separately via chroot --userspec=1000:1000 / without strace); copy the hook + its lib + data into the fixture root — never mount the repo
+**Upstream issue**: none — host policy (Yama), not a framework defect; a sysctl change needs the operator
+**Related visions / lore**: cycle-138 Sprint 286 audit round 1 (bd-ooymp); feedback_mutation_never_disables_the_redirect (evidence must come from the system's own record)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-30 | strace on the host from the Bash tool (plain, under env -i, and as uid 1000 inside the container) | all refused with PTRACE_TRACEME EPERM; root inside docker --cap-add SYS_PTRACE traced the hook (550–600 file syscalls per run) | grimoires/loa/a2a/sprint-286/evidence/lead-strace-{before,after}-{clean,planted}.txt; fix commit c07b543b0; ~/.cache/loa/cycle-138/scripts/evidence-3.7-container.sh |
+
+### Reading guide
+
+When a trace file has one line and strace printed PTRACE_TRACEME EPERM, check /proc/sys/kernel/yama/ptrace_scope: 2 or 3 means no unprivileged tracing anywhere on the host — do not retry with env -i, sudo-less wrappers or dangerouslyDisableSandbox; go straight to the --cap-add SYS_PTRACE container recipe on fixture roots, and run any second-uid check in the same container without strace
+
+## KF-067: wall-clock test 'cycle-125 corpus: hook runtime over the corpus stays within 1.5× the recorded baseline' fails in a full tests/unit run under host load, passes in isolation
+
+**Status**: Open (worked around)
+**Feature**: tests/unit/block-destructive-bash.bats group Z (cycle-125 corpus runtime bound); full tests/unit TAP runs on a shared host
+**Symptom**: not ok … cycle-125 corpus: hook runtime over the corpus stays within 1.5× the recorded baseline — '[ "$now" -le "$limit" ]' failed (block-destructive-bash.bats:1619) with a diagnostic like 'runtime: 25863ms over 288 rows (baseline 4061ms over 73 rows → scaled 16021ms, limit 24031ms)' while /proc/loadavg read 28–47 on 8 cores from other agent sessions; the same file re-run alone at load ≈ 6 passes (291/291)
+**First observed**: 2026-10-30T03:2xZ, cycle-138 Sprint 286 final TAP on cfece1a7f (7418 ok / 4 not ok / 136 skips: the semver trio + this test)
+**Recurrence count**: 1
+**Current workaround**: re-run tests/unit/block-destructive-bash.bats alone when the 1-minute load average is below the core count and keep BOTH TAPs as evidence (the full run with the failure, the isolated green run); note the load in the TAP text of the gate files; do not raise the 1.5× bound to fit a loaded host
+**Upstream issue**: none yet — candidate: replace the wall-clock bound with the spawn/CPU proxy perf-spawn-budget.bats uses (its own header says wall-clock tests are flaky in CI), or skip the bound when loadavg exceeds nproc
+**Related visions / lore**: KF-034 / the R-4 allowed-failure set (semver evidence trio); perf-spawn-budget.bats rationale
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-30 | re-ran tests/unit/block-destructive-bash.bats alone after the full run (load 5.3 → 7.8) | 291 ok / 0 not ok; the corpus runtime test green; finalize-286.sh accepts the full run's failure only with this green re-run present | ~/.cache/loa/cycle-138/logs/unit-cfece1a7f.tap (not ok 1108); grimoires/loa/a2a/sprint-286/evidence/lead-tap-rerun-block-destructive-bash.tap; docs tail cfece1a7f |
+
+### Reading guide
+
+A single wall-clock not-ok in an otherwise clean full TAP is a load artefact when /proc/loadavg at run time exceeded the core count: re-run the file alone, and if it is green record both TAPs instead of treating the suite as red; two consecutive isolated failures at low load are a real regression
+
+## KF-068: Template Protection fails on a cycle PR because grimoires/loa/NOTES.md was committed on the cycle branch (a NEWLY ADDED forbidden file vs main); NOTES.md belongs on the record branch, never in the PR tree
+
+**Status**: Open (worked around)
+**Feature**: ship / cycle PR / .github CI 'Template Protection' (ci.yml: forbidden template files, diff-filter=A vs the merge base)
+**Symptom**: CI check 'Template Protection' completed/failure on the PR head and 'Validate Framework Files', 'Lint Markdown', 'Lint YAML' skipped behind it; the job log lists 'The following files must NOT be committed to the loa template: - grimoires/loa/NOTES.md'; git diff --name-only --diff-filter=A <base>...HEAD shows grimoires/loa/NOTES.md; NOTES.md is NOT gitignored, main carries none (deleted long ago), and a session committed it with a docs commit (here 8a3d0cd9f, Sprint 285 COMPLETED)
+**First observed**: 2026-10-30T04:26Z, cycle-138 PR #1314 at 1d45765c1
+**Recurrence count**: 1
+**Current workaround**: git rm --cached grimoires/loa/NOTES.md (the file stays on disk, untracked) in a chore commit that says why, push, re-check; the record branch's manifest (record-branch.sh: grimoires/loa/NOTES.md, grimoires/loa/archive/notes) carries NOTES.md as in every previous cycle (cycle-137's PR head 3215c141f had none); before opening a PR run: git diff --name-only --diff-filter=A <base>...HEAD | grep -E 'grimoires/loa/(prd|sdd|sprint|NOTES)\.md|ledger\.json|a2a/sprint-' and expect nothing
+**Upstream issue**: none yet — candidates: a pre-push check in run-mode-ice.sh push (same list as the CI job), or gitignoring NOTES.md on cycle branches; the Template Protection list itself is correct
+**Related visions / lore**: KF-034 (Template Protection sibling checks); feedback_release_candidate_before_stable (ship recipes)
+
+### Attempts
+
+| Date | What we tried | Outcome | Evidence |
+|------|---------------|---------|----------|
+| 2026-10-30 | git rm --cached grimoires/loa/NOTES.md + chore commit 604b5fa5d, pushed through the ICE wrapper | Template Protection success on 604b5fa5d; the three dependent checks ran and passed; NOTES.md still on disk for the record branch | PR #1314 check runs on 1d45765c1 (failure) and 604b5fa5d (success); commit 604b5fa5d; ci.yml Template Protection step |
+
+### Reading guide
+
+When Template Protection fails, read the job log for the file list and run the diff-filter=A command locally — the fix is to drop the file from the PR TREE (git rm --cached), never to add [skip-template-guard]; the planning docs (prd/sdd/sprint) exist on main and are only MODIFIED, so they never trip it; NOTES.md and a2a/ do when newly added

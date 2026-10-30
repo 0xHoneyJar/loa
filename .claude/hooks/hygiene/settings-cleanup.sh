@@ -103,7 +103,7 @@ audit_log() {
     # perf pass-4: bash strftime replaces the date spawn (byte-identical
     # format); [[ -d ]] guard skips dirname+mkdir when .run already exists.
     TZ=UTC0 printf -v ts '%(%Y-%m-%dT%H:%M:%SZ)T' -1
-    [[ -d "${AUDIT_LOG%/*}" ]] || mkdir -p "$(dirname "$AUDIT_LOG")"
+    [[ -d "${AUDIT_LOG%/*}" ]] || ( umask 077; mkdir -p -- "$(dirname "$AUDIT_LOG")" )   # 0700 regardless of umask (cycle-138 FR-4)
     printf '{"timestamp":"%s","event":"%s","detail":%s}\n' \
         "$ts" "$event" "$detail" >> "$AUDIT_LOG"
 }

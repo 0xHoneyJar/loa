@@ -62,7 +62,7 @@ HIT_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 PROJECT_ROOT="${PROJECT_ROOT:-$PWD}"
 RUN_DIR="$PROJECT_ROOT/.run"
-mkdir -p "$RUN_DIR" 2>/dev/null || true
+( umask 077; mkdir -p -- "$RUN_DIR" ) 2>/dev/null || true
 STATE_FILE="$RUN_DIR/session-limit-state.json"
 
 SPRINT_FILE="$RUN_DIR/sprint-plan-state.json"

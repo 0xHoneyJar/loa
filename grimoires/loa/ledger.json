@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "active_cycle": null,
+  "active_cycle": "cycle-138-hardening-followups",
   "cycles": [
     {
       "id": "cycle-036",
@@ -2839,6 +2839,39 @@
           "completed": "2026-10-28T06:59:09Z"
         }
       ]
+    },
+    {
+      "id": "cycle-138-hardening-followups",
+      "label": "cycle-138 — hardening follow-ups: the fifteen beads left by cycle-137 and sprint-bug-283 (profile-lib cache trust boundary, publisher POST argv, absent-chain state, umask; hooks and the KF surface; tests, guards and one refactor); no release",
+      "status": "active",
+      "created": "2026-10-29T02:08:47Z",
+      "archived": null,
+      "archive_path": null,
+      "prd": "grimoires/loa/prd.md",
+      "sdd": "grimoires/loa/sdd.md",
+      "sprints": [
+        {
+          "global_id": 284,
+          "local_label": "sprint-1",
+          "status": "completed",
+          "created": "2026-10-29T02:41:05Z",
+          "completed": "2026-10-29T07:32:54Z"
+        },
+        {
+          "global_id": 285,
+          "local_label": "sprint-2",
+          "status": "completed",
+          "created": "2026-10-29T02:41:05Z",
+          "completed": "2026-10-29T09:39:26Z"
+        },
+        {
+          "global_id": 286,
+          "local_label": "sprint-3",
+          "status": "completed",
+          "created": "2026-10-29T02:41:06Z",
+          "completed": "2026-10-30T04:24:32Z"
+        }
+      ]
     }
   ],
   "global_sprint_counter": 283,
@@ -3327,6 +3360,6 @@
       "sprint_plan": "grimoires/loa/a2a/bug-20260428-i640-1cc190/sprint.md"
     }
   ],
-  "next_sprint_number": 284,
-  "last_updated": "2026-10-29T00:21:26Z"
+  "next_sprint_number": 287,
+  "last_updated": "2026-10-30T04:24:32Z"
 }

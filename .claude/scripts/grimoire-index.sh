@@ -57,7 +57,9 @@ parse_args(){
 }
 
 # Strip control bytes (keep UTF-8 multibyte), flatten whitespace, cap length.
-san(){ printf '%s' "${1-}" | tr -d '\000-\010\013\014\016-\037\177' | tr '\t\n\r' '   ' | sed -E 's/  +/ /g; s/^ //; s/ $//' | cut -c1-160; }
+# (The former shell san() — tr | sed | cut, capped at 160 — had no callers once every emitter sanitised inside its awk
+#  program; it was removed in cycle-138 Sprint 285 review round 1 (DISS-C-004). The awk san() in SAN_AWK below is
+#  the ONLY implementation; tests/unit/kf-surface.bats pins it line for line against the hook's twin.)
 # Byte-for-byte awk twin of san() (LC_ALL=C: substr/length count BYTES, like cut -c), plus rd(), an
 # emulation of `IFS=$'\t' read -r` (a whitespace IFS: leading/trailing tabs trimmed, tab RUNS collapse to
 # one separator, last variable takes the remainder). Prepended to the emit_* awk programs so each family
@@ -65,9 +67,17 @@ san(){ printf '%s' "${1-}" | tr -d '\000-\010\013\014\016-\037\177' | tr '\t\n\r
 SAN_AWK='
 # Byte cap: under LC_ALL=C substr() caps BYTES. GNU cut -c was already byte-based on Linux, so Linux
 # output is unchanged; BSD cut hosts formerly capped characters.
+# Contract (FR-9, DEC-1159): 160 bytes on every host; the cut may end inside a multi-byte UTF-8 sequence.
 function san(s) {
   gsub(/\000/, "", s)
+  # Deletions FIRST (NUL above, then C0 / DEL): a deletion that ran after the class replacement would re-join a
+  # UTF-8 lead byte and its continuation around a deleted byte into a live C1 / U+2028 character
+  # (Sprint 285 review round 2, DISS-C-001). Replacements never re-join bytes.
   gsub(/[\001-\010\013\014\016-\037\177]/, "", s)
+  # The decisions jq `s` filter class (cycle-138 FR-8): UTF-8 C1 (U+0080-U+009F) and U+2028 /
+  # U+2029 become one space, after the C0 strip; < and > are NOT replaced in the KF twins.
+  gsub(/\302[\200-\237]/, " ", s)
+  gsub(/\342\200[\250\251]/, " ", s)
   gsub(/[\t\n\r]/, " ", s)
   gsub(/  +/, " ", s)
   sub(/^ /, "", s); sub(/ $/, "", s)
@@ -98,7 +108,7 @@ emit_kf(){
   # **Status**/**Symptom**/**Recurrence count** line of that entry wins. Recurrence
   # is reduced to a leading integer (5+ -> 5, >=7 -> 7); non-numeric (many/every/
   # n/a) -> "?". Bodies are UNTRUSTED — sanitized at surfacing by san() (its awk twin in SAN_AWK).
-  awk "$SAN_AWK"'
+  LC_ALL=C awk "$SAN_AWK"'
     function fieldval(line, label,   reA, reB, reC, v) {
       # Three field-line variants, each with an optional "- " list marker:
       #   A) **Label**: value                 (colon outside the bold)
@@ -174,7 +184,7 @@ emit_vision(){
     fi
     # One awk per file: first **ID**: vision-N (else the file stem), first **Status**: and first
     # "# Vision:" line, each san()-ed in awk. Only refs_of stays a separate (untouched) pipeline.
-    printf '%s\t%s\n' "$(BN="$bn" awk "$SAN_AWK"'
+    printf '%s\t%s\n' "$(BN="$bn" LC_ALL=C awk "$SAN_AWK"'
       !hi && match($0, /^\*\*ID\*\*: *vision-[0-9]+/) {
         hi = 1; id = substr($0, RSTART, RLENGTH); match(id, /vision-[0-9]+/); id = substr(id, RSTART, RLENGTH)
       }
@@ -188,7 +198,7 @@ emit_vision(){
 }
 emit_lore(){
   local f="${G}/lore/index.yaml"; [[ -f "$f" ]] || return 0
-  awk "$SAN_AWK"'
+  LC_ALL=C awk "$SAN_AWK"'
     /^[[:space:]]*-[[:space:]]*id:[[:space:]]*/ { id=$0; sub(/^[[:space:]]*-[[:space:]]*id:[[:space:]]*/,"",id); have=1; st="" }
     have && /^[[:space:]]*status:[[:space:]]*/ {
       st=$0; sub(/^[[:space:]]*status:[[:space:]]*/,"",st); have=0
@@ -201,7 +211,7 @@ emit_handoff(){
   local f="${G}/handoffs/INDEX.md"; [[ -f "$f" ]] || return 0
   # Fields split on "|" like the former `IFS='|' read -r _ hid file _from _to topic ts _rest`. Exits 1
   # when no row matches, as the grep it replaces did (pipefail/errexit semantics preserved).
-  awk "$SAN_AWK"'
+  LC_ALL=C awk "$SAN_AWK"'
     /^\| *sha256:[a-f0-9]+ *\|/ {
       m = 1; split($0, a, "|")
       printf "handoff\t%s\t%s\t%s\tgrimoires/loa/handoffs/%s\t\n", san(a[2]), san(a[7]), san(a[6]), san(a[3])
@@ -216,7 +226,7 @@ emit_notes(){
   # A final line with no trailing newline was never seen by the `while read` loop this replaces, so
   # it is dropped here too (unterminated=1): rows are emitted one record late and the last is held back.
   local unterminated=0; [[ -n "$(tail -c1 "$f")" ]] && unterminated=1
-  awk -v unterminated="$unterminated" "$SAN_AWK"'
+  LC_ALL=C awk -v unterminated="$unterminated" "$SAN_AWK"'
     { if (pend != "") { print pend; pend = "" } }
     /^## / { pend = sprintf("notes\tL%d\t\t%s\tgrimoires/loa/NOTES.md#L%d\t", NR, san(substr($0, 4)), NR) }
     END { if (pend != "" && !unterminated) print pend }
@@ -419,7 +429,7 @@ render_md(){
 parse_args "$@"
 require_jq
 if [[ "$MODE" == "tsv" ]]; then collect; exit 0; fi
-mkdir -p "${PROJECT_ROOT}/.run"
+( umask 077; mkdir -p -- "${PROJECT_ROOT}/.run" )
 JSON="$(to_json)"
 
 case "$MODE" in

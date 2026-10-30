@@ -66,10 +66,14 @@ if [[ "$*" == *"releases/tags/"* ]]; then
 elif [[ "$*" == *"releases/81"* ]]; then
     cat "${GH_LOG}.release"
 elif [[ "$*" == *"--method POST"* && "$*" == *"/releases "* ]]; then
+    # bd-qyvju: an empty request body is refused as GitHub would (an argv-borne body above MAX_ARG_STRLEN never
+    # reaches jq, and the pipeline hands gh an empty request)
+    cat > "${GH_LOG}.release-request"
+    [[ -s "${GH_LOG}.release-request" ]] || { echo "simulated 422 empty body" >&2; exit 1; }
     if [[ "${GH_BODY_REWRITE:-}" == caret ]]; then
         # GitHub stores a literal \u00XX escape of a C0 control (00-1F) or DEL (7F) in a release body as caret
         # notation: \u0000 -> \^@, \u001f -> \^_, \u007f -> \^? (observed publishing v2.0.0-rc.9, KF-064).
-        jq '. + {id:81}' | python3 -I -c '
+        jq '. + {id:81}' "${GH_LOG}.release-request" | python3 -I -c '
 import json, re, sys
 r = json.load(sys.stdin)
 def caret(m):
@@ -78,13 +82,14 @@ def caret(m):
 r["body"] = re.sub(r"\\u00([01][0-9a-fA-F]|7[fF])", caret, r.get("body", ""))
 print(json.dumps(r))' > "${GH_LOG}.release"
     else
-        jq '. + {id:81}' > "${GH_LOG}.release"
+        jq '. + {id:81}' "${GH_LOG}.release-request" > "${GH_LOG}.release"
     fi
     cat "${GH_LOG}.release"
 elif [[ "$*" == *"repos/test/repo/issues/7" && "$*" != *"--method POST"* ]]; then
     printf '{"number":7,"url":"https://api.github.com/repos/test/repo/issues/7"}\n'
 elif [[ "$*" == *"--method POST"* ]]; then
     cat > "${GH_LOG}.request"
+    [[ -s "${GH_LOG}.request" ]] || { echo "simulated 422 empty body" >&2; exit 1; }
     if [[ "${GH_MODE:-}" == empty ]]; then exit 0; fi
     printf '{"id":73,"html_url":"https://github.com/test/repo/issues/7#issuecomment-73"}\n'
 elif [[ "$*" == *"issues/comments/73"* ]]; then
@@ -93,6 +98,26 @@ elif [[ "$*" == *"issues/comments/73"* ]]; then
 fi
 SH
     chmod +x "$CASE_DIR/bin/gh"
+    # bd-qyvju: a jq logging wrapper records the argv of every jq call (the publish path's request bodies must not
+    # be on it); JQ_FAIL_RAWFILE=1 fails only a call that reads the publisher's `--rawfile body` operand (the jq-failure
+    # fixture) — the suite's own `--rawfile b` helpers keep working (Sprint 284 review round 2, DISS-C-003). The log
+    # append is skipped when JQ_LOG is unset (a callee that scrubs the environment would otherwise get an `ambiguous
+    # redirect` on stderr). The real binary is resolved once, before the stub directory is prepended.
+    JQ_REAL="$(command -v jq)"
+    export JQ_REAL JQ_LOG="$CASE_DIR/jq.log"
+    cat > "$CASE_DIR/bin/jq" <<'SH'
+#!/usr/bin/env bash
+[[ -n "${JQ_LOG:-}" ]] && printf '%s\n' "$*" >> "$JQ_LOG"
+if [[ "${JQ_FAIL_RAWFILE:-}" == 1 ]]; then
+    prev=""
+    for a in "$@"; do
+        if [[ "$prev" == --rawfile && "$a" == body ]]; then echo "simulated jq failure" >&2; exit 2; fi
+        prev="$a"
+    done
+fi
+exec "$JQ_REAL" "$@"
+SH
+    chmod +x "$CASE_DIR/bin/jq"
     export PATH="$CASE_DIR/bin:$PATH"
 }
 
@@ -1167,4 +1192,138 @@ print(len(n), all(not x.startswith("float") for x in n))' "$fixture")" = "10 Tru
     printf '{"a":9007199254740991,"b":-9007199254740991,"c":0,"d":-3}' > "$CASE_DIR/bounds.json"
     bash -c 'source "$1"; jcs_stdlib_file "$2"' _ "$SOURCED" "$CASE_DIR/bounds.json" > "$CASE_DIR/b.stdlib"
     python3 "$ROOT/.claude/scripts/lib/jcs-helper.py" < "$CASE_DIR/bounds.json" | cmp - "$CASE_DIR/b.stdlib"
+}
+
+# ---------------------------------------------------------------------------
+# bd-qyvju (cycle-138 C-2, FR-2): the publisher's request bodies reach jq through a process substitution
+# (--rawfile body <(printf '%s' …)), never argv: Linux refuses to exec an argument above MAX_ARG_STRLEN
+# (131 072 bytes), so an argv-borne body that large never reaches jq and gh is handed an empty request.
+# ---------------------------------------------------------------------------
+
+# body_file <out> <marker> <hex code point> <count>: "<marker> " + <count> copies of the character + "\nend"
+body_file() {
+    python3 -I -c 'import sys; sys.stdout.buffer.write((sys.argv[1] + " " + chr(int(sys.argv[2], 16)) * int(sys.argv[3]) + "\nend").encode("utf-8"))' "$2" "$3" "$4" > "$1"
+}
+
+# char_count <file>: the UTF-8 character count (GitHub's limits count characters, MAX_ARG_STRLEN counts bytes)
+char_count() { python3 -I -c 'import sys; print(len(open(sys.argv[1], encoding="utf-8").read()))' "$1"; }
+
+# plant_body <release_body|notification_body> <file>: the candidate carries the file's exact bytes; the notes keep a
+# true digest; the candidate is re-canonicalised and re-approved
+plant_body() {
+    local sha
+    if [[ "$1" == release_body ]]; then
+        sha="$(sha256sum "$2" | cut -d' ' -f1)"
+        jq --rawfile b "$2" --arg sha "$sha" '.release_body = $b | .release_notes_sha256 = $sha' "$CANDIDATE" > "$CASE_DIR/c"
+    else
+        jq --rawfile b "$2" '.notification_body = $b' "$CANDIDATE" > "$CASE_DIR/c"
+    fi
+    mv "$CASE_DIR/c" "$CANDIDATE"
+    recanon "$CANDIDATE"
+    reapprove
+}
+
+STATE_JSON_REL=".run/post-merge-state.json"
+
+@test "bd-qyvju (a): a release body above 131 072 bytes (within 125 000 characters) publishes DONE with one POST" {
+    generate
+    body_file "$CASE_DIR/notes.txt" BODYMARK-7f3a91c2-release e9 70000
+    [ "$(wc -c < "$CASE_DIR/notes.txt")" -gt 131072 ]
+    [ "$(char_count "$CASE_DIR/notes.txt")" -le 125000 ]
+    plant_body release_body "$CASE_DIR/notes.txt"
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 0 ] || { echo "publish status=$status"; printf '%s\n' "$output" | tail -5; return 1; }
+    jq -e '.state == "DONE" and .phases.release.status == "completed" and .phases.release.result.verified == true and .phases.release.result.id == 81' "$PROJECT_ROOT/$STATE_JSON_REL"
+    [ "$(grep -c -- '--method POST repos/test/repo/releases ' "$GH_LOG")" = 1 ]
+    # GitHub received exactly the sealed bytes (no trailing newline added by the process substitution)
+    jq -j '.body' "${GH_LOG}.release-request" | cmp - "$CASE_DIR/notes.txt"
+}
+
+@test "bd-qyvju (b): a comment body above 131 072 bytes (within 65 536 characters) is posted and its read-back verified" {
+    generate
+    body_file "$CASE_DIR/summary.txt" BODYMARK-7f3a91c2-notify 20ac 60000
+    [ "$(wc -c < "$CASE_DIR/summary.txt")" -gt 131072 ]
+    [ "$(char_count "$CASE_DIR/summary.txt")" -le 65536 ]
+    plant_body notification_body "$CASE_DIR/summary.txt"
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 0 ] || { echo "publish status=$status"; printf '%s\n' "$output" | tail -5; return 1; }
+    jq -e '.state == "DONE" and .phases.notify.status == "completed" and .phases.notify.result.id == 73 and .phases.notify.result.verified == true' "$PROJECT_ROOT/$STATE_JSON_REL"
+    [ "$(grep -c -- '--method POST repos/test/repo/issues/7/comments ' "$GH_LOG")" = 1 ]
+    grep -q 'issues/comments/73' "$GH_LOG"
+    jq -j '.body' "${GH_LOG}.request" | cmp - "$CASE_DIR/summary.txt"
+}
+
+@test "bd-qyvju (c)+(d): both bodies oversized publish DONE; their markers never reach the argv of gh or jq" {
+    generate
+    body_file "$CASE_DIR/notes.txt" BODYMARK-7f3a91c2-release e9 70000
+    body_file "$CASE_DIR/summary.txt" BODYMARK-7f3a91c2-notify 20ac 60000
+    plant_body release_body "$CASE_DIR/notes.txt"
+    plant_body notification_body "$CASE_DIR/summary.txt"
+    : > "$JQ_LOG"; : > "$GH_LOG"
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 0 ] || { echo "publish status=$status"; printf '%s\n' "$output" | tail -5; return 1; }
+    jq -e '.state == "DONE" and .phases.release.result.verified == true and .phases.notify.result.verified == true' "$PROJECT_ROOT/$STATE_JSON_REL"
+    jq -j '.body' "${GH_LOG}.release-request" | cmp - "$CASE_DIR/notes.txt"
+    jq -j '.body' "${GH_LOG}.request" | cmp - "$CASE_DIR/summary.txt"
+    if grep -q 'BODYMARK-7f3a91c2' "$GH_LOG" "$JQ_LOG"; then
+        grep -n 'BODYMARK-7f3a91c2' "$GH_LOG" "$JQ_LOG" | cut -c1-120; echo "a body reached argv"; return 1
+    fi
+    # release POST, comment POST, comment read-back: each read its body from a /dev/fd path
+    [ "$(grep -c -- '--rawfile body /dev/fd/' "$JQ_LOG")" = 3 ] || { grep -- '--rawfile' "$JQ_LOG" | cut -c1-120; return 1; }
+}
+
+@test "bd-qyvju (d): small release and comment bodies carrying a marker publish DONE without the marker on any argv" {
+    generate
+    printf 'BODYMARK-5c1e0b77-release small notes' > "$CASE_DIR/notes.txt"
+    printf 'BODYMARK-5c1e0b77-notify small summary' > "$CASE_DIR/summary.txt"
+    plant_body release_body "$CASE_DIR/notes.txt"
+    plant_body notification_body "$CASE_DIR/summary.txt"
+    : > "$JQ_LOG"; : > "$GH_LOG"
+    export GH_MODE=ok
+    run publish
+    [ "$status" -eq 0 ] || { echo "publish status=$status"; printf '%s\n' "$output" | tail -5; return 1; }
+    jq -e '.state == "DONE"' "$PROJECT_ROOT/$STATE_JSON_REL"
+    if grep -q 'BODYMARK-5c1e0b77' "$GH_LOG" "$JQ_LOG"; then
+        grep -n 'BODYMARK-5c1e0b77' "$GH_LOG" "$JQ_LOG" | cut -c1-160; echo "a body reached argv"; return 1
+    fi
+}
+
+@test "bd-qyvju (e): the three publish body sites read --rawfile from a process substitution; no body on argv, no temp file" {
+    local rel ntf
+    rel="$(sed -n '/^phase_release() {/,/^}/p' "$SCRIPT")"
+    ntf="$(sed -n '/^phase_notify() {/,/^}/p' "$SCRIPT")"
+    [ -n "$rel" ] && [ -n "$ntf" ]
+    # neither the notes nor the summary is an --arg value in either function (the release read-back's
+    # --arg body "$body_verdict" carries the short comparison verdict, not a body)
+    [ "$(printf '%s\n%s\n' "$rel" "$ntf" | grep -c -- '--arg [a-z_]* "\$\(notes\|summary\)"')" = 0 ]
+    [ "$(printf '%s\n' "$rel" | grep -cF -- "--rawfile body <(printf '%s' \"\$notes\")")" = 1 ]
+    [ "$(printf '%s\n' "$ntf" | grep -cF -- "--rawfile body <(printf '%s' \"\$summary\")")" = 2 ]
+    [ "$(grep -c -- '--rawfile body <(printf' "$SCRIPT")" = 3 ]
+    # no temp file and no trap for the bodies: phase_notify has no mktemp; phase_release keeps only the read-back
+    # comparison's pre-existing stderr capture (sprint-bug-283)
+    [ "$(printf '%s\n' "$ntf" | grep -c 'mktemp')" = 0 ]
+    [ "$(printf '%s\n' "$rel" | grep -c 'mktemp')" = 1 ]
+    [ "$(printf '%s\n' "$rel" | grep -c 'release-body-err')" = 1 ]
+    [ "$(printf '%s\n%s\n' "$rel" "$ntf" | grep -c '\btrap\b')" = 0 ]
+}
+
+@test "bd-qyvju (f): a jq failure building the release request records Release creation failed, receipt failed, one POST attempt" {
+    generate
+    export GH_MODE=ok JQ_FAIL_RAWFILE=1
+    run publish
+    [ "$status" -ne 0 ]
+    jq -e '.state == "FAILED" and .phases.release.status == "failed" and .phases.release.result.reason == "Release creation failed"' "$PROJECT_ROOT/$STATE_JSON_REL"
+    [ "$(grep -c -- '--method POST repos/test/repo/releases ' "$GH_LOG")" = 1 ]
+    [ "$(grep -c -- '--method POST repos/test/repo/issues' "$GH_LOG")" = 0 ]
+}
+
+@test "bd-qyvju (f): a jq failure building the comment request records Comment creation failed, receipt failed, one POST attempt" {
+    export GH_MODE=ok JQ_FAIL_RAWFILE=1
+    run invoke_notify
+    [ "$status" -ne 0 ]
+    jq -e '.phases.notify.status == "failed" and .phases.notify.result.reason == "Comment creation failed"' "$PROJECT_ROOT/$STATE_JSON_REL"
+    [ "$(grep -c -- '--method POST repos/test/repo/issues/7/comments ' "$GH_LOG")" = 1 ]
 }

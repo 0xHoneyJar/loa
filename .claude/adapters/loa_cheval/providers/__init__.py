@@ -41,18 +41,24 @@ def _adapter_class(name: str) -> Any:
     """Adapter class by name, preferring the copy cached in module globals so every
     path (registry, get_adapter, ``from loa_cheval.providers import X``) yields the
     SAME class object even if a test later evicts the adapter module from sys.modules
-    (the eager imports this replaces bound the class once, at package import)."""
-    return globals().get(name) or __getattr__(name)
+    (the eager imports this replaces bound the class once, at package import).
+    Presence, not truthiness, decides the cache hit (cycle-138 FR-15)."""
+    return globals()[name] if name in globals() else __getattr__(name)
+
+
+def _registry() -> Dict[str, Type[ProviderAdapter]]:
+    """The full type -> class dict, same contents and key order as the former eager
+    table, built on first call and cached in globals() as ``_ADAPTER_REGISTRY``.
+    Touched by tests and ``_ADAPTER_REGISTRY`` only; cheval's normal path resolves one
+    type via adapter_class_for_type (one adapter import, not all ten)."""
+    if "_ADAPTER_REGISTRY" not in globals():
+        globals()["_ADAPTER_REGISTRY"] = {t: _adapter_class(c) for t, c in _ADAPTER_TYPES.items()}
+    return globals()["_ADAPTER_REGISTRY"]
 
 
 def __getattr__(name: str) -> Any:
     if name == "_ADAPTER_REGISTRY":
-        # Full plain dict (type -> class), same contents and key order as the former eager
-        # table. Built on first touch (tests, cli_adapter_types) and cached in globals();
-        # cheval's normal path resolves one type via _ADAPTER_TYPES instead.
-        registry: Dict[str, Type[ProviderAdapter]] = {t: _adapter_class(c) for t, c in _ADAPTER_TYPES.items()}
-        globals()["_ADAPTER_REGISTRY"] = registry
-        return registry
+        return _registry()
     module = _ADAPTER_MODULES.get(name)
     if module is None:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -102,6 +108,17 @@ _ADAPTER_TYPES: Dict[str, str] = {
     "grok-headless": "GrokHeadlessAdapter",
 }
 
+# Provider type -> auth kind: "cli" = subscription-CLI subprocess (kind: cli dispatch),
+# "api" = HTTP / cloud API. Static, so cli_adapter_types() imports no adapter module;
+# tests/test_providers_registry.py imports every adapter once and pins this table to
+# each class's declared auth_type (headless <=> cli), so a renamed or new adapter
+# cannot silently diverge — the attribute stays the semantic (BB #966 round-2).
+_AUTH_KIND: Dict[str, str] = {
+    "openai": "api", "anthropic": "api", "openai_compat": "api", "google": "api", "bedrock": "api",
+    "codex-headless": "cli", "gemini-headless": "cli", "claude-headless": "cli",
+    "cursor-headless": "cli", "grok-headless": "cli",
+}
+
 
 def get_adapter(config: ProviderConfig) -> ProviderAdapter:
     """Get a provider adapter instance for the given config."""
@@ -121,18 +138,13 @@ def adapter_class_for_type(adapter_type: str) -> Optional[Type[ProviderAdapter]]
 def cli_adapter_types() -> frozenset:
     """Adapter types that dispatch via a subscription-CLI subprocess (kind: cli).
 
-    Derived from the registry so a NEW headless adapter is admitted by the
-    kind:cli dispatch path automatically — review #966 closed the gap where
-    cursor-headless was registered here but rejected by cheval's closed
-    escape-hatch list. Keyed on the adapter class's own auth_type contract,
-    not the name convention (BB #966 round-2): the attribute IS the semantic;
-    a rename cannot silently drop an adapter from CLI admission.
+    Derived from the static _AUTH_KIND table (no adapter import), which a test
+    pins to every registered class's own auth_type contract — review #966 closed
+    the gap where cursor-headless was registered here but rejected by cheval's
+    closed escape-hatch list, and BB #966 round-2 keyed admission on the attribute,
+    not the name convention: a rename or a new headless adapter fails that test.
     """
-    return frozenset(
-        t
-        for t, cls in (globals().get("_ADAPTER_REGISTRY") or __getattr__("_ADAPTER_REGISTRY")).items()
-        if getattr(cls, "auth_type", None) == "headless"
-    )
+    return frozenset(t for t, kind in _AUTH_KIND.items() if kind == "cli")
 
 
 __all__ = [

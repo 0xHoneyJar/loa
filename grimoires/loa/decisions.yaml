@@ -40628,3 +40628,2143 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1144"
+    created_at: "2026-10-29T02:11:39Z"
+    updated_at: "2026-10-29T02:11:39Z"
+    phase: "discovery"
+    category: "process"
+    summary: "cycle-138 planning grounded on the live REPO-MAP, finding anchors and cycle-137 gate artefacts; stale /ride reality (2026-05-04) not re-run"
+    decision: "The brownfield grounding uses the regenerated REPO-MAP (current at every System Zone commit), the exact file:line anchors each bead's finding recorded, and the cycle-137 review/audit/Bridgebuilder artefacts; the stale grimoires/loa/reality/ set is read for architecture framing only and /ride is not re-run. The PRD carries a grounding note instead of the 'skipped /ride' warning banner."
+    rationale: "Unattended: the skill asks the operator to choose between re-running /ride and proceeding on stale reality; fifteen beads with code anchors from findings less than two days old are better grounding than a 20-minute generic re-extraction, and REPO-MAP is a live structural reality."
+    alternatives_considered:
+      - option: "Run /ride --enriched first"
+        rejected_because: "20 minutes of generic extraction for beads whose anchors are already exact; unattended, it adds nothing the findings did not record"
+      - option: "Skip grounding with the warning banner"
+        rejected_because: "the work IS grounded — in finding anchors and REPO-MAP — so the banner would misstate it"
+    consequences:
+      positive:
+        - "every FR cites a file:line that a gate found"
+        - "no 20-minute detour"
+      negative:
+        - "the reality/ directory stays dated 2026-05-04"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "0f17ea02"
+    source: "grimoires/loa/context/cycle-138-brief.md; grimoires/loa/REPO-MAP.md; grimoires/loa/reality/ (2026-05-04); .claude/skills/discovering-requirements/resources/REFERENCE.md § Codebase Grounding"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:11:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "cycle-138-brief.md; REPO-MAP regenerated at fe52be893"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1145"
+    created_at: "2026-10-29T02:11:48Z"
+    updated_at: "2026-10-29T02:11:48Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "cycle-138 scope: three sprints — security + release path (bd-j34zb bd-qyvju bd-hyah6 bd-20bh1), hooks + KF surface, tests/guards — no release"
+    decision: "Fifteen beads in three sprints ordered by security exposure: Sprint 1 the two trust boundaries and the release path (profile-lib cache boundary, publisher POST argv, absent-chain third state, perf-cache umask); Sprint 2 the hooks and the KF surface (karpathy seam + symlink guards, KF row cap, C1 sanitiser, BWK/BSD verification); Sprint 3 tests, guards and the providers refactor. The cycle merges one PR; the rc.10 candidate the pipeline prepares is not published."
+    rationale: "The operator's instruction names 'the other 13 follow-up beads' after the release robot and the cache; severity order puts the per-tool-call trust surfaces first; a release is an operator decision (rc.9 is soaking) and nothing here changes user-visible behaviour."
+    alternatives_considered:
+      - option: "One sprint with all fifteen"
+        rejected_because: "fifteen red/fix pairs across hooks, libs, the publisher and tests exceed one review's attention; three gates catch more"
+      - option: "Publish rc.10 at the end"
+        rejected_because: "the operator said promote rc → 2.0.0 'later'; publishing is their call"
+    consequences:
+      positive:
+        - "security-first ordering"
+        - "each sprint has a coherent review surface"
+      negative:
+        - "three full gate passes (review + audit + dissent) for fifteen small items"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "0f17ea02"
+    source: "grimoires/loa/context/cycle-138-brief.md § Scope; grimoires/loa/context/cycle-138-followups.md"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:11:48Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "operator chat 2026-10-29; beads bd-j34zb … bd-qyvju (br show)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1146"
+    created_at: "2026-10-29T02:11:55Z"
+    updated_at: "2026-10-29T02:11:55Z"
+    phase: "discovery"
+    category: "scope"
+    summary: "cycle-138: bd-aceil may close as a documented BSD byte-cap contract if no BWK awk build is obtainable; bd-0h7kq is deferrable by a class-S row"
+    decision: "bd-aceil's acceptance has two terminal forms: (a) the KF awk programs verified under a BWK awk build and BSD cut with the byte-cap contract stated, or (b) when no BWK build can be obtained on the ship host, the contract is stated in the hook's header and the fixture test, the BWK verification stays UNVERIFIED with the reason, and a bead stays open for a macOS host. bd-0h7kq (providers dispatch refactor) is the lowest priority and may be deferred by a class-S row without failing the cycle."
+    rationale: "The Sprint 281 attempt could not obtain BWK awk (no yacc, upstream unreachable); a cycle must not block on a toolchain the host lacks; the refactor has no finding behind it beyond a review observation."
+    alternatives_considered:
+      - option: "Make BWK verification a hard acceptance criterion"
+        rejected_because: "it was already shown unobtainable on this host; the cycle would end HALTED on tooling"
+    consequences:
+      positive:
+        - "bounded exits for the two beads most likely to stall"
+      negative:
+        - "macOS behaviour of the KF hook may stay unverified another cycle"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "0f17ea02"
+    source: "beads bd-aceil, bd-0h7kq; Sprint 281 audit MED-001 (DEC-1123); cycle-138-brief.md § Scope"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:11:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "DEC-1123; a2a/sprint-281/auditor-sprint-feedback.md MED-001"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1147"
+    created_at: "2026-10-29T02:12:04Z"
+    updated_at: "2026-10-29T02:12:04Z"
+    phase: "discovery"
+    category: "process"
+    summary: "cycle-138 kickoff: ledger-lib create_cycle mis-numbered the cycle as cycle-099; id corrected by a recorded hand edit (KF-065, bd-d6dr5)"
+    decision: "The new entry's id and active_cycle were set to cycle-138-hardening-followups (the shape the lib wrote is otherwise kept); a known-failure entry records the mis-numbering with the lib lines as evidence; fixing _next_cycle_id is a bead for a later /bug, not this cycle's scope."
+    rationale: "A cycle id must be unique and chronological (a cycle-099 exists); the lib's counter logic is a separate defect with its own red test, outside the fifteen beads."
+    alternatives_considered:
+      - option: "Keep cycle-099 as the id"
+        rejected_because: "collides with the existing cycle-099 record and breaks the chronological naming every artefact relies on"
+    consequences:
+      positive:
+        - "the ledger stays consistent"
+      negative:
+        - "one hand edit to the ledger (state zone, recorded here)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "0f17ea02"
+    source: ".claude/scripts/ledger-lib.sh:340-352 (_next_cycle_id); grimoires/loa/ledger.json"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:12:04Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "kickoff commit on feature/cycle-138-hardening-followups; KF entry"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1148"
+    created_at: "2026-10-29T02:26:33Z"
+    updated_at: "2026-10-29T02:26:33Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-1: profile-lib trust check duplicated inline (no new sourced lib on the hot path) with a drift guard; dir mode from the existing stat c…"
+    decision: "The profile-lib cache trust check mirrors _gi_trusted_dir inside profile-lib.sh (ten lines) rather than through a new shared library sourced by every hook; a drift-guard test compares the invariant lines of both copies; the directory's mode and uid come from _loa_pl_id's existing stat extended with .run as a fourth path (the row is excluded from the cache id)."
+    rationale: "A new sourced file costs a read on every PostToolUse; the decisions cache set the pattern and the KF twins set the drift-guard technique; extending the stat keeps the karpathy warm path at its current spawn count."
+    alternatives_considered:
+      - option: "A shared cache-trust-lib.sh sourced by both"
+        rejected_because: "one more file read per hook invocation for ten lines"
+      - option: "A separate stat for the directory"
+        rejected_because: "one more spawn on the hottest path in the framework"
+    consequences:
+      positive:
+        - "zero added spawns"
+        - "two copies pinned identical"
+      negative:
+        - "ten duplicated lines"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 3, § 5.1"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:33Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "sdd.md § 3 spawn-budget paragraph"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1149"
+    created_at: "2026-10-29T02:26:36Z"
+    updated_at: "2026-10-29T02:26:36Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-2: publisher request bodies via jq --rawfile from printf-written temp files (sprint-bug-283 temp-dir pattern); no --arg body anywhere"
+    decision: "Release POST, notify POST and the notify read-back comparison build their JSON with --rawfile over a file written by the printf builtin inside a mktemp -d directory removed by a RETURN trap."
+    rationale: "The read-back side was fixed this way in sprint-bug-283; the per-argument cap is 131 072 bytes; printf '%s' yields byte-exact content."
+    alternatives_considered:
+      - option: "Feed the body on jq's stdin"
+        rejected_because: "the request JSON is already piped to gh api --input -; two stdin consumers complicate the pipeline"
+    consequences:
+      positive:
+        - "no argv-borne bodies"
+      negative:
+        - "a temp directory per request"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 5.2"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:36Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "post-merge-orchestrator.sh:1286, 1488, 1502"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1150"
+    created_at: "2026-10-29T02:26:40Z"
+    updated_at: "2026-10-29T02:26:40Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-3: loa-status keeps audit_chain_summary as a string (valid excludes absent) and adds audit_chain {valid, absent, broken, total}; health…"
+    decision: "An absent chain file is reported as absent, never valid; the human line is byte-identical when nothing is absent or broken and otherwise reads 'V/7 validate (A absent, B broken)'; the JSON keeps the string and gains the object."
+    rationale: "Consumers parsing the string keep working; the integrity view can no longer be silenced by deleting a file."
+    alternatives_considered:
+      - option: "Change the string format"
+        rejected_because: "breaks any consumer of audit_chain_summary"
+    consequences:
+      positive:
+        - "additive JSON"
+        - "exact human wording only when healthy"
+      negative:
+        - "7/7 becomes rarer on machines missing chain files"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 4, § 5.3"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "loa-status.sh:425-434, 517-522"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1151"
+    created_at: "2026-10-29T02:26:43Z"
+    updated_at: "2026-10-29T02:26:43Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-4: every mkdir that can create .run/perf-cache runs inside a ( umask 077; … ) subshell — a builtin, no spawn"
+    decision: "zone-write-guard.sh:261 and any other creator found by grep wrap the mkdir in a umask-077 subshell so a fresh directory is 0700 regardless of the user's umask."
+    rationale: "The D-5.3 tightening exists because the creator inherited umask 002; fixing the creator removes the need on fresh mounts."
+    alternatives_considered:
+      - option: "chmod after mkdir"
+        rejected_because: "a spawn on a hook path and a window between create and chmod"
+    consequences:
+      positive:
+        - "no spawn"
+        - "no window"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 5.4"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:43Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "zone-write-guard.sh:255-264"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1152"
+    created_at: "2026-10-29T02:26:47Z"
+    updated_at: "2026-10-29T02:26:47Z"
+    phase: "architecture"
+    category: "security"
+    summary: "cycle-138 C-5: KARPATHY_CHECKPOINT_CMD honoured only under a bats marker, ignored silently otherwise; perf-spawn-budget passes the marker"
+    decision: "The checkpoint seam applies only when BATS_TEST_FILENAME or BATS_VERSION is set; outside bats the ambient variable is ignored with no stderr; the spawn-budget test adds the marker to its env -i allowlist."
+    rationale: "A WARN on a per-tool-call hook is noise; the seam has no non-bats consumer (grep)."
+    alternatives_considered:
+      - option: "WARN once and honour it"
+        rejected_because: "still executes an arbitrary same-uid command from the environment"
+    consequences:
+      positive:
+        - "seam closed outside tests"
+        - "no new output"
+      negative:
+        - "a non-bats consumer would need the marker"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 5.5"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "karpathy-surgical-diff-check.sh:62; perf-spawn-budget.bats:275"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1153"
+    created_at: "2026-10-29T02:26:51Z"
+    updated_at: "2026-10-29T02:26:51Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-6: KF SessionStart surface capped at a constant 40 rows ordered recurrence desc then id desc, plus one elision line; no config key"
+    decision: "KF_SURFACE_MAX_ROWS=40 inside the hook; rows sorted in awk; ' … and K more — see grimoires/loa/known-failures.md' when elided; output byte-identical when the file has ≤ 40 entries."
+    rationale: "A volume bound was an audit finding; recurrence-first ordering keeps structural failures visible; the PRD forbids new config keys without need."
+    alternatives_considered:
+      - option: "A loa_knob-read cap"
+        rejected_because: "a config key for a one-line constant nobody has asked to tune"
+    consequences:
+      positive:
+        - "bounded context cost"
+        - "deterministic"
+      negative:
+        - "the live file's 65 entries change to 40 + 1 line (enumerated)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 4, § 5.6"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:51Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "loa-kf-surface.sh:88-140; known-failures.md 65 entries"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1154"
+    created_at: "2026-10-29T02:26:54Z"
+    updated_at: "2026-10-29T02:26:54Z"
+    phase: "architecture"
+    category: "security"
+    summary: "cycle-138 C-6: the UTF-8 C1 pair \\302[\\200-\\237] becomes a space in san() and SAN_AWK, before the C0 strip, matching the decisions jq s filter"
+    decision: "One gsub added to both awk twins; the drift guard keeps them identical; mawk, busybox and gawk --posix parity on the fixture set."
+    rationale: "The decisions family already maps C1 to spaces; the KF twins let them through to the session context."
+    alternatives_considered:
+      - option: "Strip C1 to nothing"
+        rejected_because: "diverges from the jq filter's space; word boundaries matter in a one-line symptom"
+    consequences:
+      positive:
+        - "aligned sanitisers"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 5.6"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "loa-kf-surface.sh:97-104"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1155"
+    created_at: "2026-10-29T02:26:58Z"
+    updated_at: "2026-10-29T02:26:58Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-7: loa_knob presence travels as a first-line kind token (present|absent|miss|stale) before the rendered value — no sentinel strings, no…"
+    decision: "The jq reads print a kind line then the value; bash splits on the first newline; a value equal to a former sentinel is a value because the kind says present."
+    rationale: "Removes the collision class without a second jq call or a JSON decode per knob."
+    alternatives_considered:
+      - option: "JSON-tagged result decoded by a second jq"
+        rejected_because: "one more spawn per knob on the hot path"
+    consequences:
+      positive:
+        - "zero spawns"
+        - "19 call sites untouched"
+      negative:
+        - "a multi-line value keeps today's command-substitution semantics (trailing newlines stripped)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 5.7"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:26:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "profile-lib.sh:236-288"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1156"
+    created_at: "2026-10-29T02:27:01Z"
+    updated_at: "2026-10-29T02:27:01Z"
+    phase: "architecture"
+    category: "scope"
+    summary: "cycle-138 C-9: the providers dispatch refactor is implemented only within a 60-line diff with every provider test green; otherwise deferred by a cl…"
+    decision: "A bound keeps the lowest-priority item from consuming a review round; the refactor's observable is pinned by one test or the row records the deferral."
+    rationale: "No finding beyond a review observation stands behind the bead."
+    alternatives_considered:
+      - option: "Drop the bead"
+        rejected_because: "the operator listed all follow-ups for this cycle"
+    consequences:
+      positive:
+        - "bounded"
+      negative:
+        - "may ship nothing for FR-15"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "34e442de"
+    source: "grimoires/loa/sdd.md § 5.9; DEC-1146"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:27:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "providers/__init__.py:26-60"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1157"
+    created_at: "2026-10-29T02:31:14Z"
+    updated_at: "2026-10-29T02:31:14Z"
+    phase: "discovery"
+    category: "security"
+    summary: "PRD 1.1: profile-lib refuses a group/world-writable .run (cache off, live read), never chmods from the hook path; cache file uid-owned, 1 link"
+    decision: "FR-1's trust predicate refuses a writable .run instead of tightening it: profile-lib runs on the PostToolUse path and must not mutate a shared directory; the D-5.3 chmod go-w stays in grimoire-index.sh (a script). The cache file itself must be uid-owned, not group/other-writable, a regular non-symlink file with one link; after a directory becomes trusted again the existing cache is not read (rebuild)."
+    rationale: "A read path that chmods a shared directory is a surprising side effect on every edit; refusing costs one live read. Hard links and foreign files were raised by both Flatline voices."
+    alternatives_considered:
+      - option: "Tighten from profile-lib as grimoire-index does"
+        rejected_because: "a mutation from a per-tool-call read path"
+    consequences:
+      positive:
+        - "no side effects on hooks"
+        - "simpler predicate"
+      negative:
+        - "a group-writable .run keeps the profile cache off until fixed by a script or the operator"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d00d5475"
+    source: "Flatline PRD review (cycle-138-prd-review.json) gpt item 'may FR-1 mutate .run from a read-path hook'; prd.md FR-1"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:31:14Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "prd.md 1.1 FR-1; Appendix D rows B1, B2, B4"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1158"
+    created_at: "2026-10-29T02:31:20Z"
+    updated_at: "2026-10-29T02:31:20Z"
+    phase: "discovery"
+    category: "security"
+    summary: "PRD 1.1: KARPATHY_CHECKPOINT_CMD ignored in production; bats-marker gate is a same-uid test seam; the profile config seam keeps its WARN"
+    decision: "No WARN-and-honour option: outside bats the variable is ignored silently; inside bats it is honoured. The PRD states that BATS_* markers are ambient and defend only against accidental honouring, which is the seam's purpose; the profile-lib config redirection keeps its once-per-process WARN because it redirects a read, not a command."
+    rationale: "A hostile same-uid environment already controls the hook; the seam must not become command execution in production."
+    alternatives_considered:
+      - option: "WARN once and honour"
+        rejected_because: "still executes an arbitrary command from the environment"
+    consequences:
+      positive:
+        - "seam closed outside tests"
+      negative:
+        - "no non-bats consumer possible"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d00d5475"
+    source: "Flatline PRD review blocker B3 and gpt seam items; prd.md FR-5"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:31:20Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "prd.md 1.1 FR-5"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1159"
+    created_at: "2026-10-29T02:31:28Z"
+    updated_at: "2026-10-29T02:31:28Z"
+    phase: "discovery"
+    category: "architecture"
+    summary: "PRD 1.1: KF cap selects by recurrence/id but displays in file order; byte ceiling ≤ 8 KiB; FR-9 form (b) only after a prebuilt BWK attempt"
+    decision: "The 40 selected rows print in today's file order so ≤ 40 entries are byte-identical and > 40 differs only by elided rows plus one line; the row cap implies a byte ceiling (≤ 8 KiB, worst-case rows tested). FR-9 form (b) may be invoked only after an attempt to obtain a prebuilt BWK awk (original-awk package, nawk, container) is recorded; form (b) closes bd-aceil with the contract landed and opens a linked macOS verification bead."
+    rationale: "Separating selection from presentation keeps the parity criterion exact; a source build was the only attempt last time."
+    alternatives_considered:
+      - option: "Display in ranked order"
+        rejected_because: "changes every line's position even when nothing is elided"
+    consequences:
+      positive:
+        - "byte-identical ≤ 40"
+        - "bounded context cost"
+      negative:
+        - "the elided set is not visibly ranked"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d00d5475"
+    source: "Flatline PRD review items on FR-7 ordering/byte bound and FR-9 prebuilt BWK; prd.md FR-7, FR-9"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:31:28Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "prd.md 1.1 FR-7, FR-9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1160"
+    created_at: "2026-10-29T02:31:34Z"
+    updated_at: "2026-10-29T02:31:34Z"
+    phase: "discovery"
+    category: "process"
+    summary: "PRD 1.1: unattended halt protocol — gates missed after the dissent budget or T+20 h HALT at the sprint boundary; PR ships completed sprints"
+    decision: "When a sprint's review or audit does not reach All good / APPROVED within the dissent budget, or the one-day budget is exceeded, the run HALTs at the sprint boundary with the HALT checkpoint written; the PR is opened with the completed sprints only; the remaining beads stay open with a class-S row naming the stop; schedule slip may defer FR-13, FR-15 and FR-9 by a row with a successor bead, and the zero-open-beads KPI counts deferred-with-row as closed for this cycle."
+    rationale: "The cycle must have a defined end that is not 'keep retrying'."
+    alternatives_considered:
+      - option: "Retry gates until green"
+        rejected_because: "unbounded unattended spend and no operator checkpoint"
+    consequences:
+      positive:
+        - "bounded"
+        - "every stop recorded"
+      negative:
+        - "a HALTed cycle ships less than planned"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d00d5475"
+    source: "Flatline PRD review gpt item 'unattended halt protocol'; cycle-137 sprint plan § Execution"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:31:34Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "prd.md 1.1 § Constraints and FR-16"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1161"
+    created_at: "2026-10-29T02:31:38Z"
+    updated_at: "2026-10-29T02:31:38Z"
+    phase: "discovery"
+    category: "process"
+    summary: "PRD 1.1: each sprint's verdicts bind to its head; the final sprint binds to the PR head after a whole-head parity gate over every touched entry"
+    decision: "G-3 and FR-16 require: sprint N's All good and APPROVED on sprint N's head (docs-only tails allowed and listed); the last sprint's gates run on the PR head and include the whole-head parity gate (old mirror = the pre-cycle head, new mirror = the PR head) over every entry point any sprint touched; the merge gate compares git diff --quiet <PR head> <merge commit>."
+    rationale: "Later sprints change files earlier sprints reviewed; the final gate re-validates the aggregate without re-running three reviews."
+    alternatives_considered:
+      - option: "Require every sprint head to equal the merged code"
+        rejected_because: "impossible with three sequential sprints"
+    consequences:
+      positive:
+        - "one explicit final revalidation"
+      negative:
+        - "the last sprint's review is the largest"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "discovering-requirements/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d00d5475"
+    source: "Flatline PRD review opus item 880 (final-head revalidation); DEC-1134 pattern"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:31:38Z"
+        from: null
+        to: "proposed"
+        by: "agent:discovering-requirements"
+        evidence: "prd.md 1.1 G-3, FR-16"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1162"
+    created_at: "2026-10-29T02:50:03Z"
+    updated_at: "2026-10-29T02:50:03Z"
+    phase: "sprint-planning"
+    category: "planning"
+    summary: "cycle-138 sprint plan: three sprints by exposure (284 trust boundaries + release path; 285 hooks + KF surface; 286 guards/refactor + PR-head gates)"
+    decision: "Sprint 284 lands C-4, C-3, C-2, C-1 (FR-1 … FR-4); Sprint 285 lands C-5 and C-6 (FR-5 … FR-9); Sprint 286 lands C-7, C-8, C-9 (FR-10 … FR-15), the whole-head parity gate and the final verdicts bound to the PR head; the ship section runs after Sprint 286 COMPLETED."
+    rationale: "The profile-lib and publisher findings carry the highest exposure and the KF cap changes live output; closing them first means a halt after any sprint still ships the security rows (DEC-1160)."
+    alternatives_considered:
+      - option: "One sprint per component"
+        rejected_because: "ten gate pairs for fifteen small beads"
+      - option: "Two sprints"
+        rejected_because: "the final sprint would mix the parity gate with four System Zone changes"
+    consequences:
+      positive:
+        - "halt-safe ordering"
+        - "one implementer per file per sprint"
+      negative:
+        - "Sprint 3 waits on two gate pairs"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "006e6f11"
+    source: "grimoires/loa/sprint.md § Sprint Overview"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:50:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "grimoires/loa/sprint.md"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1163"
+    created_at: "2026-10-29T02:50:08Z"
+    updated_at: "2026-10-29T02:50:08Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "cycle-138 Task 3.2 (test guards only) lands as one commit exempt from the red/fix pair; its one-off red runs are recorded in the report"
+    decision: "FR-12, FR-13 and FR-14 change only tests; the guard commit proves itself by one-off red runs (a mutation of headroom + 1 spawns; a reaper never invoked; a missing skip-list entry) recorded with command and output in the Sprint 3 report rather than by a committed red test of a test."
+    rationale: "A red test for a test guard would need a mutated copy of the guard in the tree; the one-off run gives the same evidence without the artefact."
+    alternatives_considered:
+      - option: "Commit the mutated guard as a red commit"
+        rejected_because: "a knowingly broken guard in history"
+    consequences:
+      positive:
+        - "evidence kept"
+        - "no broken commit"
+      negative:
+        - "the red evidence lives in a report, not in CI"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "006e6f11"
+    source: "grimoires/loa/sprint.md Task 3.2"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:50:08Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "grimoires/loa/sprint.md Task 3.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1164"
+    created_at: "2026-10-29T02:50:12Z"
+    updated_at: "2026-10-29T02:50:12Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "cycle-138 beads: three epics + 23 tasks with blocking edges in execution order, cross-sprint edges gate→next prep, ship bead last (no parent edges)"
+    decision: "Epics bd-fm8qc (284), bd-ei4dy (285), bd-685o9 (286); tasks created flat with sprint labels and blocked-by edges (no parent-child edges, KF-005); the fifteen follow-up beads stay open until their task lands and are closed provisionally with the landing sha."
+    rationale: "Parent-child edges fail on this database; blocking edges give br ready a usable order across the whole cycle."
+    alternatives_considered:
+      - option: "Reuse the fifteen follow-up beads as the sprint tasks"
+        rejected_because: "a task maps to one to three beads and carries lead work the beads do not"
+    consequences:
+      positive:
+        - "schedulable graph"
+      negative:
+        - "26 extra beads to close"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "006e6f11"
+    source: "~/.cache/loa/cycle-138/beads-map.txt"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T02:50:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "beads-map.txt"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1165"
+    created_at: "2026-10-29T03:01:50Z"
+    updated_at: "2026-10-29T03:01:50Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-2: publisher bodies reach jq --rawfile through a process substitution fed by printf (no temp file, no trap); supersedes D-2.1's mechanism"
+    decision: "The three body sites use --rawfile body <(printf '%s' \"$text\"); the 1.1 helper (_pm_body_file with a RETURN trap in its own scope) is withdrawn because a function-scoped RETURN trap fires when that function returns, deleting the file before the caller's jq runs."
+    rationale: "Process substitution hands jq a /dev/fd path, so the body is never on argv, nothing is created or cleaned up and no trap scope exists to clobber; jq reads --rawfile operands while parsing arguments, so the writer never blocks."
+    alternatives_considered:
+      - option: "Caller-owned temp dir with the RETURN trap in the phase function"
+        rejected_because: "two failure paths and a cleanup that process substitution does not need"
+      - option: "Helper assembling and printing the JSON"
+        rejected_because: "three different filters; more code than the one-token change"
+    consequences:
+      positive:
+        - "zero files"
+        - "unchanged failure path"
+      negative:
+        - "bash-only construct (the orchestrator is bash)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "991bdfc8"
+    source: "grimoires/loa/sdd.md § 5.2; § 11.F B1/B4/B6"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:01:50Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "Flatline SDD review 2026-10-29 blockers BSKP-001 ×2, BSKP-002; sdd.md § 5.2"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1166"
+    created_at: "2026-10-29T03:01:55Z"
+    updated_at: "2026-10-29T03:01:55Z"
+    phase: "architecture"
+    category: "security"
+    summary: "cycle-138 C-1: trust lifetime = the process; writer creates an absent .run 0700 (mkdir, no -p); grimoire-index repairs a legacy writable .run"
+    decision: "The predicate's sampled properties (owner, mode bits, type, link count) can be changed after sampling only by the same uid or by root, both outside the threat model, and replacing .run needs write access to the checkout root (the trust root), so no re-validation per access is required; the writer still re-checks -O and ! -L with builtins before the rename. An absent .run is created by the writer with mkdir (not -p) inside the umask-077 subshell and is trusted by construction; a concurrent creation fails mkdir and the cache stays off for the process. A pre-existing writable .run is REFUSED by profile-lib and repaired by grimoire-index's existing _gi_trusted_dir tightening on its next run (the repair owner); loa_profile names the reason meanwhile."
+    rationale: "Answers the Flatline trust-lifetime and repair-owner blockers without adding a spawn or a chmod to the hook path."
+    alternatives_considered:
+      - option: "Re-stat at every cache access"
+        rejected_because: "a spawn per knob on the hottest path for a property only we can change"
+      - option: "profile-lib chmods a uid-owned writable .run"
+        rejected_because: "DEC-1157: never chmod from the hook path"
+    consequences:
+      positive:
+        - "zero spawns"
+        - "repair owner exists (grimoire-index.sh:266-270)"
+      negative:
+        - "a 775 .run keeps the cache off until grimoire-index runs"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "991bdfc8"
+    source: "grimoires/loa/sdd.md § 3, § 5.1, § 6, § 9"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:01:55Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "Flatline SDD review blockers BSKP-002 (tightening refs), BSKP-003; grimoire-index.sh:263-277 at fe52be893"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1167"
+    created_at: "2026-10-29T03:01:59Z"
+    updated_at: "2026-10-29T03:01:59Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-3: audit_chain JSON adds not_applicable beside valid/absent/broken/total (V still includes n/a); verify-chains contract pinned"
+    decision: "The JSON object is {valid, absent, broken, not_applicable, total, primitives[]}; the verify-chains contract the classifier depends on is written down (one record per argument {i, path, ok}; exactly one matching record per index; rc 0/1 parsed; other rc or unparsable output → every existing chain broken; empty list → call skipped)."
+    rationale: "A consumer can read verified chains as valid − not_applicable without changing the PRD's sum invariant; the contract makes the duplicate/missing-index cases testable."
+    alternatives_considered:
+      - option: "Count n/a outside valid"
+        rejected_because: "breaks the PRD 1.1 invariant and the 7/7 healthy line"
+    consequences:
+      positive:
+        - "additive"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "991bdfc8"
+    source: "grimoires/loa/sdd.md § 5.3"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:01:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "Flatline SDD review M5, M20, M25; loa-status.sh:440-452"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1168"
+    created_at: "2026-10-29T03:02:03Z"
+    updated_at: "2026-10-29T03:02:03Z"
+    phase: "architecture"
+    category: "security"
+    summary: "cycle-138 C-5: trajectory guard anchored at the canonical root, one stat over every component below it + the day file; no realpath -m → refuse"
+    decision: "_traj_trusted compares realpath -m of TRAJ_DIR with realpath -m of REPO_ROOT joined to the relative path (only components below the root are constrained), runs ONE stat -Lc '%n|%u|%a|%h' over every directory between the root and TRAJ_DIR plus the day file, requires each component to be a uid-owned non-symlink directory with no g/o write and the file to be a uid-owned regular single-link file with no g/o write, and refuses when realpath -m is unavailable; the state dir and task file keep today's -L guards (out of FR-6's scope); spawns on the warn path only."
+    rationale: "Answers the intermediate-component blocker with one spawn, keeps the hot path at zero, and states that the bats marker gate is a footgun guard, not a security boundary."
+    alternatives_considered:
+      - option: "Descriptor-relative append (openat)"
+        rejected_because: "not expressible in bash without a helper binary"
+    consequences:
+      positive:
+        - "one stat"
+        - "anchored at the trust root"
+      negative:
+        - "BSD hosts refuse the append (warning still printed)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "991bdfc8"
+    source: "grimoires/loa/sdd.md § 5.5"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:02:03Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "Flatline SDD review BSKP-004, M12, M13, M14, M18, M21, M24, M31; karpathy-surgical-diff-check.sh:60-62, 162-165, 214-217"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1169"
+    created_at: "2026-10-29T03:02:07Z"
+    updated_at: "2026-10-29T03:02:07Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-6: KF top-K via max linear passes (no asort), numeric id, malformed recurrence = 0, tie → file position; LC_ALL=C per awk call"
+    decision: "The row cap selects with K passes of a linear scan picking the best unselected row by (recurrence desc, numeric id desc), prints the selected rows in file order, bounds every field (id regex, integer recurrence, 100-byte symptom) so 40 rows stay under 8 KiB by construction, and pins LC_ALL=C on each awk command in both twins with a UTF-8-parent parity case; the 100-byte cap contract (DEC-1159) is unchanged."
+    rationale: "mawk, busybox and BWK have no asort; the fields' bounds make the byte ceiling a consequence rather than a check."
+    alternatives_considered:
+      - option: "Trim the cap to a UTF-8 boundary"
+        rejected_because: "DEC-1159 fixed the contract; the fixture asserts downstream tolerance"
+    consequences:
+      positive:
+        - "portable"
+      negative:
+        - "O(K·n) — trivial at 40 × 65"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "991bdfc8"
+    source: "grimoires/loa/sdd.md § 5.6"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:02:07Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "Flatline SDD review M2, M3, M26, M35, M36"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1170"
+    created_at: "2026-10-29T03:02:12Z"
+    updated_at: "2026-10-29T03:02:12Z"
+    phase: "architecture"
+    category: "architecture"
+    summary: "cycle-138 C-7: loa_knob kind token on the LAST line with a newline guard (empty present value stays empty); descendant clause only for keys without *"
+    decision: "jq prints the rendered value then the kind token on the last line; bash splits on the last newline only when one exists (otherwise kind = whole output, value empty); the value's trailing newlines are stripped to keep today's command-substitution bytes; the descendant clause applies to floor entries containing no * and a pre-flight over the live config asserts none is newly forbidden."
+    rationale: "Command substitution strips trailing newlines, so a first-line token loses an empty present value (M8/M30); glob entries already match through test(globre) (M37)."
+    alternatives_considered:
+      - option: "First-line token"
+        rejected_because: "present + empty value collapses to the bare token"
+      - option: "JSON-tagged result"
+        rejected_because: "a second jq per knob"
+    consequences:
+      positive:
+        - "zero spawns"
+        - "parity kept"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "designing-architecture/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "991bdfc8"
+    source: "grimoires/loa/sdd.md § 5.7"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:02:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:designing-architecture"
+        evidence: "Flatline SDD review M8, M17, M30, M37"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1171"
+    created_at: "2026-10-29T03:31:10Z"
+    updated_at: "2026-10-29T03:31:10Z"
+    phase: "sprint-planning"
+    category: "architecture"
+    summary: "cycle-138 FR-3: JSON valid excludes n/a (valid+absent+broken+not_applicable == 7); displayed V = valid + n/a keeps the healthy 7/7 line"
+    decision: "audit_chain.valid counts verified chains only (5 when healthy); not_applicable is 2; valid + absent + broken + not_applicable == total (7). The human line and audit_chain_summary use the DISPLAYED count V = valid + not_applicable, so V + A + B == 7, the healthy line is byte-identical to today's 'Audit chain: 7/7 primitives validate.' and the empty-list fixture reads '2/7 validate (5 absent, 0 broken).'; an AC asserts JSON valid == 5 on the healthy fixture."
+    rationale: "Folding n/a into the JSON valid count would perpetuate the 'absence counted valid' defect FR-3 removes; keeping the displayed 7/7 preserves every consumer of the human line and the summary string."
+    alternatives_considered:
+      - option: "Healthy line 5/5"
+        rejected_because: "changes the live line and the summary string for every consumer"
+      - option: "Keep n/a inside JSON valid"
+        rejected_because: "the Flatline blocker: the JSON would still count non-chains as valid"
+    consequences:
+      positive:
+        - "one invariant per surface, both exact"
+      negative:
+        - "two counts to explain (JSON vs display)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "87e8bd56"
+    source: "grimoires/loa/sprint.md Task 1.2; sdd.md § 5.3; prd.md FR-3"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:31:10Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "Flatline sprint review 2026-10-29 SKP-001 ×2, M1, M34"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1172"
+    created_at: "2026-10-29T03:31:15Z"
+    updated_at: "2026-10-29T03:31:15Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "cycle-138 halt-path ship: PR from the last COMPLETED sprint head on a fresh branch, partial landings excluded, parity + scans + TAP on that head"
+    decision: "On HALT the ship runs from the last COMPLETED sprint's reviewed_head: a fresh branch ship/cycle-138-partial at that head (creating a branch is class S; the feature branch is never reset), the halted sprint's commits are excluded by construction, the whole-head parity gate (entry points touched by the completed sprints), the secret scans, manifests check and the full-suite TAP run on that head, the last completed sprint's verdicts (already bound to it) are re-confirmed verify-only, e2e part 1 covers the shipped goals and lists the deferred beads with class-S rows, and the PR body states the halt. The T+20 h budget starts at the run start (circuit-breaker timeout.started), covers the three sprints' implement + gates (about 17 h) and reserves about 3 h for S-1 … S-6; it is enforced at task and sprint boundaries, never mid-step; mid-ship before S-3 the PR stays open unmerged with a class-S row, after S-3 the remaining steps finish (bounded, at most 1 h)."
+    rationale: "The 1.1 plan promised to ship completed sprints on HALT while § Ship required Sprint 286 COMPLETED and never defined the PR head or how partial landings are excluded."
+    alternatives_considered:
+      - option: "Reset the feature branch to the last completed head"
+        rejected_because: "a reset is a class-H action"
+      - option: "Never ship on HALT"
+        rejected_because: "the security rows of Sprint 284 would wait for an operator for no reason"
+    consequences:
+      positive:
+        - "deterministic PR head"
+        - "no destructive git"
+      negative:
+        - "a second branch name to track"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "87e8bd56"
+    source: "grimoires/loa/sprint.md § Halt and failure paths"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:31:15Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "Flatline sprint review SKP-002 ×2, SKP-003, M10, M15, M19, M30"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1173"
+    created_at: "2026-10-29T03:31:22Z"
+    updated_at: "2026-10-29T03:31:22Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "cycle-138: a post-gate code change re-runs tests, full TAP, manifests, whole-head parity and secret scans before both verdicts re-bind"
+    decision: "After the final sprint's COMPLETED, every code change on the PR head (a blocking Bridgebuilder finding, a CI fix) lands red-first, then the touched test files, the full tests/unit TAP, the manifest regeneration, the whole-head parity gate and the secret scans run on the new head, and only then do the review and audit verdicts re-bind verify-only to the new SHA, citing those results; the PR body's parity statement is updated. Permitted tails after the bound head are docs-only commits listed in the verdict files."
+    rationale: "Verify-only re-binding without re-running the gates would let an unparitied change merge under a verdict taken on another SHA."
+    alternatives_considered:
+      - option: "Re-bind on the diff alone"
+        rejected_because: "the parity gate and the scans are what the verdicts attest"
+    consequences:
+      positive:
+        - "verdicts always name a gated SHA"
+      negative:
+        - "about 30 min per post-gate fix"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "87e8bd56"
+    source: "grimoires/loa/sprint.md § Ship S-2; § Halt and failure paths"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:31:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "Flatline sprint review SKP-009, M13, M31"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1174"
+    created_at: "2026-10-29T03:31:30Z"
+    updated_at: "2026-10-29T03:31:30Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "cycle-138 patch landing: kickoff-head patches applied in order onto the landing head (apply --check, -3, one return round); edges = landing order"
+    decision: "Implementers return a red patch and a fix patch (or one test-only patch) cut from their worktree at the sprint's kickoff head; the lead applies them in the plan's landing order onto the current landing head with git apply --check, falling back to git apply -3 and, when that fails, returning the patch once with the new head; an intra-sprint edge (Task 1.1 → Task 1.4) is realised by landing order, and the lead re-runs the dependent task's test command and parity (land.sh) on the landing head rather than resetting the dependent's worktree."
+    rationale: "Parallel worktrees cannot see each other's landings; the landing head is the only place sequential consistency is checked."
+    alternatives_considered:
+      - option: "Reset each worktree onto the previous landing"
+        rejected_because: "serialises the implementers and their parity runs"
+    consequences:
+      positive:
+        - "parallel implementers"
+        - "one definition of done per landing"
+      negative:
+        - "a patch may need one return round"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "87e8bd56"
+    source: "grimoires/loa/sprint.md § Execution"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:31:30Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "Flatline sprint review M4, M33"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1175"
+    created_at: "2026-10-29T03:31:35Z"
+    updated_at: "2026-10-29T03:31:35Z"
+    phase: "sprint-planning"
+    category: "process"
+    summary: "cycle-138 dissent/post-merge rules: envelope runs consume 1 of 3, then lead-only with a gap row; post-merge red → one fix-forward PR, else HALT"
+    decision: "Dissent runs: three per sprint; a run that returns an envelope (any voice count) consumes one, a run that dies before an envelope does not; once consumed, review rounds are lead-only (allowed) and the audit runs with run 3 or, if run 3 was used, lead-only with a class-S gap row; HALT is mandatory only when a lead-only review finds a blocker that cannot be fixed inside the sprint budget. Post-merge: a red CI / BATS Tests on the merge commit, a failed record push or a failed archive gets ONE red-first fix-forward via a chore PR under the same gates (class S); anything else HALTs with a class-H row and main untouched — no revert, no force-push; JACKED_OUT and the G-4 claim wait until resolved."
+    rationale: "The 1.1 plan named the budget but not what consumes it, nor what the lead may do unattended when the post-merge steps fail."
+    alternatives_considered:
+      - option: "Unlimited dissent runs"
+        rejected_because: "the operator's at-most-three rule"
+      - option: "Revert on red main CI"
+        rejected_because: "a revert rewrites main's history of the cycle — class H"
+    consequences:
+      positive:
+        - "bounded, auditable"
+      negative:
+        - "a lead-only audit is weaker (recorded)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "planning-sprints/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "87e8bd56"
+    source: "grimoires/loa/sprint.md § Halt and failure paths"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T03:31:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:planning-sprints"
+        evidence: "Flatline sprint review M6, M16, M24"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1176"
+    created_at: "2026-10-29T05:13:54Z"
+    updated_at: "2026-10-29T05:13:54Z"
+    phase: "implementation"
+    category: "testing"
+    summary: "cycle-138 S284: the karpathy spawn-budget fixture creates its .run 0700 (lead test edit); host umask 002 makes a 775 .run the predicate refuses"
+    decision: "The karpathy budget target's fixture made its .run with mkdir -p under the ambient umask (002 on this host → 775), which the new profile-lib predicate refuses, so the test's warm-cache precondition failed; the lead added `chmod 700 \"$root/.run\"` to the fixture as a separate test-only commit before landing D's fix. The budget line 196 / 9 is untouched; the measured trace is 205 lines (≤ the 215 budget), external-tool lines 9."
+    rationale: "Every framework creator makes .run 0700 regardless of umask since Task 1.1, so a 0700 fixture is the realistic one; implementer D could not edit the file (read-only in its brief) and wrote no report."
+    alternatives_considered:
+      - option: "Let the fixture inherit the umask"
+        rejected_because: "the test would depend on the host's umask"
+    consequences:
+      positive:
+        - "realistic fixture"
+        - "budget untouched"
+      negative:
+        - "a lead edit outside the implementer's patch"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d9f87317"
+    source: "tests/unit/perf-spawn-budget.bats (e1ea4c937)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T05:13:54Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "e1ea4c937; red-profile-lib.txt; karpathy-trace counts 196 → 205 / 9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1177"
+    created_at: "2026-10-29T05:13:58Z"
+    updated_at: "2026-10-29T05:13:58Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "cycle-138 S284: two enumerated profile-lib differences accepted — a refused 775 .run re-emits per-process WARNs; absent config → one cache id rebuild"
+    decision: "Knob outputs are identical everywhere. With a 775 .run the new lib refuses the cache, so the WARNs a warm cache used to suppress (unknown profile, unparsable config) appear on every process — refusal means today's cache-off behaviour by design. When .loa.config.yaml is absent the old id came from GNU stat's -f filesystem fallback (the -c call exited non-zero on the missing path), the new id is the proper rows: one rebuild on such a host. Both are recorded in the CHANGELOG line."
+    rationale: "Neither changes a knob's value; the first is the refusal semantics the PRD asked for, the second removes a latent accident."
+    alternatives_considered:
+      - option: "Reproduce the old garbage id"
+        rejected_because: "it was never a deliberate contract"
+    consequences:
+      positive:
+        - "honest enumeration"
+      negative:
+        - "a warm cache used to hide a WARN on a 775 .run"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d9f87317"
+    source: "loa-wt-c138-d/.cycle138/fixtures/parity-result.txt"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T05:13:58Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "parity-result.txt (6 ABSENT.* id diffs; 10 775-mode output diffs = WARN lines)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1178"
+    created_at: "2026-10-29T05:14:01Z"
+    updated_at: "2026-10-29T05:14:01Z"
+    phase: "implementation"
+    category: "process"
+    summary: "cycle-138 S284: implementers A, C, D wrote no REPORT.md (idle after their patches); the lead reconstructed the evidence from their on-disk fixtures"
+    decision: "A, C and D produced their patches and evidence files (parity-out/modes.tsv, evidence.txt, TAP files, parity-result.txt, trace counts) but no REPORT.md, and did not act on two reminders; B wrote its report after one reminder. The lead landed from the patches plus the evidence files and wrote the walkthrough in a2a/sprint-284/reviewer.md; the missing reports are recorded as a harness gotcha (agents end their turn after the deliverables without the report step)."
+    rationale: "The evidence on disk was complete enough to verify every acceptance row; waiting on unresponsive agents would have burned the sprint budget."
+    alternatives_considered:
+      - option: "Re-spawn fresh agents to write reports"
+        rejected_because: "they would have to rediscover the work; the evidence files already carry it"
+    consequences:
+      positive:
+        - "sprint stays on budget"
+      negative:
+        - "implementer prose missing for three tasks"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d9f87317"
+    source: "loa-wt-c138-{a,c,d}/.cycle138/fixtures"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T05:14:01Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "ls loa-wt-c138-*/.cycle138; NOTES 2026-10-29"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1179"
+    created_at: "2026-10-29T05:14:05Z"
+    updated_at: "2026-10-29T05:14:05Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "cycle-138 S284: n/a primitives carry path null in audit_chain JSON (B's call); B's harness once rewrote the main checkout's profile cache (accepted)"
+    decision: "The two n/a primitives (L5, L7) have no chain file, so their JSON path is null rather than a fabricated string. Implementer B's first golden run over the live main checkout rewrote /home/merlin/Documents/thj/code/loa/.run/effective-config.json through loa-status's Profile line (a derived cache, rebuilt on the next read); the harness was then pointed at a temp cache path. Accepted, no repair needed."
+    rationale: "A null path is the honest value; the cache rewrite had no persistent effect."
+    alternatives_considered:
+      - option: "Empty-string path"
+        rejected_because: "a consumer could try to open it"
+    consequences:
+      positive:
+        - "honest JSON"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d9f87317"
+    source: "loa-wt-c138-b/.cycle138/REPORT.md"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T05:14:05Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "REPORT.md § UNVERIFIED and incidents"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1180"
+    created_at: "2026-10-29T05:14:09Z"
+    updated_at: "2026-10-29T05:14:09Z"
+    phase: "implementation"
+    category: "follow-up"
+    summary: "cycle-138 S284: live L6 handoffs INDEX.md fails verify-chains (now shown broken) — pre-existing; follow-up bd-3o1zy; classification unchanged"
+    decision: "The new classification reports the main checkout as 2/7 validate (4 absent, 1 broken): four chain files are absent and grimoires/loa/handoffs/INDEX.md exists but the verifier says not ok. The lead opened bd-3o1zy to investigate the L6 path mapping or the chain itself; Sprint 284 does not change the classification to hide it."
+    rationale: "FR-3 exists to surface exactly this; hiding it would recreate the defect."
+    alternatives_considered:
+      - option: "Treat L6 as n/a"
+        rejected_because: "L6 is a chain-bearing primitive in the cycle-098 model"
+    consequences:
+      positive:
+        - "real signal surfaced"
+      negative:
+        - "the live line reads 2/7 until the follow-up lands"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "d9f87317"
+    source: "grimoires/loa/a2a/sprint-284/reviewer.md"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T05:14:09Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "parity-284 summary (loa-status-human diff); bd-3o1zy"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1181"
+    created_at: "2026-10-29T05:46:53Z"
+    updated_at: "2026-10-29T05:46:53Z"
+    phase: "review"
+    category: "security"
+    summary: "cycle-138 S284 review: context-class (SessionStart) repairs a legacy writable .run with chmod go-w once per session; all hook creators umask 077"
+    decision: "On an umask-002 host the first creator of .run on a fresh checkout is the SessionStart context-class hook, which made it 775 — refused by the FR-1 predicate from the first session with no automatic repair (grimoire-index runs only on demand). Fix: loa-context-class.sh tightens a real, non-symlink, uid-owned, group/other-writable .run with chmod go-w once per session (the _gi_trusted_dir invariant lines; one stat per session start) and creates a fresh .run under umask 077; the audit loggers, the stop guard, the fence and settings-cleanup wrap their .run mkdir in ( umask 077; … ); a static guard test (run-dir-creators.bats RDC-1) pins every hook creator and dynamic ones (RDC-2 … RDC-5) prove the modes, the repair (775 → 755), the symlink refusal and the no-op on a 700 dir."
+    rationale: "DEC-1157 forbids chmod from the per-tool-call hook path; a once-per-session repair at SessionStart keeps that rule while closing the regression the dissent named for every umask-002 install."
+    alternatives_considered:
+      - option: "profile-lib chmods a uid-owned writable .run"
+        rejected_because: "DEC-1157"
+      - option: "document that the cache stays off until grimoire-index runs"
+        rejected_because: "a shipped per-tool-call regression for every umask-002 user (the dissent's DISS-C-003)"
+    consequences:
+      positive:
+        - "automatic repair"
+        - "fresh checkouts 0700 from the first hook"
+      negative:
+        - "one stat per session start"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "90b3172e"
+    source: "grimoires/loa/a2a/sprint-284/engineer-feedback.md (round 1, HIGH)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T05:46:53Z"
+        from: null
+        to: "proposed"
+        by: "agent:reviewing-code"
+        evidence: "adversarial-review-r1.json DISS-C-003; run-dir-creators.bats; host umask 002"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1182"
+    created_at: "2026-10-29T06:49:02Z"
+    updated_at: "2026-10-29T06:49:02Z"
+    phase: "implementation"
+    category: "process"
+    summary: "cycle-138: Sprint 285 implementers dispatched during Sprint 284's audit — side-effect-free worktrees at the 284 code head; landing waits for COMPLETED"
+    decision: "The two Sprint 285 implementers (A: Task 2.1; B: Tasks 2.2 … 2.4) start in detached worktrees at 94ada9f7b (the Sprint 284 code head) while Sprint 284's audit (dissent run 3) and final-head TAP are still running. Their work is side-effect-free (patches + reports); nothing is landed before Sprint 284 is COMPLETED, the ledger marks 284 completed and the run state advances to sprint-2. Should the audit change Sprint 284 code, the patches are re-based with git apply -3 (DEC-1174)."
+    rationale: "The gates are API- and CPU-bound waits of about an hour; the implementers' inputs (SDD 1.4, plan 1.2, the Sprint 284 code) are final, so the overlap costs nothing and saves the wall-clock the halt protocol budgets."
+    alternatives_considered:
+      - option: "Strictly sequential (dispatch after COMPLETED)"
+        rejected_because: "an hour of idle implementer time against a 20 h cycle budget"
+    consequences:
+      positive:
+        - "wall-clock saved"
+      negative:
+        - "a code-changing audit would stale their base (handled by -3 apply)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "80f86e07"
+    source: "grimoires/loa/sprint.md § Execution; NOTES 2026-10-29"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T06:49:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "agents c138-s2-impl-{a,b}; worktrees ../loa-wt-c138-s2{a,b}"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1183"
+    created_at: "2026-10-29T06:58:40Z"
+    updated_at: "2026-10-29T06:58:40Z"
+    phase: "review"
+    category: "security"
+    summary: "cycle-138 S284 audit: the two MEDIUM dissent findings (audit log 0664; symlinked .run trusted) are pre-existing → beads bd-cd3yp, bd-phtus"
+    decision: "Dissent run 3 (2/2 voices, clean) raised DISS-C-001 (the audit log file is created by >> at the ambient umask — 0664 on umask-002 hosts — inside a .run the repair leaves traversable at 755) and DISS-C-002 (the audit writers gate on [[ -d .run ]], true for a symlink, and >> follows it). Both predate Sprint 284 (the sprint changed only the creators' mkdir lines and added the repair; before the sprint .run was 775 and the file 0664 as well), neither is a Sprint 284 regression, and FR-4's scope is the directories. They are counted as MEDIUM in the audit trailer and carried as follow-up beads bd-cd3yp and bd-phtus rather than fixed inside this sprint's gates."
+    rationale: "The audit's one-way rule lets MEDIUM findings approve; fixing per-tool-call hooks under the sprint budget without measuring their trace cost would be a scope slip, and the findings are real improvements with their own red tests."
+    alternatives_considered:
+      - option: "Fix the loggers in a review round 3"
+        rejected_because: "two more per-tool-call hooks, a budget measurement and a third dissent run the sprint does not have"
+    consequences:
+      positive:
+        - "honest tally"
+        - "follow-ups with concrete scope"
+      negative:
+        - "the audit log stays 0664 on umask-002 hosts until the follow-up lands"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "80f86e07"
+    source: "grimoires/loa/a2a/sprint-284/auditor-sprint-feedback.md; adversarial-audit-r3.json"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T06:58:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "adversarial-audit-r3.json DISS-C-001/002; beads bd-cd3yp bd-phtus"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1184"
+    created_at: "2026-10-29T06:58:44Z"
+    updated_at: "2026-10-29T06:58:44Z"
+    phase: "review"
+    category: "process"
+    summary: "cycle-138 S284 audit: three LOW dissent findings → beads bd-r8pfc (RDC-1 gaps → Sprint 286 Task 3.2), bd-4xpoa (settings-cleanup temp), bd-wsfqf"
+    decision: "DISS-C-003 (the static guard accepts '( umask 077;' anywhere on the line and inventories only .claude/hooks/*.sh with three spellings) is routed to Sprint 286 Task 3.2 (test guards, bd-gxt44) through bd-r8pfc; DISS-C-004 (settings-cleanup.sh writes a fixed-name temp with > before mv) → bd-4xpoa and DISS-C-005 (the mutation-logger verb filter's known gaps) → bd-wsfqf are pre-existing LOW items."
+    rationale: "LOW findings are recorded, not blocking; the guard tightening belongs with the sprint that owns test guards."
+    alternatives_considered:
+      - option: "Tighten RDC-1 now as a test tail"
+        rejected_because: "a test change after the dissent run would need a re-run or an honest unreviewed-tail note; Task 3.2 owns the guards"
+    consequences:
+      positive:
+        - "scope kept"
+      negative:
+        - "RDC-1 stays permissive until Sprint 286"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "80f86e07"
+    source: "grimoires/loa/a2a/sprint-284/auditor-sprint-feedback.md"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T06:58:44Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "adversarial-audit-r3.json DISS-C-003/004/005; beads bd-r8pfc bd-4xpoa bd-wsfqf"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1185"
+    created_at: "2026-10-29T07:02:19Z"
+    updated_at: "2026-10-29T07:02:19Z"
+    phase: "implementation"
+    category: "security"
+    summary: "cycle-138 S285 FR-6: the g/o-write test is dropped for directory components (checkout dirs inherit the clone umask: 775 here); day-file checks stay;"
+    decision: "Implementer A built FR-6 to the SDD 1.4 § 5.5 pseudocode and STOPped: the component rule (( mode & 022 )) == 0 refuses the trajectory append on this host's live checkout, whose grimoires/, grimoires/loa/, grimoires/loa/a2a/ and trajectory/ are all 775 (a git checkout inherits the clone umask; this host's umask is 002 with a user-private group) — no trajectory event would ever be recorded on an umask-002 checkout. Lead decision: the group/other-write test is dropped for every DIRECTORY component (intermediate ones and TRAJ_DIR); each component still needs a row, [[ -d && ! -L ]], uid == EUID and the anchored-realpath equality (no realpath -m → refuse); every DAY-FILE check stays (regular, non-symlink, uid, one link, no g/o write); an absent TRAJ_DIR is still created under umask 077. KT-6/KT-7 flip to 'appends'."
+    rationale: "The checkout root is the trust root (DEC-1166): a group able to write grimoires/ can edit .claude/hooks/*.sh directly, so a mode test on the directories below the root adds no protection the model does not already assume, while the per-entry checks defeat every planted-entry attack (symlink, FIFO, hard link, foreign owner, writable file); refusing on every umask-002 checkout would be a functional regression of the trajectory record for no security gain."
+    alternatives_considered:
+      - option: "Keep the component mode test (refuse on umask-002 checkouts)"
+        rejected_because: "no trajectory on Debian/Ubuntu default checkouts; the race it prevents needs write access the trust-root assumption already excludes"
+      - option: "A repair owner chmod-ing uid-owned grimoire directories"
+        rejected_because: "grimoires/ is tracked source content; chmod-ing it from a hook is intrusive and DEC-1157 forbids chmod from the per-tool-call path"
+      - option: "Test the mode on TRAJ_DIR and the day file only"
+        rejected_because: "this host's trajectory dir is 775 too; same regression"
+    consequences:
+      positive:
+        - "trajectory recorded on every checkout"
+        - "entry checks keep the defence in depth"
+      negative:
+        - "a shared-group checkout keeps the symlink-swap race on the path — the unsupported layout already named in the CHANGELOG"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "80f86e07"
+    source: "loa-wt-c138-s2a/.cycle138/REPORT.md § 0; sdd.md § 5.5; prd.md FR-6"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T07:02:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "S2-A REPORT § 0 (stat of the live checkout's grimoires chain: 775 merlin ×4); KT-6/KT-7"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1186"
+    created_at: "2026-10-29T07:39:59Z"
+    updated_at: "2026-10-29T07:39:59Z"
+    phase: "implementation"
+    category: "portability"
+    summary: "cycle-138 S285: FR-9 lands as form (a) awk half — BWK one-true-awk 20220912 verified in a Debian container; BSD cut half UNVERIFIED → linked macOS"
+    decision: "The prebuilt-BWK attempt (DEC-1159) succeeded through a container: original-awk 2022-09-12 in debian:bookworm-slim ran the hook and the index programs on ten fixtures plus the live file — 30/30 identical to the host's busybox awk, and identical to mawk except the pre-existing NUL fixture. The BSD cut half (a macOS host) was not reachable; the contract text (100 bytes on every host, 160 in the TSV, may end mid-sequence; no cut involved) is landed with a boundary test, bd-aceil closes with it, and bd-6lhso records the macOS verification as the linked bead."
+    rationale: "PRD FR-9 form (a) with one half verified and one honestly UNVERIFIED beats form (b); the hook no longer uses cut at all, so the remaining risk is documentation-grade."
+    alternatives_considered:
+      - option: "Form (b) only"
+        rejected_because: "a BWK binary was obtainable without host changes"
+    consequences:
+      positive:
+        - "awk portability proven"
+      negative:
+        - "macOS still unverified"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "646a2ddb"
+    source: "a2a/sprint-285/evidence/b-REPORT.md § BWK attempt log; b-bwk-parity.txt"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T07:39:59Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "b-bwk-versions.txt; b-bwk-parity.txt"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1187"
+    created_at: "2026-10-29T07:40:02Z"
+    updated_at: "2026-10-29T07:40:02Z"
+    phase: "implementation"
+    category: "implementation"
+    summary: "cycle-138 S285 B judgment calls accepted: five SAN_AWK sites pinned (not three); the capped header keeps the full entry count; the live file carries"
+    decision: "The generator has five `awk \"$SAN_AWK\"` sites (emit_kf/vision/lore/handoff/notes) — all pinned with LC_ALL=C (the SDD named three by line number); the KF header reports the full entry count when the table is capped (an awk in the former grep's pipeline slot credits the elision line with the K entries it names), so the header stays a count of entries, not of printed lines; the 8 KiB bound is stated within the parser's 9-digit id/recurrence bounds; the live known-failures.md has 66 `## KF-` headings for 65 entries (KF-002 appears twice) — the parsers dedup and a follow-up tidies the ledger file."
+    rationale: "Each call keeps the stated invariants (byte-identical uncapped output; the header's meaning) and was recorded in the report for review."
+    alternatives_considered:
+      - option: "Header counts printed lines (41)"
+        rejected_because: "the header is the entry count consumers read"
+    consequences:
+      positive:
+        - "consistent header"
+        - "complete locale pin"
+      negative: []
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "646a2ddb"
+    source: "a2a/sprint-285/evidence/b-REPORT.md § Judgment calls"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T07:40:02Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "b-REPORT.md; loa-kf-surface.sh header count awk"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1188"
+    created_at: "2026-10-29T07:48:47Z"
+    updated_at: "2026-10-29T07:48:47Z"
+    phase: "implementation"
+    category: "process"
+    summary: "cycle-138: Sprint 286 implementers dispatched during Sprint 285's review (same overlap as DEC-1182); landing waits for Sprint 285 COMPLETED"
+    decision: "The three Sprint 286 implementers (A: Task 3.1; B: Task 3.2 + bd-r8pfc; C: Task 3.3) start in detached worktrees at ef82f088c (the Sprint 285 code head + its docs) while Sprint 285's review (dissent run 1) and final-head TAP are still running — the same side-effect-free overlap as DEC-1182; nothing lands before Sprint 285 is COMPLETED and the run state advances to sprint-3; a code-changing Sprint 285 review re-bases their patches with git apply -3 (DEC-1174)."
+    rationale: "The implementers' inputs are final; the gates are hour-long waits."
+    alternatives_considered:
+      - option: "Dispatch after Sprint 285 COMPLETED"
+        rejected_because: "an hour of idle implementer time against the 20 h budget"
+    consequences:
+      positive:
+        - "wall-clock saved"
+      negative:
+        - "a code-changing review would stale their base"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "ef82f088"
+    source: "grimoires/loa/sprint.md § Execution; DEC-1182"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T07:48:47Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "agents c138-s3-impl-{a,b,c}; worktrees ../loa-wt-c138-s3{a,b,c}"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1189"
+    created_at: "2026-10-29T08:13:32Z"
+    updated_at: "2026-10-29T08:13:32Z"
+    phase: "review"
+    category: "security"
+    summary: "cycle-138 S285 review r1: dangling day-file symlink refused (no stat row ≠ absent); plain realpath after creation (BSD records again); dead shell"
+    decision: "Sprint 285 review round 1 (dissent run 1, both voices): (1) a DANGLING symlink at the trajectory day-file path has no `stat -L` row, so the guard read it as absent and `>>` would have created the attacker-chosen target through the link — when the stat returns only the component rows the day-file path must be truly absent (`! -e && ! -L`); KT-15 pins it. (2) `realpath -m` is GNU-only: every BSD/macOS host refused silently, a regression of the trajectory record — the canonical-path check now runs after the directory exists with plain `realpath` on the two existing paths; KT-16 pins it. (3) grimoire-index's dead shell `san()` is removed (the awk twins are the only sanitiser; a guard asserts it). (4) The byte-cap contract names the one-true-awk second-edition limit (UTF-8 regardless of LC_ALL). Red 501278743 → fix eb5066e03, rtc VERIFIED."
+    rationale: "The FR-6 invariant 'a symlink is never written through' must hold for dangling links too; dropping -m restores the trajectory record on BSD hosts without weakening the check (both paths exist when it runs)."
+    alternatives_considered:
+      - option: "Keep -m and refuse on BSD"
+        rejected_because: "no trajectory on macOS — a silent regression relative to the pre-sprint hook"
+    consequences:
+      positive:
+        - "the hole is closed by construction"
+        - "BSD hosts record again"
+      negative:
+        - "the second-edition awk limit stays documented, not fixed (bd-6lhso)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "eb5066e0"
+    source: "grimoires/loa/a2a/sprint-285/engineer-feedback-r1.md (round 1, HIGH + MEDIUM)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T08:13:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:reviewing-code"
+        evidence: "adversarial-review-r1.json DISS-001/DISS-C-001, DISS-C-003/004/005; KT-15, KT-16; rtc-285-lead3.json"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1190"
+    created_at: "2026-10-29T08:44:32Z"
+    updated_at: "2026-10-29T08:44:32Z"
+    phase: "review"
+    category: "security"
+    summary: "cycle-138 S285 review r2: sanitiser deletes C0/DEL BEFORE the C1/U+2028 replacements (interleaved-byte re-join closed); guard refuses ./../empty"
+    decision: "Sprint 285 review round 2 (dissent run 2, both voices BLOCKING on one defect): (1) the FR-8 sanitiser twins (loa-kf-surface.sh san(), grimoire-index.sh SAN_AWK san()) ran the C0/DEL DELETION after the C1 / U+2028 / U+2029 REPLACEMENTS, so a C0 or DEL byte planted between a UTF-8 lead byte and its continuation defeated the class match and the deletion re-joined the bytes into a live control character on the surface (`a\\302\\001\\205b` → NEL; verified under mawk). Deletions now come first, replacements after (a replacement never re-joins bytes); the drift guard's order assertion is flipped (it pinned the vulnerable order); a new FR-8 test feeds four split fixtures to both twins under every awk present; BWK re-verified in the container (27/27 SAME vs mawk and busybox). (2) The trajectory guard refuses a relative path with a `.`, `..` or empty component BEFORE any mkdir — a `..` in KARPATHY_TRAJECTORY_DIR (honoured in production) passed the prefix test and created a 0700 directory outside the checkout before the canonical check refused the append (KT-17). (3) The guard canonicalises the two existing directories with the shell's own `cd` + `pwd -P` (builtins) instead of realpath(1): `realpath -m` was GNU-only (round 1), plain `realpath --` fails on busybox and realpath is absent on older macOS (round 2); KT-13 rewritten (no realpath on PATH → appended), KT-14 counts zero realpath spawns. Round 3 is a lead-only verification (run 3 is the audit's)."
+    rationale: "Order matters in a sanitiser that mixes deletions and replacements: every deletion must precede every byte-class replacement, or the deletion manufactures the class it was meant to remove. Builtin canonicalisation removes the last external dependency of the guard and the whole realpath portability class."
+    alternatives_considered:
+      - option: "Keep the order and add a second class pass after the deletion"
+        rejected_because: "two passes still leave a window for a third interleaving (a deleted byte between two replacement passes); deletions-first is correct by construction"
+      - option: "Keep realpath and drop only the -- (busybox)"
+        rejected_because: "older macOS still has no realpath; cd + pwd -P are builtins in every bash and cover both"
+    consequences:
+      positive:
+        - "the sanitiser is correct by construction (all deletions precede all replacements)"
+        - "the guard has no external dependency beyond stat(1) and mkdir(1)"
+        - "no directory is ever created outside the checkout by the guard"
+      negative:
+        - "KT-13's former BSD-shim case is replaced (the shim is no longer reachable)"
+        - "a third review round without a dissent run (the budget's third run is the audit's)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "3ac2545a"
+    source: "grimoires/loa/a2a/sprint-285/engineer-feedback-r2.md (round 2: 1 HIGH, 1 MEDIUM, 1 LOW)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T08:44:32Z"
+        from: null
+        to: "proposed"
+        by: "agent:reviewing-code"
+        evidence: "adversarial-review-r2.json DISS-C-001/002/003; kf-surface.bats FR-8 interleaved + drift guard; KT-13, KT-14, KT-17; evidence/lead-bwk-r2.txt; red/fix shas in reviewer.md § 3c"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1191"
+    created_at: "2026-10-29T08:44:35Z"
+    updated_at: "2026-10-29T08:44:35Z"
+    phase: "review"
+    category: "testing"
+    summary: "cycle-138 S285 review r3: `[ a ] && [ b ]` never fails a bats test on a — drift guard + 19 sibling chains split one-per-line; 21+291 elsewhere → bead"
+    decision: "In a bats test `[ a ] && [ b ]` can never fail on `a`: errexit and the ERR trap skip a command that is not the last of an && list, so the FR-8 drift guard's chained order assertion pinned nothing (it stayed green with the assertion flipped against the vulnerable order). Round 3 splits that chain and the 19 other `[ a ] && [ b ]` assertion lines in grimoire-index.bats (11, cycle-137 FR-5) and profile-lib.bats (8, Sprint 284) into one assertion per line (test-only commit, DEC-1163 exemption; one-off red recorded: the drift guard fails on the pre-fix order). All 125 cases of the three files stay green, so no hidden failure was masked. The 21 remaining chains in 17 other files and the 291 bare `! cmd` assertion lines across tests/unit are a follow-up bead (not this sprint's files)."
+    rationale: "An assertion that cannot fail is worse than none: it documents a guarantee the suite does not hold (the Sprint 284 `_invariants` finding and the NOTES learning on bare negated commands are the same class)."
+    alternatives_considered:
+      - option: "Fix only the drift guard"
+        rejected_because: "the 19 sibling chains in files this cycle touched carry the same silent gap; the split is mechanical and the suites prove nothing was masked"
+      - option: "Sweep all of tests/unit now"
+        rejected_because: "312 lines in 20+ files outside this sprint's scope; a bead with the counts routes it"
+    consequences:
+      positive:
+        - "every left-hand assertion in the three files now enforces"
+        - "the class is named in the test comment and the bead"
+      negative:
+        - "21 chains + 291 bare negations elsewhere still pass vacuously until the bead lands"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "reviewing-code/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "3ac2545a"
+    source: "Sprint 285 review round 3 (lead verification; the round-2 red log showed the flipped drift-guard assertion green on the pre-fix order)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T08:44:35Z"
+        from: null
+        to: "proposed"
+        by: "agent:reviewing-code"
+        evidence: "evidence/lead-one-off-red-drift-guard-r3.txt; task-2.R3.patch; green log 125/125; the grep counts in the bead"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1192"
+    created_at: "2026-10-29T09:39:19Z"
+    updated_at: "2026-10-29T09:39:19Z"
+    phase: "review"
+    category: "security"
+    summary: "cycle-138 S285 audit: check→append race on a group-writable trajectory dir adopted at MEDIUM (DEC-1166 trust root) → fixed in Sprint 286 Task 3.6"
+    decision: "The check→append race in the trajectory guard (a party able to WRITE the trajectory directory — a group member on an umask-002 checkout, the layout DEC-1185 accepts — can swap the checked day file for a symlink between `_traj_trusted`'s stat and the `>>`) is adopted at MEDIUM, not HIGH, and fixed in-cycle as Sprint 286 Task 3.6 (bd-7ihly, lead, red-first) instead of blocking Sprint 285: (1) the precondition is write permission inside the trust root, which DEC-1166 already treats as decisive — in that layout `.claude/hooks/*.sh` are group-writable too, so the party can edit the hook itself; (2) the sprint strictly narrowed the exposure from an unchecked append to a one-window race on an unsupported shared layout; (3) the principled fix is small: `exec {fd}>>` FIRST (O_APPEND|O_CREAT under the hook's umask 077), then verify the OPENED descriptor — the path's lstat row must be a regular file whose inode equals the descriptor's (`stat -L /dev/fd/N`), the descriptor's file uid-owned, one link, no g/o write — else close without writing. Sprint 286 is the sprint whose review and audit bind to the PR head (DEC-1161), so the fix still ships under two dissent-reviewed gates; Sprint 285's third dissent run is spent (≤ 3 per sprint)."
+    rationale: "Severity follows the recorded threat model, not the label a voice chose; the fix is scheduled where it gets full gates in this cycle, which is better for the codebase than a fourth unreviewed round or a deferred bead."
+    alternatives_considered:
+      - option: "CHANGES_REQUIRED now and a round-4 fix in Sprint 285"
+        rejected_because: "the sprint's dissent budget is spent — the fix would ship under a lead-only review and an audit whose dissent never saw it; Sprint 286's gates see it in full"
+      - option: "Reject group-writable trajectory directories (revert DEC-1185)"
+        rejected_because: "breaks the trajectory record on every umask-002 checkout (this host included) for a layout the model already trusts"
+      - option: "Defer to a later cycle"
+        rejected_because: "a HIGH-labelled finding deserves closure in the cycle that introduced the guard; the change is ~15 lines + tests"
+    consequences:
+      positive:
+        - "the record stays on umask-002 checkouts"
+        - "the fix lands under Sprint 286's dissent-reviewed review + audit"
+        - "the downgrade reasoning is written where the verdict is"
+      negative:
+        - "Sprint 285 ships with the race for the hours until Task 3.6 lands"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "9d6165a9"
+    source: "Sprint 285 audit dissent run 3 DISS-001 (HIGH in both voices) — grimoires/loa/a2a/sprint-285/adversarial-audit-r3.json"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T09:39:19Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "adversarial-audit-r3.json DISS-001; auditor-sprint-feedback.md § Medium; bd-7ihly; probes P1/P4/P7 (the checks that do hold)"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1193"
+    created_at: "2026-10-29T09:39:22Z"
+    updated_at: "2026-10-29T09:39:22Z"
+    phase: "review"
+    category: "security"
+    summary: "cycle-138 S285 audit: .run state/summary leaf-only checks (pre-existing → bd-ooymp) and bidi/zero-width outside the FR-8 class (→ bd-tlo84) recorded"
+    decision: "Two pre-existing / design-scope findings become beads rather than Sprint 285 changes: (1) the karpathy hook's per-task state directory and summary file under `.run` keep leaf-only checks (`-L` on the dir, `mkdir -p` following a symlinked ancestor, `-L` only on the task file, the summary through `>` to `.tmp.$$`) — a checkout that force-adds `.run` as a symlink redirects those writes outside the checkout (JSON-encoded file_path + a sanitised key: unwanted file creation/append, not code execution); the hook comment marks the state directory out of FR-6's scope; same family as bd-phtus / bd-cd3yp → bd-ooymp (reuse the Sprint 284 `.run` predicate + the fd-anchored write). (2) The FR-8 class is the decisions jq filter class by design (DEC-1154) and leaves Unicode bidi controls and zero-width format characters alone (the 'neighbours kept' fixture pins U+202A); Trojan-Source reviewer deception in the surfaced table is possible, no escalation beyond surfacing the untrusted file → bd-tlo84, a PRD-level class decision for both twins AND the decisions filter."
+    rationale: "Neither was introduced or worsened by this sprint; (1) belongs with the `.run` writers' change set, (2) is a class definition that must change in three sanitisers at once or not at all."
+    alternatives_considered:
+      - option: "Extend the FR-8 class now"
+        rejected_because: "changes a PRD-level contract and the decisions filter mid-audit; the twins and the filter must move together"
+      - option: "Anchor the state writes in Sprint 285"
+        rejected_because: "out of FR-6's declared scope; the `.run` predicate work is one change set with bd-phtus/bd-cd3yp"
+    consequences:
+      positive:
+        - "one change set for the .run writers"
+        - "one class decision for three sanitisers"
+      negative:
+        - "both remain open at ship time"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "auditing-security/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "9d6165a9"
+    source: "Sprint 285 audit dissent run 3 DISS-C-001 (MEDIUM) and DISS-C-002 (LOW)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T09:39:22Z"
+        from: null
+        to: "proposed"
+        by: "agent:auditing-security"
+        evidence: "adversarial-audit-r3.json DISS-C-001/002; beads bd-ooymp, bd-tlo84; hook lines 168-203; kf-surface.bats KF-008 fixture"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1194"
+    created_at: "2026-10-29T10:30:39Z"
+    updated_at: "2026-10-29T10:30:39Z"
+    phase: "implementation"
+    category: "design"
+    summary: "cycle-138 S286 3.1: FR-10 descendant clause = SDD form (no-glob entries only); plan's older split(\"*\") text corrected — it would have widened glob"
+    decision: "The FR-10 descendant clause is the SDD 1.5 § 5.7 form `($f | contains(\"*\") | not) and ($k | startswith($f + \".\"))` — a mapping-level floor entry (no glob) forbids every descendant at any depth; a glob entry relies on its glob alone. The sprint plan's Task 3.1 text quoted an older form `startswith(($f | split(\"*\")[0] | rtrimstr(\".\")) + \".\")` that would have widened glob entries (`destructive_command_guard_x.y`, `flatline_protocol.x.companion_voice.y` would become floor keys — M37); the plan text is corrected at landing (sprint.md 1.4). Pre-flight on the live config: 428 candidates, nothing newly forbidden."
+    rationale: "The SDD is the design authority; the plan line was a stale paste from SDD 1.2. M37 names exactly the keys the older form would have broken."
+    alternatives_considered:
+      - option: "Implement the plan's quoted form"
+        rejected_because: "widens glob floor entries to their literal prefix: PF-11 (glob entries not widened) would fail and three resolvable profile keys would be dropped"
+    consequences:
+      positive:
+        - "glob entries unchanged"
+        - "live floor list identical (PF-12)"
+      negative:
+        - "two documents disagreed until landing"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "4ac49f24"
+    source: "Sprint 286 Task 3.1 implementer A report § FR-10 (spec discrepancy flagged)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T10:30:39Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "PF-8 … PF-12; .cycle138/fixtures/preflight-result.txt (A); sdd.md § 5.7"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1195"
+    created_at: "2026-10-29T10:30:42Z"
+    updated_at: "2026-10-29T10:30:42Z"
+    phase: "implementation"
+    category: "design"
+    summary: "cycle-138 S286 3.1: empty present knob value keeps today's fallback (plan AC corrected); case-dispatch keeps the karpathy budget at 210/9"
+    decision: "An EMPTY present knob value keeps today's observable behaviour — the fallback — on the warm, memo and live paths (PL-48 pins it). The sprint plan's FR-11 acceptance line 'an empty present value prints empty' contradicted the PRD FR-11 AC ('round-trip as today') and the existing PL-22 row (`\"\"` → fallback); the SDD's 'empty present value stays empty' describes the internal split value before the unchanged empty rule applies. The plan line is corrected at landing. The kind token is dispatched with `case` on the whole jq output (only a present result contains a newline), not the brief's if/split, because xtrace does not trace `case` and the karpathy warm path would otherwise project to ~216 trace lines (ceiling 215): measured 210 / 9 before and after."
+    rationale: "FR-11 removes the sentinel COLLISION, not the empty rule; changing the empty rule would alter every caller that relies on the fallback for an empty config value. The spawn budget is a hard ceiling."
+    alternatives_considered:
+      - option: "Print empty for an empty present value"
+        rejected_because: "a behaviour change outside FR-11's scope that PL-22 forbids and no caller asked for"
+      - option: "The brief's if/split form"
+        rejected_because: "~216 traced lines on the karpathy warm path, over the 215 ceiling"
+    consequences:
+      positive:
+        - "public contract unchanged (PL-22 matrix, PL-48 … PL-50)"
+        - "budget 210 / 9 unchanged"
+      negative:
+        - "a multi-document config whose key is null in every document now yields the fallback instead of leaking a sentinel line per document (the one enumerated change besides the three sentinels)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "4ac49f24"
+    source: "Sprint 286 Task 3.1 implementer A report § FR-11 (spec discrepancy flagged)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T10:30:42Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "PL-45 … PL-51; .cycle138/parity-out/base-result.txt (24 intended diffs of 120); perf-spawn-budget 210/9"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1196"
+    created_at: "2026-10-29T10:30:45Z"
+    updated_at: "2026-10-29T10:30:45Z"
+    phase: "implementation"
+    category: "design"
+    summary: "cycle-138 S286 3.3: get_adapter keeps one-type resolution (SDD § 5.9 read as shared cache, not full registry); 50-line diff; 10 types → 9 modules"
+    decision: "`get_adapter` and `adapter_class_for_type` keep resolving ONE type through `_adapter_class` (the shared globals() class cache) instead of building the full `_registry()`: SDD § 5.9's 'one `_registry()` … used by `get_adapter`' is read as 'the same cached classes', not 'import every adapter on cheval's normal path' — the literal reading would import all nine adapter modules per invocation, an import-cost regression against FR-15's 'behaviour and import cost unchanged' and the eso-loop pass-17 gain. `cli_adapter_types()` reads the static `_AUTH_KIND` table (no import); the registry-parity test pins `_ADAPTER_REGISTRY[t] is adapter_class_for_type(t)`. Diff 31+19 = 50 ≤ 60. Ten provider types map to NINE adapter modules (`gemini-headless` → `AgyHeadlessAdapter`); the brief said ten. SDD 1.8 § 5.9 records the reading."
+    rationale: "FR-15 is a performance refactor with a parity pin; a reading that regresses import cost defeats it."
+    alternatives_considered:
+      - option: "Literal § 5.9: get_adapter → _registry()"
+        rejected_because: "imports every adapter module on the normal one-adapter path (nine imports instead of one)"
+    consequences:
+      positive:
+        - "cli_adapter_types imports nothing"
+        - "one class object per adapter on every path"
+        - "50-line diff inside the bound"
+      negative:
+        - "two code paths resolve a class (both through the same cache)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/b60eab0f-f20d-4741-85e5-d3add6949037"
+    commit: "4ac49f24"
+    source: "Sprint 286 Task 3.3 implementer C report (judgment call against SDD § 5.9's wording)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-29T10:30:45Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "test_providers_registry.py (4 tests); .cycle138/fixtures/parity.sh outputs; hyperfine −13.6 % / −4.1 %; git diff --numstat 31 19"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1197"
+    created_at: "2026-10-30T02:01:12Z"
+    updated_at: "2026-10-30T02:01:12Z"
+    phase: "implementation"
+    category: "design"
+    summary: "cycle-138 S286 audit r1: summary temp created O_CREAT|O_EXCL (noclobber) behind a trusted dir + absent name, re-checked before mv; builtins only"
+    decision: "The karpathy summary temp file keeps its name `<summary>.tmp.<pid>` but is created O_CREAT|O_EXCL under noclobber only when its directory is a real uid-owned non-symlink directory, the summary path is not a directory and the name is truly absent (lstat and stat); the bytes go through the held descriptor and the path is re-checked (regular, non-symlink, uid-owned) before `mv -f`; any refusal skips the summary silently with exit 0. Builtins only — no spawn added to the Write/Edit hot path."
+    rationale: "The root cause is the open's flags (O_TRUNC without O_EXCL follows a planted symlink) and the directory's trust (`-d` admits a symlink), not the predictable name: an unpredictable name would only hide the window. noclobber_open opens O_CREAT|O_EXCL when its stat finds nothing, and open(2) refuses a symlink at the name under O_CREAT|O_EXCL regardless of its target; rename(2) replaces a symlink at newpath without following it."
+    alternatives_considered:
+      - option: "mktemp beside the summary"
+        rejected_because: "one external spawn on every Write/Edit, and the rename over a planted summary path and the directory trust still need the same builtin checks"
+      - option: "an unpredictable ($RANDOM) temp name with the old `>`"
+        rejected_because: "hides the window instead of closing it: the open still follows whatever is at the name"
+      - option: "fd verification with stat as in the Task 3.6 trajectory guard"
+        rejected_because: "one stat spawn on the hot path; the O_EXCL create already proves the hook created a regular file, and the path re-check covers the write→rename window"
+    consequences:
+      positive:
+        - "a planted symlink, dangling symlink, FIFO, device or regular file at the temp name is left alone and the summary skipped"
+        - "zero external-tool lines added (9 → 9)"
+        - "KS-14 … KS-18 pin it red-first"
+      negative:
+        - "+20 builtin trace lines on the warm path (210 → 230)"
+        - "residual: a symlink to a FIFO or device planted inside the lstat→open window is opened without O_EXCL (bash adds O_EXCL only when its own stat fails; no O_NOFOLLOW in pure bash)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/2c0f271e-b880-4273-a2f9-139dfd3d9da3"
+    commit: "68570405"
+    source: "Sprint 286 audit round 1 (a2a/sprint-286/auditor-sprint-feedback-r1.md) DISS-C-001; bash(1) Redirecting Output; bash 5.2 redir.c noclobber_open; open(2) O_EXCL; rename(2)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-30T02:01:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "KS-14 … KS-18 (karpathy-surgical-diff-hook.bats); a2a/sprint-286/evidence/lead-strace-*.txt; rtc-286-lead37.json"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1198"
+    created_at: "2026-10-30T02:01:21Z"
+    updated_at: "2026-10-30T02:01:21Z"
+    phase: "implementation"
+    category: "design"
+    summary: "cycle-138 S286 audit r1: state dir must be uid-owned ([[ -O ]]); the same-dir >> race stays with bd-ooymp (fd pattern / mode stat later)"
+    decision: "The karpathy per-task state directory must be owned by the hook's uid (`[[ -O \"$STATE_DIR\" ]]`, one builtin stat after the existing -L test and mkdir); a foreign-owned directory, however writable, is refused before anything is read or appended. The same-directory check→`>>` race inside a writable uid-owned state directory is NOT fixed here and stays with bd-ooymp (the Task 3.6 fd-anchored pattern or a mode stat on the hot path)."
+    rationale: "The owner test closes the foreign-directory half of DISS-C-002 at the cost of one builtin and no spawn; the remaining race needs a stat spawn or the descriptor-anchored append and is a measured follow-up, not a round-2 fix."
+    alternatives_considered:
+      - option: "fd-anchored append for the task file now"
+        rejected_because: "adds stat spawns to every Write/Edit; the audit routed it to bd-ooymp with a hot-path measurement first"
+      - option: "no owner test"
+        rejected_because: "a foreign-owned writable directory lets another uid plant the task file the hook appends to"
+    consequences:
+      positive:
+        - "foreign-owned state directory refused (verified with a second uid in a container)"
+        - "no spawn added"
+      negative:
+        - "the same-uid writable-directory race remains documented in bd-ooymp"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/2c0f271e-b880-4273-a2f9-139dfd3d9da3"
+    commit: "68570405"
+    source: "Sprint 286 audit round 1 (a2a/sprint-286/auditor-sprint-feedback-r1.md) DISS-C-002"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-30T02:01:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "a2a/sprint-286/evidence/lead-second-uid-container.txt; hook comment at the -O test"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1199"
+    created_at: "2026-10-30T02:22:40Z"
+    updated_at: "2026-10-30T02:22:40Z"
+    phase: "implementation"
+    category: "design"
+    summary: "cycle-138 S286 audit fix: karpathy warm trace budget re-measured 210 → 230 (ext 9 → 9), builtins only; cost 15 stat syscalls, CPU Δ within σ"
+    decision: "The karpathy warm-path trace budget is re-measured 210 → 230 lines (external-tool lines 9 → 9) for the Sprint 286 audit round-1 fix and the measured value is pinned in the same commit (c07b543b0). The increase is builtins only; it is accepted on the evidence rather than trimmed: strace on the clean path counts 550 → 565 file syscalls (15 stat-class calls per Write/Edit), and hyperfine (warmup 5, 30 runs, three passes) puts the fix's CPU-time delta against the pre-fix head at −1.5 / +3.8 / +0.9 ms, inside one σ each time; wall-clock (σ 7–74 ms under a host load of 28–47 on 8 cores from other sessions) cannot resolve it."
+    rationale: "G-2 forbids hot-path regressions in spawns; the trace-line budget is a proxy whose own doc says to re-measure and state why when the change is intended. Every added line is a builtin test or the exclusive open; removing the save/restore of noclobber or the post-write re-check would save two to three lines at the cost of the write→rename window or of mirroring Task 3.6."
+    alternatives_considered:
+      - option: "trim the guard to stay under the old 215 ceiling"
+        rejected_because: "the only removable lines are the noclobber save/restore (semantics) and the post-write re-check (the write→rename window)"
+      - option: "widen the +10 % headroom rule instead of re-measuring"
+        rejected_because: "the suite's convention is a measured value per target; a wider headroom hides one-spawn regressions everywhere"
+    consequences:
+      positive:
+        - "the budget again pins the measured path (three runs identical)"
+        - "the cost is stated in syscalls and CPU time, not only trace lines"
+      negative:
+        - "+20 builtin lines / +15 stat-class syscalls on every Write/Edit"
+        - "wall-clock evidence is noise-bound on this host"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/2c0f271e-b880-4273-a2f9-139dfd3d9da3"
+    commit: "c07b543b"
+    source: "tests/unit/perf-spawn-budget.bats (karpathy target); a2a/sprint-286/evidence/lead-hyperfine-karpathy-warm.md; evidence/lead-strace-{before,after}-clean.txt"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-30T02:22:40Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "perf-spawn-budget.bats:315 at c07b543b0; evidence/lead-hyperfine-karpathy-warm.md (3 passes); evidence/lead-strace-*-clean.txt"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1200"
+    created_at: "2026-10-30T05:36:46Z"
+    updated_at: "2026-10-30T05:36:46Z"
+    phase: "review"
+    category: "process"
+    summary: "cycle-138 BB round 1 (#1314): non-degraded under FR-16; R001/F-007/F-009/F-008 fixed red-first (Task 3.8); F-001/F-002 + LOWs → bd-i420n"
+    decision: "Bridgebuilder round 1 on PR #1314 (2/2 voices, 17 findings, 0 blockers, Verdict Quality APPROVED; exit 3 only because the enrichment writer's output was rejected by the tool_grammar guard) counts as a NON-degraded round under FR-16 (degraded = a voice outage or timeout only), so no ten-minute retry is owed. Four findings are fixed red-first as Task 3.8 (R001 real: profile-lib's stat sampling leaked its status to a set -e caller's direct loa_knob; F-007 block-path fork; F-009 kf_count awk pin; F-008 CHANGELOG contradiction), the two MEDIUMs on the foreign-owned .run (F-001, F-002) and the LOWs are recorded in bd-i420n under the DEC-1166 trust-root reasoning, F-010 is DEC-1158/1168 by design. The gate files gain a post-gate addendum and bind to the fixed head (DEC-1161); round 2 reviews that head."
+    rationale: "FR-16's own definition makes the round valid; the four fixes are small, each with a red test and a probe, and leaving a real set -e exit in a sourced library unfixed in the cycle that introduced it would ship a regression. The recorded MEDIUMs change the trust-root policy (surfacing a foreign-owned .run) and belong to a planned follow-up, not a ship-time patch."
+    alternatives_considered:
+      - option: "treat the enrichment-guard exit 3 as a degraded round and retry after ten minutes"
+        rejected_because: "FR-16 defines degraded as a voice outage or timeout; both voices completed and the findings are intact — a retry would spend a round for nothing"
+      - option: "fix F-001 / F-002 now (stderr line on a foreign-owned .run)"
+        rejected_because: "changes the hook's parity promise and the DEC-1166 trust-root policy; needs the bd-ooymp fd-anchored design, not a ship-time edit"
+      - option: "record R001 without fixing"
+        rejected_because: "a sourced library that exits a set -e caller on a first run is a regression introduced by this cycle's Sprint 284 rewrite"
+    consequences:
+      positive:
+        - "one real regression caught and fixed before merge"
+        - "verdicts bind to the PR head as DEC-1161 requires"
+      negative:
+        - "a second CI run and a second Bridgebuilder round"
+        - "the audit/review files carry an addendum after their recorded approval"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "reviewing-code/2c0f271e-b880-4273-a2f9-139dfd3d9da3"
+    commit: "0746d30c"
+    source: "PR #1314 Bridgebuilder round 1 comments (2026-10-30T04:40Z); ~/.cache/loa/cycle-138/ship/bb-r1-triage.md; PRD FR-16 degraded-exit procedure"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-30T05:36:46Z"
+        from: null
+        to: "proposed"
+        by: "agent:reviewing-code"
+        evidence: "PR #1314 comments; evidence/rtc-286-lead38a.json, rtc-286-lead38b.json; probe-r001.sh; red 64dd9cfde → fix 0746d30c7"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []

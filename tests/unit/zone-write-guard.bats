@@ -258,3 +258,50 @@ JSON
     [ "$status" -eq 2 ]
     [[ "$output" == *"BLOCKED"* ]]
 }
+
+# ---- ZWG-T30 cache directory creation mode (cycle-138 FR-4, bd-20bh1) ----
+
+# _zwg_mirror <root>: a real-directory copy of the hook at the same relative
+# depth, so the hook's PROJECT_ROOT (three levels above the hook) is <root>
+# and its .run/perf-cache writer targets <root>/.run/perf-cache.
+# Each run cds into its root: the hook resolves a relative target against
+# the working directory before anchoring it at PROJECT_ROOT.
+_zwg_mirror() {
+    mkdir -p "$1/.claude/hooks/safety"
+    cp -- "$HOOK" "$1/.claude/hooks/safety/zone-write-guard.sh"
+}
+
+_zwg_mode() {
+    stat -c '%a' -- "$1" 2>/dev/null || stat -f '%Lp' -- "$1"
+}
+
+@test "ZWG-T30: fresh .run/perf-cache and .run are 0700 under umask 002; output unchanged" {
+    local a="$SCRATCH/root-022" b="$SCRATCH/root-002"
+    _zwg_mirror "$a"
+    _zwg_mirror "$b"
+    [ ! -e "$a/.run" ]
+    [ ! -e "$b/.run" ]
+    local rc_a=0 rc_b=0
+    ( umask 022; cd "$a"
+      CLAUDE_TOOL_FILE_PATH=".claude/loa/CLAUDE.loa.md" LOA_ACTOR="project-work" \
+          bash "$a/.claude/hooks/safety/zone-write-guard.sh" \
+          > "$SCRATCH/out-022" 2> "$SCRATCH/err-022" ) || rc_a=$?
+    ( umask 002; cd "$b"
+      CLAUDE_TOOL_FILE_PATH=".claude/loa/CLAUDE.loa.md" LOA_ACTOR="project-work" \
+          bash "$b/.claude/hooks/safety/zone-write-guard.sh" \
+          > "$SCRATCH/out-002" 2> "$SCRATCH/err-002" ) || rc_b=$?
+    # The decision and its diagnostics do not depend on the umask.
+    [ "$rc_a" -eq 2 ]
+    [ "$rc_b" -eq 2 ]
+    cmp -s "$SCRATCH/out-022" "$SCRATCH/out-002"
+    cmp -s "$SCRATCH/err-022" "$SCRATCH/err-002"
+    grep -q 'BLOCKED' "$SCRATCH/err-002"
+    # The cache was written (same zones.yaml, same key), so the creator ran.
+    [ -f "$b/.run/perf-cache/zone-write-guard.v2.rows" ]
+    cmp -s "$a/.run/perf-cache/zone-write-guard.v2.rows" "$b/.run/perf-cache/zone-write-guard.v2.rows"
+    # The hook created both directories; neither carries a group or other bit.
+    [ "$(_zwg_mode "$b/.run/perf-cache")" = "700" ]
+    [ "$(_zwg_mode "$b/.run")" = "700" ]
+    [ "$(_zwg_mode "$a/.run/perf-cache")" = "700" ]
+    [ "$(_zwg_mode "$a/.run")" = "700" ]
+}

@@ -1,13 +1,13 @@
-# Software Design Document: Performance follow-ups (cycle-137)
+# Software Design Document: Hardening follow-ups (cycle-138)
 
-**Version:** 1.2
-**Date:** 2026-10-28
-**Amendment 1.2 (implementation):** D-5.3 — the decisions-cache trust check tightens a uid-owned group- or world-writable `.run` / `.run/perf-cache` (`chmod go-w`) before trusting it (zone-write-guard creates the directory under the user's umask; a foreign-owned or untightenable directory stays out); DEC-1126. I-2.2a/b, I-2.3b, I-2.5, I-2.6, FR-6 floor: DEC-1124/1125/1127/1131/1128/1129/1130.
-**Revision:** 1.1 integrates the Flatline SDD review (5 blockers, 40 medium items — dispositions in § 11.F) and PRD 1.1's release predicate: cache writer/reader hardening, verify-chains protocol and fail-closed rules, allowed-failure policy, jq root preservation, unattended merge/publish safeguards.
+**Version:** 1.10
+**Date:** 2026-10-29
+**Revision:** 1.10 (Sprint 286 audit round 1, DEC-1197 / DEC-1198; DISS-C-001 / DISS-C-002, bd-ooymp): § 5.5 — the karpathy SUMMARY temp file is created O_CREAT|O_EXCL under noclobber only behind a real uid-owned non-symlink directory and a truly absent name, written through the held descriptor and re-checked before `mv -f` (rename(2) replaces a symlink at the summary path, never follows it); the per-task STATE directory must be uid-owned (`-O`); every refusal skips the write silently. Builtins only; the warm-path trace budget moves 210 → 230 with zero external-tool lines added. 1.9 (Sprint 286 Task 3.6, DEC-1192; Sprint 285 audit DISS-001): § 5.5 — the trajectory day file is OPENED FIRST (O_APPEND for an existing regular non-symlink file; O_CREAT|O_EXCL under noclobber for a truly absent path; anything else refused unopened) and the OPENED descriptor is verified — `/dev/fd/N` in the one `stat -L` chain (uid, regular, one link, no g/o write) plus an lstat of the path that must still be a regular file on the same device:inode — so a swap between check and write can no longer redirect the bytes; the event is written through the descriptor. 1.8 (Sprint 286 Task 3.3, DEC-1196): § 5.9 — `get_adapter` / `adapter_class_for_type` keep one-type resolution through the shared class cache; only `_ADAPTER_REGISTRY` builds the full `_registry()`; `cli_adapter_types` reads the static `_AUTH_KIND` table (ten types → nine modules). 1.7 (Sprint 285 review round 2, DEC-1190): the FR-8 sanitiser twins perform every DELETION (NUL, then C0/DEL) before the C1 / U+2028 / U+2029 REPLACEMENTS — a deletion that ran after a class replacement re-joined a UTF-8 lead byte and its continuation around a deleted byte into a live control character (DISS-C-001; the drift guard now pins deletions-first); `_traj_trusted` refuses a relative path with a `.`, `..` or empty component before any mkdir (DISS-C-002) and canonicalises the two existing directories with the shell's own `cd` + `pwd -P` (builtins — no realpath(1): `realpath -m` was GNU-only, plain `realpath --` fails on busybox and realpath is absent on older macOS; DISS-C-003). 1.6 (Sprint 285 review round 1, DEC-1189): `_traj_trusted` treats "no stat row for the day file" as trusted only when the path is truly absent (`! -e && ! -L` — a dangling symlink has no `stat -L` row and `>>` would follow it), and canonicalises with plain `realpath` on the two existing paths after the directory is created (`-m` is GNU-only and made every BSD/macOS host refuse); grimoire-index's dead shell `san()` is removed (the awk twins are the only sanitiser); the byte-cap contract names the one-true-awk second-edition limit. 1.5 (Sprint 285 Task 2.1, DEC-1185): `_traj_trusted` tests ownership, non-symlink and the anchored canonical path on every directory component but NOT its group/other-write bit (a checkout's directories inherit the clone umask; the rule refused every append on umask-002 hosts); the day-file checks are unchanged. 1.4 (Sprint 284 review round 1, dissent DISS-C-003, DEC-1181): the SessionStart `loa-context-class.sh` hook is the automatic repair owner of a legacy group/other-writable `.run` (`chmod go-w` once per session; grimoire-index stays the on-demand owner) and every hook creator of `.run` runs its `mkdir` under umask 077, pinned by a static guard test (`run-dir-creators.bats`). 1.3 (grounding corrections from the Flatline sprint review and the implementer briefs): the chain-summary tests live in `tests/unit/audit-envelope-verify-chains.bats` (LS-1 … LS-4), not `loa-status-providers.bats`; the FR-3 counts are split — JSON `valid` EXCLUDES n/a and `valid + absent + broken + not_applicable == 7`, the displayed count adds n/a back so the healthy line stays 7/7 (DEC-1171); the cache-state surface is a new `loa_profile_cache_state` function appended to /loa's Profile line only when the cache is off (`loa_profile` keeps printing the name; no JSON profile object exists today); the anchored realpath check runs only when the seam is redirected and the bats marker is absent. 1.2 integrates the Flatline SDD review of 1.1 (6 blockers, 37 medium items from two voices; cross-scoring degraded, KF-041 — dispositions in § 11.F): the publisher's bodies reach `jq --rawfile` through process substitutions (no temp file, no trap — the 1.1 helper's function-scoped RETURN trap would have deleted the file before use); the profile-lib predicate states its trust lifetime, creates an absent `.run` itself and names grimoire-index as the repair owner of a legacy writable `.run`, and every remaining 'tightening' reference now reads REFUSE; the trajectory guard is anchored at the canonical checkout root with one stat over every component below it; the `loa_knob` kind token moves to the last line with a newline guard; the KF top-K selection is specified for awks without `asort`; `audit_chain` gains `not_applicable`. 1.1 carried PRD 1.1's Flatline integration into the design (§ 11.G).
 **Author:** Architect Agent (Claude Fable 5.1, unattended)
-**PRD Reference:** `grimoires/loa/prd.md` (1.1, FR-1 … FR-8, G-1 … G-6, § Release predicate R-1 … R-8)
-**Status:** Draft — autonomous cycle on the operator's instruction of 2026-10-28
-**Cycle:** `cycle-137-performance-followups`, branch `feature/cycle-137-performance`
+**PRD Reference:** `grimoires/loa/prd.md` (1.3, FR-1 … FR-16, G-1 … G-4, Appendices D–E)
+**Status:** Draft — autonomous cycle on the operator's instruction of 2026-10-29
+**Cycle:** `cycle-138-hardening-followups`, branch `feature/cycle-138-hardening-followups` from `main` fe52be893
+**Integration context:** `grimoires/loa/a2a/integration-context.md` is absent; the cycle-137 and sprint-bug-283 artefacts (`grimoires/loa/archive/cycle-137-performance-followups/`, `grimoires/loa/a2a/sprint-282/`, `grimoires/loa/a2a/bug-20261028-90f357/`) are the prior art every component below cites.
 
 ---
 
@@ -31,195 +31,391 @@
 
 ### 1.1 System Overview
 
-Eight components, all inside the existing framework. C-1 is a gate pass over code that already exists (the 20 loop commits). C-2, C-4, C-5, C-6 and C-7 are single-lever changes to one file or one lib each; C-3 carries two levers in two files (the loa-status ceiling read and the agy memo in the shared lib) and lands as two commits. All are built the way the loop built its passes: profile, golden capture, change, old-vs-new mirror parity, review. C-8 is the ship. Nothing new is added to the per-tool-call hook chains; every change removes spawns or shortens tests.
+Fifteen bounded changes to an existing bash/awk/python framework, grouped into ten components (C-1 … C-10) that touch six System Zone files, one Python package and five test files. Nothing new is deployed; every component is a hardening of a path that already runs on the maintainer's machine: three per-tool-call hooks (zone-write-guard, karpathy, the KF SessionStart surface), two shared libraries (`profile-lib.sh`, `loa-status.sh`), the post-merge publisher, and the test guards that keep them honest.
+
+> From prd.md: "Every change keeps its hot path's spawn budget … where output changes by design (FR-3, FR-7) the change is enumerated; everything else is byte-identical old-versus-new" (§ Non-Functional Requirements → Performance).
 
 ### 1.2 Architectural Pattern
 
-"Fast path with verbatim fallback" (the loop's passes 7, 9, 10, 11, 16, 18): the plain, common input shape takes one process; every other shape runs the original code unchanged, so error text, exit codes and degraded paths stay byte-identical by construction. Caches (C-4, C-5) are pure functions of their inputs, content-keyed, written atomically under `.run/`, and ignored on any defect (the 2026-07 loop's `.run/perf-cache` conventions in `zone-write-guard.sh:81-104, 227-263`).
+The cycle-137 pattern, unchanged: **fast path with a verbatim fallback, trust boundary before any cache read or write, red-first tests with a parity harness in real directories, manifests regenerated per System Zone commit**. Where cycle-137 introduced a boundary for one cache (`_gi_trusted_dir`, `_gi_dec_write`), this cycle applies the same boundary to its older sibling and the same "inputs through files, never argv" rule sprint-bug-283 established for the publisher's read-back to its write side.
 
 ### 1.3 Component Diagram
 
-```
-Sprint 281                               Sprint 282
-┌──────────────────────────┐   ┌──────────────────────────────────────────────────────────┐
-│ C-1 gate pass            │   │ C-2 KF parsers      loa-kf-surface.sh · grimoire-index.sh│
-│  20 loop commits         │   │ C-3 loa-status      one yq ceilings · agy node memo       │
-│  reviewer.md → review    │   │ C-4 profile-lib     cached non-profile knobs             │
-│  → audit → COMPLETED     │   │ C-5 grimoire-index  decisions cache · one write-mode jq   │
-└──────────────────────────┘   │ C-6 tests           corpus-once · bounded waits           │
-                               │ C-7 audit-envelope  verify-chains (one process)           │
-                               └──────────────────────────────────────────────────────────┘
-                                                      │
-                                              C-8 ship: PR → BB → merge → record → archive → rc.9
+```mermaid
+flowchart LR
+  subgraph hooks[Per-tool-call hooks]
+    ZWG[zone-write-guard.sh\nC-4 umask 077 creator]
+    KAR[karpathy-surgical-diff-check.sh\nC-5 seam gate + symlink guards]
+    KFS[loa-kf-surface.sh\nC-6 C1 strip, row cap, BSD contract]
+  end
+  subgraph libs[Shared libraries]
+    PL[profile-lib.sh\nC-1 cache trust boundary\nC-7 floor clause + presence metadata]
+    LS[loa-status.sh\nC-3 chain summary third state]
+  end
+  subgraph publish[Release path]
+    PMO[post-merge-orchestrator.sh\nC-2 file-borne request bodies]
+  end
+  subgraph guards[Test guards]
+    PSB[perf-spawn-budget.bats\nC-8 warm-cache target]
+    CMP[adversarial-review-companion.bats\nC-8 CMP-55 reap marker]
+    LDS[loa-decisions-surface.bats\nC-8 _path_without]
+  end
+  PROV[providers/__init__.py\nC-9 one dispatch mapping]
+  KAR -->|loa_knob| PL
+  KFS -->|loa_knob| PL
+  LS -->|verify-chains| AE[audit-envelope.sh]
+  PL -->|reads/writes| CACHE[(.run/effective-config.json)]
+  ZWG -->|creates| PC[(.run/perf-cache/)]
+  PMO -->|gh api --input| GH[(GitHub releases / comments)]
+  PSB -.traces.-> KAR
+  PSB -.traces.-> GI[grimoire-index.sh]
 ```
 
 ### 1.4 Components
 
-| Id | Component | Files | PRD |
+| ID | Component | Files | PRD |
 |---|---|---|---|
-| C-1 | Formal gates on the optimisation loop | `grimoires/loa/a2a/sprint-281/reviewer.md`, fix commits on loop files | FR-1 |
-| C-2 | KF field-variant parsing and heading reset | `.claude/hooks/loa-kf-surface.sh`, `.claude/scripts/grimoire-index.sh` | FR-2 |
-| C-3 | loa-status single-yq ceiling read; agy opt-in node memo | `.claude/scripts/loa-status.sh`, `.claude/scripts/lib/agy-gate-lib.sh` | FR-3 |
-| C-4 | Cached non-profile knobs in profile-lib | `.claude/scripts/lib/profile-lib.sh`, `.claude/data/profiles.yaml` | FR-4 |
-| C-5 | grimoire-index decisions cache and one write-mode jq | `.claude/scripts/grimoire-index.sh` | FR-5 |
-| C-6 | Test-suite runtime: corpus-once fixture, bounded waits | `tests/unit/block-destructive-bash.bats`, `tests/unit/adversarial-review-companion.bats` | FR-6 |
-| C-7 | `verify-chains`: one Python process for every chain file | `.claude/scripts/audit-envelope.sh`, `.claude/adapters/loa_cheval/audit_envelope.py`, `.claude/scripts/loa-status.sh` | FR-7 |
-| C-8 | Ship and publish `v2.0.0-rc.9` | `CHANGELOG.md`, `README.md`, `.loa-version.json`, ship scripts under `~/.cache/loa/cycle-137/ship/` | FR-8 |
+| C-1 | profile-lib cache trust boundary | `.claude/scripts/lib/profile-lib.sh` | FR-1 |
+| C-2 | publisher file-borne request bodies | `.claude/scripts/post-merge-orchestrator.sh` | FR-2 |
+| C-3 | chain summary third state | `.claude/scripts/loa-status.sh` | FR-3 |
+| C-4 | umask-077 perf-cache creators | `.claude/hooks/safety/zone-write-guard.sh` (+ any other creator found by `grep -rn 'perf-cache' .claude --include='*.sh'` that runs `mkdir`) | FR-4 |
+| C-5 | karpathy seam gate + trajectory symlink guards | `.claude/hooks/quality/karpathy-surgical-diff-check.sh` | FR-5, FR-6 |
+| C-6 | KF surface: C1 strip, row cap, BSD contract | `.claude/hooks/loa-kf-surface.sh`; `.claude/scripts/grimoire-index.sh` (`SAN_AWK` twin only) | FR-7, FR-8, FR-9 |
+| C-7 | profile-lib floor descendant clause + presence metadata | `.claude/scripts/lib/profile-lib.sh` | FR-10, FR-11 |
+| C-8 | test guards | `tests/unit/perf-spawn-budget.bats`, `tests/unit/adversarial-review-companion.bats`, `tests/unit/loa-decisions-surface.bats` | FR-12, FR-13, FR-14 |
+| C-9 | provider dispatch mapping | `.claude/adapters/loa_cheval/providers/__init__.py` | FR-15 |
+| C-10 | ship | PR, Bridgebuilder, merge, record, archive (no publish) | FR-16 |
+
+> Sources: prd.md § Technical Considerations → Architecture; the file anchors in each FR
 
 ---
 
 ## 2. Software Stack
 
 ### 2.1 Languages and runtimes
-bash 5 (hooks and scripts; bash-3.2/BSD-friendly constructs where the surrounding file already is), POSIX awk (mawk, busybox and BWK must all run the KF regexes — no gawk-only syntax), jq 1.7, mikefarah yq v4 (optional where it is optional today), Python 3.13 (`audit_envelope.py`), bats 1.13 via `npx --no-install bats`.
+bash 5.2 on the ship host, bash 3.2 compatibility kept where the touched file already has it (hooks: no associative arrays, no `${var,,}`, `[[ ]]` only); awk (mawk 1.3.4, busybox awk, `gawk --posix`; BWK one-true-awk for C-6 form (a)); jq 1.7 (≥ 1.6 for `$ARGS`); mikefarah yq 4.44.1; python3 3.13 (`-I` for the publisher's helpers, as sprint-bug-283 did); bats-core 1.13.0 via the npx cache (`/home/merlin/.cache/npm/_npx/cd2c4d46c11457b7/node_modules/.bin`).
 
 ### 2.2 Build and verification
-`hyperfine -N` for every measurement (hyperfine 2.0 JSON: `.results[0].measurements[].time_wall_clock.value`); `PS4` traces for spawn counts; old-vs-new mirrors built in REAL directories (a symlinked hooks or scripts dir lets `..` escape to the live lib — the pass-18 lesson); `tools/check-no-raw-sha256sum.sh`, `tools/check-no-swallowed-jq.sh --quiet`, `bash .claude/scripts/check-loa.sh`, `repo-map-gen.sh --validate`, `tests/unit/perf-spawn-budget.bats`.
+`red-test-check.sh --env-pass PYTHONUSERBASE` per red commit; `tools/gen-checksums.sh --root`, `--check`, `repo-map-gen.sh` + `--validate`, `tools/check-manifest-paths.sh`, `check-loa.sh` under the bounded zone marker (`~/.cache/loa/cycle-137/scripts/regen-manifests.sh` is the recipe); `perf-spawn-budget.bats`; mirror parity in REAL directories (`mirror-ls.py` pattern: python writes, because the shell fence refuses `cp`/redirects into any path containing `.claude/`).
 
 ### 2.3 External services
-GitHub via `gh` (PR, checks, merge, release); the post-merge pipeline for the rc.9 candidate; Bridgebuilder on `codex-headless`.
+GitHub through `gh` (PR, checks, merge; the publisher's `gh api --input -` already reads request JSON from stdin — C-2 only moves how that JSON is *built*). No model calls on any hot path; the dissent and Bridgebuilder voices are the cycle's review tooling, not the product.
+
+> Sources: `grimoires/loa/a2a/sprint-282/e2e.md` § Measurements (host); `grimoires/loa/a2a/bug-20261028-90f357/reviewer.md` (python3 -I, temp-dir pattern)
 
 ---
 
 ## 3. Database Design
 
-No database. Two new file caches under `.run/perf-cache/` (gitignored, state zone):
+No database. One existing file cache changes its trust rules (C-1) and one directory its creation mode (C-4):
 
-| Cache | Key (first line) | Payload | Writer | Readers |
+| File | Owner | Reader | Writer rule (C-1) | Trust rule (C-1) |
 |---|---|---|---|---|
-| `grimoire-index-decisions.v1.tsv` | `v1:<sha256 of decisions.yaml bytes>:<yq major.minor>:<jq major.minor>:<row count>` | the decisions family TSV rows exactly as `emit_decisions` prints them (post-sanitisation, 9 tab-separated fields each) | `grimoire-index.sh` (miss path) | `grimoire-index.sh` |
-| `.run/effective-config.json` (existing) | `schema_version: 1`, `id` (content key of config + profiles + floor, unchanged) | gains `knobs["karpathy_principles.diff_lines_per_task"] = {value, source: explicit\|absent, profile_value: null}` | `profile-lib.sh` cache builder | `loa_knob` |
+| `.run/effective-config.json` (`schema_version 1`, `id`, `knobs`, `profile_keys`, `overrides`, `warnings`) | `profile-lib.sh` | `_loa_pl_load`, `loa_knob` warm path | `umask 077` subshell; `mktemp "$cache.XXXXXX"` beside the cache; `[[ ! -L cache ]]` re-check; `mv -f -T` (fallback `mv -f` only when the target is neither a directory nor a symlink); the rename replaces a planted file or hard link, never truncates through it; failure removes the temp and leaves the cache untouched; an absent `.run` is created by the writer with `mkdir` (no `-p`) inside the same `umask 077` subshell and is trusted by construction (a concurrent creation fails `mkdir` → cache off for this process); `[[ -O dir && ! -L dir && ! -L cache ]]` (builtins, zero spawns) is re-checked right before the rename | **trust predicate** (PRD 1.1 FR-1, DEC-1157): (a) the cache's directory is a real directory (`-d && ! -L`), owned by `$EUID`, with no group/other write bit — a writable or foreign directory is REFUSED (cache off, live read); profile-lib never `chmod`s from the hook path (the D-5.3 tightening stays in `grimoire-index.sh`); (b) the cache file, when present, is a regular non-symlink file owned by `$EUID`, no group/other write bit, link count 1 — else not read, replaced on the next write; (c) a redirected `LOA_PROFILE_CACHE_FILE` outside bats keeps its WARN and its directory must satisfy (a) with no symlinked path component (`realpath -m` of the directory equals `realpath -m` of the checkout root joined to the relative path — anchored at the trust root, so only components below it are constrained); the predicate is evaluated once per process from the stat rows below and its **trust lifetime is the process**: every sampled property (owner, mode bits, file type, link count) can be changed afterwards only by the same uid or by root — both outside the threat model — and replacing `.run` itself needs write permission on the checkout root, the trust root (D-1.2, DEC-1166); the directory rows never enter the cache `id`, so a directory that becomes trusted again simply reads its existing cache when the file half passes (no rebuild on a mode change) |
+| `.run/perf-cache/` | `zone-write-guard.sh` (first creator on a fresh mount), grimoire-index (`_gi_dec_write`, already 077) | the caches of cycle-137 | created inside `( umask 077; mkdir -p … )` by every creator (C-4) | unchanged readers (`_gi_trusted_dir`) |
 
-Writer rules (both caches; precedent `zone-write-guard.sh:227-263`, whose `$$` temp the new writer improves on with `mktemp`): `umask 077`; a uid-owned `.run` or `.run/perf-cache` that carries a group or other write bit is tightened with `chmod go-w` and trusted when the chmod succeeds (D-5.3, amendment 1.2); refuse when `.run`, `.run/perf-cache` or the cache file is a symlink (`[[ -L ]]` checked on each, and again on the file immediately before the rename); `mkdir -p` the directory then re-check `-L`; exclusive temp via `mktemp "$cache.XXXXXX"` in the same directory; write; `mv -f -T` (`mv -f` where `-T` is absent); on any failure remove the temp and continue (never fatal); never read or written under `CI`/`GITHUB_ACTIONS` or when `LOA_GRIMOIRE_INDEX_NO_CACHE=1` (decisions cache). Concurrent writers: the rename is atomic, last writer wins, both payloads are correct by construction (same key ⇒ same rows). Reader rules: one `awk` pass accepts the decisions cache only if line 1 equals the computed key, the number of payload rows equals the key's row count, every row has exactly 9 fields and no byte in `[\x00-\x08\x0a-\x1f\x7f<>]` (the sanitiser's output alphabet excludes them); the awk prints the rows only after the whole file validated, so a truncated, altered or wrong-key file prints nothing and is a miss. The decisions key and the rows are derived from one captured byte string of `decisions.yaml` (the file is read once into a variable or temp copy; sha256 and yq both consume that copy), so a rewrite mid-run cannot pair a new key with old rows. `.run/` is gitignored (`git check-ignore .run/perf-cache/x`), so a downstream mount's `git status` stays clean. The `effective-config.json` builder keeps its existing writer (unchanged in this cycle).
+**Spawn budget for C-1.** `_loa_pl_id` already runs one `stat -Lc '%n|%y|%s'` over the three source files; the trust predicate extends THAT call with the cache's directory and the cache file as fourth and fifth paths and the format `|%a|%u|%h` (mode, uid, link count; BSD: `stat -Lf '%N|%Fm|%z|%Lp|%u|%l'`), parses the two extra rows keyed by `%n` — `stat -L` prints a row for every path that exists and exits non-zero for the missing ones, so the call's rc is ignored and presence comes from the rows (a missing cache file or a missing `.run` yields no row; today's 'no id' branch stays for the three source rows only); a mode that is not `^[0-7]+$` or a uid/link count that is not `^[0-9]+$` marks the row malformed and refuses before any shell arithmetic — and excludes them from the cache `id` (ids stay byte-identical to today's, so the cache is not rebuilt by a mode change). Ownership is read from the stat row rather than `[[ -O ]]` so the fixtures can shim it. Net: **zero additional spawns** on the warm karpathy path (budget stays 196 / 9); no `chmod` is ever issued from profile-lib (DEC-1157). The `realpath -m` check for a redirected cache path runs only when `LOA_PROFILE_CACHE_FILE` is set outside bats (one spawn on that seam path only).
+
+> Sources: `.claude/scripts/lib/profile-lib.sh:50-83, 181-222`; `.claude/scripts/grimoire-index.sh:263-331`; `.claude/hooks/safety/zone-write-guard.sh:255-264`; DEC-1126
 
 ---
 
 ## 4. UI Design
 
-No user interface changes. Every hook and script keeps its stdout, stderr and exit codes byte-identical on the live inputs; the only new operator-visible text is the CHANGELOG release section, the PR body and the release notes.
+Command-line text only. Three operator-visible changes, each enumerated in the sprint report and the CHANGELOG `[Unreleased]`:
+
+| Surface | Before | After (C-3, C-6) |
+|---|---|---|
+| `loa-status` human line | `Audit chain: 7/7 primitives validate.` (absence counted valid) | `Audit chain: 7/7 primitives validate.` only when every chain file exists and verifies; otherwise `Audit chain: V/7 validate (A absent, B broken).` followed by one line per non-valid primitive (`  L4 trust-ledger.jsonl: absent`) |
+| `loa-status --json` `agent_network` | `audit_chain_summary: "V/7"` | `audit_chain_summary: "V/7"` (V now excludes absent) **plus** `audit_chain: {valid, absent, broken, not_applicable, total, primitives[]}` (`valid` EXCLUDES the two `n/a` primitives — 5 when healthy; `valid + absent + broken + not_applicable == total`; the displayed `V/7` adds n/a back — DEC-1171) |
+| KF SessionStart table | every entry (65 today) | at most `KF_SURFACE_MAX_ROWS` (40) rows — selected by recurrence desc, id desc, printed in file order — then `  … and K more — see grimoires/loa/known-failures.md` |
+| /loa Profile line (`display_profile_line`, loa-status.sh ≈ 991-1016) | profile, overrides, guardrail notes | plus ` · profile cache off (<reason>)` ONLY when the cache is off (C-1, via the new `loa_profile_cache_state`; byte-identical when on; the hooks themselves stay silent; no JSON profile object exists today, so none is added) |
+| profile-floor WARN lines | ancestor and glob matches | plus descendants of mapping-level floor keys (C-7) — pre-flight over the live config expects no newly forbidden key, so no live change |
+
+No colour-only signal (`agent-ergonomics-color-guard.bats`). Everything else byte-identical.
+
+> Sources: `.claude/scripts/loa-status.sh:481-522`; `.claude/hooks/loa-kf-surface.sh:88-140`; prd.md § User Experience
 
 ---
 
 ## 5. API Specifications
 
-### 5.1 KF field parsing (C-2, both awk programs)
+No network API changes. The "APIs" here are the shell-function contracts each component changes; pseudocode is the specification.
 
-`fieldval(line, label)` recognises three line shapes, each with an optional leading `- `:
+### 5.1 `profile-lib.sh` cache trust boundary (C-1)
 
-| Shape | Regex (awk ERE, label interpolated) | Example |
+```
+_loa_pl_paths():            unchanged (root, cfg, prof, floor, cache path; LOA_PROFILE_CACHE_FILE seam)
+_loa_pl_id():
+  st = stat -Lc '%n|%y|%s|%a|%u|%h' -- cfg prof floor "$cachedir" "$cache" 2>/dev/null     # GNU; BSD: -Lf '%N|%Fm|%z|%Lp|%u|%l'
+  # rc IGNORED: stat prints a row for every path that exists and exits non-zero for the missing ones — presence comes from the %n rows (M32)
+  rows keyed by %n: the three source rows (all required, else no id — today's branch); dirrow for cachedir (optional); filerow for cache (optional)
+  _LOA_PL_CUR_ID = "v1|cfg|prof|floor|" join(source rows with the |%a|%u|%h suffix stripped, ";")      # id bytes identical to today
+  _LOA_PL_DIR = {mode, uid} from dirrow | absent | malformed;  _LOA_PL_FILE = {mode, uid, links} from filerow | absent | malformed
+  fail-closed parse (M11): mode must match ^[0-7]+$, uid and links ^[0-9]+$ — anything else is "malformed" and is refused below, never reaching arithmetic
+_loa_pl_cache_trusted():   # 0 → the directory may be used; 1 → cache off for this process (reason in _LOA_PL_CACHE_OFF for loa_profile)
+  [[ -n "$cache" ]] || { reason=no-cache-path; return 1; }
+  dir = cache's directory
+  [[ "$_LOA_PL_DIR" == absent ]] && { if [[ -e "$dir" || -L "$dir" ]]; then reason=dir-stat; else reason=dir-absent; fi; return 1; }   # dir-absent is handled by the writer
+  [[ "$_LOA_PL_DIR" == malformed ]] && { reason=dir-stat; return 1; }
+  [[ -d "$dir" && ! -L "$dir" ]] || { reason=dir-not-plain; return 1; }
+  [[ "$dir_uid" == "$EUID" ]] || { reason=dir-foreign; return 1; }
+  (( (8#$dir_mode & 8#022) == 0 )) || { reason=dir-writable; return 1; }                  # REFUSE — never chmod from here (DEC-1157); repair owner: grimoire-index (§ 5.4)
+  if the seam is set outside bats:
+    real=$(realpath -m -- "$dir" 2>/dev/null); root_real=$(realpath -m -- "$root" 2>/dev/null)
+    [[ -n "$real" && -n "$root_real" && "$real" == "$root_real/${dir#"$root/"}" ]] || { reason=dir-symlinked-component; return 1; }   # anchored at the trust root (M31); no realpath -m → refuse; runs only when the seam is redirected AND the bats marker is absent (inside bats the seam's mktemp dir is trusted); tests call this helper directly with the marker unset
+  return 0
+_loa_pl_cache_readable():  # the file half, for reads only
+  [[ "$_LOA_PL_FILE" == absent ]] && { reason=file-absent; return 1; }
+  [[ "$_LOA_PL_FILE" == malformed ]] && { reason=file-untrusted; return 1; }
+  [[ -f "$cache" && ! -L "$cache" ]] || { reason=file-untrusted; return 1; }
+  [[ "$file_uid" == "$EUID" && "$file_links" == 1 ]] || { reason=file-untrusted; return 1; }
+  (( (8#$file_mode & 8#022) == 0 )) || { reason=file-untrusted; return 1; }
+_loa_pl_load():
+  … if cache set and id set and _loa_pl_cache_trusted and _loa_pl_cache_readable:
+       j = jq -c 'if .schema_version == 1 and .id == $id then . else empty end' < "$cache"
+  … else build; _loa_pl_write_cache
+loa_knob() warm path: the same two guards before the jq read of the cache file
+_loa_pl_write_cache():
+  if ! _loa_pl_cache_trusted; then
+    [[ "$_LOA_PL_CACHE_OFF" == dir-absent ]] || return 0
+    ( umask 077; mkdir -- "$dir" ) 2>/dev/null || return 0         # no -p: a directory that appeared meanwhile is NOT ours → cache off this process (M32)
+  fi                                                                # a directory we just created is trusted by construction (0700, our uid)
+  ( umask 077
+    [[ -O "$dir" && ! -L "$dir" && ! -L "$cache" ]] || exit 1       # builtin re-check right before the rename — zero spawns (B3)
+    tmp=$(mktemp "$cache.XXXXXX") || exit 1
+    printf '%s\n' "$_LOA_PL_JSON" > "$tmp" &&
+      { mv -f -T "$tmp" "$cache" 2>/dev/null || { [[ ! -d "$cache" && ! -L "$cache" ]] && mv -f "$tmp" "$cache"; }; } || rm -f "$tmp" )
+  return 0
+loa_profile_cache_state(): prints on | off (<reason>) — appended to /loa's Profile line only when off; loa_profile keeps printing the profile name (its caller captures it)
+  reason ∈ no-cache-path · dir-absent · dir-stat · dir-not-plain · dir-foreign · dir-writable · dir-symlinked-component · file-absent · file-untrusted
+```
+Outcomes (M10):
+
+| Finding | Read | Write |
 |---|---|---|
-| A (existing) | `^(- )?\*\*LABEL\*\*: ?` | `**Symptom**: text` |
-| B (existing) | `^(- )?\*\*LABEL[^*]*:\*\* ?` | `**Symptom (short):** text` |
-| C (new) | `^(- )?\*\*LABEL( [^*]*)?\*\*: ?` | `**Symptom (short)**: text` |
+| directory refused (any `dir-*` reason except `dir-absent`) | not read | not written; the directory is untouched (no chmod, no mkdir) |
+| `dir-absent` | — | created 0700 by `mkdir` (no `-p`), then written |
+| file absent | miss → build | written |
+| file is a symlink, FIFO, foreign-owned, multi-linked, or group/other-writable regular file | not read | REPLACED by the rename (the directory entry, never the target: a symlink's target and a hard link's other name keep their bytes) |
+| file is a directory | not read | not written (`mv -T` fails; the fallback refuses `-d`) |
 
-Shape C requires a space after the label so `**Symptomatic**:` is not a Symptom field; shape B keeps its existing looseness (unchanged). Shape C applies to the `Symptom` and `Recurrence count` labels only (D-2.2): the live file's only qualified `Status` line for a parsed label is `**Status (original)**: OPEN …` in KF-008 — a historical annotation that must never become the entry's status — so `Status` keeps shapes A/B; a decoy fixture places `**Status (original)**:` after `**Status**:` and asserts no change. Heading rule: every `^## ` line resets `cur = ""`; only `^## KF-[0-9]+:` then sets `cur` to the entry id. Consequence on the live file: none (0 shape-C lines; the non-numeric H2 headings — `## Schema`, `## KF-{NNN}: {short title}`, `## Index`, two `## How to …` — carry no first-wins fields that today attach to an entry). The two programs stay textually aligned; the kf-surface copy keeps its `LC_ALL=C awk` and `san()`.
+Inside bats the `LOA_PROFILE_CACHE_FILE` seam keeps today's semantics (its directory is a 0700 `mktemp -d`, so the predicate passes); outside bats a redirected cache obeys the predicate and the anchored `realpath` component check. **Trust lifetime** (B3): the predicate's properties can be changed after sampling only by the same uid or by root — a same-uid adversary already owns the session (DEC-1136's reasoning) and root is out of scope — and replacing `.run` needs write permission on the checkout root, the trust root; the lifetime is therefore the process, written into the code comment, and the writer's builtin re-check is a belt, not the argument. **Drift guard** (M28): the test extracts both bodies and compares exactly these invariant lines between `profile-lib.sh` and `grimoire-index.sh:263-269` — the `[[ -d … && ! -L … ]]` type check, the `^[0-9]+$` / `^[0-7]+$` field validation, the `== "$EUID"` comparison and the `(( (8#mode & 8#022) == 0 ))` arithmetic; the bodies differ by design after that point (grimoire-index `chmod go-w`s, profile-lib refuses) and the guard compares only the listed lines. One `loa_profile_cache_state` case per reason asserts the exact `off (<reason>)` text, and PL-14 asserts the Profile line's suffix only when off — D-1.1 (DEC-1148), D-1.2 (DEC-1166), DEC-1157.
 
-### 5.2 `_anthropic_ceiling_json` (C-3, `loa-status.sh:848-870`)
+> Sources: `profile-lib.sh:50-83, 181-262`; `grimoire-index.sh:263-280, 319-331`; `grimoires/loa/a2a/sprint-282/auditor-sprint-feedback.md` MED-001
 
-One `yq eval -r` program emits six lines in this order: alias (`.aliases.opus // ""`), then for `$m` = the alias with a leading `anthropic:` removed: `effective_input_ceiling`, `probed_ceiling`, `ceiling_calibration.calibrated_at`, `ceiling_calibration.transport`, `context_window`, each `// ""`. The six lines are captured with `mapfile -t` (bash ≥ 4) from the `yq` output — a trailing empty field is a present empty line, and `yq -r` always terminates the last line — and the result is used only when `yq` exits 0 and the array has exactly six elements; otherwise the current per-field reads run verbatim. A multi-line value therefore falls back (as the pass-18 design). Fixtures (fast path or fallback, output identical either way): malformed YAML, a map where a scalar is expected, an embedded newline, explicit `null`, explicit `false`, an empty final field, all optional fields absent, `yq` failing. A bats assertion proves the fast path is taken on the live config (`bash -x` trace: one `yq`, no per-field read). The JSON object `_anthropic_ceiling_json` prints is unchanged.
-
-### 5.3 agy opt-in node memo (C-3, `agy-gate-lib.sh`)
-
-`_agy_opt_in_node` stays the subshell reader (fd-9 open-once semantics, r251-6 V3). A new parent-shell wrapper `_agy_opt_in_node_memo <cfg>` sets `_AGY_NODE_MEMO_VAL` (its result variable — callers read the variable, never `$(...)`, so the memo persists in the calling shell) and returns 0: it computes `id=<cfg>|<dev>:<ino>:<size>:<mtime>` with one portable `stat` (GNU `stat -c '%d:%i:%s:%Y'`, else BSD `stat -f '%d:%i:%z:%m'`); when `stat` fails the memo is dropped and the node re-read every time; when `id` equals `_AGY_NODE_MEMO_KEY` the stored value is returned, else `_agy_opt_in_node <cfg>` runs and both variables are stored. `agy_opted_in` and `agy_gate_warn_once` are rewritten to call the wrapper in the parent shell and read `_AGY_NODE_MEMO_VAL`; their return values and stderr text are unchanged; every other function is untouched. The memo lives only in the calling shell (a `$(...)` caller cannot populate it — same limitation as the pass-14 memo, documented in the comment). Fixtures: hit on an unchanged file; miss after a same-size in-place rewrite `true` → `false` with a distinct mtime (`touch -d`); miss after `mv` replacement (new inode); miss after deletion (node absent); miss after switching `<cfg>`; `$(...)` caller correct. Callers covered: `loa-status.sh` and `run-preflight.sh` by mirror parity (human and `--json`), `flatline-orchestrator.sh` and `adversarial-review.sh` by their existing agy bats suites.
-
-### 5.4 `loa_knob` cached non-profile knobs (C-4, `profile-lib.sh`)
-
-`profiles.yaml` gains a top-level `cached_keys:` list (schema stays 1; unknown top-level keys are ignored by today's reader, verified by the cache builder test). The cache builder adds, for each listed key not already a profile key, `knobs[key] = {value: <explicit config value or null>, source: "explicit" | "absent", profile_value: null}`; `profile_keys` and `overrides` are computed as today from profile keys only (so `loa_profile` output is unchanged). Classification mirrors the live path exactly: the builder evaluates the SAME yq expression `_loa_pl_live` uses for the key; `source: explicit` iff that expression yields what the live path would return as a value today, and the stored `value` is that same string; every other outcome (absent key, explicit `null`, non-scalar, the live path's empty result) is `absent`, so a warm `loa_knob` returns the caller's fallback exactly where the live path does (fixtures: absent, `null`, `""`, `false`, `0`, a map, a multi-line string). `loa_knob` on a warm cache: `source == "absent"` → print the caller's fallback and return 0 without `yq`; `explicit` → the value as today; a cache that lacks the knob entry (built from an older `profiles.yaml`) → the live read as today. The stale (`id` mismatch), missing-cache and missing-`yq` paths are unchanged (live reads). First listed key: `karpathy_principles.diff_lines_per_task`.
-
-### 5.5 `grimoire-index.sh` decisions cache (C-5)
+### 5.2 Publisher request bodies off argv (C-2, `post-merge-orchestrator.sh`)
 
 ```
-emit_decisions():
-  f = decisions.yaml; [[ -f ]] || return
-  yq gate (unchanged: NOTE + return when not mikefarah v4; yq major.minor parsed from the gate's own --version output)
-  caching = LOA_GRIMOIRE_INDEX_NO_CACHE != 1 and CI/GITHUB_ACTIONS unset and ! -L .run and ! -L .run/perf-cache
-  snap = one read of f (temp copy under mktemp -d, or a variable when NUL-free)   # key and rows from the same bytes
-  key = "v1:$(sha256_portable < snap):$(yq maj.min):$(jq maj.min from the one existing `jq --version` capture or a single spawn)"
-  cache = $PROJECT_ROOT/.run/perf-cache/grimoire-index-decisions.v1.tsv
-  if caching and -f cache and ! -L cache: rows = awk-validate(cache, key)  # header, row count, 9 fields, alphabet; prints only if all valid
-     if rows non-empty or (validated and the row count is 0): print rows; return
-  rows = (today's yq → jq pipeline over snap, unchanged, including the unparsable-ledger NOTE path which caches nothing)
-  print rows
-  if caching: write cache (umask 077; mkdir -p dir; re-check -L dir; tmp=$(mktemp "$cache.XXXXXX");
-     printf "%s:%d\n%s" key-prefix nrows rows > tmp; re-check -L cache; mv -f -T tmp cache) || rm -f tmp; true   # never fatal
+phase_release (1286):
+  request = jq -nc --arg tag "$tag" --rawfile body <(printf '%s' "$notes") --arg title "$release_title" --argjson pre "$prerelease" \
+            '{tag_name:$tag, name:$title, body:$body, draft:false, prerelease:$pre}'
+  gh api … --method POST … --input - <<< "$request"                     # (as today: --input - reads stdin)
+phase_notify (1488, 1502): the same for "$summary" — --rawfile body <(printf '%s' "$summary") for the POST and for the read-back comparison
+  jq -e --argjson id "$id" --rawfile body <(printf '%s' "$summary") --arg issue "$issue_url" '.id == $id and .body == $body and .issue_url == $issue'
 ```
-Write-mode checks: the `bad` count and `.total` are read from `$JSON` with ONE jq program that preserves the root object — `jq -r '. as $root | ([$root.families[][] | select((.id|length)==0 or (.path|length)==0 or (.family|test("[^a-z]")))] | length), $root.total'` — captured into two variables with `mapfile -t`; a jq failure or a line count other than two is treated as `bad != 0` (refuse to write, as today's error path) and the bats cases cover a valid and an invalid index for both emitted values and the exit status (`validate` mode keeps its own jq calls: it is not hot). Modes consuming the cache: `--tsv`, `--json`, write (all through `collect`); `--validate` also goes through `collect` and therefore also consumes it; the JSON output is derived from the same cached TSV rows. `--help`, `--tsv`, `--json`, `--validate` outputs unchanged; the env knob `LOA_GRIMOIRE_INDEX_NO_CACHE=1` (disables read and write) is documented in the header comment (no new CLI flag, so `--help` is byte-identical). The `v1:` prefix constant sits adjacent to the `s` filter with a comment binding them (a sanitiser change bumps the prefix in the same commit) and a bats test asserts the prefix changes when the filter text changes (hash of the filter literal pinned next to the prefix).
+`--rawfile` takes a path; a bash process substitution supplies `/dev/fd/N` (a named pipe on a host without `/dev/fd`), fed by the `printf` builtin in a forked subshell — the body is never on any argv, no file is created, nothing is cleaned up and no trap exists. The 1.1 design (a helper `_pm_body_file` printing a temp path and owning a `RETURN` trap that removed the directory, "in its own scope") was wrong and is withdrawn: a function-scoped RETURN trap fires when THAT function returns, so the file would have been deleted before the caller's `jq` ran, and under `functrace` it would have clobbered the caller's trap instead (Flatline B1/B4/B6, § 11.F). jq reads each `--rawfile` operand fully while parsing its arguments, before any input, so the writer never blocks on a full pipe past jq's start; a jq failure (bad argument, no memory) hands `gh api … --input -` an empty request, which fails with today's `fail_phase release "Release creation failed"` / `fail_phase notify "Comment creation failed"` — the failure path is unchanged and no temp storage exists to fail (M7). `printf '%s'` writes no trailing newline, so `--rawfile` yields exactly the string `--arg` carried; the comparison semantics are unchanged (byte-exact for the comment; the release body goes through `release_body_identical` as of sprint-bug-283, whose temp files are created, used and removed inside ONE function scope — the only place the temp-dir + RETURN-trap pattern remains). The implementation task enumerates every argv-borne body site with `grep -n -- '--arg body\|--arg summary\|--arg notes' post-merge-orchestrator.sh` (three at fe52be893: 1286, 1488, 1502) and converts each; afterwards that grep shows none and `grep -c -- '--rawfile body <(printf' post-merge-orchestrator.sh` is 3 (structural assertions in the test file). Tests assert the stub-recorded argv of every publish-path command carries no body marker (replacing a `bash -x` grep; M15/M19) — D-2.1 (DEC-1149) as amended by D-2.2 (DEC-1165).
 
-### 5.6 Test-suite runtime (C-6)
+> Sources: `post-merge-orchestrator.sh:1286, 1488-1502` at fe52be893; `grimoires/loa/a2a/bug-20261028-90f357/engineer-feedback-r2.md` § Observations 4; `getconf ARG_MAX` 2 097 152, per-argument 131 072
 
-`block-destructive-bash.bats`: `setup_file()` runs `run-corpus.sh --hook "$HOOK" --json` once into `$BATS_FILE_TMPDIR/corpus.json`; `corpus_json()` prints that file; the three corpus tests are otherwise unchanged (the runtime test keeps reading `runtime_ms` from the same JSON, which is the one measured run). `block-destructive-bash.bats` `setup_file` captures without failing: `run-corpus.sh … > corpus.json 2> corpus.err; echo $? > corpus.status` (`|| true`); each corpus test first asserts `corpus.status` is `0` and `jq -e . corpus.json` succeeds, then reads its field, so a runner failure fails the three tests with the runner's stderr, not `setup_file`; `-f` selection and `--jobs` still run `setup_file` once per file process. `adversarial-review-companion.bats`: the env knob `CMP_STUB_HOLD_S` (default 300 = today) is read only by the `cheval` shim the bats file itself defines (lines 160–240: behaviours `stubborn`, `slow`, `unavailable-companion-slow`) and by the holder lines in test bodies (`sleep 30` holders at 1253, 1310, 1594, 1613, 1624, 1719, 1741, 1749; the `sleep 20` sleeper at 183); no production script reads it. Baseline procedure: `bats -T` serial on the idle ship host, median of three totals, before and after. Rules: a fixed sleep no test waits on shortens to the minimum its own bound requires; a hold that exists to be reaped keeps ≥ 2× the longest wait any test places on it (the affected tests and their bounds are listed by name in the implementer's report); polls keep their bounds; the synchronisation states each test demonstrates before asserting (holder ready, lock contended, released, timed out, cleaned up) are preserved and the negative control proves it (holder exits early / reaper disabled → the test fails); no assertion, expected value or skip condition changes. CMP-37 is left as is (out of scope for determinism); its acceptance evidence is the serial whole-file run (PRD R-4). The engineering floor is the script's own per-test runtime; if the measured floor exceeds the PRD's 300 s, a `proposed` decision row written before `/review-sprint sprint-2` moves FR-6's acceptance to the measured floor and names the improvement achieved.
+### 5.3 Chain summary third state (C-3, `loa-status.sh:408-461, 481-522`)
 
-### 5.7 `audit-envelope.sh verify-chains` (C-7)
+```
+_an_audit_chain_classify():  prints one line per primitive: "<id> <path|-> <state>"   state ∈ valid | absent | broken | n/a
+  for L1 L2 L3 L4 L6 (chain-bearing): missing file → absent; present → verified below
+  records = audit-envelope.sh verify-chains <existing…>     # contract (loa-status.sh:440-452 at fe52be893; M20): one JSON record per argument {i: <0-based index>, path: <the path passed at i>, ok: <bool>};
+            # index k is valid only when EXACTLY ONE record has .i == k, .path == $p[k] and .ok == true — a duplicate, missing or unexpected index is broken (M5);
+            # rc 0 or 1 → records parsed; any other rc, or unparsable output → every existing chain broken; an empty existing list skips the call (A = 5, V = 2)
+  per existing path: ok:true → valid; else (fails, unreadable, malformed, no record) → broken
+  L5, L7 (no chain file by design) → n/a           # EXCLUDED from the JSON valid count; added back for the DISPLAYED count (DEC-1171)
+_an_audit_chain_summary():   prints the DISPLAYED "V/7" with V = valid + not_applicable, A = absent, B = broken; V + A + B == 7 always (asserted per fixture); the classification carries A, B and the JSON valid (n/a excluded)
+display: if A == 0 && B == 0 → "Audit chain: ${V}/7 primitives validate."                  # byte-identical to today in the healthy case
+         else → "Audit chain: ${V}/7 validate (${A} absent, ${B} broken)." then one line per non-valid primitive: "  ${id} ${basename}: ${state}"
+JSON: audit_chain_summary: "${V}/7" (string kept; V excludes absent), audit_chain: {valid: <verified chains — n/a EXCLUDED, 5 when healthy>, absent: A, broken: B, not_applicable: 2, total: 7, primitives: [{id, path, state}]}   # valid + absent + broken + not_applicable == total; displayed V = valid + not_applicable (DEC-1171)
+```
+Behaviour change (intended, enumerated): an absent chain file no longer counts as valid, so `7/7` requires every chain-bearing file to exist and verify; the non-healthy line names each absent or broken primitive — D-3.1 (DEC-1150), D-3.2 (DEC-1167). Fixtures cover verifier exit 0, 1 and 2, duplicate / missing / unexpected index records, and the empty existing list.
 
-New subcommand `verify-chains <path>…` → one Python invocation that imports `loa_cheval.audit_envelope` once and calls `audit_verify_chain(path)` per argument in order, wrapping each call in its own try/except so one path's exception becomes that path's FAIL and the next path still runs; it prints one JSON record per input path in argument order — `{"i": <0-based index>, "path": <str>, "ok": <bool>, "error": <str|null>}` — and exits 0 when every record is `ok`, 1 when any is not, 2 on usage (zero arguments) or import failure. A missing path is `ok: false, error: "missing"`. The shell wrapper parses the records with one `jq` keyed on `i` (so paths with spaces, colons or newlines are safe) and is fail-closed: any input index without a record, a non-zero exit other than 1, or unparsable output marks every unrecorded path FAILED. Snapshot semantics: each path is verified exactly as a per-call invocation would at that moment — `_check_trust_store` runs per path and its in-process `_TRUST_STORE_CACHE` re-authenticates through the subprocess snapshot whenever the store path or content changed since the previous path; a store that becomes INVALID or disappears between paths fails every later path while earlier results stand. Equivalence proof: a pytest case in `tests/unit/` (D may not touch `tests/security/`) drives the batch over three fixture chains with a hook that mutates the trust store between paths (replace with a store revoking the signing key; tamper the signature; delete the file) and asserts the batch records equal fresh per-call `audit_verify_chain` results under the same schedule; if it cannot pass without touching `_check_trust_store`, C-7 is deferred (FR-7(b)). `_check_trust_store` is unchanged: its in-process `_TRUST_STORE_CACHE` (keyed by the store path and content key, `audit_envelope.py:411, 414-440`) makes the `audit-signing-helper.py trust-store-verify` subprocess run once per process for an unchanged store and again if the store's content key changes between files — the TOCTOU snapshot defence pinned by `tests/security/test_audit_trust_policy.py:147-165` is untouched. `loa-status.sh:415-435` collects the chain paths that exist (today's `[[ -f ]]` pre-filter stays, so missing files keep counting as valid by absence) and makes one `verify-chains` call; the per-index parse reproduces today's `valid` count exactly; a fail-closed wrapper result (no records) counts every passed path invalid, which is more conservative than today only in the abnormal-exit case and is recorded in the comment. Mutation check: the bats case runs `verify-chains` against a read-only chain tree and compares the sha256 of every chain file before and after. `verify-chain <path>` (singular) stays for every other caller.
+> Sources: `loa-status.sh:408-461, 481-522`; `tests/unit/audit-envelope-verify-chains.bats` LS-1 … LS-4 (roots `r0`, `r3`, `r5`, `r3-partial`, `none`; `_summary`, `_oracle`, `_stub` helpers; `store-tampered.yaml`)
 
-### 5.8 Ship (C-8)
+### 5.4 umask-077 creators (C-4)
 
-CHANGELOG: `[Unreleased]` content moves under `## [2.0.0-rc.9] — 2026-10-2x — Performance follow-ups (release candidate)`; version markers as the rc.8 heading (`git log -p` of the rc.8 commit is the template); `.loa-version.json` `framework_version` → `2.0.0-rc.9`; README install pin → `--tag v2.0.0-rc.9`. The ship scripts are the cycle-135 set with cycle, branch, PR and `--prev origin/record/cycle-136-bridgebuilder-followups` substituted. Ship files (CHANGELOG heading, README pin, `.loa-version.json`) are committed BEFORE the final review/audit of Sprint 282 so the reviewed head is the merged head (PRD R-1, R-3). Unattended merge and publish are authorised by the operator's instruction (PRD § Authorization): merge only via the ship recipe under R-3; publish only after the publish-summary stage — `a2a/sprint-282/publish-summary.md` lists the prepared candidate path, the pipeline's printed digest, the digest the lead recomputes with `sha256_portable` over the fetched candidate bytes (must be equal), the candidate's `merge_sha` (must equal the merge commit on `origin/main`), the tag and the CHANGELOG heading, and ticks R-1 … R-7. Publish: from a non-shallow clone, `post-merge-orchestrator.sh --publish <candidate> --approve-sha256 <digest>`; verify `git merge-base --is-ancestor v2.0.0-rc.9 origin/main`, the release page, and the install smoke test (`git clone --depth 1 --branch v2.0.0-rc.9` into a scratch directory → `check-loa.sh` and the kf-surface hook succeed). Rollback (written before publishing): revert the merge commit on `main` with manifests regenerated; mark the GitHub release as a withdrawn pre-release (tag never deleted); reopen the beads; decision row. The ship scripts are copied to `a2a/sprint-282/ship/` with their sha256 listed in `e2e.md`.
+`zone-write-guard.sh:261`: `[[ -d "${cache_dir}" ]] || ( umask 077; mkdir -p -- "${cache_dir}" )`. The sprint's first task enumerates every `mkdir` that can create `.run/perf-cache`, `.run` itself or any directory under it — `grep -rn 'perf-cache' .claude --include='*.sh' --include='*.py'` AND `grep -rn 'mkdir.*\.run' .claude tests --include='*.sh' --include='*.py'` (M34) — and applies the same subshell to each: zone-write-guard.sh:261 (the known creator); the karpathy hook's `mkdir -p "$STATE_DIR"` (line 162) and `mkdir -p "$TRAJ_DIR"` (line 214 — rewritten by C-5's guard, § 5.5); profile-lib's cache writer `mkdir -p "$dir"` (line 186 — rewritten by C-1, § 5.1); `grimoire-index.sh` already uses umask 077. **Repair owner for a legacy writable `.run`** (B2, M33): a `.run` that already exists 775 (an older creator under umask 002) is refused by profile-lib and repaired by `grimoire-index.sh` — `_gi_dec_cache_on` calls `_gi_trusted_dir "$ROOT/.run"`, whose last line `chmod go-w`s a uid-owned writable directory (lines 266-270 at fe52be893) — on its next run (on demand, `bash .claude/scripts/grimoire-index.sh`, or through the index-regeneration paths); until then `loa_profile_cache_state` reports `off (dir-writable)` (the /loa Profile line carries it) and every hook falls back to the live read with identical output. **1.4 (Sprint 284 review, DISS-C-003, DEC-1181):** the on-demand owner alone left every umask-002 install cache-off until someone ran grimoire-index, and the SessionStart `loa-context-class.sh` was itself the first 775 creator of `.run` on a fresh checkout; it is now the automatic repair owner — a real, non-symlink, uid-owned `.run` with a group/other write bit is `chmod go-w`-ed once per session (the `_gi_trusted_dir` invariant lines; one `stat` per session start; a symlink is never followed, a foreign directory is left alone) — and every hook creator of `.run` (`loa-context-class.sh`, `write-mutation-logger.sh`, `mutation-logger.sh`, `run-mode-stop-guard.sh`, `block-destructive-bash.sh` ×2, `settings-cleanup.sh`, `zone-write-guard.sh`; the karpathy hook under its global `umask 077`) runs its `mkdir` inside `( umask 077; … )`, pinned by `tests/unit/run-dir-creators.bats` (RDC-1 static guard over `.claude/hooks`; RDC-2 … RDC-5 dynamic: fresh root 0700, 775 → 755 repair with unchanged output, symlink untouched, 700 sees no chmod). The C-1 matrix carries a 775 `.run` row: cache off before, on after one grimoire-index run; the CHANGELOG line names the repair. `umask` is a builtin → no spawn — D-4.1 (DEC-1151), D-1.2 (DEC-1166).
+
+### 5.5 karpathy seam gate and trajectory guards (C-5)
+
+```
+line 62:  CHECKPOINT="$REPO_ROOT/.claude/scripts/run-checkpoint.sh"
+          [[ -n "${BATS_TEST_FILENAME:-}${BATS_VERSION:-}" && -n "${KARPATHY_CHECKPOINT_CMD:-}" ]] && CHECKPOINT="$KARPATHY_CHECKPOINT_CMD"
+          # outside bats the variable is ignored (no stderr: the hook's output stays byte-identical)
+lines 214-217 (the warn path only — the hot path is untouched; the state dir and task file at lines 162/165 keep today's -L guards: out of FR-6's scope, M21):
+  _traj_trusted():      # spawns on the WARN path only: realpath ×2 (root, TRAJ_DIR) + stat ×1 (+ mkdir once when the directory is absent); ZERO on the hot path (M18)
+    [[ "$TRAJ_DIR" == "$REPO_ROOT/"* ]] || return 1                                                  # outside the checkout → refuse (inside bats the seam's mktemp dir IS the root)
+    # (1.7) no `.`, `..` or empty component below the root: case "/$rel/" in *//*|*/./*|*/../*) return 1 ;; esac — BEFORE the mkdir (DEC-1190)
+    # (1.7) the canonical-path check runs AFTER the directory exists, with the shell's own cd + pwd -P (builtins; both paths absolute, CDPATH never applies);
+    #       realpath(1) is not used at all: -m was GNU-only (1.6), plain `realpath --` fails on busybox and realpath is absent on older macOS (DEC-1190).
+    root_real=$(cd -- "$REPO_ROOT" 2>/dev/null && pwd -P) || return 1; real=$(cd -- "$TRAJ_DIR" 2>/dev/null && pwd -P) || return 1
+    [[ -n "$root_real" && -n "$real" && "$real" == "$root_real/${TRAJ_DIR#"$REPO_ROOT/"}" ]] || return 1   # anchored at the canonical root: only components BELOW it are constrained (M31)
+    comps = every directory from the first component below REPO_ROOT down to TRAJ_DIR inclusive    # default: grimoires, grimoires/loa, grimoires/loa/a2a, grimoires/loa/a2a/trajectory
+    [[ -d "$TRAJ_DIR" ]] || { ( umask 077; mkdir -p -- "$TRAJ_DIR" ) 2>/dev/null || return 1; }     # 0700 by us; already-existing parents are checked below
+    f="$TRAJ_DIR/karpathy-${TS:0:10}.jsonl"
+    # (1.9, DEC-1192) chain FIRST, then OPEN, then VERIFY THE OPENED FILE — a check-then->> pair let a party able to write the directory swap the file in between:
+    st=$(stat -Lc '%n|%u|%a|%h|%d:%i|%F' -- "${comps[@]}")                # ONE stat -L over the components FIRST (BSD: -Lf '%N|%u|%Lp|%l|%d:%i|%HT'): nothing is opened unless the chain is trusted
+    for each comp: row present, [[ -d comp && ! -L comp ]], uid == EUID — else return 1 (as before; the component MODE is not tested, DEC-1185)
+    [[ -f f && ! -L f ]] → exec {FD}>>f                                   # (1.9) existing regular non-symlink file: O_APPEND
+    [[ ! -e f && ! -L f ]] → set -o noclobber; exec {FD}>f; exec {FD}>&-  # (1.9) truly absent: O_CREAT|O_EXCL (never follows a planted symlink), 0600 under the hook's umask 077; then CLOSED and
+                                                                            #       reopened O_APPEND by the branch above (`>` sits at offset zero — review r1 DISS-001); a loser of the O_EXCL race also takes the append branch
+    else → return 1                                                        # (1.9) symlink, dangling symlink (1.6), FIFO, directory PRESENT at the pre-check: refused UNOPENED; planted INSIDE the pre-check→open
+                                                                            #       window (trust-root party only): a symlink leaves an empty 0600 target, a FIFO blocks the open until the hook timeout (r2 DISS-C-001)
+    row=$(stat -Lc '%n|%u|%a|%h|%d:%i|%F' -- /dev/fd/$FD)                 # (1.9) the DESCRIPTOR's row — the fstat of what we hold
+    pathrow=$(stat -c '%d:%i|%F' -- f)                                     # (1.9) lstat of the path: must be regular*file on the SAME device:inode as the descriptor
+    # (the component loop moved above the open in 1.9 — see the pseudocode lines after the chain stat) umask)
+    (1.9) descriptor row (/dev/fd/$FD, stat -L): uid == EUID, type regular*file ("regular empty file" for the file just created), links == 1, (mode & 022) == 0 — else return 1   # the fstat of what we hold (M12)
+    (1.9) path row (stat, lstat semantics): same device:inode as the descriptor AND type regular*file — else return 1                                        # the path still names the file we hold
+    fields validated with ^[0-9]+$ / ^[0-7]+$ before any arithmetic
+  _traj_trusted && printf … >&"$FD" 2>/dev/null || true; exec {FD}>&-     # (1.9) written through the verified descriptor, then closed; the warning line is printed regardless
+```
+**State-directory and summary writes (1.10, Sprint 286 audit round 1 — DEC-1197 / DEC-1198, bd-ooymp).** The hot path (every Write/Edit) keeps builtins only:
+```
+  [[ -L "$STATE_DIR" ]] && exit 0; [[ -d "$STATE_DIR" ]] || mkdir -p "$STATE_DIR" || exit 0   # as before (file-global umask 077)
+  [[ -O "$STATE_DIR" ]] || exit 0                        # (1.10) a state directory owned by another uid — however writable — is refused before any read or append
+  _summary_write():                                       # (1.10) replaces `printf … > "$SUMMARY.tmp.$$"; mv -f` — `>` was open(O_WRONLY|O_CREAT|O_TRUNC): it followed a symlink planted at the predictable name
+    [[ -d sum_dir && ! -L sum_dir && -O sum_dir && ! -d "$SUMMARY" ]] || return 1   # a real uid-owned directory; `mv` into a directory at the summary path is refused
+    tmp="$SUMMARY.tmp.$$"; [[ ! -L tmp && ! -e tmp ]] || return 1                   # truly absent: a dangling symlink, FIFO, device or regular file there is not ours and is left alone
+    set -o noclobber; exec {fd}>tmp                                                  # bash noclobber_open (redir.c): stat() fails → open(O_WRONLY|O_CREAT|O_EXCL) — open(2): a symlink at the name fails "regardless of where it points"
+    printf … >&$fd && [[ -f tmp && ! -L tmp && -O tmp ]] && mv -f tmp "$SUMMARY"   # bytes through the held descriptor; the path re-checked before rename(2); otherwise close + rm the temp
+```
+The name stays `.tmp.$$`: the root cause was the open's flags and the directory's trust, not predictability (an unpredictable name only hides the window). Residual: a symlink to a FIFO or device planted INSIDE the lstat→open window is opened without O_EXCL (noclobber adds O_EXCL only when bash's own stat fails; pure bash has no O_NOFOLLOW) — the pre-check refuses one present before it, the re-check refuses the rename after it. The same-directory check→`>>` race on the task file inside a writable uid-owned state directory stays with bd-ooymp (the fd-anchored pattern above, or a mode stat, costs a spawn on the hot path — measure first). Evidence: `tests/unit/karpathy-surgical-diff-hook.bats` KS-14 … KS-18 (red-first, rtc VERIFIED), strace before/after on fixture roots, a second-uid container check, hyperfine against fe52be893 (`a2a/sprint-286/evidence/lead-*`).
+
+The seam is honoured only under a bats marker and otherwise ignored silently (PRD 1.1 FR-5, DEC-1158); `perf-spawn-budget.bats` adds `BATS_TEST_FILENAME` to its `env -i` allowlist for the karpathy target so its stub checkpoint still applies — D-5.1 (DEC-1152). **Threat model of the gate** (M24): `BATS_VERSION` and `BATS_TEST_FILENAME` are ordinary variables anyone with the same uid can export; the gate is a footgun guard against an ambient `KARPATHY_CHECKPOINT_CMD`, not a security boundary — the same uid already owns the session. The trajectory guard (PRD 1.2 FR-6) is anchored at the canonical checkout root and reads every component below it plus the day file in one `stat`; the `perf-spawn-budget.bats` karpathy fixture exercises the HOT path (no warning), so "budget unchanged" holds by construction, and one test asserts the warn path's own spawn count once (not a budget line) — D-5.2 (DEC-1168). A BSD command shim (no `realpath -m`, `stat -f`) fixture asserts the refusal with the warning printed.
+
+> Sources: `karpathy-surgical-diff-check.sh:38-62, 153-165, 205-220`; `profile-lib.sh:57-67` (seam precedent); `perf-spawn-budget.bats:275`
+
+### 5.6 KF surface: C1 strip, row cap, BSD contract (C-6, one awk program in `loa-kf-surface.sh`; `SAN_AWK` twin in `grimoire-index.sh`)
+
+```
+san(s):   gsub(/\000/, "", s)
+          gsub(/\302[\200-\237]/, " ", s)          # NEW: UTF-8 C1 (U+0080–U+009F) → space — the decisions jq `s` class
+          gsub(/\342\200[\250\251]/, " ", s)       # NEW: U+2028, U+2029 → space — the rest of that class; `<>` are NOT replaced here (stated)
+          gsub(/[\001-\010\013\014\016-\037\177]/, "", s)
+          gsub(/[\t\n\r]/, " ", s); gsub(/  +/, " ", s); sub(/^ /, "", s); sub(/ $/, "", s)
+          return substr(s, 1, 100)                 # BYTE cap under LC_ALL=C: 100 bytes on every host, may end inside a multi-byte sequence (advisory text) — the FR-9 contract
+rows:     collected in file order with (recurrence as the leading integer, 0 when absent; id); at END:
+          if n <= max: print all rows in file order                                    # byte-identical to today
+          else: top-K WITHOUT asort (mawk, busybox and BWK have none; M36): max passes of a linear scan over the unselected rows, each picking the best by
+                (rec desc, idnum desc) where idnum = substr(id, 4) + 0 and rec = the leading integer of the recurrence field, 0 when absent or malformed (M3);
+                an exact tie (only a duplicated id) resolves to the earlier file position; mark it selected; then print the SELECTED rows in file order;
+                print "  … and " n-max " more — see grimoires/loa/known-failures.md"
+```
+`KF_SURFACE_MAX_ROWS=40` is a shell constant passed with `-v max=`; no config key (PRD § Constraints); selection and display order are separate (DEC-1159) so the live file (65 entries) changes only by its 25 elided rows plus one line — the enumerated diff for FR-7's parity criterion; every field is bounded — id matches `^KF-[0-9]+$` (the parser's filter), recurrence prints as an integer (malformed reads 0), symptom ≤ 100 bytes — so 40 worst-case rows plus header and elision line stay under 8 KiB by construction (fixture; M2). `LC_ALL=C` is pinned on the awk command itself at every call site of both twins — the hook does so at line 94; grimoire-index's `SAN_AWK` call sites (lines 101, 177, 191) get the same prefix — with a parity case run from a `LANG=en_US.UTF-8` parent (M35). The 100-byte cap contract is DEC-1159's; the boundary fixture asserts the split sequence is tolerated downstream (advisory text; M26). The drift guard keeps `san()` and `SAN_AWK` identical; the three-awk parity test runs mawk, busybox and `gawk --posix`; FR-9 form (a) adds a BWK awk — a prebuilt one first (`original-awk` package, `nawk`, a container), the source build second — and BSD `cut` semantics; form (b) only after the prebuilt attempt is recorded, closing bd-aceil with the contract landed and opening a linked macOS bead — D-6.1 (DEC-1153), D-6.2 (DEC-1154), D-6.3 (DEC-1169), DEC-1159.
+
+> Sources: `loa-kf-surface.sh:88-140`; `grimoire-index.sh` `SAN_AWK`; `grep -c '^## KF-' known-failures.md` = 65; DEC-1123; DEC-1146
+
+### 5.7 profile-lib floor clause and presence metadata (C-7)
+
+```
+forbidden($k):  any($floor[]; . as $f | ($k | test($f | globre))
+                                      or (($f | split("*")[0]) | startswith($k + "."))                       # ancestor (today)
+                                      or (($f | contains("*") | not) and ($k | startswith($f + "."))))      # NEW: descendant of a MAPPING-LEVEL floor key — entries without *; glob entries rely on test(globre) alone (M37)
+loa_knob internal read (warm cache, memo): jq prints the rendered value FIRST and the kind token (present|absent|miss|stale) as the LAST line
+   out=$(jq -r … '… | if …stale… then "stale" elif has($k) then (if .knobs[$k].source == "absent" then "absent" else ((.knobs[$k].value | render) + "\npresent") end) else "miss" end')
+   if [[ $out == *$'\n'* ]]; then kind="${out##*$'\n'}"; value="${out%$'\n'*}"; else kind="$out"; value=""; fi
+   value="${value%"${value##*[!$'\n']}"}"       # today's command-substitution bytes: trailing newlines stripped
+   # $(…) strips trailing newlines, so with the token LAST an empty present value gives out=$'\npresent' → kind=present, value="" (M8/M30);
+   # a non-present kind has no newline → value=""; a value equal to "miss"/"absent"/"stale" is a value because kind says present
+```
+The public contract `loa_knob <path> <fallback>` (19 call sites, 10 files) is unchanged; `__LOA_PL_*` sentinel strings disappear from the code — D-7.1 (DEC-1155), D-7.2 (DEC-1170). Pre-flight for the descendant clause (M17): a jq over the live `.loa.config.yaml` and profile against the floor lists every key the new clause newly forbids — expected `none` (a sprint-report line; the plan's "live floor list identical" criterion).
+
+> Sources: `profile-lib.sh:131, 236-288`; `grep -rn loa_knob .claude --include=*.sh` = 19; Sprint 282 review observation 3; Bridgebuilder #1309 R-002
+
+### 5.8 Test guards (C-8)
+
+- `perf-spawn-budget.bats`: a second `_trace` of the grimoire-index fixture after the first (the cache now warm) with its own budget line (`grimoire-index --tsv warm N/M`), reason stated; the fixture's `.run/perf-cache` is created 0700 and uid-owned so `_gi_trusted_dir` admits it, and the cache file's presence is asserted before the second trace (otherwise the hit assertion tests nothing; M29); the assertion that the trace shows no `yq -o=json` on the hit; the warm budget is measured over three runs at implementation and pinned with the file's headroom rule (M6).
+- `adversarial-review-companion.bats` CMP-55 (line 1678): the wrapped `_adv_kill_tree` writes a marker (`: > "$T/reap-attempted"`) before returning 1; the test asserts the marker; the test's own `CMP_STUB_HOLD_S=300` override is removed so `setup()`'s 240 applies; `LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS` goes from 3 to 6 (the value the reaped case at line 1087 uses; M29); the serial TAP set stays identical.
+- `loa-decisions-surface.bats` `_path_without`: `local -a skips=("$@")` before `local IFS=:`; `for t in "${skips[@]}"`; a `_path_without yq jq` case.
+
+### 5.9 Provider dispatch mapping (C-9, `providers/__init__.py:26-60`)
+
+Bound and tests (M23): the 60-line bound is `git diff --numstat` added + deleted on `__init__.py`; one test imports every adapter once and asserts the static `_AUTH_KIND` table agrees with each adapter class's declared auth kind; `cheval --help` timing band = hyperfine, 10 runs, against the eso-loop report's baseline, allowed regression ≤ 10 % of the mean (M6).
+
+Today: `_ADAPTER_MODULES` (class → module), `_ADAPTER_TYPES` (type → class name), `__getattr__` building `_ADAPTER_REGISTRY` lazily. Target: one `_registry()` function returning the cached type→class dict behind the `_ADAPTER_REGISTRY` attribute (1.8, DEC S3-3: `get_adapter` / `adapter_class_for_type` keep resolving ONE type through the same globals() class cache — building the full registry there would import every adapter module on cheval's normal path, an import-cost regression; the parity test pins `_ADAPTER_REGISTRY[t] is adapter_class_for_type(t)`); `cli_adapter_types` reads the static table and imports no adapter module (ten types map to nine modules: `gemini-headless` → `AgyHeadlessAdapter`); `cli_adapter_types` derived from a static `_AUTH_KIND` table (`type → api|cli`) instead of instantiating adapters; presence tests `name in globals()` instead of `globals().get(name) or …` (a falsy cached object would re-import). Implement only if the diff stays ≤ 60 lines with every existing provider test green and `cheval --help` inside the loop's band; otherwise defer by a class-S row (DEC-1146) — D-9.1.
+
+### 5.10 Ship (C-10)
+cycle-137's § Ship S-1 … S-4 and S-8 (PR body from a template; Bridgebuilder with the exclusion list; `merge-pr.sh`-style gate; `record-branch.sh`; `archive-cycle.sh` on a chore branch); S-5/S-6/S-7 (publish) are NOT run; the PR body states that the prepared rc.10 candidate stays unpublished.
+
+> Sources: `~/.cache/loa/cycle-137/ship/` scripts; `grimoires/loa/a2a/sprint-282/e2e.md` Part 2
 
 ---
 
 ## 6. Error Handling Strategy
 
-- Fast paths accept only the plain shape; any failure (`yq`/`jq` nonzero, wrong line count, unreadable file) runs the original code, so messages and exit codes are the originals.
-- Caches are never fatal: a write failure is ignored (`|| true`), a bad cache is a miss; `CI`/`GITHUB_ACTIONS` never write a cache.
-- `verify-chains` reports per path; a trust-store refusal (`[TRUST-STORE-INVALID]`, bootstrap-pending under strict) fails every path verified while the store is in that state, as the per-call form would; a per-path exception is that path's FAIL; missing records or an abnormal exit are fail-closed in the wrapper (every unrecorded path FAILED).
-- Allowed-failure policy (PRD R-4): the only tests that may fail on the ship host are the three KF-034 `semver evidence` tests named there, and they must fail identically on `main` under the same `tag.gpgsign`; every other failure, skip change or changed failure signature blocks; the policy is applied on the exact final head and again on the merge commit's CI run (CI carries no KF-034).
-- The gate pass (C-1) fixes land red-first; a finding that cannot be fixed within the sprint reverts that single loop commit — after checking that no later pass depends on it (shared helpers such as `compat-lib.sh`, cache conventions, mirror-harness assumptions; a dependent later pass is reverted together or the finding is fixed forward) — with manifests regenerated in the revert commit and a decision row.
-- Verdict binding: every review/audit verdict names `reviewed_head: <sha>`; a code commit after it re-runs the gate (verify-only pass for a gate or Bridgebuilder fix); docs-only commits (`grimoires/**`, `CHANGELOG.md`, `README.md`, `.loa-version.json`, `.skill-loop-progress.md`) do not.
-- The ship refuses to merge with a pending or red required check and refuses to publish a candidate whose digest does not re-canonicalise (the rc.6/rc.7 lesson, KF-063).
+| Situation | Behaviour | Rationale |
+|---|---|---|
+| C-1 trust check fails (foreign uid; writable dir — REFUSED, never tightened from profile-lib; symlinked dir or file; FIFO; malformed stat row) | cache off for this process; live read; no stderr; the /loa Profile line names the reason | fail-open on the hot path with today's exact behaviour; a refusal must never change a knob's value (DEC-1136 reasoning); trust lifetime = the process (D-1.2) |
+| C-1 `.run` absent | the writer creates it 0700 with `mkdir` (no `-p`) inside the umask subshell; a concurrent creation fails `mkdir` → cache off this process | a directory we created is trusted by construction |
+| C-1 legacy writable `.run` (775) | cache off, `loa_profile_cache_state` → `off (dir-writable)` on the Profile line; repaired at the next session start by `loa-context-class.sh` (`chmod go-w`, DEC-1181) or by grimoire-index on demand | two repair owners (§ 5.4); profile-lib never chmods (DEC-1157) |
+| C-1 writer cannot `mktemp`/`mv` | temp removed, cache untouched, function returns 0 | never fatal inside a hook |
+| C-2 jq cannot build the request (bad argument, no memory) | the pipeline hands `gh api … --input -` an empty request → API error → today's `fail_phase` text | unchanged failure path; no temp storage exists to fail (D-2.2) |
+| C-3 `verify-chains` exits other than 0/1 or prints unparsable records | `ok_count 0` → every existing chain counts broken; absent counted separately | more conservative than per-call, never a false 7/7 |
+| C-5 any component below the root (ownership, symlink, canonical path) or the day file (type, ownership, links, mode) fails the guard, or `realpath -m` is unavailable | the warning line is still printed; the append is skipped silently | fail-open for the user, closed for the write; a component's mode is not a refusal reason (DEC-1185) |
+| C-6 awk program fails on a host (BWK) | the hook's existing fail-open (`|| true`) prints nothing; the drift guard and three-awk parity catch it in tests | unchanged |
+| C-9 refactor exceeds its bound | deferred by a class-S row; bead stays open | DEC-1146 |
 
 ---
 
 ## 7. Testing Strategy
 
-| Component | Red-first tests | Parity harness | Measurement |
+| Component | Red-first tests (file) | Parity harness | Guard |
 |---|---|---|---|
-| C-1 | review/audit fix commits each carry a test where behaviour changes | the pass's own `~/.cache/loa/eso-loop/pass-K/` harness re-run | `perf-spawn-budget.bats` 6/6 |
-| C-2 | `kf-surface.bats`, `grimoire-index.bats`: shape C parsed, shape B still parsed, `**Symptomatic**:` not a field, `## KF-abc:` resets silently, `## Index` fields ignored; drift test extracts the `fieldval` body and heading rule from both files and asserts equality; both programs run under each available awk (mawk, busybox, `gawk --posix`; absent ones skipped by name) | live `known-failures.md`: hook stdout and `--tsv/--json/write` byte-identical | spawn budget unchanged |
-| C-3 | `loa-status-providers.bats`: one yq, fast path taken on the live config (trace), six-line protocol fixtures (malformed YAML, map, newline, null, false, empty final field, all absent, yq failure); `agy-gate-conformance.bats`: memo hit, miss after same-size rewrite with distinct mtime, after `mv`, after deletion, after a path switch; `$(...)` caller | old mirror vs new on live/--json/--help/bogus/no-yq and the config matrix for `loa-status.sh` AND `run-preflight.sh` | ≥ 40 ms, `yq` count 1 |
-| C-4 | `profile-lib.bats`: cached absent knob returns fallback without yq (trace: `bash -x` of the call with `PS4` naming the command, grep for `yq`), explicit value wins, classification fixtures (null, "", false, 0, map, multi-line), older cache without the entry → live read, stale id → rebuild, `loa_profile` output unchanged, cache JSON differs only by the knob entry | karpathy hook state files across the pass-19 matrix | hook trace: no `yq` on the warm path |
-| C-5 | `grimoire-index.bats`: hit skips yq (trace), miss rebuilds, content change invalidates, truncated / altered row / wrong key / wrong count / symlinked dir or file / read-only `.run` ignored, `NO_CACHE=1` disables read and write, CI env disables, yq-absent host never reads, two concurrent writers, mid-run rewrite caches nothing, write-mode jq on a valid and an invalid index (values + exit status), prefix–filter coupling | live grimoire cold and warm, all four modes | warm ≤ 650 ms; cold ≤ old + 40 ms |
-| C-6 | negative control per affected test (break the asserted behaviour under the shortened waits → fails; restore → passes); `setup_file` status/stdout/stderr captured and asserted by the corpus tests | serial TAP pass/fail/skip set per test name before and after | corpus runs once; `bats -T` serial median of 3, before and after |
-| C-7 | `audit-envelope*.bats`: `verify-chains` on valid/tampered/broken/missing/empty chains, zero args → exit 2, read-only tree with sha256 before/after, wrapper fail-closed on a truncated record set; pytest in `tests/unit/`: batch records equal per-call results under the store-mutation schedule (revoke, tamper, delete); `test_audit_trust_policy.py` unchanged and green | per-path results equal per-call results on the live chains | 5-chain fixture root: ≥ 100 ms |
-| C-8 | — | publish-summary.md digest cross-check; install smoke test from a scratch clone | checks green on the exact head; tag reachable from main |
+| C-1 | `profile-lib.bats`: foreign-owned `.run` (stat shim); group-writable uid-owned `.run` REFUSED — no chmod issued (a recording `chmod` shim sees no call, the mode is unchanged) and `loa_profile_cache_state` reports `off (dir-writable)` (Profile line suffix); a 775 `.run` admitted after one grimoire-index run; absent `.run` created 0700 by the writer; symlinked cache not read and REPLACED on the next write (target bytes unchanged); planted temp-name symlink never followed (victim unchanged); FIFO at the cache path not opened; hard-linked cache not read; malformed stat row refused; one `loa_profile_cache_state` case per reason; drift guard vs `grimoire-index.sh` (the listed lines) | `loa_knob` / `loa_profile` / `_loa_pl_live` on the live config + the pass-19 matrix; karpathy hook stdout/stderr/state files across the matrix (REAL mirror dirs) | `perf-spawn-budget.bats` karpathy target: same count on the warm path |
+| C-2 | `post-merge-publication.bats`: multi-byte `release_body` (≤ 125 000 chars, > 131 072 bytes) and `notification_body` (≤ 65 536 chars, > 131 072 bytes), singly and together, publish DONE (one POST each); a jq shim exiting 2 → today's `fail_phase` text and no second POST; structural: no `--arg body|--arg summary|--arg notes`, three `--rawfile body <(printf` sites, no `mktemp` on them; existing 71 unchanged | the stub's argv log for every publish-path command carries no body marker (no `bash -x`) | — |
+| C-3 | `audit-envelope-verify-chains.bats` (LS-5 …; `loa-status-providers.bats` only if it asserts the old line): one file deleted → `absent 1`, never 7/7; all present + valid → today's line; one broken → `broken 1`; verifier exit 0 / 1 / 2 fixtures; duplicate, missing and unexpected index records → broken; empty existing list → A 5, displayed V 2; `not_applicable` 2 and JSON `valid` 5 on the healthy root; `_oracle` updated | every other `loa-status` line identical (mirror); `run-preflight.sh` identical | — |
+| C-4 | hook test under `umask 002`: fresh dir is 0700; grimoire-index D-5.3 case still green; `run-dir-creators.bats` RDC-1 … RDC-5 (static guard over every hook creator of `.run`; fresh root 0700 for context-class and the audit loggers; 775 → 755 repair with unchanged output; symlink untouched; 700 sees no chmod) | — | spawn budgets unchanged |
+| C-5 | karpathy tests: exported `KARPATHY_CHECKPOINT_CMD` ignored without the marker (a counter script is not run), honoured with it; symlinked `TRAJ_DIR`, a symlinked ancestor, a foreign-owned or writable component, the day file as symlink / FIFO / hard link / group-writable → victim unchanged, warning still printed; replacement between two runs refused on the second; BSD shim (no `realpath -m`) → refused; the warn path's spawn count asserted once | hook across the matrix | karpathy budget unchanged (marker added to the allowlist) |
+| C-6 | `kf-surface.bats` + `grimoire-index.bats`: C1 fixture → one space; 100-entry fixture → 40 rows + elision line, deterministic order; ≤ 40 entries → byte-identical; byte-cap fixture with a 3-byte UTF-8 symptom at the cap | live file: diff is exactly the elided rows + one line (attached) | kf-surface 36/2 unchanged; drift guard; three-awk (+ BWK) parity |
+| C-7 | `profile-floor.bats` / `profile-lib.bats`: mapping-level floor key drops a child and a grandchild with the WARN; a glob floor entry is not widened; a sibling prefix is kept; values equal to the former sentinels, an EMPTY present value and a value with trailing newlines round-trip on the warm, memo and live paths; pre-flight: no key of the live config newly forbidden | live + matrix identical for all 19 call sites | karpathy budget unchanged |
+| C-8 | the guards themselves: a deliberately added spawn on the grimoire-index hit branch fails the new target (one-off red run recorded); CMP-55 fails when the reaper is never invoked (one-off red run); `_path_without yq jq` excludes both | — | — |
+| C-9 | existing provider tests + one pinned observable (the SDD-named change) or the deferral row | `cheval --help` timing within the loop's band | — |
+| C-10 | — | — | checks green on the exact head; no new tag (`git ls-remote --tags` unchanged) |
 
-Whole-head parity gate after C-2 … C-7 land: one old mirror from the pre-sprint head and one new mirror from the sprint head (REAL directories) run every touched entry point over the live inputs; stdout, stderr, rc and written files `cmp` identical (ages/timestamps normalised only where today's output embeds them). Full `tests/unit` on the final head under the allowed-failure policy (§ 6); `check-loa.sh`; `repo-map-gen.sh --validate`; the two lint tools. Measurement protocol for every number: `hyperfine -N -i --warmup 3 --runs 10`, mean ± σ, old and new in the same session on the idle ship host, cache state stated, baseline revision named, host id and command line recorded (PRD § NFR Performance).
+Whole-head parity gate before each sprint's review: one old mirror (the previous sprint's head) and one new mirror (the sprint head) in REAL directories run every touched entry point over the live inputs; stdout, stderr, rc and written files `cmp` identical except the enumerated changes — the parity exception ledger (M4): C-3's non-healthy line, per-primitive lines and JSON object; C-6's row cap (the live file's 25 elided rows + one line) and C1 fixtures; C-1's Profile-line cache suffix (off case only) and, for the refusal fixtures, the intended difference 'no cache file written' (knob outputs identical); C-5's warn-path fixtures where the asserted difference IS the refused append (victim bytes unchanged); C-7's sentinel-collision, empty-value and descendant fixtures with their expected outputs enumerated per fixture. Full `tests/unit` on each sprint's final head: only the three KF-034 reds; new skips only when named and host-conditional (DEC-1135 rule).
 
 ---
 
 ## 8. Development Phases
 
-| Phase | Sprint | Content |
-|---|---|---|
-| 1 | 281 | `reviewer.md` for the loop; `/review-sprint`; fixes; `/audit-sprint`; `COMPLETED` |
-| 2 | 282 | C-2 … C-7 (ordered C-2, C-5, C-3, C-4, C-6, C-7 — smallest blast radius first; C-7 after C-3 because both touch `loa-status.sh`); `/review-sprint`; `/audit-sprint`; `COMPLETED` |
-| 3 | 282 (Tasks 2.9, 2.E2E) | C-8 ship: CHANGELOG/README/version committed before the final gate pass (so the reviewed head is the merged head) → PR → Bridgebuilder (a code fix re-runs the audit as a verify-only pass) → merge under R-3 → record → publish summary → publish rc.9 → smoke test → archive. The ship runs after Sprint 282's `COMPLETED` marker as in cycles 135/136; its evidence lands in `a2a/sprint-282/e2e.md` and the archive. |
+| Phase | Sprint (global) | Content | Order inside the sprint |
+|---|---|---|---|
+| 1 | 284 | C-1, C-2, C-3, C-4 | C-4 first (smallest; it makes every creator produce a 0700 `.run`, so C-1's REFUSE never triggers on a fresh mount), then C-3, C-2, C-1 (largest blast radius last, with the matrix parity) |
+| 2 | 285 | C-5, C-6 | C-5 (two small hook edits), then C-6 as one awk change set: C1 strip → row cap → BSD contract (form a/b) |
+| 3 | 286 | C-7, C-8, C-9, C-10 | C-7, then the three guards, then C-9 (or its deferral row), then `reviewer.md`, gates, and the ship |
+
+Each sprint: implementer patches land red → fix under the marker with manifests; `reviewer.md` before `/review-sprint`; ≤ 3 dissent runs (the third is the audit's); `COMPLETED`; the whole-head parity gate and the full suite recorded in the sprint's `e2e.md`.
 
 ---
 
 ## 9. Known Risks and Mitigation
 
-| Risk | Mitigation |
-|---|---|
-| Shape C regex over-matches a bold label followed by a space in prose | the space-then-qualifier form requires `**Label …**:` at line start; bats negative fixtures (`**Symptom** text`, `**Symptomatic**:`) |
-| The six-line yq protocol mis-parses a value containing a newline | line-count check → fallback; fixture with a multi-line `transport` |
-| The agy memo hides a config rewritten mid-process | identity key over dev/ino/size/mtime; fixture rewrites the file between two calls |
-| `cached_keys` changes `effective-config.json` for existing users | the cache id is content-derived, so the first run after upgrade rebuilds it; `profile_keys`/`overrides` unchanged; bats asserts `loa_profile` output byte-identical |
-| The decisions cache serves stale rows | key = sha256 of the file bytes + yq version; invalidation fixture |
-| Shortened test waits mask a reaper failure | holds stay ≥ 2× the longest wait on them; the pass/fail set is compared per test name; the reaper tests are listed by name in the task |
-| `verify-chains` changes a trust decision | `_check_trust_store` untouched; the security suite is a gate; per-path results compared with per-call results |
-| rc.9 publish regressions (KF-034, KF-063) | rc.8 recipe; non-shallow clone; lead-recomputed digest equals the printed digest; `merge_sha` equals the merge commit; ancestry check; install smoke test; written rollback (withdrawn pre-release, tag kept, merge reverted) |
-| KF-034 on the ship host hides a real red | the allowed-failure list names the three `semver evidence` tests; `main` must fail exactly the same under the same host condition; CI (no KF-034) must be green on the merge commit |
-| A cache temp or path is attacked through a symlink | writer refuses symlinked `.run`, `.run/perf-cache` and cache file (re-checked before the rename); `mktemp` exclusive temp; reader validates header, count, fields and alphabet |
+| Risk | P | I | Mitigation |
+|---|---|---|---|
+| C-1 refuses the cache on a layout that is common downstream (`.run` created 775 by an older creator under umask 002) | Med | Low | the refusal falls back to the live read (identical output) and the Profile line names `dir-writable`; grimoire-index's `_gi_trusted_dir` tightening repairs a uid-owned `.run` on its next run (the repair owner — named in the CHANGELOG line); a 775 row in the matrix |
+| C-2 process substitution on a host without `/dev/fd` | Low | Low | bash falls back to a named pipe; CI (ubuntu) and macOS both have `/dev/fd` |
+| C-1 extended `stat` row parsing differs on BSD (`%Lp` vs `%a`) | Low | Med | the existing GNU/BSD branches are extended symmetrically; a stat shim test for each format |
+| C-3 wording change breaks a consumer parsing the human line | Low | Low | `audit_chain_summary` kept; healthy-case line byte-identical; new fields additive |
+| C-6 row cap hides a KF the session needed | Low | Med | ordering by recurrence then id keeps structural failures first; the elision line names the file |
+| BWK awk still unobtainable | High | Low | form (b) exit (DEC-1146) |
+| Bridgebuilder companion timeout (KF-037) | Low | Low | host unloaded; retry once after ten minutes; degraded exit only with no blocker |
+| Three sprints' gates ≈ 6 h | — | Low | sprint boundaries are HALT-safe |
 
 ---
 
 ## 10. Open Questions
 
-- OQ-1: Should the decisions cache key include the `grimoire-index.sh` sanitiser version? Decided yes via the `v1:` prefix: a later change to the `s` filter bumps the prefix in the same commit. Resolved — D-5.1 (DEC row written at sprint planning).
-- OQ-2: Should FR-6's 300 s target for the companion file be an acceptance criterion when the per-test script runtime is the floor? Resolved — D-6.1: the measured floor governs; a decision row adjusts the AC if the floor is higher.
-- OQ-3: Should `verify-chains` replace `verify-chain` for other callers? Decided no — D-7.1: only `loa-status.sh` switches; the singular form stays for every other caller and for the bats suites.
+| # | Question | Default taken (decision row) |
+|---|---|---|
+| Q-1 | Should the KF row cap be configurable? | No knob in this cycle; constant 40 (D-6.1); a knob only if a downstream asks |
+| Q-2 | Should C-5 WARN outside bats instead of ignoring the seam? | Ignore silently (D-5.1); a WARN on a per-tool-call hook is noise |
+| Q-3 | Does any creator other than zone-write-guard make `.run/perf-cache`? | Found by grep at implementation; each gets the umask subshell (D-4.1) |
+| Q-4 | Is the C-9 refactor worth a System Zone commit? | Only within the 60-line bound (D-9.1); else deferred |
 
 ---
 
@@ -229,58 +425,63 @@ Whole-head parity gate after C-2 … C-7 land: one old mirror from the pre-sprin
 
 | # | Decision | Row |
 |---|---|---|
-| D-2.1 | Shape C requires a space after the label; shape B's looseness is kept; every `## ` heading resets `cur` | at sprint planning |
-| D-2.2 | Shape C is recognised for `Symptom` and `Recurrence count` only; `Status` keeps shapes A/B because the live qualified Status forms are historical annotations | 1.1 |
-| D-3.1 | The six-line yq protocol with a line-count gate and verbatim fallback; the agy memo is parent-shell only, keyed by file identity | at sprint planning |
-| D-4.1 | Non-profile hot knobs are cached through a `cached_keys` list in `profiles.yaml` with `source: explicit\|absent`; `profile_keys`/`overrides` unchanged | at sprint planning |
-| D-5.1 | Decisions cache under `.run/perf-cache/`, key `v1:<sha256>:<yq>:<jq>:<rows>`, awk-validated payload, `mktemp` + symlink re-check writer, env opt-out for read and write, never fatal; write-mode `bad`+`total` in one root-preserving jq | at sprint planning (amended 1.1) |
-| D-6.1 | Corpus-once via `setup_file` with status capture; companion waits shortened only below their proven bounds with a negative control per test; the measured floor governs the AC by a pre-review decision row | at sprint planning (amended 1.1) |
-| D-6.2 | CMP-37 is not made deterministic in this cycle; its acceptance evidence is a serial whole-file run on an idle host (PRD R-4) | 1.1 |
-| D-7.1 | `verify-chains` implemented (not deferred) with JSON-lines records in argument order, per-path exception isolation, fail-closed wrapper, and the store-mutation equivalence test as the go/no-go; only `loa-status.sh` switches | at sprint planning (amended 1.1) |
-| D-8.1 | `v2.0.0-rc.9` published through the post-merge candidate recipe from a non-shallow clone; majors stay rc pre-releases; unattended merge and publish are authorised by the operator's instruction with the mechanical safeguards of PRD R-3 / R-6 / R-7 (lead-recomputed digest, `merge_sha` check, publish-summary stage) | at sprint planning (amended 1.1) |
-| D-1.1 | Every verdict names `reviewed_head`; a later code commit re-runs the gate (verify-only for gate/Bridgebuilder fixes); docs-only commits exempt; ship files committed before the final gate pass | 1.1 |
-| D-5.3 | The decisions-cache trust check tightens a uid-owned group/world-writable `.run` or `.run/perf-cache` (`chmod go-w`) before trusting it; a foreign-owned or untightenable directory stays outside the boundary | 1.2 (DEC-1126) |
-| D-5.2 | No framework-wide fast-path opt-out switch: the fast paths fall back automatically and the loop's passes carry none; only the decisions cache (the one component that can serve stored state) gets an opt-out | 1.1 |
-
-### 11.F Flatline SDD review dispositions
-
-Review: `flatline-orchestrator.sh --doc grimoires/loa/sdd.md --phase sdd --budget 300` on SDD 1.0 (commit 748d2886c): 5 blockers, 40 medium items (`~/.cache/loa/cycle-137/logs/flatline-sdd.out`).
-
-| # | Finding (location) | Disposition in 1.1 |
-|---|---|---|
-| B1 | cache directory / temp-file / no-follow safety (§ 3) | § 3 writer rules: `-L` on `.run`, `.run/perf-cache` and the file (re-checked before rename), `mktemp` exclusive temp, cleanup on failure; fixtures for symlinked parents, pre-existing temp symlinks, concurrent replacement (§ 7 C-5) |
-| B2 | verify-chains per-path exceptions, fail-closed, snapshot vs per-path trust (§ 5.7, § 6) | § 5.7: per-path try/except, JSON-lines records, exit 0/1/2, fail-closed wrapper; trust is per path through the untouched cache; store-mutation equivalence test is the go/no-go |
-| B3 | expected-failure allowlist (§ 6, § 7, § 9) | § 6 allowed-failure policy (three KF-034 test names, same on `main`, applied on the exact release commit; CI carries no KF-034); § 9 row |
-| B4 | write-mode jq loses the root object (§ 5.5) | § 5.5: `. as $root | (...bad... | length), $root.total`, `mapfile` capture, two-line check, tests on valid and invalid indexes for values and exit status |
-| B5 | approve-sha256 as operator input or BB required; which of merge/publish unattended (§ 5.8, § 8, D-8.1) | § 5.8 and D-8.1: both unattended per the operator's instruction with mechanical safeguards — lead-recomputed digest must equal the printed one, `merge_sha` must equal the merge commit, publish-summary stage, Bridgebuilder non-degraded with no open blocking finding before merge |
-| M1 | root-preserving jq | B4 |
-| M2, M17, M23, M33 | per-path semantics, machine-readable results, missing path, zero args | § 5.7 |
-| M3, M37 | `setup_file` failure reporting and status capture | § 5.6 |
-| M4, M5, M20 | companion tests listed with bounds; baseline procedure; decision gate | § 5.6 |
-| M6, M32 | performance gates as absolute + relative with protocol | § 7 measurement protocol; C-5 warm absolute + cold relative; PRD NFR Performance |
-| M7 | exact KF-034 failures permitted | § 6 policy |
-| M8 | release gate binds merge, candidate, digest, tag | § 5.8; PRD R-3, R-6, R-8 |
-| M9 | memo result without command substitution | § 5.3 (`_AGY_NODE_MEMO_VAL`) |
-| M10, M35 | portable stat; stat failure invalidates; same-size rewrite fixture | § 5.3 |
-| M11, M12, M15 (PRD) | payload validation; key and rows from one snapshot | § 3 reader rules; § 5.5 `snap` |
-| M13, M28 | temp-file safety; named helper precedent | § 3 (precedent `zone-write-guard.sh:227-263`, improved with `mktemp`) |
-| M14 | NO_CACHE / CI guards placement | § 5.5 `caching` predicate (read and write) |
-| M15 | trailing empty record in the six-line protocol | § 5.2 (`mapfile -t`) |
-| M16, M36 | non-profile knob classification | § 5.4 (same yq expression as the live path; fixtures) |
-| M18 | how bats obtains trace evidence | § 7 C-4 (`bash -x` with `PS4`, grep `yq`) |
-| M19 | post-publish rollback | § 5.8 |
-| M21 | which modes consume the cache | § 5.5 (all four via `collect`) |
-| M22, M29 | jq version in the key; yq version from the gate's capture | § 3 key; § 5.5 |
-| M24 | Phase 3 assigned to a sprint | § 8 (Sprint 282 Tasks 2.9 / 2.E2E after `COMPLETED`, cycles 135/136 precedent) |
-| M25 | C-3 is two levers | § 1.1 corrected (two commits) |
-| M26 | ship scripts outside version control | § 5.8 (copied to `a2a/sprint-282/ship/`, sha256 in e2e) |
-| M27 | final line without newline; fast-path assertion | § 5.2 |
-| M30 | prefix–filter coupling | § 5.5 (adjacent constant + bats assertion) |
-| M31 | parser drift test | § 7 C-2 |
-| M34 | run both awk programs under each available awk | § 7 C-2 |
-| M38 | whole-head parity gate | § 7 |
-| M39 | framework-wide fast-path opt-out | Declined — D-5.2: fast paths fall back automatically; only the decisions cache gets an opt-out |
-| M40 | revert rule checks later-pass dependencies | § 6 |
+| D-1.1 | C-1 duplicates the ten-line trust check inside profile-lib (no new sourced lib on the hot path) with a drift guard against grimoire-index; the directory mode comes from the existing `_loa_pl_id` stat extended with a fourth path — zero added spawns | DEC-1148 |
+| D-2.1 | C-2 uses `--rawfile` from a `printf '%s'`-written temp file per request (sprint-bug-283's temp-dir + RETURN-trap pattern) | DEC-1149 |
+| D-3.1 | C-3 keeps `audit_chain_summary` as a string (valid excludes absent), adds `audit_chain {valid, absent, broken, total}`, and keeps the healthy-case human line byte-identical | DEC-1150 |
+| D-4.1 | C-4 wraps every perf-cache `mkdir` in a `( umask 077; … )` subshell | DEC-1151 |
+| D-5.1 | C-5 honours the checkpoint seam only under a bats marker (no WARN); `perf-spawn-budget.bats` passes the marker | DEC-1152 |
+| D-6.1 | C-6 row cap is a constant 40 with recurrence-desc, id-desc ordering and one elision line | DEC-1153 |
+| D-6.2 | C-6 C1 strip maps the UTF-8 pair to a space (the jq `s` filter's behaviour), placed before the C0 strip | DEC-1154 |
+| D-7.1 | C-7 presence metadata travels as a first-line kind token before the rendered value (no sentinel strings, no extra spawn) | DEC-1155 |
+| D-9.1 | C-9 implemented only within a 60-line bound; else deferred (DEC-1146) | DEC-1156 |
+| D-2.2 | (1.2) C-2 bodies reach `jq --rawfile` through `<(printf '%s' …)` process substitutions — no temp file, no trap; supersedes D-2.1's mechanism | DEC-1165 |
+| D-1.2 | (1.2) C-1 trust lifetime = the process; the writer creates an absent `.run` 0700 with `mkdir` (no `-p`); grimoire-index's existing tightening is the repair owner of a legacy writable `.run` | DEC-1166 |
+| D-3.2 | (1.2) C-3 `audit_chain` adds `not_applicable`; the verify-chains contract is pinned | DEC-1167 |
+| D-5.2 | (1.2) C-5 trajectory guard anchored at the canonical root, one stat over every component below it plus the day file (mode included); no `realpath -m` → refuse; the gate is a footgun guard, not a boundary | DEC-1168 |
+| D-6.3 | (1.2) C-6 top-K by max linear passes (no `asort`), numeric id, malformed recurrence 0, tie → file position; `LC_ALL=C` per awk call | DEC-1169 |
+| D-7.2 | (1.2) C-7 kind token on the LAST line with a newline guard; descendant clause only for floor keys without `*` | DEC-1170 |
 
 ### 11.E Grounding reads
-`.claude/hooks/loa-kf-surface.sh:96-125`; `.claude/scripts/grimoire-index.sh:93-128, 216-250, 296-330`; `.claude/scripts/loa-status.sh:415-440, 848-870`; `.claude/scripts/lib/agy-gate-lib.sh:122-145, 203-216, 298-325`; `.claude/scripts/lib/profile-lib.sh:28-75, 100-165, 212-260, 289`; `.claude/data/profiles.yaml`; `.claude/hooks/safety/zone-write-guard.sh:81-104, 227-263`; `tests/unit/block-destructive-bash.bats:1540-1600`; `tests/unit/adversarial-review-companion.bats:160-240`; `.claude/adapters/loa_cheval/audit_envelope.py:411-445, 500-545, 580-600, 705-730`; `.claude/scripts/audit-envelope.sh`; `grimoires/loa/known-failures.md` (69 H2 headings, 63 numeric KF headings, 0 shape-C fields); `grimoires/loa/archive/cycle-136-bridgebuilder-followups/sdd.md` (format precedent); `~/.cache/loa/cycle-135/ship/*.sh`.
+`.claude/scripts/lib/profile-lib.sh:50-83, 125-145, 181-288`; `.claude/scripts/grimoire-index.sh:263-331`; `.claude/scripts/post-merge-orchestrator.sh:1160-1330, 1480-1510`; `.claude/scripts/loa-status.sh:408-461, 481-522`; `.claude/hooks/safety/zone-write-guard.sh:225-264`; `.claude/hooks/quality/karpathy-surgical-diff-check.sh:38-62, 150-165, 205-220`; `.claude/hooks/loa-kf-surface.sh:88-140`; `.claude/adapters/loa_cheval/providers/__init__.py:20-62`; `tests/unit/perf-spawn-budget.bats:119-275`; `tests/unit/adversarial-review-companion.bats:1678-1691`; `tests/unit/loa-decisions-surface.bats:124-140`; `tests/unit/loa-status-providers.bats` (LS-1); cycle-137 SDD § 3, § 5.5, § 7; `grimoires/loa/a2a/bug-20261028-90f357/reviewer.md`.
+
+### 11.G PRD 1.1 integration (Flatline PRD review carried into the design)
+The PRD's Flatline review (Appendix D there) changed six design points, all reflected above: the profile-lib predicate covers the cache file and REFUSES a writable `.run` (§ 3, § 5.1; DEC-1157); the publisher's bodies leave argv and tests assert stub-recorded argv (§ 5.2 — 1.2 replaced the temp-storage mechanism by process substitution, § 11.F B1); the chain summary classifies every primitive with a sum invariant and names the non-valid ones (§ 5.3); the trajectory guard covers components, ownership, type and links on the warn path (§ 5.5); the KF cap separates selection from display and states the byte ceiling and the full control class (§ 5.6); FR-9 form (b) needs a prebuilt-BWK attempt first (§ 5.6, DEC-1159). The halt protocol (DEC-1160) and verdict binding (DEC-1161) are process rules the sprint plan carries.
+
+### 11.F Flatline SDD review dispositions
+Run: `flatline-orchestrator.sh --doc grimoires/loa/sdd.md --phase sdd --json` on 1.1, 2026-10-29 (claude-headless + gpt-5.5; voices 2/2; 6 blockers, 37 medium items; cross-scoring degraded — `scoring_degraded true`, `confidence_floor low`; 640 s; 0 cents; KF-041 recurrence 13). Every blocker and item was read; dispositions:
+
+| Id | Theme | Disposition | Where |
+|---|---|---|---|
+| B1, B4, B6 (BSKP-001/002) | `_pm_body_file`'s function-scoped RETURN trap deletes the file before the caller's jq | ACCEPTED — mechanism replaced by process substitution; helper withdrawn | § 5.2, § 6, § 7, D-2.2 |
+| B2 (BSKP-002) | 1.1 still described the chmod/tightening design in § 6, § 7, § 8, § 9; no repair owner under REFUSE | ACCEPTED — every reference rewritten to REFUSE; repair owner = grimoire-index `_gi_trusted_dir` (already tightens `.run`); 775 matrix row | § 3, § 5.4, § 6, § 7, § 8, § 9, D-1.2 |
+| B3 (BSKP-003) | trust sampled once per process | ACCEPTED as argued — trust lifetime = the process (only the same uid or root can change the properties; `.run` replacement needs the trust root); builtin re-check before the rename | § 3, § 5.1, D-1.2 |
+| B5 (BSKP-004) | trajectory guard ignored intermediate components | ACCEPTED — one stat over every component below the canonical root + the day file | § 5.5, D-5.2 |
+| M1, M16 | body file lifetime | ACCEPTED with B1 | § 5.2 |
+| M2, M3 | KF field bounds; total order and malformed recurrence | ACCEPTED | § 5.6, D-6.3 |
+| M4 | parity exception ledger for C-1, C-5, C-7 | ACCEPTED | § 7 |
+| M5, M20, M25 | verify-chains contract, exit codes, `not_applicable` | ACCEPTED | § 5.3, § 7, D-3.2 |
+| M6 | numeric warm budget; C-9 timing band procedure | ACCEPTED — measured over three runs then pinned; hyperfine 10 runs ≤ 10 % | § 5.8, § 5.9 |
+| M7 | checked jq failure paths | NOTED — today's pipeline already fails the phase (empty request → API error); fixture added | § 5.2, § 6, § 7 |
+| M8, M30 | empty present value collapses to the token | ACCEPTED — token LAST + newline guard | § 5.7, D-7.2 |
+| M9, M27, M33 | remaining tightening references; repair owner | ACCEPTED with B2 | § 5.4, § 6, § 7, § 8, § 9 |
+| M10 | outcomes per finding; which file types are replaced | ACCEPTED — outcomes table | § 5.1 |
+| M11, M32 | fail-closed stat parsing; missing rows; who creates `.run` | ACCEPTED | § 3, § 5.1 |
+| M12 | refuse a group/other-writable trajectory file | ACCEPTED | § 5.5 |
+| M13, M21 | state dir / task file guards | PARTIAL — trajectory fixtures widened; the state dir and task file keep today's `-L` guards (out of FR-6's scope, stated) | § 5.5 |
+| M14 | portable component resolution | ACCEPTED — no `realpath -m` → refuse; BSD shim fixture | § 5.5 |
+| M15, M19 | § 7 still named `bash -x` | ACCEPTED | § 7 |
+| M17 | C-7 descendant clause pre-flight | ACCEPTED | § 5.7, § 4 |
+| M18 | C-5 spawn statement | ACCEPTED — counts stated per branch; one stat | § 5.5 |
+| M22 | § 3 rebuild contradiction | ACCEPTED — rebuild sentence deleted | § 3 |
+| M23 | `_AUTH_KIND` test; bound measurement | ACCEPTED | § 5.9 |
+| M24 | C-5 gate threat model | ACCEPTED — footgun guard, not a boundary | § 5.5, D-5.2 |
+| M26 | trim the cap to a UTF-8 boundary | REJECTED — DEC-1159 fixed the contract; the fixture asserts downstream tolerance | § 5.6 |
+| M28 | drift guard invariant lines; `[[ … (( )) ]]` pseudocode | ACCEPTED | § 5.1 |
+| M29 | CMP-55 values; warm fixture's directory mode | ACCEPTED | § 5.8 |
+| M31 | anchor realpath at the canonical root | ACCEPTED | § 5.1, § 5.5 |
+| M34 | widen the creator search | ACCEPTED | § 5.4 |
+| M35 | `LC_ALL=C` per awk call + UTF-8 parent parity | ACCEPTED | § 5.6 |
+| M36 | portable top-K | ACCEPTED | § 5.6, D-6.3 |
+| M37 | restrict the descendant clause to non-glob entries | ACCEPTED | § 5.7, D-7.2 |
+
+> Sources: `~/.cache/loa/cycle-138/logs/flatline-sdd.json` (`blockers[]`, `medium_value[]`, `verdict_quality`); grimoires/loa/known-failures.md KF-041 (2026-10-29 rows)

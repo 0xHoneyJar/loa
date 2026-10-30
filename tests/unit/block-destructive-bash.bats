@@ -2184,3 +2184,17 @@ spike_checkout_repo() {
     run hook_invoke "git merge${sp}a${sp}b${sp}axspike/"
     [ "$status" -eq 0 ]
 }
+
+@test "cycle-138 BB round 1 F-007: with .run already present the block path forks no umask subshell — both mkdir sites keep a [[ -d ]] guard like the audit hooks" {
+    mkdir -p "$LOA_REPO_ROOT/.run"
+    chmod 700 "$LOA_REPO_ROOT/.run"
+    local trace="$BATS_TEST_TMPDIR/block-trace.$$" payload
+    payload=$(jq -cn --arg c "git push --force origin main" '{tool_input: {command: $c}}')
+    run bash -c 'exec 7>"$1"; printf "%s\n" "$3" | BASH_XTRACEFD=7 PS4="+" bash -x "$2"' _ "$trace" "$HOOK" "$payload"
+    [ "$status" -eq 2 ]
+    [[ "$output" =~ "[P2]" ]]
+    run grep -c 'umask 077' "$trace"
+    [ "$output" = 0 ]
+    # the audit line was still appended (the directory existed)
+    [ -s "$LOA_REPO_ROOT/.run/audit.jsonl" ]
+}

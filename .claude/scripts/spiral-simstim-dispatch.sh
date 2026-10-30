@@ -67,7 +67,7 @@ STUB
     fi
 
     # Write status artifact for stub mode too
-    mkdir -p "$PROJECT_ROOT/.run"
+    ( umask 077; mkdir -p -- "$PROJECT_ROOT/.run" )
     {
         echo "Spiral: ${SPIRAL_ID:-stub}"
         echo "Cycle: ${SPIRAL_CYCLE_NUM:-0}"

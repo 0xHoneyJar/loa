@@ -1677,16 +1677,16 @@ $(printf 'zcmV0123456789abcdef0123456789%.0s\n' $(seq 1 60))"
 
 @test "CMP-55 a reaper that returns non-zero never aborts the review: the envelope is still emitted (fifteenth run, a4 C-001)" {
     eval "__real_kill_tree() $(declare -f _adv_kill_tree | sed '1d')"
-    _adv_kill_tree() { __real_kill_tree "$@"; return 1; }
-    CMP_STUB_HOLD_S=300   # today's hold, not shortened: no break of the hold or of the reaper fails this test (cycle-137 Task 2.5 negative control)
+    _adv_kill_tree() { __real_kill_tree "$@"; : > "$T/reap-attempted"; return 1; }   # the marker proves the reaper ran (cycle-138 FR-13)
     _cfg_edit $'      - codex-headless\n  security_audit:' $'      - codex-headless\n      - claude-headless\n  security_audit:'
-    export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=3
+    export LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS=6   # the reaped case's cap (CMP-29's lock-queue case uses 6 too): room for the hop on a loaded host
     BEHAVIOUR[gpt-5.5-pro]=unavailable; BEHAVIOUR[gpt-5.5]=unavailable; BEHAVIOUR[codex-headless]=unavailable
     BEHAVIOUR[claude-headless]=unavailable-companion-slow
     result=$(_run_main review)
     [ "$(jq -r '.metadata.status' <<<"$result")" = "reviewed" ]
     [ "$(jq -r '.metadata.companion_voice.status' <<<"$result")" = "failed" ]
     [ "$(jq -r '.metadata.model_attempts[-1]' <<<"$result")" = "claude-headless:reviewed" ]
+    [ -e "$T/reap-attempted" ]   # the non-zero reaper really ran: without it this case could pass with no reap at all
     unset LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS
 }
 

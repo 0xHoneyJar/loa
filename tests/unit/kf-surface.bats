@@ -374,3 +374,310 @@ _awks_present() {   # prints one interpreter command line per present awk
     i=$((i + 1))
   done < <(_awks_present 3>/dev/null)
 }
+
+# ---- cycle-138 FR-8 (bd-z6gxn): san() strips the decisions filter's control class (sdd § 5.6, D-6.2) ----
+# Symptoms carrying UTF-8 C1 (U+0080, NEL U+0085, U+009F) and U+2028 / U+2029, written as bytes by
+# printf, plus C0 / DEL (stripped as today) and neighbours the class must NOT touch (U+00A0, U+00A1,
+# U+2027, U+202A, < and >). grimoire-index.bats carries the same fixture for the index TSV.
+_kf_c1_fixture() {
+  {
+    printf '# Known Failures\n\n'
+    printf '## KF-001: nel\n**Status**: OPEN\n**Symptom**: a\302\205b\n**Recurrence count**: 1\n\n'
+    printf '## KF-002: u009f\n**Status**: OPEN\n**Symptom**: c\302\237d\n**Recurrence count**: 2\n\n'
+    printf '## KF-003: u2028\n**Status**: OPEN\n**Symptom**: e\342\200\250f\n**Recurrence count**: 3\n\n'
+    printf '## KF-004: u2029\n**Status**: OPEN\n**Symptom**: g\342\200\251h\n**Recurrence count**: 4\n\n'
+    printf '## KF-005: runs squeeze\n**Status**: OPEN\n**Symptom**: run \302\205 \342\200\250\342\200\251  \302\200 end\n**Recurrence count**: 5\n\n'
+    printf '## KF-006: trimmed\n**Status**: OPEN\n**Symptom**: \302\205lead and trail\342\200\251\n**Recurrence count**: 6\n\n'
+    printf '## KF-007: c0 and del as today\n**Status**: OPEN\n**Symptom**: c0\001del\177 x\n**Recurrence count**: 7\n\n'
+    printf '## KF-008: neighbours kept\n**Status**: OPEN\n**Symptom**: keep \302\240 nbsp \302\241 \342\200\247 \342\200\252 <x>\n**Recurrence count**: 8\n\n'
+  } > "$1"
+}
+# The symptom bytes the surface must carry, one per entry, in file order.
+_kf_c1_expected_symptoms() {
+  printf 'a b\nc d\ne f\ng h\nrun end\nlead and trail\nc0del x\nkeep \302\240 nbsp \302\241 \342\200\247 \342\200\252 <x>\n'
+}
+
+@test "FR-8 hook + index: NEL, U+009F, U+2028 and U+2029 become one space under every awk present (byte-exact)" {
+  local p="$BATS_TEST_TMPDIR/c1proj" e="$BATS_TEST_TMPDIR/c1.rows" es="$BATS_TEST_TMPDIR/c1.sym" a s n=0 i=0
+  mkdir -p "$p/grimoires/loa" "$p/x/y"   # real x/y dir: PROJECT_ROOT = $p
+  cp "$GEN" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$p/x/y/"
+  _kf_c1_fixture "$p/grimoires/loa/known-failures.md"
+  _kf_c1_expected_symptoms > "$es"
+  while IFS= read -r s; do n=$((n + 1)); printf '  - KF-%03d (rec %d): %s\n' "$n" "$n" "$s"; done < "$es" > "$e"
+  while IFS= read -r a; do
+    local d="$BATS_TEST_TMPDIR/c1shim-$i"; _awk_shim "$d" "$a"
+    env PATH="$d:$PATH" LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" \
+      LOA_KNOWN_FAILURES_FILE="$p/grimoires/loa/known-failures.md" bash "$HOOK" > "$d/hook.out" 2> "$d/hook.err"
+    tail -n +2 "$d/hook.out" > "$d/hook.rows"
+    cmp "$e" "$d/hook.rows" || { echo "hook under $a:" >&2; od -c "$d/hook.rows" >&2; false; }
+    [ ! -s "$d/hook.err" ]
+    env PATH="$d:$PATH" bash "$p/x/y/grimoire-index.sh" --tsv 2>/dev/null | awk -F'\t' '$1 == "kf" { print $7 }' > "$d/tsv.sym"
+    cmp "$es" "$d/tsv.sym" || { echo "index TSV under $a:" >&2; od -c "$d/tsv.sym" >&2; false; }
+    i=$((i + 1))
+  done < <(_awks_present 3>/dev/null)
+  [ "$i" -ge 1 ]
+}
+
+@test "FR-8 locale pin: a UTF-8 parent (LANG=en_US.UTF-8, LC_ALL=C.UTF-8) gives the C-parent bytes (hook and index)" {
+  local p="$BATS_TEST_TMPDIR/locproj" f
+  mkdir -p "$p/grimoires/loa" "$p/x/y"
+  cp "$GEN" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$p/x/y/"
+  f="$p/grimoires/loa/known-failures.md"; _kf_c1_fixture "$f"
+  {
+    printf '## KF-009: utf8 cap\n**Status**: OPEN\n**Symptom**: '
+    for a in $(seq 1 60); do printf '\342\200\224'; done
+    printf ' tail\n**Recurrence count**: 9\n\n'
+  } >> "$f"
+  env LANG=C LC_ALL=C LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" LOA_KNOWN_FAILURES_FILE="$f" \
+    bash "$HOOK" > "$BATS_TEST_TMPDIR/c.hook" 2>&1
+  env LANG=en_US.UTF-8 LC_ALL=C.UTF-8 LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" LOA_KNOWN_FAILURES_FILE="$f" \
+    bash "$HOOK" > "$BATS_TEST_TMPDIR/u.hook" 2>&1
+  cmp "$BATS_TEST_TMPDIR/c.hook" "$BATS_TEST_TMPDIR/u.hook"
+  env LANG=C LC_ALL=C bash "$p/x/y/grimoire-index.sh" --tsv > "$BATS_TEST_TMPDIR/c.tsv" 2>&1
+  env LANG=en_US.UTF-8 LC_ALL=C.UTF-8 bash "$p/x/y/grimoire-index.sh" --tsv > "$BATS_TEST_TMPDIR/u.tsv" 2>&1
+  cmp "$BATS_TEST_TMPDIR/c.tsv" "$BATS_TEST_TMPDIR/u.tsv"
+  grep -qF '  - KF-001 (rec 1): a b' "$BATS_TEST_TMPDIR/u.hook"   # the class applies in the UTF-8 run too
+}
+
+@test "FR-8 locale pin: every awk that runs san() is invoked as LC_ALL=C awk (the hook and every SAN_AWK call site)" {
+  grep -qF 'rows="$(LC_ALL=C awk ' "$HOOK"
+  local total pinned
+  total="$(grep -c 'awk .*"\$SAN_AWK"' "$GEN")"
+  pinned="$(grep -c 'LC_ALL=C awk .*"\$SAN_AWK"' "$GEN")"
+  [ "$total" -ge 3 ] || { echo "only $total SAN_AWK call sites found" >&2; false; }
+  [ "$total" -eq "$pinned" ] || { grep -n 'awk .*"\$SAN_AWK"' "$GEN" | grep -v 'LC_ALL=C awk' >&2; false; }
+}
+
+# san() in the hook and in SAN_AWK must not drift: identical line for line (indentation stripped,
+# comments included) except the return line, whose caps differ by design (100 hook, 160 index TSV).
+_san_body() { awk '/function san\(/ { p = 1 } p { sub(/^[ \t]+/, ""); print } p && /^[ \t]*}[ \t]*$/ { exit }' "$1"; }
+_san_line() { printf '%s\n' "$1" | grep -nxF -- "$2" | cut -d: -f1; }
+
+@test "FR-8 drift guard: san() is identical in both twins except the cap, and deletes C0/DEL BEFORE the C1 and U+2028/2029 replacements (review r2 DISS-C-001)" {
+  local a b n1 n2 n0
+  a="$(_san_body "$HOOK")"; b="$(_san_body "$GEN")"
+  [[ "$a" == *'return substr(s, 1, 100)'* ]]
+  [[ "$b" == *'return substr(s, 1, 160)'* ]]
+  a="$(printf '%s\n' "$a" | grep -v '^return substr(s, 1, ')"; b="$(printf '%s\n' "$b" | grep -v '^return substr(s, 1, ')"
+  [ "$a" = "$b" ] || { diff <(printf '%s\n' "$a") <(printf '%s\n' "$b") >&2; false; }
+  n1="$(_san_line "$a" 'gsub(/\302[\200-\237]/, " ", s)')"
+  n2="$(_san_line "$a" 'gsub(/\342\200[\250\251]/, " ", s)')"
+  n0="$(_san_line "$a" 'gsub(/[\001-\010\013\014\016-\037\177]/, "", s)')"
+  [ -n "$n1" ] && [ -n "$n2" ] && [ -n "$n0" ] || { echo "missing a class line: c1=$n1 u2028=$n2 c0=$n0" >&2; false; }
+  # the C0/DEL deletion must come FIRST: a deletion after the class replacement re-joins a lead byte and its continuation
+  # around a deleted C0 byte into a live C1 / U+2028 character (Sprint 285 review round 2, DISS-C-001).
+  # One assertion per line: in a bats test `[ a ] && [ b ]` can never fail on `a` — errexit and the ERR trap skip a
+  # command that is not the last of an && list — so the former chained order check pinned nothing (round 3, lead).
+  [ "$n0" -lt "$n1" ]
+  [ "$n0" -lt "$n2" ]
+  [[ "$a" != *'‹'* && "$a" != *'›'* ]]   # < and > are NOT replaced in the KF twins (stated in san())
+}
+
+@test "FR-8 interleaved: a C0 or DEL byte between a UTF-8 lead byte and its continuation never re-joins into C1 or U+2028/2029 (review r2 DISS-C-001) — hook + index under every awk present (byte-exact)" {
+  local p="$BATS_TEST_TMPDIR/ilproj" e="$BATS_TEST_TMPDIR/il.rows" es="$BATS_TEST_TMPDIR/il.sym" a f i=0
+  mkdir -p "$p/grimoires/loa" "$p/x/y"   # real x/y dir: PROJECT_ROOT = $p
+  cp "$GEN" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$p/x/y/"
+  f="$p/grimoires/loa/known-failures.md"
+  {
+    printf '# Known Failures\n\n'
+    # NEL split by \001; U+009F split by DEL; U+2028 split by DEL; U+2029 split twice by \001 — before the fix the
+    # class gsubs missed the split sequence and the C0/DEL deletion then re-joined it into the live character.
+    printf '## KF-001: nel split\n**Status**: OPEN\n**Symptom**: a\302\001\205b\n**Recurrence count**: 1\n\n'
+    printf '## KF-002: u009f split\n**Status**: OPEN\n**Symptom**: c\302\177\237d\n**Recurrence count**: 2\n\n'
+    printf '## KF-003: u2028 split\n**Status**: OPEN\n**Symptom**: e\342\177\200\250f\n**Recurrence count**: 3\n\n'
+    printf '## KF-004: u2029 split twice\n**Status**: OPEN\n**Symptom**: g\342\001\200\001\251h\n**Recurrence count**: 4\n\n'
+  } > "$f"
+  # expected: the C0/DEL bytes are deleted FIRST, so the re-joined class character is then replaced by one space
+  printf 'a b\nc d\ne f\ng h\n' > "$es"
+  printf '  - KF-001 (rec 1): a b\n  - KF-002 (rec 2): c d\n  - KF-003 (rec 3): e f\n  - KF-004 (rec 4): g h\n' > "$e"
+  while IFS= read -r a; do
+    local d="$BATS_TEST_TMPDIR/ilshim-$i"; _awk_shim "$d" "$a"
+    env PATH="$d:$PATH" LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" \
+      LOA_KNOWN_FAILURES_FILE="$f" bash "$HOOK" > "$d/hook.out" 2> "$d/hook.err"
+    tail -n +2 "$d/hook.out" > "$d/hook.rows"
+    cmp "$e" "$d/hook.rows" || { echo "hook under $a:" >&2; od -c "$d/hook.rows" >&2; false; }
+    # no class byte sequence anywhere on stdout (a bare `! grep` would never fail the test)
+    if LC_ALL=C grep -q -e $'\302[\200-\237]' -e $'\342\200[\250\251]' "$d/hook.out"; then echo "a class character reached stdout under $a" >&2; od -c "$d/hook.out" >&2; false; fi
+    [ ! -s "$d/hook.err" ]
+    env PATH="$d:$PATH" bash "$p/x/y/grimoire-index.sh" --tsv 2>/dev/null | awk -F'\t' '$1 == "kf" { print $7 }' > "$d/tsv.sym"
+    cmp "$es" "$d/tsv.sym" || { echo "index TSV under $a:" >&2; od -c "$d/tsv.sym" >&2; false; }
+    i=$((i + 1))
+  done < <(_awks_present 3>/dev/null)
+  [ "$i" -ge 1 ]
+}
+
+@test "FR-8 live: known-failures.md carries no C1 or U+2028/U+2029 bytes (the class leaves its surfaced output unchanged)" {
+  [ "$(LC_ALL=C awk '/\302[\200-\237]|\342\200[\250\251]/ { c++ } END { print c + 0 }' "$KF")" -eq 0 ]
+}
+
+# ---- cycle-138 FR-7 (bd-4sikh): the 40-row cap — selection by (recurrence desc, numeric id desc), display in
+# file order, one elision line (sdd § 5.6, D-6.1, D-6.3, DEC-1159). Expected outputs are built in bash with
+# sort(1), independently of the hook's awk.
+_kf_cap_header() { printf '[KF-SURFACE] %d known-failure entries (symptom -> KF · recurrence). Read grimoires/loa/known-failures.md before triaging; recurrence >= 3 = structural.\n' "$1"; }
+_kf_elision() { printf '  \342\200\246 and %d more \342\200\224 see grimoires/loa/known-failures.md\n' "$1"; }
+# _kf_cap_fixture <file> <n>: entries KF-001 … KF-<n>, recurrence (i * 7) % 13, symptom "symptom i"
+_kf_cap_fixture() {
+  local i; { printf '# Known Failures\n\n'
+    for ((i = 1; i <= $2; i++)); do printf '## KF-%03d: entry %d\n**Status**: OPEN\n**Symptom**: symptom %d\n**Recurrence count**: %d\n\n' "$i" "$i" "$i" "$(( (i * 7) % 13 ))"; done; } > "$1"
+}
+# _kf_cap_expected <n> <max>: the hook's expected stdout for _kf_cap_fixture <n>
+_kf_cap_expected() {
+  local n="$1" max="$2" i r
+  _kf_cap_header "$n"
+  for ((i = 1; i <= n; i++)); do printf '%d %d\n' "$(( (i * 7) % 13 ))" "$i"; done \
+    | LC_ALL=C sort -k1,1nr -k2,2nr | head -n "$max" | LC_ALL=C sort -k2,2n \
+    | while read -r r i; do printf '  - KF-%03d (rec %d): symptom %d\n' "$i" "$r" "$i"; done
+  (( n > max )) && _kf_elision "$(( n - max ))"
+  return 0
+}
+_kf_run() { env LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" LOA_KNOWN_FAILURES_FILE="$1" bash "$HOOK" 2>"$BATS_TEST_TMPDIR/cap.err"; }
+
+@test "FR-7 cap: a 100-entry fixture prints the top 40 by (recurrence, id) in file order plus the elision line, under every awk present (byte-exact)" {
+  local f="$BATS_TEST_TMPDIR/n100.md" e="$BATS_TEST_TMPDIR/n100.expected" a i=0
+  _kf_cap_fixture "$f" 100; _kf_cap_expected 100 40 > "$e"
+  [ "$(grep -c '^  - KF-' "$e")" -eq 40 ]
+  while IFS= read -r a; do
+    local d="$BATS_TEST_TMPDIR/capshim-$i"; _awk_shim "$d" "$a"
+    env PATH="$d:$PATH" LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" LOA_KNOWN_FAILURES_FILE="$f" \
+      bash "$HOOK" > "$d/out" 2> "$d/err"
+    cmp "$e" "$d/out" || { echo "under $a:" >&2; diff "$e" "$d/out" >&2; false; }
+    [ ! -s "$d/err" ]
+    i=$((i + 1))
+  done < <(_awks_present 3>/dev/null)
+  [ "$i" -ge 1 ]
+}
+
+@test "FR-7 cap: 40 entries print today's table (no elision); 41 entries print 40 rows and '… and 1 more'" {
+  local f="$BATS_TEST_TMPDIR/n40.md"
+  _kf_cap_fixture "$f" 40; _kf_run "$f" > "$BATS_TEST_TMPDIR/n40.out"
+  _kf_cap_expected 40 40 > "$BATS_TEST_TMPDIR/n40.expected"
+  cmp "$BATS_TEST_TMPDIR/n40.expected" "$BATS_TEST_TMPDIR/n40.out"
+  [ "$(grep -c '^  - KF-' "$BATS_TEST_TMPDIR/n40.out")" -eq 40 ]
+  f="$BATS_TEST_TMPDIR/n41.md"; _kf_cap_fixture "$f" 41; _kf_run "$f" > "$BATS_TEST_TMPDIR/n41.out"
+  _kf_cap_expected 41 40 > "$BATS_TEST_TMPDIR/n41.expected"
+  cmp "$BATS_TEST_TMPDIR/n41.expected" "$BATS_TEST_TMPDIR/n41.out" || { diff "$BATS_TEST_TMPDIR/n41.expected" "$BATS_TEST_TMPDIR/n41.out" >&2; false; }
+}
+
+@test "FR-7 cap: an exact (recurrence, numeric id) tie at the boundary keeps the earlier file position; a duplicate heading stays deduped" {
+  # KF-001 and KF-0001 share recurrence 1 and numeric id 1; 39 others (KF-002 … KF-040) rank above them.
+  local f="$BATS_TEST_TMPDIR/tie.md" i
+  { printf '# Known Failures\n\n'
+    for ((i = 1; i <= 40; i++)); do printf '## KF-%03d: e\n**Symptom**: symptom %d\n**Recurrence count**: 1\n\n' "$i" "$i"; done
+    printf '## KF-0001: numeric twin\n**Symptom**: twin\n**Recurrence count**: 1\n\n'
+    printf '## KF-002: literal duplicate heading\n**Symptom**: duplicate\n**Recurrence count**: 9\n\n'; } > "$f"
+  { _kf_cap_header 41
+    for ((i = 1; i <= 40; i++)); do printf '  - KF-%03d (rec 1): symptom %d\n' "$i" "$i"; done
+    _kf_elision 1; } > "$BATS_TEST_TMPDIR/tie.expected"
+  _kf_run "$f" > "$BATS_TEST_TMPDIR/tie.out"
+  cmp "$BATS_TEST_TMPDIR/tie.expected" "$BATS_TEST_TMPDIR/tie.out" || { diff "$BATS_TEST_TMPDIR/tie.expected" "$BATS_TEST_TMPDIR/tie.out" >&2; false; }
+}
+
+@test "FR-7 cap: a malformed or oversized recurrence (abc, 11 digits) ranks as 0 and a selected row still prints today's recurrence text" {
+  # Selected: KF-050 (999999999, nine digits: the largest key), 38 rows at 5, then the best key-0 row by id:
+  # KF-950 (abc, printed "rec ?"). KF-901 (99999999999: more than nine digits, key 0) and KF-899 (0) are
+  # elided; were the eleven-digit value read as a number, KF-901 would be selected instead of KF-950.
+  local f="$BATS_TEST_TMPDIR/bad.md" i
+  { printf '# Known Failures\n\n'
+    for ((i = 1; i <= 38; i++)); do printf '## KF-%03d: e\n**Symptom**: symptom %d\n**Recurrence count**: 5\n\n' "$i" "$i"; done
+    printf '## KF-050: nine\n**Symptom**: nine digits\n**Recurrence count**: 999999999\n\n'
+    printf '## KF-950: abc\n**Symptom**: malformed\n**Recurrence count**: abc\n\n'
+    printf '## KF-901: big\n**Symptom**: oversized\n**Recurrence count**: 99999999999 (eleven digits)\n\n'
+    printf '## KF-899: zero\n**Symptom**: zero\n**Recurrence count**: 0\n\n'; } > "$f"
+  { _kf_cap_header 42
+    for ((i = 1; i <= 38; i++)); do printf '  - KF-%03d (rec 5): symptom %d\n' "$i" "$i"; done
+    printf '  - KF-050 (rec 999999999): nine digits\n  - KF-950 (rec ?): malformed\n'
+    _kf_elision 2; } > "$BATS_TEST_TMPDIR/bad.expected"
+  _kf_run "$f" > "$BATS_TEST_TMPDIR/bad.out"
+  cmp "$BATS_TEST_TMPDIR/bad.expected" "$BATS_TEST_TMPDIR/bad.out" || { diff "$BATS_TEST_TMPDIR/bad.expected" "$BATS_TEST_TMPDIR/bad.out" >&2; false; }
+  # under the cap the oversized row prints its recurrence text unchanged
+  printf '# Known Failures\n\n## KF-901: big\n**Symptom**: oversized\n**Recurrence count**: 99999999999 (eleven digits)\n' > "$BATS_TEST_TMPDIR/one.md"
+  _kf_run "$BATS_TEST_TMPDIR/one.md" | grep -qxF '  - KF-901 (rec 99999999999): oversized'
+}
+
+@test "FR-7 cap: 100 worst-case rows (symptoms past the 100-byte cap, 3-digit recurrences) surface as 40 rows under 8 KiB" {
+  local f="$BATS_TEST_TMPDIR/worst.md" sym i
+  sym="$(printf 'W%.0s' $(seq 1 130))"
+  { printf '# Known Failures\n\n'
+    for ((i = 1; i <= 100; i++)); do printf '## KF-%03d: w\n**Symptom**: %s\n**Recurrence count**: %d\n\n' "$i" "$sym" "$(( 100 + i * 7 % 900 ))"; done; } > "$f"
+  _kf_run "$f" > "$BATS_TEST_TMPDIR/worst.out"
+  [ "$(grep -c '^  - KF-' "$BATS_TEST_TMPDIR/worst.out")" -eq 40 ]
+  [ "$(wc -c < "$BATS_TEST_TMPDIR/worst.out")" -lt 8192 ] || { wc -c < "$BATS_TEST_TMPDIR/worst.out" >&2; false; }
+  # every symptom is at the 100-byte cap
+  [ "$(grep '^  - KF-' "$BATS_TEST_TMPDIR/worst.out" | LC_ALL=C awk '{ s = $0; sub(/^[^:]*: /, "", s); if (length(s) != 100) bad++ } END { print bad + 0 }')" -eq 0 ]
+}
+
+@test "FR-7 cap: KF_SURFACE_MAX_ROWS is a constant in the hook — an exported value changes nothing (no knob, no seam)" {
+  local f="$BATS_TEST_TMPDIR/env.md"
+  _kf_cap_fixture "$f" 100; _kf_cap_expected 100 40 > "$BATS_TEST_TMPDIR/env.expected"
+  env KF_SURFACE_MAX_ROWS=5 LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" LOA_KNOWN_FAILURES_FILE="$f" \
+    bash "$HOOK" > "$BATS_TEST_TMPDIR/env.out" 2>&1
+  cmp "$BATS_TEST_TMPDIR/env.expected" "$BATS_TEST_TMPDIR/env.out"
+  grep -qx 'KF_SURFACE_MAX_ROWS=40 *#.*' "$HOOK"
+  if grep -q 'asort(' "$HOOK"; then echo "asort is not in mawk, busybox or BWK awk" >&2; return 1; fi
+}
+
+@test "FR-7 cap: the live file surfaces min(entries, 40) rows, the full entry count in the header, and one elision line for the rest" {
+  local n out k
+  n="$(grep -oE '^## KF-[0-9]+:' "$KF" | sort -u | wc -l | tr -d ' ')"
+  out="$(env LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" bash "$HOOK" 2>/dev/null)"
+  [[ "$(printf '%s\n' "$out" | head -1)" == "[KF-SURFACE] $n known-failure entries "* ]]
+  if (( n > 40 )); then
+    [ "$(printf '%s\n' "$out" | grep -c '^  - KF-')" -eq 40 ]
+    k=$(( n - 40 ))
+    [ "$(printf '%s\n' "$out" | tail -1)" = "$(_kf_elision "$k" | tr -d '\n')" ]
+  else
+    [ "$(printf '%s\n' "$out" | grep -c '^  - KF-')" -eq "$n" ]
+  fi
+}
+
+# ---- cycle-138 FR-9 (bd-aceil): the byte-cap contract (DEC-1159) ----
+# The symptom cap is 100 BYTES on every host (160 in the index TSV) and may end inside a multi-byte UTF-8
+# sequence. Fixtures put a 3-byte character (U+2014, \342\200\224) across each cap; the expected bytes are
+# written by printf and compared with cmp (no shell string comparison of partial UTF-8).
+@test "FR-9 byte-cap contract: a 3-byte UTF-8 symptom crossing the cap ends mid-sequence at exactly 100 bytes (hook) and 160 bytes (index), under every awk present" {
+  local p="$BATS_TEST_TMPDIR/capb" x98 x158 a i=0
+  mkdir -p "$p/grimoires/loa" "$p/x/y"
+  cp "$GEN" "$PROJECT_ROOT/.claude/scripts/compat-lib.sh" "$p/x/y/"
+  x98="$(printf 'x%.0s' $(seq 1 98))"; x158="$(printf 'y%.0s' $(seq 1 158))"
+  { printf '# Known Failures\n\n'
+    printf '## KF-001: hook cap\n**Status**: OPEN\n**Symptom**: %s\342\200\224tail\n**Recurrence count**: 1\n\n' "$x98"
+    printf '## KF-002: index cap\n**Status**: OPEN\n**Symptom**: %s\342\200\224tail\n**Recurrence count**: 2\n\n' "$x158"; } > "$p/grimoires/loa/known-failures.md"
+  # hook row KF-001: 98 x then the first two bytes of U+2014 (bytes 99 and 100); the third byte is cut
+  printf '  - KF-001 (rec 1): %s\342\200\n' "$x98" > "$BATS_TEST_TMPDIR/hook.expected"
+  # index TSV symptom of KF-002: 158 y then \342\200
+  printf '%s\342\200\n' "$x158" > "$BATS_TEST_TMPDIR/tsv.expected"
+  while IFS= read -r a; do
+    local d="$BATS_TEST_TMPDIR/capbshim-$i"; _awk_shim "$d" "$a"
+    env PATH="$d:$PATH" LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" \
+      LOA_KNOWN_FAILURES_FILE="$p/grimoires/loa/known-failures.md" bash "$HOOK" 2>/dev/null | LC_ALL=C awk 'index($0, "  - KF-001 (") == 1' > "$d/hook.row"
+    cmp "$BATS_TEST_TMPDIR/hook.expected" "$d/hook.row" || { echo "hook under $a:" >&2; od -c "$d/hook.row" | tail -3 >&2; false; }
+    env PATH="$d:$PATH" bash "$p/x/y/grimoire-index.sh" --tsv 2>/dev/null | awk -F'\t' '$1 == "kf" && $2 == "KF-002" { print $7 }' > "$d/tsv.sym"
+    cmp "$BATS_TEST_TMPDIR/tsv.expected" "$d/tsv.sym" || { echo "index under $a:" >&2; od -c "$d/tsv.sym" | tail -3 >&2; false; }
+    i=$((i + 1))
+  done < <(_awks_present 3>/dev/null)
+  [ "$i" -ge 1 ]
+  # the contract is stated in the hook header and beside both san() twins
+  grep -qF '100 BYTES on every host (160 in the grimoire-index TSV)' "$HOOK"
+  grep -qF '# Contract (FR-9, DEC-1159): 100 bytes on every host; the cut may end inside a multi-byte UTF-8 sequence.' "$HOOK"
+  grep -qF '# Contract (FR-9, DEC-1159): 160 bytes on every host; the cut may end inside a multi-byte UTF-8 sequence.' "$GEN"
+}
+
+@test "FR-8 the awk san() twins are the only sanitiser: grimoire-index.sh defines no shell san() (review DISS-C-004)" {
+  # The former shell san() (tr | sed | cut) had no callers once every emitter sanitised inside awk, and it did not carry
+  # the FR-8 control class; a third copy would drift unpinned, so it must not exist.
+  run grep -cE '^san\(\)' "$PROJECT_ROOT/.claude/scripts/grimoire-index.sh"
+  [ "$output" = "0" ]
+  # exactly one awk san() per twin
+  [ "$(grep -c 'function san(s)' "$PROJECT_ROOT/.claude/scripts/grimoire-index.sh")" = "1" ]
+  [ "$(grep -c 'function san(s)' "$PROJECT_ROOT/.claude/hooks/loa-kf-surface.sh")" = "1" ]
+}
+
+@test "FR-8 locale pin: every awk invocation in the hook is LC_ALL=C awk — the kf_count awk included (cycle-138 BB round 1 F-009)" {
+  # The san() pin above covers the SAN_AWK sites; this one covers every `awk ` on a non-comment line of the hook
+  # (a `#` anywhere before the word excludes comments and the comments inside the awk programs).
+  local total pinned
+  total="$(grep -cE '^[^#]*[^A-Za-z_]awk ' "$HOOK")"
+  pinned="$(grep -cE '^[^#]*LC_ALL=C awk ' "$HOOK")"
+  [ "$total" -ge 2 ] || { echo "only $total awk invocations found in the hook" >&2; false; }
+  [ "$total" -eq "$pinned" ] || { grep -nE '^[^#]*[^A-Za-z_]awk ' "$HOOK" | grep -v 'LC_ALL=C awk' >&2; false; }
+}

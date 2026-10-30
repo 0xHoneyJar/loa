@@ -1,279 +1,422 @@
-# Sprint Plan: Performance follow-ups (cycle-137)
+# Sprint Plan: Hardening follow-ups (cycle-138)
 
-**Version:** 1.1
-**Date:** 2026-10-28
-**Revision:** 1.1 integrates the Flatline sprint review (7 blockers, 40 medium items — dispositions in the Appendix) and PRD 1.1 / SDD 1.1: decision-row classes, one terminal rule for blocking findings, SHA-bound approvals, the ship as a post-audit section, cache trust boundary, verify-chains result protocol, HALT checkpoints, time budget.
+**Version:** 1.5
+**Date:** 2026-10-29
+**Revision:** 1.5 (Sprint 286 audit round 1, DEC-1197 / DEC-1198): Task 3.7 added — the karpathy summary temp opened O_CREAT|O_EXCL under noclobber behind a trusted directory and an absent name, the state directory uid-owned (red 68570405c → fix c07b543b0). 1.4 (Sprint 286 landing, DEC-1194 / DEC-1195): Task 3.1's jq form corrected to the SDD § 5.7 descendant clause (the quoted `split("*")` form would have widened glob entries); the FR-11 acceptance wording corrected — an empty present value keeps today's fallback. 1.3 (Sprint 285 Task 2.1, DEC-1185): the trajectory guard's directory components are checked for ownership, symlink and canonical path only — not their group/other-write bit (checkout directories inherit the clone umask); the day-file checks stay; the red fixtures for a 775 component / `TRAJ_DIR` assert the append goes through. 1.2 integrates the Flatline sprint review of 1.1 (7 blockers, 41 medium items; two voices, cross-scoring degraded — dispositions in Appendix E): the FR-3 counts split into JSON `valid` (n/a excluded) and the displayed count (DEC-1171); a halt-path ship procedure, the T+20 h clock and the ship's time bound (DEC-1172); post-gate code changes re-run tests, parity and scans before the verdicts re-bind (DEC-1173); the patch-landing model and intra-sprint edges (DEC-1174); dissent-run and post-merge accounting (DEC-1175); the `realpath -m` contradiction resolved fail-closed; grounding corrections (the chain-summary tests live in `audit-envelope-verify-chains.bats`; the cache-state surface is `loa_profile_cache_state` on /loa's Profile line); the plan's terms defined in § Halt and failure paths. 1.1 carried SDD 1.2 / PRD 1.2 (the Flatline SDD review, SDD § 11.F): FR-2 by process substitution, FR-4's `.run` creators and repair owner, FR-1's trust lifetime and absent-`.run` creation, FR-6's one-stat component check, FR-11's last-line kind token, FR-7's portable top-K, FR-3's `not_applicable` (DEC-1165 … DEC-1170).
 **Author:** Sprint Planner Agent (Claude Fable 5.1, unattended)
-**PRD Reference:** `grimoires/loa/prd.md` (1.1, FR-1 … FR-8, G-1 … G-6, § Release predicate R-1 … R-8)
-**SDD Reference:** `grimoires/loa/sdd.md` (1.1, C-1 … C-8, § 5.1 … § 5.8, D-1.1, D-2.1 … D-8.1)
-**Ledger:** cycle `cycle-137-performance-followups`, sprint globals 281 (local sprint-1) and 282 (local sprint-2)
-**Execution:** Sprint 1 is already implemented (the 20 loop commits): the lead writes `a2a/sprint-281/reviewer.md`, then runs `/review-sprint sprint-1` and `/audit-sprint sprint-1` directly (no `/run`, nothing to implement). Sprint 2 runs under `/run sprint-2 --local` (implement → review → audit with the circuit breaker; no push and no PR from run mode); the PR, Bridgebuilder rounds, merge, record, archive and the rc.9 publish are the lead's ship tasks afterwards. Implementers are Opus 5.5 (`global.anthropic.claude-opus-5-5`) in linked worktrees returning `git diff --cached` patches (test patch first, then fix); the lead lands, reviews, audits and ships. CHANGELOG lines are returned as text in the reports and inserted by the lead. Bounded-loop exits (unattended): a patch returned for allowlist or red-test violations more than twice → the lead implements or defers the task with a bead and a DEC row (class S); a dissent voice unreachable after ≤ 3 runs → the lead's own review and the audit still run, the dissent gap is recorded (class S); a `/run sprint-2 --local` circuit-breaker trip → state HALTED, the lead reads the trip reason, fixes forward under the same gates and `/run-resume`s, at most twice, then a real HALT; Bridgebuilder unreachable on `codex-headless` → one retry after ten minutes, then `BRIDGEBUILDER_MODEL=claude-headless`, then degraded (class S only when no blocking finding is open); Bridgebuilder round 2 ends with a blocking finding still open → fix red-first and re-run the audit verify-only once; still open → HALT (class H); spend cap, the one-day window or a HALT-class event → HALT at the nearest safe point with the HALT checkpoint written (below).
-**Terminal rule (one, authoritative — PRD R-3):** an unresolved blocking finding (critical or high from review, audit or Bridgebuilder) halts shipping; no waiver exists for it. A non-blocking finding may be deferred only by a `proposed` DEC row naming the finding id, its severity, the final head sha and the acceptance basis; Task 2.9 refuses to open the PR, merge or publish while any blocking finding is open.
-**HALT checkpoint (what a HALT writes before stopping):** `.run/sprint-plan-state.json` HALTED with the reason; a NOTES.md entry listing the active worktrees and their heads, patches staged but not landed, commits landed since the last verdict, each gate's status and `reviewed_head`, meter spend, pending release operations (PR open? merged? record pushed? candidate prepared? published?) and the exact safe resume step; implementer agents stopped, their worktrees kept. Ship safe points: HALT may occur before the PR is opened, before ship-1 (merge) and before the rc.9 publish; once ship-1 starts the sequence proceeds to the next stable state (merged + record pushed, or merged + record + archive) or executes the written rollback — never a half-merged state.
-**Task kinds:** every task carries `kind: mechanical | judgment` (DEC-0144); the lead's tasks are `judgment`; no `operator` task exists — the operator's instruction of 2026-10-28 ("do formal gates and then release when ready and you can also work through the open beads") authorises the whole cycle including the release.
-**Decision-row classes:** class S (self-confirmable under that instruction; written `proposed`, confirmed at the close): recording a measured floor and moving FR-6's AC to it; updating a spawn budget with its reason; deferring a Should/Could bead with its reason (the beads were offered as optional work); the D-x.y design choices of the SDD; a dissent voice unreachable after three runs (the lead's review and the audit still run); Bridgebuilder degraded or exhausted with no blocking finding open; a non-blocking finding waived in the terminal-rule format. Class H (halt for the operator — Task 2.9 refuses to open the PR, merge or publish while any unconfirmed class-H row exists, and none is written in this cycle except to record the halt): a blocking finding left open; merging with a required check not `success`; publishing with a digest or `merge_sha` mismatch; accepting a parity divergence beyond the five documented in `a2a/sprint-281/reviewer.md`; any change to `_check_trust_store`, a `br` contract call or a fence's fail-open/fail-closed semantics.
-**Spend:** USD 30 cap in the meter's unit (`.run/cost-ledger.jsonl`): Flatline reviews, dissent runs and Bridgebuilder rounds on subscription routes; the Opus 5.5 implementers run as Claude Code agents on the subscription and are not metered in that ledger (their wall time is bounded by the time budget instead); real charges ≈ 0. Meter checkpoints: after the Sprint 1 audit, after the last implementer patch lands (2.7), after the Sprint 2 audit (2.8), before the publish (2.9) — each recorded in the e2e file.
-**Time budget (T = the Sprint 1 gates start; one unattended day):** Sprint 1 gates done by T+3 h; implementer patches back by T+6 h; landing and the Sprint 2 report by T+8 h; Sprint 2 review and audit by T+10 h; Bridgebuilder, merge, record by T+13 h; publish, smoke test, archive by T+14 h. Slip order when a latest-start passes: the ship steps slip first (publishing later costs nothing — no operator is needed), bd-09z1i defers first, then bd-wctli, then bd-h5tcn; FR-2, FR-3, FR-5 are not deferred for time.
+**PRD Reference:** grimoires/loa/prd.md (1.3, FR-1 … FR-16, G-1 … G-4, Appendices D–E)
+**SDD Reference:** grimoires/loa/sdd.md (1.3, C-1 … C-10, § 11.D decisions DEC-1148 … DEC-1156 and DEC-1165 … DEC-1170, § 11.F dispositions)
+**Cycle:** `cycle-138-hardening-followups`, branch `feature/cycle-138-hardening-followups` from `main` fe52be893; ledger sprints 284, 285, 286
+
+---
 
 ## Executive Summary
 
-Two sprints. Sprint 1 (global 281) takes the 22-pass optimisation loop — 20 commits already on this branch, each proven byte-identical and Opus-reviewed — through the framework's formal review and audit gates; only gate fixes land. Sprint 2 (global 282) closes the six follow-up beads the loop filed (bd-atk7q, bd-gv5jf, bd-h5tcn, bd-1mfm7, bd-wctli, bd-09z1i) with the same discipline (profile, golden, one lever, old-vs-new mirror parity, red-first tests), then ships one PR through a Bridgebuilder round, the record branch, the archive and the `v2.0.0-rc.9` release candidate.
+Fifteen follow-up beads from cycle-137 and sprint-bug-283, closed in three sprints ordered by exposure: the two trust boundaries and the release path first (profile-lib cache predicate, publisher bodies off argv, chain summary classification, umask-077 creators), the per-tool-call hooks and the known-failures surface second (karpathy seam and trajectory guards; KF control class, row cap and BSD contract), the test guards and one bounded refactor third, followed by the ship (one PR, Bridgebuilder ≤ 2 rounds, merge on green, record, archive — no release). Every task lands red-first from an implementer's patch, under the bounded System Zone marker with manifests regenerated, with byte-identical old-versus-new parity except the enumerated changes, and each sprint passes `/review-sprint` and `/audit-sprint` with ≤ 3 dissent runs (the third is the audit's). The unattended halt protocol (DEC-1160) bounds the cycle: a sprint that misses its gates after the dissent budget, or the T+20 h budget, HALTs at the sprint boundary and the PR ships the completed sprints.
+
+**Total Sprints:** 3 (global 284, 285, 286)
+**Sprint Duration:** ≈ 5 h each unattended (implement ≈ 2 h, gates ≈ 2 h, slack 1 h); the whole cycle in about one day (2026-10-29 → 2026-10-30)
+**Estimated Completion:** 2026-10-30
+
+**Execution:** `/run sprint-plan --local` (implement → review → audit per sprint with the circuit breaker; no push and no PR from run mode); implementers are Opus 5.5 agents in linked worktrees returning `git diff` patches (test patch first, then fix) with a report file, cut from the sprint's kickoff head and applied in the plan's landing order onto the landing head (`git apply --check`, then `-3`, then one return round with the new head — DEC-1174); an intra-sprint edge (Task 1.1 → Task 1.4) is landing order plus the lead's re-run of the dependent task's tests and parity on the landing head; the lead lands each patch under the marker (red run must fail only the new cases; fix run green; lint; manifests), reviews, audits and ships. Decision classes: S (self-confirmable under the operator's instruction, recorded as a `proposed` row) and H (needs the operator: anything that would publish, force-push, delete, or widen the System Zone list). Bounded exits: a patch returned twice for allowlist or red-test violations → the lead implements or defers with a bead and a class-S row; a dissent voice unreachable after ≤ 3 runs → the lead's review and the audit still run, the gap recorded (class S); a circuit-breaker trip → HALTED, fix forward once, then a real HALT; Bridgebuilder per PRD FR-16's degraded-exit procedure; the halt protocol of PRD § Constraints as made concrete in § Halt and failure paths (time budget, halt-path ship, dissent accounting, post-merge failures).
+
+> Sources: prd.md § Executive Summary, § Constraints (halt protocol), FR-16; sdd.md § 8; cycle-137 sprint plan § Execution (the pattern carried)
+
+---
 
 ## Sprint Overview
 
-| Sprint | Global | Goal | Owners |
-|---|---|---|---|
-| Sprint 1 | 281 | FR-1: the loop reviewed and audited; G-1, G-3, G-4 evidenced | lead |
-| Sprint 2 | 282 | FR-2 … FR-7 implemented and tested; FR-8 shipped; G-2, G-5, G-6 | lead, A, B, C, D |
+| Sprint | Global | Theme | Key Deliverables | Dependencies |
+|--------|--------|-------|------------------|--------------|
+| 1 | 284 | Security and the release path | C-4 umask-077 creators; C-3 chain classification; C-2 publisher bodies off argv; C-1 profile-lib trust predicate; FR-1 … FR-4 ACs green | None |
+| 2 | 285 | Hooks and the known-failures surface | C-5 karpathy seam gate + trajectory guards; C-6 KF control class, 40-row cap, BSD contract (form a or b); FR-5 … FR-9 | Sprint 1 (Task 1.1 edits the karpathy hook's state-dir `mkdir` and Task 2.1 edits the seam line and the trajectory `mkdir` of the same file; landing order only) |
+| 3 | 286 | Tests, guards, the bounded refactor, the ship | C-7 floor clause + presence metadata; C-8 three guards; C-9 providers (or deferral row); whole-head parity gate; `reviewer.md`; gates; E2E; then § Ship | Sprints 1–2 |
 
-Duration: one unattended day (2026-10-28). Team: the lead plus up to four Opus 5.5 implementers (A shell: C-2 + C-5; B shell: C-3 + C-4; C tests: C-6; D python+shell: C-7). Cadence: implementers return patches; the lead lands them in dependency order and runs the gates.
+> Sources: sdd.md § 8 Development Phases; prd.md § Scope & Prioritization
 
-## Sprint 1: Formal gates on the optimisation loop (global 281)
+---
+
+## Sprint 1: Security and the release path (global 284)
+
+**Duration:** ≈ 5 h unattended
+**Dates:** 2026-10-29 (T+3 h) – 2026-10-29 (T+8 h)
 
 ### Sprint Goal
 
-`/review-sprint` ends `All good` and `/audit-sprint` ends `APPROVED` on the 20 loop commits, with any fix landed red-first and the touched passes' parity harnesses re-run; `COMPLETED` written; ledger sprint 281 completed.
+Close bd-20bh1, bd-hyah6, bd-qyvju and bd-j34zb with red-first tests and byte-identical outputs except the enumerated FR-3 change; the profile-lib cache reads and writes only under the trust predicate with zero added spawns; the publisher carries no body on argv; `loa-status` never counts an absent chain as valid.
 
 ### Deliverables
 
-- `grimoires/loa/a2a/sprint-281/reviewer.md`: the engineer's report — one row per productive pass (target, lever, parity evidence and inputs, covering bats and counts, before/after, review verdict, commit), the two no-change passes with their floors, the final re-baseline table, the full-suite result, and the `## AC Verification` walkthrough of FR-1's criteria (C-1).
-- `engineer-feedback.md` (review) and `auditor-sprint-feedback.md` (audit) with `LOA-VERDICT` trailers; fix commits where the gates find anything (each with `checksums.json` + REPO-MAP regenerated).
-- `a2a/sprint-281/e2e.md` with the G-1 / G-3 / G-4 evidence.
+- [x] C-4: `( umask 077; mkdir -p … )` around every `mkdir` that can create `.run/perf-cache` (zone-write-guard line 261 and any creator the enumeration finds); hook test under umask 002 → 0700 (A).
+- [x] C-3: `_an_audit_chain_classify` / `_an_audit_chain_summary` with the four states, both invariants (JSON `valid` excludes n/a; displayed `V = valid + not_applicable` — DEC-1171), the per-primitive lines and the `audit_chain` JSON object; the verify-chains contract cases (exit 2, duplicate / missing / unexpected index, empty list); the LS-1 … LS-4 fixtures of `audit-envelope-verify-chains.bats` extended (B).
+- [x] C-2: `--rawfile body <(printf '%s' …)` process substitutions at the three body sites (no temp file, no trap — SDD 1.2 § 5.2); stub-recorded argv assertions; structural greps; the jq-failure case; oversized multi-byte fixtures (C).
+- [x] C-1: `_loa_pl_id` extended stat (dir + file rows, excluded from the id; rc ignored, fail-closed row parsing), `_loa_pl_cache_trusted` / `_loa_pl_cache_readable` (refuse, never chmod; anchored realpath on the seam), writer with `mkdir` (no `-p`) for an absent `.run`, builtin re-check, `mktemp` + `mv -T`; trust-lifetime comment; `loa_profile` cache-state line with one case per reason; the 775 `.run` repair row; drift guard against `grimoire-index.sh` (listed lines); the FR-1 fixtures; matrix parity for the karpathy hook (D).
+- [x] CHANGELOG `[Unreleased]` lines for FR-1 … FR-4 (implementers' texts, lead inserts).
+- [x] `a2a/sprint-284/reviewer.md` (FR-1 … FR-4 AC walkthrough, parity evidence, spawn-budget counts, red/fix shas) before Task 1.6.
 
 ### Acceptance Criteria
 
-- [x] FR-1 AC rows all green: `reviewer.md` walkthrough complete for passes 1–11, 13, 14, 16–22 and the no-change passes 12 and 15; review `All good`; audit `APPROVED`; `verdict-derive.sh --gate review` and `--gate audit` CONSISTENT; `COMPLETED` written; ledger 281 `completed`.
-- [x] Every gate fix commit is red-first where behaviour changes and byte-identical old-vs-new where a loop file's implementation changes; the pass's `~/.cache/loa/eso-loop/pass-K/` harness re-run on the final head; `check-no-raw-sha256sum.sh` and `check-no-swallowed-jq.sh --quiet` clean at every fix commit (the same gate set as Sprint 2).
-- [x] Each verdict names `reviewed_head: <sha>`; a code commit after a verdict re-runs that gate before `COMPLETED` (PRD § Constraints, D-1.1).
-- [x] A reverted loop pass (Task 1.1 revert path): its later-pass dependencies checked first, its row excluded from the G-3 comparison and named in the DEC row, its mirror harness run old-vs-reverted, the suite re-run.
-- [x] Evidence copied to `a2a/sprint-281/evidence/` (per-pass REPORT and VERDICT files, `final-table.tsv`, `baseline/*.json`, `final/*.json`, `rebaseline.sh`, the two TAP files) with the sha256 of each external artefact the plan relies on (`~/.cache/loa/cycle-135/ship/*.sh`, `~/.cache/loa/eso-loop/rebaseline.sh`) recorded in `e2e.md`.
-- [x] `tests/unit/perf-spawn-budget.bats` 6/6, `check-loa.sh` passes, `repo-map-gen.sh --validate` passes on the final Sprint 1 head.
-- [x] G-3: the re-baseline of `~/.cache/loa/eso-loop/rebaseline.sh` on the final head: no touched row's mean above 110 % of its `final-table.tsv` mean (untouched rows recorded), measured serially on the idle host with no concurrent bats or implementer activity.
-- [x] G-4: the full `tests/unit` TAP on the final head fails only the three KF-034 tests of PRD R-4 (exact names), with no new skips; the companion file passes in a serial whole-file run on the idle host.
+- [x] FR-1 AC rows all green (the refusal/replacement fixtures incl. hard link, planted file, FIFO, redirected path with a symlinked component, mv-fallback shim, directory replaced between calls, a 775 `.run` refused — recording chmod shim sees no call — then admitted after one grimoire-index run, an absent `.run` created 0700, a malformed stat row, one `loa_profile` case per reason; `loa_knob`/`loa_profile`/`_loa_pl_live` parity on the live config + the pass-19 matrix except the enumerated `loa_profile` cache-state line; karpathy hook parity across the matrix; karpathy spawn budget 196 / 9 unchanged; drift guard green).
+- [x] FR-2 AC rows all green (multi-byte `release_body` ≤ 125 000 chars > 131 072 bytes and a `notification_body` ≤ 65 536 chars > 131 072 bytes publish DONE singly and together; stub argv carries no body marker; `grep -n -- '--arg body\|--arg summary\|--arg notes'` shows none; no `mktemp` on the body sites and exactly three `--rawfile body <(printf` operands (structural); a shimmed jq exiting 2 records today's `fail_phase` text and issues no second POST; existing 71 cases green).
+- [x] FR-3 AC rows all green (deleted / tampered / unreadable chain, abnormal verifier exit, healthy; both invariants per fixture — JSON `valid + absent + broken + not_applicable == 7` with `valid` EXCLUDING n/a (5 on the healthy fixture, asserted) and displayed `V = valid + not_applicable` so `V + A + B == 7` and the healthy line stays `7/7` (DEC-1171); L5/L7 `n/a`; duplicate / missing / unexpected index records → broken; empty list → absent 5; the human and JSON changes enumerated; every other `loa-status` line and `run-preflight` identical).
+- [x] FR-4 AC rows all green (fresh dir 0700 under umask 002 for every creator landed by Tasks 1.1 and 1.4 — zone-write-guard, the karpathy state dir, the profile cache writer; the trajectory creator follows in Task 2.1; the dynamic creator gate — every hook and entry point of the parity matrix run under `umask 002` on a fresh root, then `find .run -type d -perm /022` prints nothing — in Task 1.5; D-5.3 case still green; budgets unchanged).
+- [x] Each red commit fails only its own new cases (`red-test-check.sh --env-pass PYTHONUSERBASE`); each fix commit green; `checksums.json` and REPO-MAP regenerated in every System Zone commit; `check-no-raw-sha256sum.sh`, `check-no-swallowed-jq.sh --quiet`, `check-loa.sh`, `repo-map-gen.sh --validate`, `perf-spawn-budget.bats` green at every fix commit and the sprint head.
+- [x] `a2a/sprint-284/reviewer.md` written before the review; review `All good` and audit `APPROVED` with `reviewed_head` = the sprint head (docs-only tails listed); `verdict-derive.sh` CONSISTENT; `COMPLETED`; ledger 284 `completed`.
+- [x] Full `tests/unit` TAP on the sprint head: only the three R-4 failures with their signatures; no new skips except named host-conditional ones.
 
 ### Technical Tasks
 
 <!-- → **[G-n]** names the PRD goal; ⇐ names the blocking task(s) (edge-or-none); every line ends with · kind: … -->
 
-- [x] Task 1.0: Prep and engineer's report (lead) — rotate NOTES.md first if it is within 10 KiB of the 200 KiB guard (`notes-guard.sh rotate`; destination the dated archive the script names); copy the loop evidence to `a2a/sprint-281/evidence/`; then write `a2a/sprint-281/reviewer.md` from `.skill-loop-progress.md` § LOOP 2, the per-pass `REPORT.md` / `review/VERDICT.md` files, `final-table.tsv` and `bats-final/unit.tap`: per pass the parity inputs and comparison, the bats files and counts, the before/after numbers, the verdict and the commit; the no-change passes; the `## AC Verification` section mapping each FR-1 criterion to evidence. → **[G-1]** ⇐ none · kind: judgment
-- [x] Task 1.1: Review (lead) — `/review-sprint sprint-1` with ≤ 3 dissent runs (`adversarial-review.sh --type review`, code-only diffs over `main..HEAD`); findings fixed red-first (behaviour) or with a mirror parity proof (implementation), manifests regenerated per commit, the two lint checks clean; `engineer-feedback.md` C-11 grammar, `reviewed_head` named, verdict-derive consistent; a non-fixable finding reverts that single loop commit (dependency check first; dependent later passes reverted together or fixed forward) with a DEC row; CHANGELOG: the loop's block already sits under `[Unreleased]` (pass 22) and each gate fix adds its own line there (lead-inserted), so the rc.9 heading written at the ship covers both sprints. → **[G-1]** ⇐ 1.0 · kind: judgment
-- [x] Task 1.2: Audit (lead) — `/audit-sprint sprint-1` → `auditor-sprint-feedback.md` naming `reviewed_head`; fixes as 1.1 (a fix re-runs the audit as a verify-only pass on the new head); `COMPLETED`; ledger sprint 281 `completed` (set `completed` with jq under bash — ledger-lib sets only the status). → **[G-1]** ⇐ 1.1 · kind: judgment
-- [x] Task 1.E2E: Sprint 1 goal validation (lead) — `a2a/sprint-281/e2e.md`: G-1 (the two verdicts, the marker), G-3 (re-baseline table within 10 %, guard 6/6), G-4 (full-suite TAP summary; CMP-37 alone). → **[G-1, G-3, G-4]** ⇐ 1.2 · kind: judgment
-
-### Patch contract (per-implementer path allowlist)
-
-| Implementer | May change | Must not touch |
-|---|---|---|
-| lead only | any loop file a gate finding names, with `checksums.json` + REPO-MAP regenerated; `a2a/sprint-281/**`; `.skill-loop-progress.md` | the 20 loop commits' history (no squash, no rebase) |
+- [x] Task 1.0: Sprint prep (lead) — worktrees `../loa-wt-c138-{a,b,c,d}` at the kickoff head; briefs under `~/.cache/loa/cycle-138/briefs/` (copies in `a2a/sprint-284/briefs/`) with the COMMON rules (red patch first, report file written with a heredoc, no writes under the main checkout's `.run/`, no `br` calls); `a2a/sprint-284/prep.md` fingerprinting the external recipes (`~/.cache/loa/cycle-137/scripts/{land.sh,regen-manifests.sh,mirror-ls.py}`, `~/.cache/loa/cycle-137/ship/merge-pr.sh`) with sha256 → **[G-3]** ⇐ none · kind: judgment
+- [x] Task 1.1: umask-077 creators (A, System Zone) — enumerate every `mkdir` that can create `.run/perf-cache`, `.run` or a directory under it (`grep -rn 'perf-cache' .claude --include='*.sh' --include='*.py'` AND `grep -rn 'mkdir.*\.run' .claude tests --include='*.sh' --include='*.py'`; SDD 1.2 § 5.4): wrap zone-write-guard.sh:261 and the karpathy state-dir `mkdir -p` (line 162) in `( umask 077; mkdir -p -- … )`; list — do not edit — the trajectory `mkdir` (line 214, Task 2.1) and profile-lib's writer `mkdir` (line 186, Task 1.4); red: a hook test under `umask 002` asserts the fresh directory is 0775 today → 0700 after, per creator; `grimoire-index.bats` D-5.3 case unchanged; CHANGELOG line names grimoire-index's tightening as the repair owner of a legacy writable `.run`; bd-20bh1 is closed provisionally for the creators landed by Tasks 1.1 and 1.4 (the trajectory `mkdir` lands with Task 2.1 — named in the close comment); budgets unchanged → **[G-1, G-2]** ⇐ Task 1.0 · kind: mechanical
+- [x] Task 1.2: Chain summary classification (B, System Zone) — sdd § 5.3: `_an_audit_chain_classify` (valid / absent / broken / n/a per primitive; abnormal verifier → every existing chain broken), `_an_audit_chain_summary` keeps printing the displayed `V/7` where `V = valid + not_applicable` (`V + A + B == 7`); the human line byte-identical when healthy, else `V/7 validate (A absent, B broken).` + one line per non-valid primitive; JSON keeps `audit_chain_summary` and adds `audit_chain {valid, absent, broken, not_applicable, total, primitives[]}` with `valid` EXCLUDING n/a (`valid + absent + broken + not_applicable == 7`; healthy fixture `valid == 5` — DEC-1171); the verify-chains contract (one `{i, path, ok}` record per argument; exactly one match per index) written into a comment; red cases in `audit-envelope-verify-chains.bats` (where LS-1 … LS-4 and the `_summary` / `_oracle` / `_stub` helpers live — the PRD/SDD 1.2 reference to `loa-status-providers.bats` was a grounding slip; that file only if it asserts the old line) (deleted, tampered, unreadable, verifier exit 0/1/2, duplicate / missing / unexpected index, empty existing list, healthy, L5/L7 n/a, both invariants); mirror parity of every other line; `run-preflight` identical → **[G-1, G-2]** ⇐ Task 1.0 · kind: judgment
+- [x] Task 1.3: Publisher bodies off argv (C, System Zone) — sdd 1.2 § 5.2: `--rawfile body <(printf '%s' "$text")` at lines 1286, 1488, 1502 — a process substitution (no temp file, no trap, no new failure path; the 1.1 helper is withdrawn, SDD § 11.F B1); the stub records every command's argv to a log and the tests assert no body marker on argv; structural assertions (no `--arg body|--arg summary|--arg notes`; three `--rawfile body <(printf` sites; no `mktemp` on them); red: multi-byte `release_body` (≤ 125 000 chars, > 131 072 bytes) and a `notification_body` (≤ 65 536 chars, > 131 072 bytes), singly and together → `jq: Argument list too long` today, DONE after; a jq shim exiting 2 → today's `fail_phase` text, no second POST; 71 existing cases green → **[G-1]** ⇐ Task 1.0 · kind: judgment
+- [x] Task 1.4: profile-lib trust predicate (D, System Zone) — sdd § 3 and § 5.1: extended `_loa_pl_id` stat (five paths, `|%a|%u|%h`, GNU and BSD formats; the two extra rows never enter the id), `_loa_pl_cache_trusted` (dir real, uid, no g/o write — REFUSE, never chmod; `realpath -m` check anchored at the canonical root, run only when the seam is redirected AND the bats marker is absent (inside bats the seam's mktemp dir is trusted); the 'symlinked component' fixture calls the helper directly in a subshell with the marker unset; stat rc ignored, rows keyed by `%n`, malformed rows refused before arithmetic), `_loa_pl_cache_readable` (file regular, non-symlink, uid, mode, one link), guards in `_loa_pl_load` and the `loa_knob` warm path, writer: `dir-absent` → `( umask 077; mkdir -- dir )` (no `-p`), then `[[ -O dir && ! -L dir && ! -L cache ]]` re-check, `mktemp` + `mv -f -T` with the fallback (SDD 1.2 § 5.1 outcomes table; trust-lifetime comment), `_LOA_PL_CACHE_OFF` reason surfaced by a new `loa_profile_cache_state` (`on` | `off (<reason>)`, one case per reason) and appended to /loa's Profile line (`display_profile_line` in loa-status.sh) ONLY when off — `loa_profile` keeps printing the profile name (its caller captures it); no JSON profile object exists today, so none is added (stated in the report); drift guard vs `grimoire-index.sh` (the listed invariant lines); red: the FR-1 fixtures (stat shim answers ownership; recording chmod shim; 775 `.run` off → one grimoire-index run → on; absent `.run` created 0700); parity: `loa_knob` / `loa_profile` / `_loa_pl_live` live + pass-19 matrix (enumerated `loa_profile` line), the karpathy hook across the matrix in REAL mirror directories; spawn budget 196 / 9 → **[G-1, G-2]** ⇐ Task 1.1 · kind: judgment
+- [x] Task 1.5: Landing and the Sprint 1 report (lead) — land in this order: A (1.1 red, 1.1 fix), B (1.2), C (1.3), D (1.4); every commit under the marker with `checksums.json` and REPO-MAP regenerated; `red-test-check.sh` per red commit; CHANGELOG lines inserted; the sprint parity run (old = the pre-sprint head 87e8bd568, new = the sprint head, REAL mirrors, every entry point the sprint touched; bytes of stdout/stderr/rc/written files — modes are asserted by the FR-1/FR-4 tests, not by the gate) and the dynamic creator gate (`find .run -type d -perm /022` empty after the matrix under `umask 002`); `reviewer.md` written (FR-1 … FR-4 walkthrough, parity evidence, spawn counts, shas); beads closed provisionally ("landed on feature branch <sha>, pending merge"); class-S rows for every judgment call → **[G-1, G-2]** ⇐ Task 1.1, Task 1.2, Task 1.3, Task 1.4 · kind: judgment
+- [x] Task 1.6: Review and audit (lead) — `/review-sprint sprint-1` (≤ 3 dissent runs on code-only `--diff-file` diffs; rounds beyond the budget lead-only, the third run reserved for the audit), `engineer-feedback.md` (C-11 grammar, `reviewed_head`, verdict-derive CONSISTENT); fixes red-first with the touched task's parity re-run; `/audit-sprint sprint-1` → `auditor-sprint-feedback.md`; `COMPLETED`; ledger 284 `completed`; full `tests/unit` TAP on the head; `e2e.md` (sprint part) → **[G-3]** ⇐ Task 1.5 · kind: judgment
 
 ### Seams Under Test
 
 | Seam | Catches | Misses | Prior art |
 |------|---------|--------|-----------|
-| Old-vs-new mirror of each loop file in a REAL directory over the pass's fixture matrix | an implementation change that alters bytes, exit code or stderr | hosts with other awk/yq versions (noted UNVERIFIED per pass) | `~/.cache/loa/eso-loop/pass-K/review/` harnesses |
-| `tests/unit/perf-spawn-budget.bats` over fixed fixtures | a spawn added to a guarded hot path | spawns on paths without a fixture (karpathy until Sprint 2) | pass 22 |
-| The covering bats suites per touched file (repo-map-gen, grimoire-index, kf-surface, run-checkpoint*, compat-*, implement-gate, notes-size-guard, run-state-surface, cache-manager, loa-status*, guard-yield, adapter pytest, karpathy*, push-gate) | a behaviour regression a parity fixture did not cover | — | the loop's per-pass test runs |
+| `_loa_pl_cache_trusted` / `_loa_pl_cache_readable` exit codes and `loa_profile`'s cache-state line, under a `stat` shim | a foreign, writable, symlinked, hard-linked or planted cache being read or written; a chmod issued from the hook path (the trace shows none) | a race inside one process (argued, not tested — the predicate excludes the writer) | `grimoire-index.bats:420-500`, `agy-gate-conformance.bats` `_agc33_shim` |
+| `_loa_pl_write_cache`'s resulting file: mode, inode, link count, victim bytes | truncation through a hard link or symlink; a `.tmp.$$` predictable name | — | `grimoire-index.bats` planted-temp-symlink case |
+| the publication stub's argv log and the state receipt | a body on `execve` argv; a jq failure not failing the phase | GitHub's real request size limits | `post-merge-publication.bats` gh stub, bug-283 cases |
+| `_an_audit_chain_summary` output `V A B` and the JSON object, under fixture chain files | absence counted valid; a broken chain hidden; a sum that does not reach 7 | the verifier's own correctness (tested in `audit-envelope*.bats`) | `loa-status-providers.bats` LS-1 |
+| the created directory modes under `umask 002` (zone-write-guard, karpathy state dir, profile cache writer) and the dynamic gate `find .run -type d -perm /022` | a 0775 `.run/perf-cache`, `.run/karpathy-surgical` or `.run` | the trajectory directory (Task 2.1) | `grimoire-index.bats` D-5.3 |
+| `perf-spawn-budget.bats` karpathy target (196 / 9) | an added spawn on the warm path | spawns on paths without a fixture | the file's own budget lines |
+| the sprint parity run (Task 1.5: pre-sprint head 87e8bd568 vs sprint head, REAL dirs; bytes only) | any non-enumerated output change on a touched entry point | timing; modes (asserted by the FR-1/FR-4 tests) | `~/.cache/loa/cycle-138/scripts/mirror-ls.py` (copied from cycle-137) |
 
 ### Dependencies
 
-- Internal: 1.0 → 1.1 → 1.2 → 1.E2E. External: the host toolchain (bash 5, jq 1.7, mikefarah yq 4.44, Python 3.13, bats 1.13 via npx, hyperfine 2.0) and the unversioned artefacts Task 1.0 verifies and fingerprints (`~/.cache/loa/eso-loop/**`, `~/.cache/loa/cycle-135/ship/*.sh`).
+- Prior art and recipes: cycle-137 landing/regen scripts and the sprint-bug-283 publisher pattern (`a2a/bug-20261028-90f357/reviewer.md`).
+- Hosts: GNU stat on the ship host; the BSD stat branch covered by a shim.
 
 ### Security Considerations
 
-- The loop touched four fences (implement-gate, notes-size-guard, karpathy, run-mode-stop-guard) and one trust surface (kf-surface): the review re-reads their fail-open / fail-closed paths and the sanitisers; any widening is a blocking finding.
-- The audit confirms no new eval/source of untrusted data, atomic-write semantics on the new `.run/perf-cache`-style paths (none added in the loop), and that the lazy provider imports change no credential handling.
+- **Trust boundaries**: the checkout root is the trust root (operator-owned); `.run` and `.run/effective-config.json` are trusted only under the predicate; the publisher's bodies are data in files, never argv; chain files are untrusted bodies verified by the unchanged `audit_verify_chain`.
+- **External dependencies**: none new (jq ≥ 1.6 for `--rawfile`).
+- **Sensitive data**: none; release bodies are public text.
 
 ### Risks & Mitigation
 
-- Risk: the formal review finds a parity gap the per-pass reviews missed → fix red-first and re-run the pass harness; a non-fixable one reverts that single commit (one pass = one commit).
-- Risk: dissent voices unreachable (KF-037/KF-041 shapes) → ≤ 3 runs, then lead-only gate recorded in a DEC row.
-- Risk: the review's own bats runs load the host and CMP-37 fails → run the file alone and record it.
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| The predicate refuses the cache on the live checkout (`.run` 700 today — fine) or on a downstream 775 `.run` | Low / Med | Med | refusal = live read, identical output; the Profile line names the reason; grimoire-index's `_gi_trusted_dir` tightening repairs a uid-owned `.run` on its next run (the repair owner, DEC-1166; CHANGELOG line) |
+| The extended `stat` format differs on BSD | Low | Med | both branches extended symmetrically; a shim per format |
+| The FR-3 wording change breaks a consumer | Low | Low | string kept; additive JSON |
+| Implementer patches collide on `profile-lib.sh` (only D touches it this sprint) | Low | Low | one implementer per file |
 
 ### Success Metrics
 
-- G-1: review `All good`, audit `APPROVED`, `COMPLETED` present.
-- G-3: re-baseline within 10 %; guard 6/6.
-- G-4: full suite green modulo KF-034.
+- 4 beads closed provisionally; ≥ 4 red/fix pairs VERIFIED; karpathy budget 196 / 9 unchanged; publication file 71 + new cases green; loa-status parity identical except the enumerated change; both gates on the sprint head.
 
-> Sources: prd.md § FR-1, § Goals; sdd.md § 1.4 C-1, § 7; `.skill-loop-progress.md` § LOOP 2
+> Sources: prd.md FR-1 … FR-4, G-1 … G-3; sdd.md § 3, § 5.1 … 5.4, § 7
 
 ---
 
-## Sprint 2: The six follow-up beads and the ship (global 282)
+## Sprint 2: Hooks and the known-failures surface (global 285)
+
+**Duration:** ≈ 5 h unattended
+**Dates:** 2026-10-29 (T+8 h) – 2026-10-29 (T+13 h)
 
 ### Sprint Goal
 
-Close bd-atk7q, bd-gv5jf, bd-h5tcn, bd-1mfm7, bd-wctli and bd-09z1i with red-first tests (bd-wctli: TAP-set parity plus the negative control) and byte-identical outputs where output exists, each landed or deferred under PRD R-2; the Sprint 2 engineer's report; review `All good` and audit `APPROVED` on the final head with the ship files already committed; `COMPLETED`. The ship itself (PR, Bridgebuilder, merge, record, publish, archive) is the post-audit § Ship section below — outside the gated sprint, as in cycles 135/136.
+Close bd-yos4s, bd-kdzc3, bd-4sikh, bd-z6gxn and bd-aceil: the karpathy checkpoint seam is a test seam only and the trajectory append writes only through a trusted path; the KF SessionStart surface strips the decisions filter's control class, caps at 40 rows in file order with one elision line, and states the BSD byte-cap contract — verified under a BWK awk (form a) or documented with a linked macOS bead (form b).
 
 ### Deliverables
 
-- C-2: shape-C field regex and H2 `cur` reset in both KF parsers; `kf-surface.bats` and `grimoire-index.bats` cases (A).
-- C-5: `grimoire-index.sh` content-keyed decisions cache under `.run/perf-cache/`, `LOA_GRIMOIRE_INDEX_NO_CACHE=1`, one write-mode jq for `bad` + `total`; bats cases (A).
-- C-3: `_anthropic_ceiling_json` six-line yq protocol with fallback; `_agy_opt_in_node_memo` in `agy-gate-lib.sh`; bats cases (B).
-- C-4: `profiles.yaml` `cached_keys` + cache-builder support + `loa_knob` absent-source fast path; `profile-lib.bats` cases; karpathy target added to `perf-spawn-budget.bats` (B).
-- C-6: `block-destructive-bash.bats` corpus-once `setup_file`; `adversarial-review-companion.bats` bounded waits; TAP-set parity evidence (C).
-- C-7: `audit-envelope.sh verify-chains` + the Python batch entry; `loa-status.sh` switched to one call; bats and the security suite green (D).
-- CHANGELOG `[Unreleased]` lines per bead (lead inserts the implementers' texts); then, before the final gate pass, the rc.9 heading, the README pin and `.loa-version.json` (so the reviewed head is the merged head — PRD R-1/R-3).
-- `a2a/sprint-282/reviewer.md`: the Sprint 2 engineer's report (FR-2 … FR-7 AC walkthrough, measurements with host/command/run count, parity evidence, deferrals with their DEC rows, final commit shas) — written before Task 2.8.
-- `a2a/sprint-282/prep.md` (external artefacts verified with sha256; the `profile-lib.sh` sourcers and their bats files; awk interpreters present) and `a2a/sprint-282/briefs/` (the four implementer briefs as given).
+- [ ] C-5: marker-gated `KARPATHY_CHECKPOINT_CMD`; `_traj_trusted` guard on the warn path; `perf-spawn-budget.bats` allowlist adds the marker; red tests for both (A).
+- [ ] C-6: `san()` + `SAN_AWK` control class (C1 pairs, U+2028/2029); selection-vs-display row cap with `KF_SURFACE_MAX_ROWS=40` and the elision line; the byte-cap contract text and boundary fixture; the drift guard and three-awk parity; the BWK attempt (prebuilt first) recorded; form (a) or (b) (B).
+- [ ] CHANGELOG lines for FR-5 … FR-9; `a2a/sprint-285/reviewer.md` before Task 2.6.
 
 ### Acceptance Criteria
 
-- [x] FR-2 AC rows all green (shape C parsed in both parsers, shape B still parsed, `## KF-abc:` resets, live file byte-identical for the hook stdout and `--tsv/--json/write`).
-- [x] FR-3 AC rows all green (mirror parity on live/--json/--help/bogus/no-yq and the config matrix for `loa-status.sh` and `run-preflight.sh`; `yq` count 1 in `_anthropic_ceiling_json` on the six-line success path with the live config — the fallback intentionally performs today's reads; ≥ 40 ms measured on `bash .claude/scripts/loa-status.sh` (human mode, from the project root) under the measurement protocol; agy memo bats incl. same-size rewrite, `mv`, deletion, path switch).
-- [x] FR-4 AC rows all green (warm cache resolves `diff_lines_per_task` without `yq`; override / profile default / hard default identical to the live path; `loa_profile` output unchanged; karpathy state files identical across the pass-19 matrix; new spawn-budget target).
-- [x] FR-5 AC rows all green (cold/warm parity on all modes; invalidation on content change; truncated / altered / wrong-key / wrong-count / symlinked / read-only / foreign-owned or group-writable cache dir ignored with no write; `NO_CACHE=1` disables read and write; yq-absent host never reads; concurrent writers; mid-run source rewrite caches nothing; warm ≤ 650 ms and cold ≤ old + 40 ms; budget updated with reason).
-- [x] FR-6 AC rows green or the measured floor recorded by a class-S DEC row written before Task 2.8 (pass/fail/skip set identical per test name; negative control per affected test; corpus run once with `setup_file` status captured; companion serial wall time ≤ 300 s or the floor, median of three `bats -T` runs).
-- [x] FR-7 AC rows all green ((a) implemented per sdd.md § 5.7: exactly one validated JSON record per requested path, in argument order; a missing, duplicate or malformed record or a process failure marks the affected paths FAILED (fail-closed) in the wrapper and in `loa-status.sh`; per-path results equal per-call results on live and fixture chains and under the store-mutation schedule (revoke, tamper, delete) with independently stated expected outcomes — every path verified under an INVALID store FAILs with `[TRUST-STORE-INVALID]` and `loa-status.sh` shows the same invalid count old and new; `test_audit_trust_policy.py` green; the 44 audit-envelope bats files green; ≥ 100 ms on a 5-chain fixture root) or (b) deferred by a class-S DEC row written before Task 2.8 with the bead relabelled `deferred-cycle-137`.
-- [x] Each red commit fails only its own new cases (`red-test-check.sh`); each fix commit green; Task 2.5 lands as one commit exempt from the red/fix pair (its evidence is the TAP set, the `bats -T` tables and the negative control); `checksums.json` and REPO-MAP regenerated in every System Zone commit; `check-no-raw-sha256sum.sh`, `check-no-swallowed-jq.sh --quiet`, `check-loa.sh`, `repo-map-gen.sh --validate`, `perf-spawn-budget.bats` green at every fix commit and the final head.
-- [x] `a2a/sprint-282/reviewer.md` written before the review; review `All good` and audit `APPROVED` with `reviewed_head` equal to the head that the PR will merge (ship files already committed); `verdict-derive.sh` CONSISTENT; `COMPLETED`; ledger sprint 282 `completed`.
-- [ ] Full `tests/unit` TAP on the final head under PRD R-4 (only the three named KF-034 tests, no new skips) and the whole-head parity gate of sdd.md § 7 (old mirror from the Sprint 1 final head vs new mirror from the Sprint 2 final head over every touched entry point).
-- [x] Live KF file: for the parsed labels (`Symptom`, `Recurrence count`, `Status`) exactly one shape-C line exists today — `**Status (original)**: OPEN …` in KF-008, AFTER that entry's plain `**Status**:` line (grep recorded in `prep.md`); shape C is therefore scoped to `Symptom` and `Recurrence count` (D-2.2: the live qualified `Status` forms — `Status (original)`, `Original Status`, `Historical status (…)` — are historical annotations that must never win), `Status` keeps shapes A/B, a decoy fixture `**Status (original)**:` after `**Status**:` asserts no change, and FR-2's byte-identical criterion stands; if the grep count changes before landing, the criterion becomes "differs only by the enumerated newly recognised fields, diff attached".
+- [ ] FR-5 AC rows all green (seam ignored without the marker, honoured with it; hook parity on the matrix; budget 196 / 9).
+- [ ] FR-6 AC rows all green (symlinked dir / component / day file, foreign or writable dir, FIFO, hard link → victims byte-identical, nothing appended, the warning still printed; replacement between two runs refused; hot-path budget unchanged).
+- [ ] FR-7 AC rows all green (100-entry fixture → 40 rows in file order + the elision line, byte-exact; ≤ 40 entries → byte-identical; the live file differs only by its (entry count − 40) elided rows + one line (computed at gate time and recorded; 65 − 40 = 25 as of 87e8bd568), diff attached; tie order pinned; worst-case rows < 8 KiB; kf-surface budget 36 / 2).
+- [ ] FR-8 AC rows all green (NEL, U+009F, U+2028, U+2029 → single spaces in both twins; C0/DEL/byte cap as today; live output byte-identical with the no-such-bytes grep; drift guard; three-awk parity).
+- [ ] FR-9 form (a) or (b) complete per PRD 1.3 (prebuilt-BWK attempt recorded first; contract text and boundary fixture landed; form (b) closes bd-aceil with the contract and opens a linked macOS bead with a class-S row).
+- [ ] Red/fix discipline, manifests, lint and the full-suite TAP as in Sprint 1; `reviewer.md` before the review; review `All good` + audit `APPROVED` on the sprint head; `COMPLETED`; ledger 285 `completed`.
 
 ### Technical Tasks
 
-<!-- → **[G-n]** names the PRD goal; ⇐ names the blocking task(s) (edge-or-none); every line ends with · kind: … -->
-
-- [x] Task 2.0: Sprint prep (lead) — after Sprint 1 `COMPLETED`: verify and fingerprint the external artefacts (`~/.cache/loa/cycle-135/ship/*.sh`, `~/.cache/loa/eso-loop/rebaseline.sh` and the pass harnesses) into `a2a/sprint-282/prep.md`, together with the list of `profile-lib.sh` sourcers and their bats files and the awk interpreters present (`mawk`, `busybox`, `gawk`); verify the structural anchors each brief cites (the `verify-chain` loop inside the chain-status function of `loa-status.sh`, `_anthropic_ceiling_json`, `fieldval` in both parsers) and replace line numbers by function names in the briefs; write the implementer briefs under `~/.cache/loa/cycle-137/briefs/` and copy them to `a2a/sprint-282/briefs/` (one per implementer: allowlist, SDD section, fixtures, parity recipe with REAL-directory mirrors, red-first rule or its test-only substitute, measurement protocol, no live push config, no deletions under the System Zone, zsh word-split note, the HALT and STOP conditions); create the four worktrees from the Sprint 1 final head; re-brief rule: if a Sprint 1 gate fix touched a file on an implementer's allowlist, that brief names the fix commit. → **[G-2]** ⇐ none · kind: judgment
-- [x] Task 2.1: KF shape-C regex and H2 reset (A, System Zone) — `loa-kf-surface.sh` and `grimoire-index.sh` `fieldval`: add shape C (`^(- )?\*\*LABEL( [^*]*)?\*\*: ?`) for the `Symptom` and `Recurrence count` labels only — `Status` keeps shapes A/B (D-2.2; the live `**Status (original)**:` in KF-008 must never win) — and reset `cur` on every `^## ` line (sdd § 5.1); `kf-surface.bats` and `grimoire-index.bats` red-first cases: shape C parsed, shape B still parsed, `**Symptomatic**:` not a field, `## KF-abc:` resets, `## Index` fields ignored; live-file parity (hook stdout; `--tsv/--json/write`) byte-identical; `## KF-abc:` resets silently (no stderr); drift test asserting the two `fieldval` bodies and heading rules are identical; both programs run under every awk present on the host (mawk, busybox awk, `gawk --posix`; absent ones skipped by name in the report). → **[G-2]** ⇐ 2.0 · kind: mechanical
-- [x] Task 2.2: grimoire-index decisions cache and one write-mode jq (A, System Zone) — sdd § 3 and § 5.5: key `v1:<sha256_portable of the decisions.yaml snapshot>:<yq major.minor>:<jq major.minor>:<row count>` as the first line of `.run/perf-cache/grimoire-index-decisions.v1.tsv`; trust boundary before any read or write: `.run` and `.run/perf-cache` are real directories (not symlinks), owned by the current uid, not group- or world-writable — otherwise the cache is neither read nor written; reader = one awk validating header, row count, 9 fields per row and the sanitiser alphabet, printing rows only when everything validated; hit → print; miss → today's pipeline over the same snapshot, then the writer (umask 077, `mkdir -p` + `-L` re-check, exclusive `mktemp "$cache.XXXXXX"`, `-L` re-check on the cache path immediately before `mv -f -T`/`mv -f`, temp removed on failure, never fatal, never under CI); `LOA_GRIMOIRE_INDEX_NO_CACHE=1` disables read and write; the unparsable-ledger NOTE path caches nothing; the `v1:` prefix constant sits next to the `s` filter with a bats case pinning their coupling; write-mode `bad` and `total` from one root-preserving jq (sdd § 5.5) tested on a valid and an invalid index; bats red-first (hit skips yq by trace, miss rebuilds, content change invalidates, truncated/altered/wrong-key/wrong-count/symlinked dir/symlinked file/pre-existing temp symlink/read-only/group-writable dir → no read no write, NO_CACHE, CI env, yq-absent host, two concurrent writers, source rewritten mid-run → no cache written); cold/warm parity on all four modes; `perf-spawn-budget.bats` grimoire-index budget updated with the reason in the same commit. → **[G-2]** ⇐ 2.1 · kind: mechanical
-- [x] Task 2.3: loa-status six-line yq and the agy node memo (B, System Zone) — sdd § 5.2 and § 5.3: one `yq eval -r` emitting alias + five fields, accepted only as exactly six lines, else today's reads verbatim; `_agy_opt_in_node_memo` (parent-shell wrapper, result in `_AGY_NODE_MEMO_VAL`, never `$(...)`) keyed by `<cfg>|dev:ino:size:mtime:ctime` with nanosecond precision where `stat` supports it (GNU `%.9Y`/`%.9Z`, else seconds — recorded UNVERIFIED on a 1 s filesystem), `stat` failure → no memo; used by `agy_opted_in` and `agy_gate_warn_once`; two commits (ceiling read; memo); bats red-first (`loa-status-providers.bats`: fast path taken on the live config by trace, six-line fixtures — malformed YAML, map for scalar, embedded newline, null, false, empty final field, all absent, yq failure; `agy-gate-conformance.bats`: memo hit, miss after a same-length `true`→`false` rewrite within the same second, after `mv`, after deletion, after a path switch, `$(...)` caller correct); mirror parity over live/--json/--help/bogus/no-yq and the config matrix (alias absent; model without ceiling fields; opt_in true/false/"true"/absent) for `loa-status.sh` AND `run-preflight.sh`; hyperfine ≥ 40 ms on `bash .claude/scripts/loa-status.sh` under the protocol; `yq` count 1 in the function's trace on the success path. → **[G-2]** ⇐ 2.0 · kind: mechanical
-- [x] Task 2.4: profile-lib `cached_keys` (B, System Zone) — sdd § 5.4: `profiles.yaml` top-level `cached_keys: [karpathy_principles.diff_lines_per_task]`; the cache builder records `{value, source: explicit|absent, profile_value: null}` for listed non-profile keys; `profile_keys` and `overrides` unchanged; `loa_knob` warm-cache `absent` → fallback without `yq`; classification mirrors `_loa_pl_live` exactly (same yq expression; fixtures null, "", false, 0, map, multi-line); bats red-first in `profile-lib.bats` (absent → fallback without yq by trace, explicit wins, stale id → live, older cache without the entry → live, `loa_profile` output byte-identical, cache JSON differs only by the new knob entry); every validator of `profiles.yaml` accepts the new top-level key (`check-loa.sh`, yamllint, profile-lib's key enumeration) and the bats files of every `profile-lib.sh` sourcer (listed in `prep.md`) stay green; karpathy hook state files identical across the pass-19 matrix (`~/.cache/loa/eso-loop/pass-19/` harness); `perf-spawn-budget.bats` gains a karpathy target (fixed fixture + warm cache) measured and budgeted in the same commit. → **[G-2]** ⇐ 2.3 · kind: mechanical
-- [x] Task 2.5: Test-suite runtime (C, tests only; one commit, exempt from the red/fix pair) — sdd § 5.6: `block-destructive-bash.bats` `setup_file` runs the corpus once into `$BATS_FILE_TMPDIR` capturing status, stdout and stderr without failing (`|| true`); each corpus test asserts the status and JSON validity first; `corpus_json()` reads the file (the runtime test reads `runtime_ms` of that run); `adversarial-review-companion.bats`: `bats -T` serial profile first (median of three), then shorten only fixed sleeps no test waits on and keep every hold ≥ 2× the longest wait on it (`CMP_STUB_HOLD_S`, default 300, read only by the in-file shim and the test bodies), listing the affected tests and their bounds by name; no assertion, expected value or skip condition changes; negative control per affected test (break the asserted behaviour → fails; restore → passes); TAP pass/fail/skip set per test name identical before and after (serial); CMP-37 untouched; report the measured floor; if the companion file stays above 300 s, the report names the floor and the lead records the class-S DEC row adjusting FR-6 before Task 2.8. → **[G-2]** ⇐ 2.0 · kind: mechanical
-- [x] Task 2.6: `verify-chains` (D, System Zone) — sdd § 5.7: `audit-envelope.sh verify-chains <path>…` → one Python process, `audit_verify_chain` per path in its own try/except, one JSON record per input path in argument order `{i, path, ok, error}`, exit 0 / 1 / 2 (usage or import); the shell wrapper parses by index with one jq and is fail-closed: exactly one validated record per requested path, otherwise (missing, duplicate, malformed, non-1 non-zero exit, unparsable output) every unrecorded path is FAILED; `_check_trust_store`, `_trust_store_snapshot` and `audit_verify_chain` bodies untouched; the `verify-chain` loop inside the chain-status function of `loa-status.sh` (the lead verifies the anchor at briefing) keeps its `[[ -f ]]` pre-filter and makes one call, reproducing today's `valid` count by index; bats red-first: valid/tampered/broken-link/missing/empty chains per path, paths with spaces and colons, duplicate paths, zero args → exit 2, a truncated record set → fail-closed, read-only chain tree with sha256 before/after, a tampered trust store → every path FAILs with `[TRUST-STORE-INVALID]` and `loa-status.sh` shows the same invalid count old and new, single `verify-chain` unchanged; pytest in `tests/unit/`: batch records equal fresh per-call results under a store-mutation schedule between paths (replace with a revoking store; tamper; delete) via a test hook that does not touch the protected functions; `pytest tests/security/test_audit_trust_policy.py` green; the 44 audit-envelope bats files green; hyperfine on a 5-chain fixture root ≥ 100 ms; loa-status mirror parity. If any of this needs a change to `_check_trust_store`, STOP and return the measurement for a class-S DEC-row deferral. → **[G-2]** ⇐ 2.3 · kind: mechanical
-- [x] Task 2.7: Landing and the Sprint 2 report (lead) — land in this order: A (2.1 red, 2.1 fix, 2.2 red, 2.2 fix), then B (2.3 as two red/fix pairs, 2.4 red/fix — B's `perf-spawn-budget.bats` karpathy target lands after A's budget line; the lead resolves the shared file), then C (2.5, one commit), then D (D's worktree is reset onto B's landed 2.3 fix before D edits `loa-status.sh`; 2.6 red/fix); every commit under the marker with `checksums.json` and REPO-MAP regenerated; `red-test-check.sh` per red commit; the implementers' CHANGELOG texts inserted; `perf-spawn-budget.bats` budgets updated where a task says so; `rebaseline.sh` re-run serially on the idle host and the table recorded; the whole-head parity gate (sdd § 7) run; class-S DEC rows for every judgment call (D-1.1, D-2.1 … D-8.1, the implementers', any deferral) written before 2.8; beads bd-atk7q, bd-gv5jf, bd-h5tcn, bd-1mfm7, bd-wctli closed PROVISIONALLY ("landed on feature branch <sha>, pending merge" — updated at ship-4 with the merged sha), bd-09z1i likewise or relabelled `deferred-cycle-137`; then the ship files (rc.9 CHANGELOG heading with the rc.8 version markers, README pin, `.loa-version.json`) committed; then `a2a/sprint-282/reviewer.md` written (FR-2 … FR-7 walkthrough, measurements with host/command/run count, parity evidence, deferrals, final shas). Bead rollback reverts the fix commit AND its red commit together. → **[G-2]** ⇐ 2.2, 2.4, 2.5, 2.6, Sprint 1 `COMPLETED` · kind: judgment
-- [x] Task 2.8: Review and audit (lead) — `/review-sprint sprint-2` (≤ 3 dissent runs, code-only diffs since the Sprint 1 head), `engineer-feedback.md` (C-11 grammar, `reviewed_head`, verdict-derive consistent); fixes red-first with the touched task's parity harness re-run; `/audit-sprint sprint-2` → `auditor-sprint-feedback.md` with `reviewed_head` equal to the head the PR will merge; `COMPLETED`; ledger sprint 282 `completed`; meter checkpoint. → **[G-2]** ⇐ 2.7 · kind: judgment
-- [ ] Task 2.E2E: Sprint 2 goal validation (lead) — `a2a/sprint-282/e2e.md` part 1 (written at `COMPLETED`): G-2 (six beads with commit + test, or the deferral row), the measurement tables with host/command/run count, the whole-head parity gate result, the full-suite TAP under R-4, the meter checkpoints. Part 2 is appended by the § Ship section. → **[G-2]** ⇐ 2.8 · kind: judgment
-
-### Patch contract (per-implementer path allowlist)
-
-| Implementer | May change | Must not touch |
-|---|---|---|
-| A | `.claude/hooks/loa-kf-surface.sh`, `.claude/scripts/grimoire-index.sh`, `tests/unit/kf-surface.bats`, `tests/unit/grimoire-index.bats`, `tests/unit/perf-spawn-budget.bats` (the grimoire-index budget line and comment only) | `CHANGELOG.md` (text returned in the report), `checksums.json`, REPO-MAP (lead regenerates), any other hook or script |
-| B | `.claude/scripts/loa-status.sh` (`_anthropic_ceiling_json` only), `.claude/scripts/lib/agy-gate-lib.sh`, `.claude/scripts/lib/profile-lib.sh`, `.claude/data/profiles.yaml`, `tests/unit/loa-status-providers.bats`, `tests/unit/agy-gate-conformance.bats`, `tests/unit/profile-lib.bats`, `tests/unit/perf-spawn-budget.bats` (the new karpathy target only) | `CHANGELOG.md`, manifests, the karpathy hook itself, any other `loa-status.sh` function |
-| C | `tests/unit/block-destructive-bash.bats`, `tests/unit/adversarial-review-companion.bats` | anything under `.claude/`, any other test file, `tests/fixtures/**` |
-| D | `.claude/scripts/audit-envelope.sh`, `.claude/adapters/loa_cheval/audit_envelope.py` (a new batch entry point only — `_check_trust_store`, `_trust_store_snapshot`, `audit_verify_chain` bodies untouched), `.claude/scripts/loa-status.sh` (the `verify-chain` loop inside the chain-status function only — the lead names the function in the brief), `tests/unit/audit-envelope*.bats` (new cases only), one new `tests/unit/test_audit_verify_chains.py` | `CHANGELOG.md`, manifests, `audit-signing-helper.py`, `tests/security/**`, any chain file under `.run/` or `grimoires/` |
-
-A patch outside its allowlist is returned, not landed. Implementers make no live model or GitHub calls, never run anything with the live push configuration, never write under `.run/` of the main checkout, and never commit, push or stash in their worktrees. Parity mirrors live under paths without `.claude` in them or with the file under test in a REAL directory.
+- [ ] Task 2.0: Sprint prep (lead) — worktrees reset onto the Sprint 1 head; briefs for A and B; the prebuilt-BWK attempt is part of B's brief (`apt-cache policy original-awk`, `command -v nawk`, a container image; record the outcome in the report) → **[G-3]** ⇐ none · kind: judgment
+- [ ] Task 2.1: karpathy seam gate and trajectory guards (A, System Zone) — sdd § 5.5: line 62 honours `KARPATHY_CHECKPOINT_CMD` only under `BATS_TEST_FILENAME`/`BATS_VERSION`; `_traj_trusted` (SDD 1.2 § 5.5: anchored at `realpath -m` of the checkout root — `TRAJ_DIR` inside the checkout and its canonical path equal to the root's canonical path plus the relative path; ONE `stat -Lc '%n|%u|%a|%h'` over every component below the root plus the day file, rc ignored, rows keyed by `%n`; each component a uid-owned non-symlink directory (its g/o-write bit is NOT tested — DEC-1185); the day file regular, non-symlink, uid-owned, one link, no g/o write; no `realpath -m` → refuse (fail-closed, no fallback); the day file's symlink-ness comes from the `[[ ! -L ]]` builtin because the single `stat -L` dereferences; an absent directory: validate the existing ancestors' rows, `mkdir -p` under umask 077, then the single stat covers the fresh directory before the append — a fresh-directory success fixture) guards the append on the warn path only — the state dir and task file keep today's `-L` guards (stated in the report); `perf-spawn-budget.bats` karpathy target passes `BATS_TEST_FILENAME`; red: seam ignored outside bats (counter script not run), each trajectory refusal (symlinked dir, symlinked ancestor, foreign component, symlink / FIFO / hard-link / group-writable day file, BSD shim) with its victim preserved and the warning printed, a uid-owned 775 component or `TRAJ_DIR` still appended to (DEC-1185), normal append still works, replacement between runs refused, the warn path's spawn count asserted once; hook parity on the matrix; budget 196 / 9 → **[G-1, G-2]** ⇐ Task 2.0 · kind: judgment
+- [ ] Task 2.2: KF control class (B, System Zone) — sdd § 5.6: `gsub(/\302[\200-\237]/, " ", s)` and `gsub(/\342\200[\250\251]/, " ", s)` in `san()` and `SAN_AWK`, before the C0 strip; `LC_ALL=C` pinned on each awk command of both twins (grimoire-index's `SAN_AWK` call sites at lines 101, 177, 191) with a parity case run from a `LANG=en_US.UTF-8` parent; red: fixtures with NEL, U+009F, U+2028, U+2029 → single spaces in the hook table and the index TSV; the drift guard extended to the new lines; mawk / busybox / `gawk --posix` parity; live output byte-identical (grep proves no such bytes) → **[G-1, G-2]** ⇐ Task 2.0 · kind: mechanical
+- [ ] Task 2.3: KF row cap (B, System Zone) — sdd § 5.6: rows collected in file order with (recurrence leading integer, id); `n <= max` → today's output; else top-K by `max` linear passes (no `asort`: mawk / busybox / BWK) over (recurrence desc, numeric id `substr(id, 4) + 0` desc; malformed recurrence reads 0; an exact tie resolves to the earlier file position) and print the SELECTED rows in file order + `  … and K more — see grimoires/loa/known-failures.md`; `-v max=40` from a constant inside the hook (`KF_SURFACE_MAX_ROWS=40` is not read from the environment: no knob, no seam); every field bounded (id `^KF-[0-9]{1,9}$`, recurrence key = the leading integer of at most 9 digits else 0, 100-byte symptom; an oversized-number fixture); red: 100-entry fixture (byte-exact expected), ≤ 40 fixture byte-identical, tie order, malformed recurrence, worst-case 40 rows < 8 KiB; the live diff (entry count − 40 rows + 1 line, computed at gate time and recorded) attached; budget 36 / 2 → **[G-1, G-2]** ⇐ Task 2.2 · kind: judgment
+- [ ] Task 2.4: BSD byte-cap contract (B, System Zone + tests) — the contract sentence in the hook header (100 bytes on every host, may end inside a multi-byte sequence; advisory text); the boundary fixture (3-byte UTF-8 symptom crossing byte 100, exact expected bytes); form (a) has two halves with separate evidence — the awk half needs a BWK binary in the parity test; the `cut` half needs a BSD host (else that half is recorded UNVERIFIED with the contract text); form (b): attempt recorded, UNVERIFIED stated, bd-aceil closed with the contract, a linked macOS bead opened, class-S row → **[G-1]** ⇐ Task 2.3 · kind: judgment
+- [ ] Task 2.5: Landing and the Sprint 2 report (lead) — A then B (2.2 → 2.3 → 2.4, each red/fix under the marker); CHANGELOG lines; `reviewer.md`; provisional closes; class-S rows (incl. the FR-9 form) → **[G-1, G-2]** ⇐ Task 2.1, Task 2.4 · kind: judgment
+- [ ] Task 2.6: Review and audit (lead) — as Task 1.6, for sprint-2 (global 285) → **[G-3]** ⇐ Task 2.5 · kind: judgment
 
 ### Seams Under Test
 
 | Seam | Catches | Misses | Prior art |
 |------|---------|--------|-----------|
-| `fieldval` over fixtures of the three field shapes, a `**Symptomatic**:` decoy, `## KF-abc:` and `## Index` sections, plus the live file | a shape parsed differently between the two parsers; a field attached to the wrong entry | field shapes nobody writes (e.g. `__Label__:`) | pass-6 reviewer fixtures fx_e/fx_all |
-| `_anthropic_ceiling_json` six-line protocol vs the per-field reads on the config matrix (alias absent, ceiling fields absent, multi-line value) | a value shift or a dropped field; a multi-line value swallowed | yq versions other than mikefarah 4.44 (UNVERIFIED) | pass 18's three-line protocol |
-| `_agy_opt_in_node_memo` with a rewritten config between calls and a `$(...)` caller | a stale node after a rewrite; a memo leak across configs | a config rewritten with identical dev/ino/size/mtime within one second | pass 14's memo |
-| `loa_knob` on a warm cache for an absent cached key, an explicit value, a stale id | a wrong fallback; a profile-keys change; an `overrides` change | profile-lib callers outside the hook set (10 callers — the cache builder test covers `loa_profile`) | `profile-lib.bats` |
-| decisions cache hit / miss / invalidation / corrupt / symlink / read-only / NO_CACHE, cold and warm, all four modes | stale rows; a cache write that is fatal; a cache followed through a symlink | concurrent writers (last writer wins; both outputs are correct) | zone-write-guard's perf-cache |
-| TAP pass/fail/skip set per test name for the two test files, serial, before vs after | a changed verdict; a dropped test | wall-time on CI runners (recorded, not asserted) | pass 21 |
-| `verify-chains` per-path results vs `verify-chain` per-call results on live and fixture chains, with a tampered trust store | a per-path divergence; a trust decision changed by batching | hosts without the signing helper (same refusal as today) | `test_audit_trust_policy.py` |
+| the karpathy hook's checkpoint command actually executed (a counter script) with and without the marker | the seam honoured from the ambient environment | a hostile same-uid environment (out of the threat model) | `perf-spawn-budget.bats:275-299` |
+| the trajectory victim file's bytes and link count after the warn path | an append through a symlink, FIFO or hard link; a foreign/writable directory used | — | the hook's state-file guards (lines 162, 165) |
+| the hook's stdout table on fixtures and the live file, byte-compared | a wrong row selected, a wrong display order, a missing elision line, a C1 byte passing | rendering in the session UI | `kf-surface.bats`, `grimoire-index.bats` drift guard |
+| the three (four with BWK) awk interpreters' outputs `cmp`'d | a gawk-only construct, an octal class BWK rejects | BSD `cut` without a BSD host (form b) | Sprint 282 Task 2.1 parity test |
+| `perf-spawn-budget.bats` kf-surface (36 / 2) and karpathy (196 / 9) | an added spawn | — | the file |
 
 ### Dependencies
 
-- Internal: Sprint 1 `COMPLETED` → 2.0 (worktrees from the Sprint 1 final head) → 2.1 → 2.2 (A, same file area); 2.0 → 2.3 → 2.4 (B) and 2.3 → 2.6 (D's worktree reset onto B's landed 2.3 fix); 2.0 → 2.5 (C, independent); 2.7 after 2.2, 2.4, 2.5, 2.6 and Sprint 1 `COMPLETED`; 2.8 after 2.7; 2.E2E after 2.8; the § Ship section after 2.E2E.
-- External: host toolchain (bash 5, jq 1.7, mikefarah yq 4.44, Python 3.13 with the repo `.venv` for pytest, bats 1.13 via npx, hyperfine 2.0, the awk interpreters present on the host — mawk, busybox, gawk — for the portability check, `gh` 2.x authenticated for the ship, `codex` CLI logged in for `BRIDGEBUILDER_MODEL=codex-headless` with the fallback chain in the header).
+- Sprint 1 landed: Task 1.1 wrapped the karpathy hook's state-dir `mkdir` (line 162 at fe52be893); Task 2.1 edits the seam line (62) and the trajectory `mkdir` (214) of the same file — re-locate by pattern (`CHECKPOINT=`, `mkdir -p "$TRAJ_DIR"`) after Sprint 1's edits.
+- A BWK awk source: Debian/Ubuntu `original-awk`, `nawk`, or a container image (form a).
 
 ### Security Considerations
 
-- The KF parsers surface untrusted text: the change widens which lines are recognised as fields, never what is done with them — sanitisation (`san()`, the jq `s` filter) is unchanged; every awk present on the host runs the regexes (Task 2.1 names the ones tested).
-- Caches: trust boundary enforced before any read or write (real, uid-owned, non-group/world-writable `.run` and `.run/perf-cache`; otherwise neither read nor written); content-keyed with row count; payload validated row by row against the sanitiser alphabet; exclusive temp files; symlink checks re-done immediately before the rename; never fatal; never under CI; a forged cache is served only to whoever could already write the source file (the pass-6 trust argument of the 2026-07 loop) and then only if it validates.
-- `verify-chains` keeps `_check_trust_store` and its subprocess-over-snapshot defence untouched; chains are read-only inputs; the security suite is a gate.
-- The agy memo keys on file identity so a rewritten config is re-read; the subshell reader keeps its fd-9 open-once check.
-- Implementers never touch the live push config, credentials, `.run/` of the main checkout or the `br` contract calls; secret scan before every push.
+- **Trust boundaries**: the trajectory directory and day file are trusted only when owned, non-writable, regular and single-linked; the checkpoint seam is a test seam; KF bodies stay untrusted and sanitised with the decisions filter's class.
+- **External dependencies**: none new.
+- **Sensitive data**: none.
 
 ### Risks & Mitigation
 
-- Risk: shape C over-matches → space-after-label requirement; decoy fixtures.
-- Risk: the six-line protocol swallows a newline → line-count gate and fallback; multi-line fixture.
-- Risk: `cached_keys` changes visible profile output → `profile_keys`/`overrides` computed from profile keys only; `loa_profile` output pinned byte-identical.
-- Risk: the companion file's floor is the script runtime → measured first; the AC moves to the floor by DEC row rather than forcing structural test changes.
-- Risk: `verify-chains` alters a trust decision → untouched gate function; security suite; per-path vs per-call parity; else deferral.
-- Risk: a Bridgebuilder round degrades (KF-010/KF-062) → prefix excludes for generated and planning files; ≤ 2 rounds; recorded.
-- Risk: rc.9 publish (KF-034, KF-063) → rc.8 recipe; non-shallow clone; digest approval; ancestry check before announcing.
-- Rollback: a bead reverts as its fix commit plus its red commit together (a red test alone would be red on `main`); a reverted loop pass is checked for later-pass dependencies and re-verified with its mirror harness; the whole cycle reverts as the single merge commit with manifests regenerated; the published release follows the written rollback in § Ship (release withdrawn, tag kept, version pins return with the revert, record branch and archive stay as history with a note, beads reopened).
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| BWK awk unobtainable (no package, no network) | Med | Low | form (b) with the prebuilt attempt recorded (DEC-1159) |
+| The row cap elides an entry a session needed | Low | Med | recurrence-first selection; the elision line names the file |
+| `realpath -m` absent on a host (BSD) | Low | Low | fail-closed: the append is refused and the warning still printed (Task 2.1; a shim fixture proves it) — no fallback path |
 
 ### Success Metrics
 
-- G-2: 6 of 6 beads closed (or 5 + one deferral row) with commit and test.
-- G-5 and G-6 are measured by the § Ship section.
+- 5 beads closed (or bd-aceil closed in form b with a linked bead); kf-surface 36 / 2 and karpathy 196 / 9 unchanged; the live KF table changes by exactly 25 rows + 1 line; both gates on the sprint head.
 
-> Sources: prd.md § FR-2 … FR-7, § Goals, § Release predicate; sdd.md § 3, § 5.1 … § 5.7, § 6, § 7, § 9, § 11.D
+> Sources: prd.md FR-5 … FR-9; sdd.md § 5.5, § 5.6, § 7; DEC-1158, DEC-1159
 
 ---
 
-## Ship (post-audit; outside the gated sprint — cycles 135/136 precedent; PRD FR-8 and R-3 … R-8; sdd.md § 5.8)
+## Sprint 3 (Final): Tests, guards, the bounded refactor, and the gates on the PR head (global 286)
 
-Runs only after Sprint 282 `COMPLETED` and only while no class-H row and no blocking finding is open. Its rows are checked separately:
+**Duration:** ≈ 4 h unattended (+ the ship)
+**Dates:** 2026-10-29 (T+13 h) – 2026-10-30 (T+17 h)
 
-- [ ] S-1 Pre-PR: secret scan on the final head; CI mirror (full unit suite) from the final head under R-4; the PR body lists both sprints, beads, DEC rows, each gate's verdict with its `reviewed_head`, the measurement protocol (host, command lines, run counts) and the Bridgebuilder outcome per head sha; PR opened from `feature/cycle-137-performance` (title names the behaviour changes and classifies `cycle`).
-- [ ] S-2 Bridgebuilder: ≤ 2 rounds (`BRIDGEBUILDER_MODEL=codex-headless`, generated and planning files excluded; fallback chain per the header). A blocking finding is fixed red-first on the branch, the touched task's parity harness is re-run, and `/audit-sprint sprint-2` re-runs as a verify-only pass naming the new `reviewed_head`; the CI mirror and secret scan re-run on that head. Round 2 ending with a blocking finding open → HALT (class H). Non-blocking findings are fixed or waived in the terminal-rule format.
-- [ ] S-3 Merge gate (R-3): every check run on the exact PR head has completed with conclusion `success`, or `neutral`/`skipped` only for a path-filtered workflow that did not run; any `failure`, `cancelled`, `timed_out` or `action_required` blocks; the six required checks — Template Protection, Validate Framework Files, Lint Markdown, Lint YAML, Shell Tests, Cross-Platform Compatibility — are `success`; `reviewed_head` of both verdicts equals the PR head; merge via the cycle-135 `ship-1` recipe; then `git diff --quiet <PR head> <merge commit>` (identical trees).
-- [ ] S-4 Record: `ship-2` (`record-branch.sh --cycle 137 --prev origin/record/cycle-136-bridgebuilder-followups`, `--accept-scan` only for the `audit-key-password-assignment` NOTES hit); stage 1 pushed; the ship scripts copied to `a2a/sprint-282/ship/` with sha256 in `e2e.md`.
-- [ ] S-5 Main CI (R-5): the push-to-main `BATS Tests` and `CI` runs on the merge commit are `success` before any publish step.
-- [ ] S-6 Publish summary (R-6, R-7): the pipeline's prepared candidate fetched from a non-shallow clone; `a2a/sprint-282/publish-summary.md` records the intended release sha (= the merge commit), the candidate's `merge_sha` (must equal it), the printed digest and the lead-recomputed digest (`sha256_portable` over the fetched bytes; must be equal), the tag `v2.0.0-rc.9`, the CHANGELOG heading, the beads' states, every class-S row written, and R-1 … R-5 ticked with evidence links.
-- [ ] S-7 Publish (R-8): `post-merge-orchestrator.sh --publish <candidate> --approve-sha256 <digest>` from the non-shallow clone; then verify `git rev-parse v2.0.0-rc.9^{commit}` equals the intended release sha, `git ls-remote --tags origin v2.0.0-rc.9` matches the local tag object, `git merge-base --is-ancestor v2.0.0-rc.9 origin/main`, the release page exists with its target commit equal to the peeled tag and every listed asset digest equal to what the candidate recorded; install smoke test from a scratch directory (`git clone --depth 1 --branch v2.0.0-rc.9` → `check-loa.sh` and the kf-surface hook succeed). Any mismatch → the written rollback (S-9), never a silent retry.
-- [ ] S-8 Archive and close: `ship-3*` (`archive-cycle.sh --cycle 137 --retention 50`, housekeeping merge classified `housekeeping`); `ship-4` (JACKED_OUT, parked `.run/*.cycle-137.jacked-out.json`, `main`); beads' provisional close reasons updated with the merged sha; ledger cycle archived; `e2e.md` part 2: G-5 (check runs on the merged head; Bridgebuilder summary; record and archive shas), G-6 (tag + release URL; ancestry and identity checks; smoke test), spend.
-- [ ] S-9 Rollback (written here before S-7 runs): revert the merge commit on `main` with manifests regenerated (version pins return with it); mark the GitHub release as a withdrawn pre-release and leave the tag; the record branch and archive stay as history with a note; reopen the beads; a DEC row records the withdrawal and the cause.
+### Sprint Goal
 
-> Sources: prd.md § FR-8, § Release predicate, § Authorization; sdd.md § 5.8, § 6; `~/.cache/loa/cycle-135/ship/*.sh`
+Close bd-7utms, bd-y5fy4, bd-5v1oa, bd-rq6gk, bd-3qed8 and bd-0h7kq (or defer the last by a class-S row), run the whole-head parity gate over every entry point any sprint touched, and pass the final review and audit bound to the head the PR will merge (DEC-1161); then the § Ship section.
+
+### Deliverables
+
+- [ ] C-7: `forbidden()` descendant clause; `loa_knob` kind-token presence metadata; `profile-floor.bats` / `profile-lib.bats` cases (A).
+- [ ] C-8: `perf-spawn-budget.bats` warm grimoire-index target; CMP-55 reap marker + 240 s hold; `_path_without` array skip list; one-off red runs recorded (B).
+- [ ] C-9: providers registry refactor within the 60-line bound with its pinned observable, or the deferral row (C).
+- [ ] Whole-head parity gate: old mirror = fe52be893 (pre-cycle), new mirror = the sprint head, every touched entry point, enumerated diffs attached.
+- [ ] CHANGELOG lines for FR-10 … FR-15; `a2a/sprint-286/reviewer.md`; `e2e.md` part 1.
+
+### Acceptance Criteria
+
+- [ ] FR-10 AC rows all green (child, grandchild, cached key dropped with the WARN; sibling prefix kept; live floor list identical).
+- [ ] FR-11 AC rows all green (each former sentinel string round-trips, an empty present value keeps today's behaviour — the fallback — (PRD FR-11 "round-trip as today", PL-22/PL-48; the "prints empty" wording here until 1.4 was the internal split value, DEC S3-2), and a trailing-newline value normalises to today's stripped bytes — identically on warm, memo and live paths; classification matrix green; call sites unchanged; budget 196 / 9).
+- [ ] FR-12 AC rows all green (hit traced after an asserted-valid cache; mutation of headroom + 1 spawns fails deterministically — one-off red run recorded).
+- [ ] FR-13 AC rows all green (reap marker asserted; 240 s hold; TAP set identical; one-off red run recorded) — or deferred by a class-S row under the slip order.
+- [ ] FR-14 AC rows all green (`_path_without yq jq` excludes both; single-tool callers unchanged).
+- [ ] FR-15 implemented within the 60-line bound with its pinned observable, or deferred by a class-S row (DEC-1146).
+- [ ] Whole-head parity gate: stdout, stderr, rc and written files identical for every touched entry point except the enumerated changes (FR-3 line/JSON, FR-7 elision, FR-8/FR-10/FR-11 fixtures, the Profile line's cache suffix when off, FR-6 refused appends; bytes only — modes by the FR-1/FR-4/FR-6 tests), diffs attached.
+- [ ] Red/fix discipline, manifests, lint, full-suite TAP as before; `reviewer.md` before the review; review `All good` + audit `APPROVED` with `reviewed_head` = the head the PR merges (docs-only tails listed); `COMPLETED`; ledger 286 `completed`; `e2e.md` part 1 (G-1 … G-3 evidence, measurements with host/command/run count, the parity gate, the TAP, the meter).
+
+### Technical Tasks
+
+- [ ] Task 3.0: Sprint prep (lead) — worktrees reset onto the Sprint 2 head; briefs for A, B, C → **[G-3]** ⇐ none · kind: judgment
+- [ ] Task 3.1: Floor descendant clause and presence metadata (A, System Zone) — sdd § 5.7: `forbidden()` gains `or (($f | contains("*") | not) and ($k | startswith($f + ".")))` (the SDD 1.5 § 5.7 form — the older `split("*")` text quoted here until 1.4 would have widened glob entries, DEC S3-1); the descendant clause applies only to floor entries without `*` (glob entries keep `test(globre)` alone); `loa_knob`'s cache and memo reads print the value then the kind token on the LAST line, split with a newline guard (an empty present value stays empty; trailing newlines stripped as today — SDD 1.2 § 5.7); red: child/grandchild/cached-key dropped with the WARN, sibling-prefix kept, glob entry not widened, live floor identical (pre-flight: no live key newly forbidden); each former sentinel round-trips, an empty present value prints empty, and a trailing-newline value prints today's stripped bytes — identically on the three paths; classification matrix green; parity on the live config + matrix for the 19 call sites (fixtures' intended differences enumerated); budget 196 / 9 → **[G-1, G-2]** ⇐ Task 3.0 · kind: judgment
+- [ ] Task 3.2: Test guards (B, tests only; one commit exempt from the red/fix pair, with the one-off red runs recorded in the report) — sdd § 5.8: warm grimoire-index spawn target (cache asserted valid first; budget measured over three runs; a mutation of headroom + 1 spawns fails), CMP-55 reap marker, the test's own `CMP_STUB_HOLD_S=300` override removed (setup's 240 applies), `LOA_ADVERSARIAL_COMPANION_WAIT_SECONDS` 3 → 6 (serial TAP set identical); the warm fixture's `.run/perf-cache` 0700 uid-owned with the cache file asserted present before the second trace, `_path_without` array skip list + `yq jq` case → **[G-1, G-2]** ⇐ Task 3.0 · kind: mechanical
+- [ ] Task 3.3: Providers registry (C, System Zone, bounded) — sdd § 5.9: one lazily built `_registry()` used by `__getattr__`, `get_adapter` and `cli_adapter_types` (static auth table), name-in-`globals()` presence; ≤ 60 lines by `git diff --numstat <Sprint 3 kickoff head>..HEAD -- .claude/adapters/loa_cheval/providers/__init__.py` (added + deleted; tests excluded), every provider test green, `cheval --help` within the loop's band (hyperfine 10 runs vs the eso-loop report's baseline, ≤ 10 % regression of the mean), one pinned observable with a red test; else STOP and return a deferral note (lead writes the class-S row, bead stays open with the successor label) → **[G-1]** ⇐ Task 3.0 · kind: judgment
+- [ ] Task 3.4: Landing and the Sprint 3 report (lead) — A, B, C in that order (C last so a deferral costs nothing); CHANGELOG lines; provisional closes; class-S rows; the whole-head parity gate (`mirror-ls.py`-style REAL mirrors, old fe52be893 vs new head, every touched entry point: kf-surface, grimoire-index, loa-status, run-preflight, karpathy, zone-write-guard, the publisher's `--generate` on a fixture; bytes of stdout/stderr/rc/written files — modes are asserted by the FR-1/FR-4/FR-6 tests; exceptions = the enumerated ledger: C-3 line/JSON, C-6 row cap + C1 fixtures, the Profile line's cache suffix when off, C-5 refused appends, C-7 fixtures) and the dynamic creator gate; `reviewer.md` → **[G-1, G-2]** ⇐ Task 3.1, Task 3.2, Task 3.3 · kind: judgment
+- [ ] Task 3.6: fd-anchored trajectory append (lead, System Zone; Sprint 285 audit DISS-001 → bd-7ihly, DEC-1192) — `karpathy-surgical-diff-check.sh` opens the day file FIRST (`exec {fd}>>` under the hook's umask 077) and then verifies the OPENED descriptor: the path's lstat row (`stat` without -L) must be a regular file whose inode equals the descriptor's (`stat -L /dev/fd/N`), the descriptor's file uid-owned, one link, no group/other write; otherwise the fd is closed without a write (the warning still prints). Red: KT-18 (a stat shim reporting a different inode for /dev/fd → nothing written), KT-19 (a symlink at the path after a prior append → refused although open followed it), KT-14 spawn count updated; parity: appended bytes identical, day file 0600. Lands AFTER A/B/C (red/fix, manifests). SDD 1.9 § 5.5, PRD FR-6 amendment, CHANGELOG Security line. · kind: judgment
+- [x] Task 3.7: summary temp and state-directory trust (lead, System Zone; Sprint 286 audit round 1 DISS-C-001 / DISS-C-002 → bd-ooymp, DEC-1197 / DEC-1198) — `karpathy-surgical-diff-check.sh` creates `<summary>.tmp.<pid>` O_CREAT|O_EXCL under noclobber only when its directory is a real uid-owned non-symlink directory, the summary path is not a directory and the name is truly absent (lstat and stat); the bytes go through the held descriptor and the path is re-checked before `mv -f`; the state directory must be uid-owned (`-O`); every refusal skips the write silently. Builtins only (trace budget 210 → 230, external 9 → 9). Red 68570405c: KS-14 (planted symlink at the known pid's temp name → victim unchanged, summary never the link), KS-15 (dangling symlink → nothing created), KS-16 (regular file at the name → untouched), KS-17 (symlinked summary directory → refused); KS-18 pins the clean path. Fix c07b543b0; rtc VERIFIED; mutation run, strace before/after, second-uid container, hyperfine in `a2a/sprint-286/evidence/lead-*`. SDD 1.10 § 5.5, CHANGELOG Security line. · kind: judgment
+- [ ] Task 3.5: Review and audit on the PR head (lead) — `/review-sprint sprint-3` and `/audit-sprint sprint-3` with `reviewed_head` = the head the PR merges (the final sprint's verdicts bind to the PR head — DEC-1161); the review's AC walk covers FR-10 … FR-15 and re-checks the parity gate; `COMPLETED`; ledger 286 `completed` → **[G-3]** ⇐ Task 3.4 · kind: judgment
+- [ ] Task 3.E2E: End-to-End Goal Validation (lead) — `a2a/sprint-286/e2e.md` part 1 at `COMPLETED`: G-1 (fifteen beads: commit + test, or the deferral row + successor bead), G-2 (spawn budgets table, parity gate result with enumerated diffs), G-3 (the three sprints' verdicts with heads and dissent runs; the full-suite TAP per sprint head with the R-4 names), the meter checkpoint; part 2 appended by § Ship → **[G-1, G-2, G-3, G-4]** ⇐ Task 3.5 · kind: judgment
+
+### Task 3.E2E: End-to-End Goal Validation
+
+**Priority:** P0 (Must Complete)
+**Goal Contribution:** All goals (G-1, G-2, G-3, G-4)
+
+**Description:** Validate that every PRD goal is achieved through the complete implementation and record the evidence in `a2a/sprint-286/e2e.md`.
+
+**Validation Steps:**
+| Goal ID | Goal | Validation Action | Expected Result |
+|---------|------|-------------------|-----------------|
+| G-1 | fifteen beads closed or deferred-with-row | `br show` per bead; the red/fix sha pairs and `red-test-check.sh` verdicts | 15 closed-or-deferred; every red VERIFIED |
+| G-2 | no hot-path regression | `perf-spawn-budget.bats` on the PR head; the whole-head parity gate logs | budgets at their counts; parity identical except the enumerated diffs |
+| G-3 | gates per sprint; final sprint bound to the PR head | the three `COMPLETED` markers, `verdict-derive.sh` on six verdict files, the parity gate on the PR head | CONSISTENT ×6; the Sprint 3 verdicts name the PR head |
+| G-4 | merged on green, recorded, archived, nothing published | § Ship rows S-1 … S-5; `git ls-remote --tags origin` before/after | merge sha on main; identical trees; no new tag |
+
+**Acceptance Criteria:**
+- [ ] Each goal validated with documented evidence (shas, file paths, counts)
+- [ ] Integration points verified (hooks → profile-lib; loa-status → verify-chains; publisher → gh stub)
+- [ ] No goal marked "not achieved" without the halt-protocol record (DEC-1160)
+
+### Seams Under Test
+
+| Seam | Catches | Misses | Prior art |
+|------|---------|--------|-----------|
+| `loa_knob` output for values equal to the former sentinels, on the three read paths | a sentinel collision | — | `profile-lib.bats` classification matrix |
+| `forbidden()`'s WARN lines and the dropped-key list | a descendant served; a sibling wrongly dropped | — | `profile-floor.bats` |
+| the spawn-budget guard's own failure on a mutated hit branch | a hollow warm target | — | `perf-spawn-budget.bats` tracer tests |
+| CMP-55's reap marker file | a reaper never invoked | — | `adversarial-review-companion.bats` CMP-14/30/48 |
+| the whole-head mirror parity run on the PR head | any unenumerated change from any sprint | timing | `mirror-ls.py` |
+
+### Dependencies
+
+- Sprints 1 and 2 landed (shared files: `profile-lib.sh` with Task 1.4; the karpathy hook budget line).
+
+### Security Considerations
+
+- **Trust boundaries**: unchanged from Sprints 1–2; the providers refactor touches no trust surface (static tables only).
+- **External dependencies**: none new.
+- **Sensitive data**: none.
+
+### Risks & Mitigation
+
+| Risk | Probability | Impact | Mitigation |
+|------|-------------|--------|------------|
+| The whole-head parity gate finds an unenumerated diff | Low | Med | fix red-first within the sprint; re-run the gate; the review re-binds |
+| FR-15 exceeds its bound | Med | Low | deferral row + successor bead (DEC-1146) |
+| Time budget exceeded before Sprint 3's gates | Low | Low | halt protocol: PR ships Sprints 1–2 (DEC-1160) |
+
+### Success Metrics
+
+- 6 beads closed or ≤ 2 deferred-with-row; parity gate identical except the enumerated diffs; both gates on the PR head; `e2e.md` part 1 complete.
+
+> Sources: prd.md FR-10 … FR-16, G-1 … G-4, § Constraints; sdd.md § 5.7 … 5.9, § 7; DEC-1146, DEC-1160, DEC-1161
+
+---
+
+## Ship (post-Sprint 3; outside the gated sprints, as in cycles 135–137)
+
+Runs after Sprint 286 `COMPLETED` — or, after a HALT, from the last COMPLETED sprint's head per § Halt and failure paths (DEC-1172) — and only while no class-H row and no blocking finding is open. Baseline first: `git ls-remote --tags origin` and `gh release list --limit 20` captured before S-1 and re-captured after S-6 (identical; the prepared rc.10 candidate has neither a tag nor a release object). Rows are checked separately:
+
+- [ ] S-1 Pre-PR: secret scans on the final head (`audit-secret-redaction-scan.sh` over the changed tracked files; a token / private-key grep over the added lines); PR from `feature/cycle-138-hardening-followups` whose body lists the three sprints, beads, DEC rows, each gate's verdict with its `reviewed_head`, the parity gate and the statement that the prepared rc.10 candidate is NOT published; title classifies `cycle`.
+- [ ] S-2 Bridgebuilder: ≤ 2 rounds (`BRIDGEBUILDER_MODEL=codex-headless`; excludes `checksums.json`, REPO-MAP, prd/sdd/sprint, decisions.yaml, ledger.json, reports); PRD FR-16's degraded-exit procedure (retry once after ten minutes; a second degraded round proceeds only with no blocking finding, class-S row); a blocking finding is fixed red-first; then the touched test files, the full `tests/unit` TAP, the manifests, the whole-head parity gate and the secret scans re-run on the new head BEFORE both final verdicts re-bind verify-only to it, citing those results; the PR body's parity statement is updated (DEC-1173).
+- [ ] S-3 Merge gate (R-3): every check run on the exact head completed; the six required checks (`Template Protection`, `Validate Framework Files`, `Lint Markdown`, `Lint YAML`, `Shell Tests`, `Cross-Platform Compatibility`) `success` (latest run per name); every other completed run `success`/`skipped`/`neutral`; the Sprint 3 verdicts name the head; `merge-pr.sh`-style admin merge; `git diff --quiet <head> <merge>`.
+- [ ] S-4 Record: `record-branch.sh --cycle 138 --head <merge> --prev origin/record/cycle-137-performance-followups --stage "stage 1"` (the known NOTES prose hit class accepted); pushed via run-mode-ice; a2a for sprints 284–286 on it.
+- [ ] S-5 Main CI: `CI` and `BATS Tests` green on the merge commit.
+- [ ] S-6 Archive and close: `archive-cycle.sh --cycle 138` on a chore branch (no `--retention`: pruning deletes prior archives, a class-H action unattended; the script's default keeps all; 23 archives exist today); housekeeping merge (both Prepare jobs skipped, zero artifacts); `JACKED_OUT`; beads' provisional closes updated with the merged sha; ledger cycle archived; `e2e.md` part 2 (G-4 evidence; `git ls-remote --tags` unchanged; the unpublished rc.10 candidate named).
+- [ ] S-7 No publish: nothing in this section runs `--publish`; a publish is an operator decision.
+- [ ] S-8 Failures after the merge (red `CI` / `BATS Tests` on the merge commit, a failed record push, a failed archive): ONE red-first fix-forward via a chore PR under the same gates (class S); anything else HALTs with a class-H row, main untouched, no revert, no force-push; `JACKED_OUT` and the G-4 claim wait (DEC-1175).
+
+> Sources: prd.md FR-16; cycle-137 § Ship and `~/.cache/loa/cycle-137/ship/`; DEC-1145
+
+---
+
+## Halt and failure paths
+
+> Makes PRD § Constraints (DEC-1160, DEC-1161) and FR-16 concrete for the unattended run. Rows DEC-1172 … DEC-1175.
+
+- **Time budget (DEC-1172).** T = the run start (`.run/circuit-breaker.json` `timeout.started`). The three sprints' implement + gates have ≈ 17 h; ≈ 3 h are reserved for S-1 … S-6. The clock is checked at task boundaries inside a sprint (a landing or a gate step finishes; it is never interrupted) and at sprint boundaries for the halt decision. Mid-ship: before S-3 the PR stays open unmerged with a class-S row; after S-3 (merged) S-4 … S-6 finish (bounded, ≤ 1 h).
+- **Halt-path ship (DEC-1172).** On HALT the PR head is the last COMPLETED sprint's `reviewed_head` (ledger `completed` + the a2a `COMPLETED` marker), NOT the branch tip. A fresh branch `ship/cycle-138-partial` is created at that head (creating a branch is class S; the feature branch is never reset — a reset is class H), so the halted sprint's landings are excluded by construction. On that head: the whole-head parity gate over the entry points the completed sprints touched, the secret scans, `check-loa.sh` and the manifests check, the full-suite TAP; the last completed sprint's verdicts (already bound to that head by the per-sprint rule) are re-confirmed verify-only; `e2e.md` part 1 is written for the shipped goals and lists the deferred beads, each with a class-S row; the PR body states the halt and the deferred work. Then S-1 … S-8 as written.
+- **Verdict binding and tails (DEC-1161, DEC-1173).** Each sprint's review and audit bind to that sprint's head; the final sprint's to the head the PR merges. After a verdict, permitted tails are docs-only commits (a2a evidence, CHANGELOG text, NOTES, ledger) listed in the verdict files. Any CODE change after the final verdicts (a Bridgebuilder fix, a CI fix) lands red-first and re-runs the touched tests, the full TAP, the manifests, the whole-head parity gate and the secret scans on the new head before both verdicts re-bind verify-only to the new SHA, citing those results.
+- **Dissent-run accounting (DEC-1175).** Three runs per sprint. A run that returns an envelope (any voice count, including degraded) consumes one; a run that dies before producing an envelope does not. Once the three are consumed, further review rounds are lead-only (allowed); the audit uses run 3, or — if run 3 went to a review round — runs lead-only with a class-S gap row. HALT is mandatory only when a lead-only review finds a blocker that cannot be fixed inside the sprint's budget.
+- **Post-merge failures (DEC-1175).** A red `CI` / `BATS Tests` on the merge commit, a failed record push or a failed archive: ONE red-first fix-forward via a chore PR under the same gates (class S); anything else HALTs with a class-H row and main untouched — no revert, no force-push. `JACKED_OUT` and the G-4 claim wait until resolved.
+- **Patch landing (DEC-1174).** Patches are cut from the sprint's kickoff head and applied in landing order onto the landing head with `git apply --check`, then `git apply -3`, then one return round with the new head; the lead re-runs the dependent task's test command and parity on the landing head (Task 1.1 → Task 1.4; A then B then C then D in Sprint 1).
+- **Allowed failures (R-4).** Exactly three `tests/unit` cases may fail on a sprint head, by name: `semver evidence: breaking body retains the classifying commit identity`, `semver evidence: classification records its source and matching commit`, `semver evidence: unknown squash subject refuses silent patch` (KF-034 class; signatures recorded verbatim from the first full TAP of Sprint 1 in `a2a/sprint-284/reviewer.md`). A changed signature, an unexpected pass or any additional failure is investigated, not accepted. Permitted skips: the two host-conditional awk skips of DEC-1135 plus any NEW skip named in the sprint report with its host condition.
+- **Defined terms.** *Slip order* (DEC-1160): FR-15, then FR-13, then FR-9 are deferred by a class-S row, in that order, when the budget runs short. *The loop's band*: the eso-loop report's hyperfine baseline for `cheval --help` (`grimoires/loa/reports/perf/eso-loop-2026-10-27.md`), 10 runs, ≤ 10 % regression of the mean. *Pass-19 matrix*: the PL-22 classification matrix of config variants in `tests/unit/profile-lib.bats` (introduced by ESO pass 19). *Six required checks*: `Template Protection`, `Validate Framework Files`, `Lint Markdown`, `Lint YAML`, `Shell Tests`, `Cross-Platform Compatibility`. *Line anchors*: every line number in this plan is at fe52be893 (= 87e8bd568 for these files); implementers in Sprints 2–3 re-locate by pattern — zone-write-guard `mkdir -p -- "${cache_dir}"`; karpathy `CHECKPOINT=` (62), `mkdir -p "$STATE_DIR"` (162), `mkdir -p "$TRAJ_DIR"` (214); profile-lib `mkdir -p "$dir"` (186); publisher `--arg body` (1286, 1488, 1502); grimoire-index `awk "$SAN_AWK"` (101, 177, 191).
+- **Spawn-budget table** (`tests/unit/perf-spawn-budget.bats` `_check_budget` targets; trace lines / external-tool lines): `loa-kf-surface` 36/2 · `grimoire-index --tsv` 167/15 (cold) · `implement-gate` 127/5 · `notes-size-guard` 26/3 · `compat-lib source` 15/0 · `run-mode-stop-guard` 78/2 · `karpathy` 196/9 · NEW in Task 3.2: `grimoire-index --tsv warm` N/M (measured over three runs at implementation, pinned with the file's headroom rule).
+- **Recipes.** `~/.cache/loa/cycle-138/scripts/{land.sh, regen-manifests.sh, mirror-ls.py, run-start-138.sh, create-beads.sh}` and `~/.cache/loa/cycle-138/ship/merge-pr.sh` (copied from cycle-137; sha256 in `a2a/sprint-284/prep.md`). Fallback when a recipe is missing or its hash differs: recover from `origin/record/cycle-137-performance-followups` or the a2a copy and record a class-S row.
+
+> Sources: prd.md § Constraints (DEC-1160, DEC-1161), FR-16; decisions.yaml DEC-1172 … DEC-1175; `~/.cache/loa/cycle-137/ship/merge-pr.sh`; `tests/unit/perf-spawn-budget.bats`; `~/.cache/loa/cycle-137/logs/unit-*.tap`
+
+## Risk Register
+
+| Risk | Sprint | Probability | Impact | Mitigation |
+|---|---|---|---|---|
+| profile-lib predicate refuses a common downstream layout | 1 | Med | Med | live-read fallback; `loa_profile` reason; CHANGELOG fix line |
+| Publisher fixtures (multi-byte > 131 072 bytes) slow the suite | 1 | Low | Low | two cases; bodies generated in-test |
+| BWK awk unobtainable | 2 | Med | Low | form (b), DEC-1159 |
+| Dissent budget exhausted by rounds | any | Med | Low | lead-only round 3; audit keeps run 3; halt protocol |
+| Bridgebuilder degraded | ship | Low | Low | FR-16 procedure |
+| Time budget | 3 | Low | Low | halt protocol ships 1–2 |
+
+## Success Metrics Summary
+
+15 beads closed-or-deferred-with-row; budgets unchanged (196/9, 36/2, 167/15, 127/5, 26/3, 15/0, 78/2); whole-head parity identical except enumerated diffs; three `COMPLETED`; one PR merged on green; record + archive; zero new tags.
+
+## Dependencies Map
+
+Task 1.1 → Task 1.4 (umask before the predicate's fixtures); Task 2.2 → 2.3 → 2.4 (one awk program); Task 1.4 → Task 3.1 (same file); every landing task → its gate task; Sprint 3 gates → Ship.
+
+## PRD Feature Mapping
+
+| FR | Task |
+|---|---|
+| FR-1 | 1.4 | 
+| FR-2 | 1.3 |
+| FR-3 | 1.2 |
+| FR-4 | 1.1 |
+| FR-5, FR-6 | 2.1 |
+| FR-7 | 2.3 |
+| FR-8 | 2.2 |
+| FR-9 | 2.4 |
+| FR-10, FR-11 | 3.1 |
+| FR-12, FR-13, FR-14 | 3.2 |
+| FR-15 | 3.3 |
+| FR-16 | § Ship |
+
+## SDD Component Mapping
+
+C-1 → 1.4; C-2 → 1.3; C-3 → 1.2; C-4 → 1.1; C-5 → 2.1; C-6 → 2.2, 2.3, 2.4; C-7 → 3.1; C-8 → 3.2; C-9 → 3.3; C-10 → § Ship.
 
 ---
 
 ## Appendix
 
-### Goals (from prd.md § Goals & Success Metrics)
+### Appendix C — Goal Traceability
 
-| Goal | Criterion | Evidence |
+| Goal | Goal (PRD) | Contributing tasks |
 |---|---|---|
-| G-1 | Review `All good` and audit `APPROVED` on the loop | `a2a/sprint-281/{engineer-feedback,auditor-sprint-feedback}.md`, `COMPLETED` |
-| G-2 | Six beads closed (or one deferred by DEC row) | `br show` close reasons naming commit + test; `a2a/sprint-282/e2e.md` |
-| G-3 | Gains hold; guard green | `rebaseline.sh` table: no touched row above 110 % of its final-table mean; `perf-spawn-budget.bats` 6/6 (7/7 after Task 2.4) |
-| G-4 | Full suite green modulo the three named KF-034 tests | the TAP summary on the final heads under R-4 |
-| G-5 | PR, Bridgebuilder, merge, record, archive | § Ship S-1 … S-5, S-8 |
-| G-6 | `v2.0.0-rc.9` published | § Ship S-6, S-7 |
+| G-1 | every bead closed by a red-first fix or a bounded exit with a row | 1.1, 1.2, 1.3, 1.4, 1.5, 2.1, 2.2, 2.3, 2.4, 2.5, 3.1, 3.2, 3.3, 3.4, 3.E2E |
+| G-2 | no hot-path regression; parity except enumerated changes | 1.1, 1.2, 1.4, 1.5, 2.1, 2.2, 2.3, 2.5, 3.1, 3.2, 3.4, 3.E2E |
+| G-3 | gates per sprint; final sprint bound to the PR head; ≤ 3 dissent runs | 1.0, 1.6, 2.0, 2.6, 3.0, 3.5, 3.E2E |
+| G-4 | merged on green after ≤ 2 BB rounds; record; archive; nothing published | § Ship S-1 … S-7, 3.E2E |
 
-### Flatline sprint review dispositions
+No goal lacks a contributing task; the final sprint carries Task 3.E2E.
 
-Review: `flatline-orchestrator.sh --doc grimoires/loa/sprint.md --phase sprint --budget 300` on sprint plan 1.0 (commit b49e6310d): 7 blockers, 40 medium items (`~/.cache/loa/cycle-137/logs/flatline-sprint.out`).
+> Sources: prd.md § Goals & Success Metrics; this plan's task annotations
 
-| # | Finding (location) | Disposition in 1.1 |
-|---|---|---|
-| B1 | one validated result per path; fail-closed batch (Task 2.6) | Task 2.6 and the FR-7 AC row: JSON records by index, exactly one per path, missing/duplicate/malformed/process failure → FAILED in the wrapper and in `loa-status.sh` |
-| B2 | DEC-row classes; which halt (header) | Header § Decision-row classes: class S (self-confirmable under the operator's instruction) and class H (halt); Task 2.9 → § Ship refuses while a class-H row or blocking finding is open |
-| B3 | one terminal rule for blocking findings | Header § Terminal rule; § Ship S-2; waiver format for non-blocking findings |
-| B4 | release sha, peeled tag, remote identity, asset digests | § Ship S-6, S-7 |
-| B5, B6 | cache temp safety; cache trust boundary | Task 2.2 (uid-owned, non-group/world-writable real directories; `mktemp`; `-L` re-checks; row validation; fixtures); Security Considerations |
-| B7, M1 | approvals bound to SHAs; gates re-run after shipping changes | `reviewed_head` in Sprint 1 and 2 ACs and Tasks 1.1, 1.2, 2.8; § Ship S-2 (verify-only audit, parity harness, CI mirror and secret scan re-run on the new head); S-3 compares `reviewed_head` with the PR head |
-| M2 | KF-034 exact names | Sprint 1 G-4 AC and Sprint 2 full-suite AC cite PRD R-4 |
-| M3 | non-tautological trust-store check | Task 2.6: every path under an INVALID store FAILs with `[TRUST-STORE-INVALID]`; `loa-status.sh` invalid count equal old and new |
-| M4 | Sprint 2 engineer report | Deliverable `a2a/sprint-282/reviewer.md`, written in Task 2.7 before 2.8 |
-| M5 | check-run semantics | § Ship S-3 (conclusions; PR head vs merge commit; S-5 for main) |
-| M6, M35 | HALT checkpoint; ship safe points | Header § HALT checkpoint |
-| M7, M18 | Bridgebuilder completion rule; unreachable exit | Header bounded-loop exits (retry, model fallback, degraded only with no blocking finding; round 2 open blocking → HALT); § Ship S-2; external dependency added |
-| M8, M39 | bead rollback = red + fix; loop-pass revert consequences | Risks → Rollback; Sprint 1 AC (revert row excluded from G-3, harness re-run) |
-| M9 | release rollback | § Ship S-9 |
-| M10, M11 | cache trust boundary; source change mid-run | Task 2.2 (snapshot; fixtures) |
-| M12, M31 | same-second rewrite; ns mtime | Task 2.3 (`%.9Y`/`%.9Z` + ctime; same-second fixture; 1 s filesystems UNVERIFIED) |
-| M13, M14 | batch protocol; mutation fixture | Task 2.6 |
-| M15, M38 | measurement protocol; inconclusive handling | PRD § NFR Performance referenced in Tasks 2.3, 2.7 and Sprint 1 G-3 (serial, idle host); inconclusive → repeat with 30 runs, else "not met" recorded |
-| M16, M29 | ship outside the gated sprint; split AC rows | § Ship section S-1 … S-9; Sprint 2 AC trimmed to the gated work |
-| M17 | circuit-breaker exit | Header bounded-loop exits |
-| M19 | key captures the pipeline | Task 2.2: `v1:` prefix adjacent to the `s` filter with a bats coupling case (SDD D-5.1) |
-| M20 | implementer spend metering | Header § Spend (not metered; bounded by the time budget; meter checkpoints) |
-| M21, M32 | external artefacts verified; briefs preserved | Task 1.0 (sha256 in e2e), Task 2.0 (`prep.md`, `a2a/sprint-282/briefs/`) |
-| M22 | bead closure provisional until merge | Task 2.7; § Ship S-8 |
-| M23 | time budget and slip order | Header § Time budget |
-| M24 | gate set aligned across sprints | Sprint 1 AC adds the two lint checks |
-| M25 | mawk in the toolchain | Task 2.1 and dependencies: every awk present on the host, absent ones named |
-| M26 | `profiles.yaml` validators and profile-lib callers | Task 2.4; `prep.md` lists the sourcers and bats files |
-| M27 | 2.7 after Sprint 1 COMPLETED; worktrees from its head; re-brief rule | Dependencies; Task 2.0 |
-| M28 | CHANGELOG handling for Sprint 1 | Task 1.1 |
-| M30 | yq count on the success path; command measured | FR-3 AC row; Task 2.3 |
-| M33 | shared-file landing mechanics | Task 2.7 landing order; D's worktree reset onto B's fix |
-| M34 | live KF shape-C count | Sprint 2 AC: 0 today (grep recorded), criterion stands with the fallback wording |
-| M36 | structural anchor for the loa-status loop | Task 2.0 verifies anchors; Task 2.6 and D's allowlist name the function, not lines |
-| M37 | Task 2.5 single commit, exempt from red/fix | Task 2.5; Sprint 2 AC |
-| M40 | checks on the merge commit; CI mirror and secret scan after the last fix | § Ship S-2, S-5 |
-| Declined | — | none |
+### Appendix D — Decision rows and beads
 
-> Sources: `~/.cache/loa/cycle-137/logs/flatline-sprint.out`; prd.md 1.1 Appendix C; sdd.md 1.1 § 11.F
+Sprint-planning rows (class S, proposed): DEC-1162 (three sprints by exposure), DEC-1163 (Task 3.2 guard commit exempt from the red/fix pair; one-off red runs recorded), DEC-1164 (beads graph: three epics, 22 tasks and the ship bead — 23 task beads — with blocking edges, no parent edges). SDD 1.2 design rows carried into this revision: DEC-1165 (process substitution), DEC-1166 (trust lifetime, absent `.run`, repair owner), DEC-1167 (`not_applicable`, verify-chains contract), DEC-1168 (anchored trajectory guard), DEC-1169 (portable top-K), DEC-1170 (last-line kind token). Sprint review rows (1.2): DEC-1171 (FR-3 counts), DEC-1172 (halt-path ship, time budget), DEC-1173 (post-gate re-runs before re-binding), DEC-1174 (patch landing), DEC-1175 (dissent and post-merge accounting).
+
+Beads (`~/.cache/loa/cycle-138/beads-map.txt`, copy in `a2a/sprint-284/prep.md`): epics bd-fm8qc (284), bd-ei4dy (285), bd-685o9 (286); tasks 1.0 bd-ux7fq, 1.1 bd-ujmdr, 1.2 bd-84thp, 1.3 bd-uuwo5, 1.4 bd-1utps, 1.5 bd-g52ma, 1.6 bd-1dil1; 2.0 bd-jokyg, 2.1 bd-kk1ln, 2.2 bd-3df16, 2.3 bd-5u8n6, 2.4 bd-52c9d, 2.5 bd-v2x1e, 2.6 bd-zix6z; 3.0 bd-fb960, 3.1 bd-2kogs, 3.2 bd-gxt44, 3.3 bd-522gq, 3.4 bd-v4mlg, 3.5 bd-0uxoj, 3.E2E bd-v1vun, ship bd-9vp63. The fifteen follow-up beads (bd-j34zb bd-qyvju bd-hyah6 bd-20bh1 · bd-yos4s bd-kdzc3 bd-4sikh bd-z6gxn bd-aceil · bd-7utms bd-y5fy4 bd-5v1oa bd-rq6gk bd-3qed8 bd-0h7kq) are closed by their task's landing.
+
+> Sources: grimoires/loa/decisions.yaml DEC-1162 … DEC-1164; beads-map.txt
+
+### Appendix E — Flatline sprint review dispositions
+
+Run: `flatline-orchestrator.sh --doc grimoires/loa/sprint.md --phase sprint --json` on 1.1, 2026-10-29 (claude-headless + gpt-5.5; 7 blockers, 41 medium items; cross-scoring degraded — KF-041; 621 s; copy `a2a/flatline/cycle-138-sprint-review.json`). Every item read; dispositions:
+
+| Id | Theme | Disposition | Where |
+|---|---|---|---|
+| SKP-001 ×2, M1, M34 | FR-3 invariant contradiction (n/a inside valid vs `absent 5`) | ACCEPTED — JSON `valid` excludes n/a; displayed `V = valid + n/a`; healthy line 7/7 kept; AC `valid == 5` | Task 1.2, Sprint 1 AC, DEC-1171; SDD 1.3 § 5.3, PRD 1.3 FR-3 |
+| SKP-002 ×2, SKP-003, M10, M19 | halt protocol vs § Ship precondition; partial landings; PR head on halt | ACCEPTED — § Halt and failure paths: halt-path ship from the last COMPLETED head on a fresh branch | § Halt, § Ship, DEC-1172 |
+| SKP-009, M13, M31 | post-gate fixes re-bound without re-running gates | ACCEPTED — re-run tests/TAP/manifests/parity/scans before re-binding | S-2, § Halt, DEC-1173 |
+| SKP-004, M11, M38 | `realpath -m` absence: refuse vs fallback loop | ACCEPTED — fail-closed everywhere; day-file symlink via `[[ -L ]]` | Task 2.1, Sprint 2 risks |
+| M2 | KF field bounds / numeric overflow | ACCEPTED — 9-digit keys, oversized fixture | Task 2.3 |
+| M3 | BWK awk vs BSD cut evidence | ACCEPTED — two halves, cut half UNVERIFIED without a BSD host | Task 2.4 |
+| M4, M33 | patch model; intra-sprint edges | ACCEPTED — DEC-1174 | § Execution, § Halt |
+| M5 | tag/release baseline | ACCEPTED — captured before S-1 and after S-6 | § Ship |
+| M6, M24 | post-merge failure handling | ACCEPTED — one fix-forward PR, else HALT class H | S-8, DEC-1175 |
+| M7 | manual chmod wording; `.run` coverage | ACCEPTED — grimoire-index repair owner; `.run` modes asserted | Sprint 1 risks, seams, Task 1.1 |
+| M8 | Task 1.8 / 2.5 references | ACCEPTED — 1.6 / 2.6 | Sprint 1 and 2 deliverables |
+| M9 | FR-15 bound definition | ACCEPTED — `git diff --numstat` on `__init__.py`, tests excluded | Task 3.3 |
+| M12, M21 | parity exceptions incl. modes | ACCEPTED — bytes only; modes by tests; ledger enumerated | Task 1.5, 3.4, Sprint 3 AC |
+| M14 | trajectory creation sequence | ACCEPTED — ancestors, mkdir 077, stat, append; fresh-dir fixture | Task 2.1 |
+| M15, M30 | T+20 h start, scope, ship bound | ACCEPTED | § Halt |
+| M16 | dissent-run state machine | ACCEPTED — DEC-1175 | § Halt |
+| M17, M29 | FR-11 trailing newline expectation | ACCEPTED — stripped bytes stated | Task 3.1, Sprint 3 AC |
+| M18, M25 | R-4 failures, skips, undefined terms | ACCEPTED — named in § Halt | § Halt |
+| M20 | line anchors and patterns | ACCEPTED | § Halt |
+| M22 | wrong cross-sprint dependency text | ACCEPTED — karpathy hook shared by Tasks 1.1 and 2.1 | Sprint Overview, Sprint 2 deps |
+| M23 | recipe fallback source | ACCEPTED — record branch / a2a copy, class-S row | § Halt |
+| M26 | budgets table | ACCEPTED | § Halt |
+| M27 | 23 tasks / PRD 1.1 / one calendar day | ACCEPTED | Appendix D, Sprint 2 AC, Executive Summary |
+| M28 | Sprint 1 seams vs tasks | ACCEPTED — sprint parity run in Task 1.5 | Task 1.5, seams |
+| M32 | `--retention 50` class | ACCEPTED — run without retention | S-6 |
+| M35, M36 | dynamic creator gate; FR-4 scope | ACCEPTED | Task 1.1, 1.5, Sprint 1 AC |
+| M37 | `KF_SURFACE_MAX_ROWS` trust class | ACCEPTED — a constant, not an env knob | Task 2.3 |
+| M39 | anchored realpath gating | ACCEPTED — seam redirected AND marker absent | Task 1.4 |
+| M40 | FR-2 structural consistency | NOTED — all three sites already name `body`; the wider grep is a superset guard | Task 1.3 (unchanged) |
+| M41 | hard-coded 25 elided rows | ACCEPTED — computed at gate time | Sprint 2 AC, Task 2.3 |
+
+> Sources: `~/.cache/loa/cycle-138/logs/flatline-sprint.json`; grimoires/loa/known-failures.md KF-041
