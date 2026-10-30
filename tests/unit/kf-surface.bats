@@ -671,3 +671,13 @@ _kf_run() { env LOA_KF_SURFACE_TEST_MODE=1 LOA_KF_SURFACE_TEST_CONFIG="true" LOA
   [ "$(grep -c 'function san(s)' "$PROJECT_ROOT/.claude/scripts/grimoire-index.sh")" = "1" ]
   [ "$(grep -c 'function san(s)' "$PROJECT_ROOT/.claude/hooks/loa-kf-surface.sh")" = "1" ]
 }
+
+@test "FR-8 locale pin: every awk invocation in the hook is LC_ALL=C awk — the kf_count awk included (cycle-138 BB round 1 F-009)" {
+  # The san() pin above covers the SAN_AWK sites; this one covers every `awk ` on a non-comment line of the hook
+  # (a `#` anywhere before the word excludes comments and the comments inside the awk programs).
+  local total pinned
+  total="$(grep -cE '^[^#]*[^A-Za-z_]awk ' "$HOOK")"
+  pinned="$(grep -cE '^[^#]*LC_ALL=C awk ' "$HOOK")"
+  [ "$total" -ge 2 ] || { echo "only $total awk invocations found in the hook" >&2; false; }
+  [ "$total" -eq "$pinned" ] || { grep -nE '^[^#]*[^A-Za-z_]awk ' "$HOOK" | grep -v 'LC_ALL=C awk' >&2; false; }
+}

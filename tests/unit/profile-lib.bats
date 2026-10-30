@@ -939,3 +939,31 @@ _pl45_three() {  # <n> <yaml value> <expected stdout> — warm (one jq, no yq), 
     printf 'run_mode:\n  enabled: one\n---\nrun_mode:\n  enabled: two\n' > "$CFG"
     [ "$(_pl20_live run_mode.enabled FB)" = $'one\ntwo' ]
 }
+
+@test "PL-53 (cycle-138 BB round 1 R001) a set -e caller: a direct loa_knob call exits 0 and prints the fallback when .run, the cache file or the config is absent (the stat sampling's status is absorbed)" {
+    # bash does not inherit errexit into $(…) by default, so `v=$(loa_knob …)` callers never saw this; a direct call did:
+    # _loa_pl_id's `_LOA_PL_ST=x$'\n'$(stat …)` carried stat's non-zero status (a missing path) and errexit left the shell.
+    local body='source "$1"; loa_knob zz_absent.knob FB; echo END'
+    rm -rf "$T/run"
+    run bash -e -c "$body" _ "$LIB"
+    [ "$status" -eq 0 ]
+    [ "${lines[0]}" = FB ]
+    [ "${lines[1]}" = END ]
+    mkdir -p "$T/run"
+    chmod 700 "$T/run"
+    rm -f "$T/run/effective-config.json"
+    run bash -e -c "$body" _ "$LIB"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = END ]
+    mv "$CFG" "$CFG.bak"
+    run bash -e -c "$body" _ "$LIB"
+    mv "$CFG.bak" "$CFG"
+    [ "$status" -eq 0 ]
+    [ "${lines[0]}" = FB ]
+    [ "${lines[1]}" = END ]
+    # the warm path (cache present) was never affected
+    knob zz_absent.knob FB >/dev/null
+    run bash -e -c "$body" _ "$LIB"
+    [ "$status" -eq 0 ]
+    [ "${lines[1]}" = END ]
+}
