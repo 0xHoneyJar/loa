@@ -42604,3 +42604,85 @@ decisions:
     rejection_rationale: null
     follow_up: null
     prior_requests: []
+  - id: "DEC-1197"
+    created_at: "2026-10-30T02:01:12Z"
+    updated_at: "2026-10-30T02:01:12Z"
+    phase: "implementation"
+    category: "design"
+    summary: "cycle-138 S286 audit r1: summary temp created O_CREAT|O_EXCL (noclobber) behind a trusted dir + absent name, re-checked before mv; builtins only"
+    decision: "The karpathy summary temp file keeps its name `<summary>.tmp.<pid>` but is created O_CREAT|O_EXCL under noclobber only when its directory is a real uid-owned non-symlink directory, the summary path is not a directory and the name is truly absent (lstat and stat); the bytes go through the held descriptor and the path is re-checked (regular, non-symlink, uid-owned) before `mv -f`; any refusal skips the summary silently with exit 0. Builtins only — no spawn added to the Write/Edit hot path."
+    rationale: "The root cause is the open's flags (O_TRUNC without O_EXCL follows a planted symlink) and the directory's trust (`-d` admits a symlink), not the predictable name: an unpredictable name would only hide the window. noclobber_open opens O_CREAT|O_EXCL when its stat finds nothing, and open(2) refuses a symlink at the name under O_CREAT|O_EXCL regardless of its target; rename(2) replaces a symlink at newpath without following it."
+    alternatives_considered:
+      - option: "mktemp beside the summary"
+        rejected_because: "one external spawn on every Write/Edit, and the rename over a planted summary path and the directory trust still need the same builtin checks"
+      - option: "an unpredictable ($RANDOM) temp name with the old `>`"
+        rejected_because: "hides the window instead of closing it: the open still follows whatever is at the name"
+      - option: "fd verification with stat as in the Task 3.6 trajectory guard"
+        rejected_because: "one stat spawn on the hot path; the O_EXCL create already proves the hook created a regular file, and the path re-check covers the write→rename window"
+    consequences:
+      positive:
+        - "a planted symlink, dangling symlink, FIFO, device or regular file at the temp name is left alone and the summary skipped"
+        - "zero external-tool lines added (9 → 9)"
+        - "KS-14 … KS-18 pin it red-first"
+      negative:
+        - "+20 builtin trace lines on the warm path (210 → 230)"
+        - "residual: a symlink to a FIFO or device planted inside the lstat→open window is opened without O_EXCL (bash adds O_EXCL only when its own stat fails; no O_NOFOLLOW in pure bash)"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/2c0f271e-b880-4273-a2f9-139dfd3d9da3"
+    commit: "68570405"
+    source: "Sprint 286 audit round 1 (a2a/sprint-286/auditor-sprint-feedback-r1.md) DISS-C-001; bash(1) Redirecting Output; bash 5.2 redir.c noclobber_open; open(2) O_EXCL; rename(2)"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-30T02:01:12Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "KS-14 … KS-18 (karpathy-surgical-diff-hook.bats); a2a/sprint-286/evidence/lead-strace-*.txt; rtc-286-lead37.json"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
+  - id: "DEC-1198"
+    created_at: "2026-10-30T02:01:21Z"
+    updated_at: "2026-10-30T02:01:21Z"
+    phase: "implementation"
+    category: "design"
+    summary: "cycle-138 S286 audit r1: state dir must be uid-owned ([[ -O ]]); the same-dir >> race stays with bd-ooymp (fd pattern / mode stat later)"
+    decision: "The karpathy per-task state directory must be owned by the hook's uid (`[[ -O \"$STATE_DIR\" ]]`, one builtin stat after the existing -L test and mkdir); a foreign-owned directory, however writable, is refused before anything is read or appended. The same-directory check→`>>` race inside a writable uid-owned state directory is NOT fixed here and stays with bd-ooymp (the Task 3.6 fd-anchored pattern or a mode stat on the hot path)."
+    rationale: "The owner test closes the foreign-directory half of DISS-C-002 at the cost of one builtin and no spawn; the remaining race needs a stat spawn or the descriptor-anchored append and is a measured follow-up, not a round-2 fix."
+    alternatives_considered:
+      - option: "fd-anchored append for the task file now"
+        rejected_because: "adds stat spawns to every Write/Edit; the audit routed it to bd-ooymp with a hot-path measurement first"
+      - option: "no owner test"
+        rejected_because: "a foreign-owned writable directory lets another uid plant the task file the hook appends to"
+    consequences:
+      positive:
+        - "foreign-owned state directory refused (verified with a second uid in a container)"
+        - "no spawn added"
+      negative:
+        - "the same-uid writable-directory race remains documented in bd-ooymp"
+    proposed_by: "agent"
+    decided_by: null
+    decided_by_ref: null
+    evidence_sha256: null
+    recorded_by: "implementing-tasks/2c0f271e-b880-4273-a2f9-139dfd3d9da3"
+    commit: "68570405"
+    source: "Sprint 286 audit round 1 (a2a/sprint-286/auditor-sprint-feedback-r1.md) DISS-C-002"
+    cycle: "cycle-138-hardening-followups"
+    supersedes: null
+    supersede_proposed_by: null
+    status: "proposed"
+    transitions:
+      - at: "2026-10-30T02:01:21Z"
+        from: null
+        to: "proposed"
+        by: "agent:implementing-tasks"
+        evidence: "a2a/sprint-286/evidence/lead-second-uid-container.txt; hook comment at the -O test"
+    rejection_rationale: null
+    follow_up: null
+    prior_requests: []
