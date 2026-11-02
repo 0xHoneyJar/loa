@@ -254,15 +254,22 @@ init_state() {
     }' > "$STATE_FILE"
 }
 
-# Update a phase status and optional result
+# Update a phase status and optional result. The result reaches jq from a file, never argv: a semver
+# result holds every commit since the last tag, and one argument over Linux's MAX_ARG_STRLEN (128 KiB)
+# fails the exec with E2BIG (#1310). It must be exactly one JSON value, as --argjson required.
 update_phase() {
   local phase="$1" status="$2" result="${3:-null}"
-
+  local result_file rc=0
+  result_file=$(mktemp "${STATE_FILE}.result.XXXXXX") || return 1
+  printf '%s' "$result" > "$result_file"
   atomic_state_update \
     --arg phase "$phase" \
     --arg status "$status" \
-    --argjson result "$result" \
-    '.phases[$phase].status = $status | .phases[$phase].result = $result | .timestamps.last_activity = (now | strftime("%Y-%m-%dT%H:%M:%SZ"))'
+    --slurpfile result "$result_file" \
+    'if ($result | length) != 1 then error("update_phase: the result is not exactly one JSON value") else . end
+     | .phases[$phase].status = $status | .phases[$phase].result = $result[0] | .timestamps.last_activity = (now | strftime("%Y-%m-%dT%H:%M:%SZ"))' || rc=$?
+  rm -f "$result_file"
+  return "$rc"
 }
 
 # Increment a metric counter

@@ -511,15 +511,16 @@ main() {
     fi
   fi
 
-  # Output result
-  jq -n \
+  # Output result. The commit array reaches jq on stdin, never argv: it holds every commit since the last
+  # tag, and one argument over Linux's MAX_ARG_STRLEN (128 KiB) fails the exec with E2BIG (#1310).
+  printf '%s' "$commits_json" | jq -n \
     --arg current "$current" \
     --arg next "$next" \
     --arg bump "$bump" \
     --arg source "$version_source" \
-    --argjson commits "$commits_json" \
     --argjson transition "$transition_json" \
-    '{current: $current, next: $next, bump: $bump, commits: $commits,
+    'input as $commits
+     | {current: $current, next: $next, bump: $bump, commits: $commits,
       version_source: $source,
       prerelease_transition: $transition,
       classification: {

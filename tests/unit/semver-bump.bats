@@ -2,6 +2,8 @@
 # Unit tests for semver-bump.sh
 # Sprint 1 cycle-007: Conventional commit semver parser
 
+load '../helpers/argv-cap'
+
 setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
@@ -808,4 +810,24 @@ semver_json() {
     run "$TEST_SCRIPT" --from-tag
     [ "$status" -eq 0 ]
     semver_json | jq -e 'has("prerelease_transition") and .prerelease_transition == null and .next == "1.1.0"' >/dev/null
+}
+
+@test "#1310: a commit list past Linux's 131,072-byte argument cap still gives the version (stdin, never argv)" {
+    skip_if_deps_missing
+
+    make_commit "initial"
+    make_tag "1.0.0"
+    # 120 patch commits with 1,200-byte subjects: the commit array passes MAX_ARG_STRLEN
+    local pad i
+    pad=$(printf 'x%.0s' $(seq 1 1200))
+    for i in $(seq 1 120); do
+        git -C "$TEST_REPO" commit --allow-empty --quiet -m "fix: change $i $pad"
+    done
+    argv_capped_jq
+
+    run "$TEST_SCRIPT" --from-tag
+    [ "$status" -eq 0 ] || { echo "status=$status output=${output:0:300}"; return 1; }
+    [ "$(semver_json | jq -r '.next')" = "1.0.1" ]
+    [ "$(semver_json | jq '.commits | length')" -eq 120 ]
+    [ "$(semver_json | jq -c '.commits' | wc -c)" -gt 131072 ]
 }

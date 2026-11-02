@@ -2,6 +2,8 @@
 # Unit tests for post-merge-orchestrator.sh
 # Sprint 1 cycle-007: Pipeline orchestrator — args, state, phase matrix, dry-run
 
+load '../helpers/argv-cap'
+
 setup() {
     BATS_TEST_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
     PROJECT_ROOT="$(cd "$BATS_TEST_DIR/../.." && pwd)"
@@ -498,4 +500,30 @@ CLEOF
     rtfm_reason=$(jq -r '.phases.rtfm.result.reason // empty' "$TEST_REPO/.run/post-merge-state.json")
     [[ "$gt_reason" == *"--skip-gt"* ]]
     [[ "$rtfm_reason" == *"--skip-rtfm"* ]] || [[ "$rtfm_reason" == *"placeholder"* ]]
+}
+
+@test "#1310: a semver result past Linux's 131,072-byte argument cap is recorded, and the cycle pipeline completes" {
+    skip_if_deps_missing
+
+    echo "v" > "$TEST_REPO/v.txt"
+    git -C "$TEST_REPO" add v.txt
+    git -C "$TEST_REPO" commit -m "feat: feature" --quiet
+    git -C "$TEST_REPO" tag -a v2.5.0 -m "v2.5.0"
+    # 120 feature commits with 1,200-byte subjects: the semver result's commit array passes MAX_ARG_STRLEN
+    local pad i
+    pad=$(printf 'x%.0s' $(seq 1 1200))
+    for i in $(seq 1 120); do
+        git -C "$TEST_REPO" commit --allow-empty --quiet -m "feat: change $i $pad"
+    done
+    MERGE_SHA=$(git -C "$TEST_REPO" rev-parse HEAD)
+    argv_capped_jq
+
+    run "$TEST_SCRIPT" --pr 100 --type cycle --sha "$MERGE_SHA" --dry-run
+    [ "$status" -eq 0 ] || { echo "status=$status output=${output:0:400}"; return 1; }
+    local state="$TEST_REPO/.run/post-merge-state.json"
+    [ "$(jq -r '.phases.semver.status' "$state")" = "completed" ]
+    [ "$(jq -r '.phases.semver.result.next' "$state")" = "2.6.0" ]
+    [ "$(jq '.phases.semver.result.commits | length' "$state")" -eq 120 ]
+    [ "$(jq -c '.phases.semver.result.commits' "$state" | wc -c)" -gt 131072 ]
+    [ "$(jq '[.phases[] | select(.status == "pending")] | length' "$state")" -eq 0 ]
 }
